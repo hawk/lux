@@ -7,54 +7,22 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<h3>Version 1.0 - 2012-04-13
-</h3>
+<p>Version 1.0 - 2012-04-16</p>
 
-<ol>
-<li><a href="#../README">
-Introduction
-</a></li>
+<ul>
+<li><a href="#../README">Introduction</a></li>
+<li><a href="#main_concepts">Concepts</a></li>
+<li><a href="#script_syntax">Script syntax</a></li>
+<li><a href="#cmd_line_opts">Command line options</a></li>
+<li><a href="#config_params">Configuration parameters</a></li>
+<li><a href="#logs">Logs</a></li>
+<li><a href="#debug_cmds">Debugger for Lux scripts</a></li>
+<li><a href="#examples">Examples</a></li>
+<li><a href="#../INSTALL">Installation</a></li>
+<li><a href="#../AUTHORS">Authors</a></li>
+<li><a href="#references">References</a></li>
+</ul>
 
-<li><a href="#main_concepts">
-Concepts
-</a></li>
-
-<li><a href="#script_syntax">
-Script syntax
-</a></li>
-
-<li><a href="#cmd_line_opts">
-Command line options
-</a></li>
-
-<li><a href="#config_params">
-Configuration parameters
-</a></li>
-
-<li><a href="#logs">
-Logs
-</a></li>
-
-<li><a href="#debug_cmds">
-</a></li>
-
-<li><a href="#examples">
-Examples
-</a></li>
-
-<li><a href="#../INSTALL">
-Installation
-</a></li>
-
-<li><a href="#../AUTHORS">
-Authors
-</a></li>
-
-<li><a href="#references">
-References
-</a></li>
-
-</ol>
 <p><a name="../README"/></p>
 
 <h1>Introduction</h1>
@@ -78,13 +46,14 @@ expectations</li>
 <p>The tool is written in <a href="http://www.erlang.org/" title="Erlang programming language">Erlang/OTP</a> and requires its runtime
 environment.</p>
 
-<p>See the file <a href="lux.html">Lux</a> for the full documentation.</p>
+<p>See the file <strong>lux.html</strong> for the full documentation or view it online
+on <a href="https://github.com/hawk/lux/blob/master/doc/lux.md">GitHub</a>.</p>
 
 <h2>A sample script</h2>
 
 <p>Here is an example of script <code>(lux/examples/intro.lux)</code>
 which starts a couple of concurrent shells and sends text to them with
-the <strong><code>!</code></strong> command and matches expected output with <strong><code>?</code></strong>.</p>
+the <code>!</code> command and matches expected output with <code>?</code>.</p>
 
 <blockquote>
 <pre><code>[doc Test of single and multi line regular expressions]
@@ -811,6 +780,208 @@ checkin to the repository that introduced the first failure. See the
 <code>--history</code> <a href="#cmd_line_opts">command line option</a>. Its behavior can be
 customized by using the <code>--suite</code>, <code>--run</code> and <code>--revision</code>
 <a href="#config_params">configuration parameters</a>.<a name="debug_cmds"/></p>
+
+<h1>Debugger for Lux scripts</h1>
+
+<p>When <code>lux</code> is started with the <code>--debug</code> option, the debugger
+will attach to the script before its execution has started. An
+optional file with saved commands may be processed at this stage.
+The debugger can also be attached to the script in the middle of
+the execution by entering the command "attach" (or an abbreviation
+of the command) and pressing the enter key.</p>
+
+<p>Several parameters has a lineno as parameter see <code>help lineno</code>.</p>
+
+<p>Blank command lines implies that the previous command is repeated.
+If no command has been entered yet, the command <code>help</code> is assumed.</p>
+
+<p>Commands may be abbreviated. Use the help command (for example
+<code>help help</code> to get more detailed descriptions of the commands.</p>
+
+<h2>Available commands: </h2>
+
+<ul>
+<li>attach   - attach to script and pause its execution</li>
+<li>break    - set, delete and list breakpoints</li>
+<li>continue - continue script execution</li>
+<li>help     - display description of a command</li>
+<li>tail     - display log files</li>
+<li>list     - list script source</li>
+<li>load     - load file with debug commands</li>
+<li>next     - execute one or more commands. A multiline command counts as one command.</li>
+<li>progress - set verbosity level of progress</li>
+<li>quit     - exit lux </li>
+<li>save     - save debug state to file</li>
+<li>skip     - skip execution of one or more commands. A multiline command counts as one command.</li>
+</ul>
+
+<h2>lineno parameter</h2>
+
+<p>Several commands has a lineno as parameter. It is a string which
+is divided in several components. The components are separated with
+a colon and are used to refer to line numbers in include files and
+macros. Each component may either be a line number, an (abbreviated)
+file name or a combination of both separated with an at-sign (int@file).</p>
+
+<p>Assume that there is a file called main, which includes a file called
+outer at line 4 and the file outer includes a file called inner at line 12.
+Here are a few examples of how lineno can be used:</p>
+
+<ul>
+<li>3       - line 3 in file main</li>
+<li>main    - first line in file main</li>
+<li>3@m     - line 3 in file main</li>
+<li>inner   - any line in file inner</li>
+<li>outer:i - any line in file inner if it is directly included from outer</li>
+<li>12@o:i  - any line in file inner if it is directly included from outer on line 12</li>
+<li>4:12:6  - line 6 in file inner if it is included on line 12 in outer and outer
+        is included on line 4 in main.</li>
+</ul>
+
+<h2>attach</h2>
+
+<p>attach to script and pause its execution</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>no parameters</li>
+</ul>
+
+<h2>break [lineno] [duration]</h2>
+
+<p>set, delete and list breakpoints</p>
+
+<p>When a breakpoint is set it may either be normal (default)
+or temporary. The difference between them is that normal
+breakpoints remains after break while temporary breakpoints
+are automatically deleted when they have been used once.</p>
+
+<p>delete means that the breakpoint immediately is removed
+Without parameters, all breakpoints are listed.</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>lineno   - lineno in source file; lineno  </li>
+<li>duration - controls the duration of the breakpoint; enum(normal|temporary|delete)  </li>
+</ul>
+
+<h2>continue [lineno]</h2>
+
+<p>continue script execution</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>lineno - run to temporary breakpoint at lineno; lineno  </li>
+</ul>
+
+<h2>help [command]</h2>
+
+<p>display description of a command</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>command - debugger command; string  </li>
+</ul>
+
+<h2>tail [index] [format] [n_lines]</h2>
+
+<p>display log files</p>
+
+<p>With no argument, the names of the log files will be listed.
+Each one is preceeded by its index number and optionally a
+star. Star means that the log has been updated since the
+previous status check. Use the index to display a particular
+log. Such as "t 2" for the event log. Press enter to display
+more lines. n_lines can be used to override that behavior and
+only display a fixed number of lines regardless of the command
+is repeated or not.</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>index   - log number; 1 >= integer =&lt; infinity  </li>
+<li>format  - display format; enum(compact|verbose)  </li>
+<li>n_lines - fixed number of lines; 1 >= integer =&lt; infinity  </li>
+</ul>
+
+<h2>list [n_lines] [lineno]</h2>
+
+<p>list script source</p>
+
+<p>If no "lineno" is given, the listing will start from the
+current line or from the latest given "lineno" if no other
+commands have been given in between.</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>n_lines - number of lines; 1 >= integer =&lt; infinity  </li>
+<li>lineno  - start listing at lineno; lineno  </li>
+</ul>
+
+<h2>load [file]</h2>
+
+<p>load file with debug commands</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>file - file name. Default is "lux.debug".; string  </li>
+</ul>
+
+<h2>next [n_commands]</h2>
+
+<p>execute one or more commands. A multiline command counts as one command.</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>n_commands - number of commands; 1 >= integer =&lt; infinity  </li>
+</ul>
+
+<h2>progress [level]</h2>
+
+<p>set verbosity level of progress</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>level - verbosity level. Toggles between brief and verbose by default.; enum(silent|brief|doc|compact|verbose)  </li>
+</ul>
+
+<h2>quit</h2>
+
+<p>exit lux </p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>no parameters</li>
+</ul>
+
+<h2>save [file]</h2>
+
+<p>save debug state to file</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>file - file name. Default is "lux.debug".; string  </li>
+</ul>
+
+<h2>skip [n_commands]</h2>
+
+<p>skip execution of one or more commands. A multiline command counts as one command.</p>
+
+<p><strong>Parameters:</strong>  </p>
+
+<ul>
+<li>n_commands - number of commands; 1 >= integer =&lt; infinity  </li>
+</ul>
 
 <p><a name="examples"/></p>
 

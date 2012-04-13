@@ -9,7 +9,8 @@ include ../vsn.mk
 
 HTML=../lux.html
 HTML_TMP=$(HTML).tmp
-TMP_MD=tmp.md
+MD_TMP=lux.md
+GEN_TOC=toc
 GEN_DBG_CMDS=debug_cmds
 
 CHAPTERS= \
@@ -30,34 +31,42 @@ MARKDOWNS=$(patsubst %,%.md,$(CHAPTERS))
 all doc: $(HTML)
 
 clean:
-	rm -f $(HTML)$(HTML_TMP) $(TMP_MD) $(GEN_DBG_CMDS).md
+	rm -f $(HTML) $(HTML_TMP) $(MD_TMP) $(GEN_DBG_CMDS).md
 
 $(HTML): \
     html.header \
     $(MARKDOWNS) \
+    $(GEN_TOC).md \
     html.footer \
     ../include.mk \
     Makefile
-	-rm -f $(TMP_MD) $(HTML_TMP)
+	-rm -f $(MD_TMP) $(HTML_TMP)
 	cat html.header > $(HTML_TMP)
-	echo -n "<h3>Version $(LUX_VSN) - " >> $(HTML_TMP)
-	date "+%F" >> $(HTML_TMP)
-	echo "</h3>\n" >> $(HTML_TMP)
-	echo "<ol>">> $(HTML_TMP)
+	cat $(GEN_TOC).md >> $(MD_TMP)
 	@for f in $(CHAPTERS); do \
-		echo "<li><a href=\"#$$f\">" >> $(HTML_TMP); \
-		head -1 $$f.md >> $(HTML_TMP); \
-		echo "</a></li>" >> $(HTML_TMP); \
-		echo >> $(HTML_TMP); \
-		echo "<a name=\"$$f\"/>" >> $(TMP_MD); \
-		echo >> $(TMP_MD); \
-		cat $$f.md >> $(TMP_MD); \
+		echo "<a name=\"$$f\"/>" >> $(MD_TMP); \
+		echo >> $(MD_TMP); \
+		cat $$f.md >> $(MD_TMP); \
 	done
-	echo "</ol>">> $(HTML_TMP)
-	$(MARKDOWN) $(TMP_MD) >> $(HTML_TMP)
+	$(MARKDOWN) $(MD_TMP) >> $(HTML_TMP)
 	cat html.footer >> $(HTML_TMP)
 	mv $(HTML_TMP) $(HTML)
 	echo "\nRead the documentation in the browser:\n\n\tfile://$(PWD)/$(HTML)"
+
+$(GEN_TOC).md: Makefile
+	rm -f $(GEN_TOC).md
+	echo "Lux - LUcid eXpect scripting" > $(GEN_TOC).md
+	echo "============================" >> $(GEN_TOC).md
+	echo -n "Version $(LUX_VSN) - " >> $(GEN_TOC).md
+	date "+%F" >> $(GEN_TOC).md
+	echo >> $(GEN_TOC).md
+	@for f in $(CHAPTERS); do \
+		echo -n "* [" >> $(GEN_TOC).md; \
+		head -1 "$$f.md" | tr -d '\n' >> $(GEN_TOC).md; \
+		echo -n "]" >> $(GEN_TOC).md; \
+		echo "(#$$f)" >> $(GEN_TOC).md; \
+	done
+	echo >> $(GEN_TOC).md
 
 $(GEN_DBG_CMDS).md: ../ebin/lux_debug.beam Makefile
 	lux --markdown > $@
