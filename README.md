@@ -18,14 +18,15 @@ With Lux it is possible to
 The tool is written in [Erlang/OTP][] and requires its runtime
 environment.
 
-See the file [Lux](lux.html) for the full documentation.
+See the file **lux.html** for the full documentation or view it online
+on [GitHub](https://github.com/hawk/lux/blob/master/doc/lux.md).
 
 A sample script
 ---------------
 
 Here is an example of script `(lux/examples/intro.lux)`
 which starts a couple of concurrent shells and sends text to them with
-the **`!`** command and matches expected output with **`?`**.
+the `!` command and matches expected output with `?`.
 
 >     [doc Test of single and multi line regular expressions]
 > 
