@@ -1,0 +1,10 @@
+# This is a -*- lux -*- file.
+
+[doc2 Test outer]
+
+[include inner.luxinc]
+
+[cleanup]
+    [progress $LUX_START_REASON]
+    !echo outer
+    ?SH-PROMPT:

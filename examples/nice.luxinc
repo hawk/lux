@@ -1,0 +1,9 @@
+# This is a -*- lux -*- file.
+
+[doc4 Test nice]
+    !echo nice
+    ?^nice
+    ?SH-PROMPT:
+
+#[cleanup]
+#    [progress $LUX_START_REASON]

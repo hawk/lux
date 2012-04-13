@@ -1,0 +1,747 @@
+#!/usr/bin/env escript
+%% This is an -*- erlang -*- file.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Copyright (c) 2012 Hakan Mattsson
+%%
+%% See the file "LICENSE" for information on usage and redistribution
+%% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-module(lux_main).
+-mode(compile).
+
+-define(APPLICATION, lux).
+-define(FILES, "--").
+
+-spec(main([string()]) -> no_return()).
+main(OrigArgs) ->
+    OpModes = ["--help", "--markdown",
+               "--internal_debug", "--internal_trace",
+               "--make", "--install", "--reltool",
+               "--annotate", "--history"],
+    Args  = expand_flags(OrigArgs, OpModes),
+    Specs = specs(),
+    Opts  = getopts(Args, Specs),
+    %% io:format("Args: ~p\n", [Opts]),
+    case select_op(Opts, OpModes) of
+        {"--help", [_]}             -> help(Specs);
+        {"--markdown", [_]}         -> markdown();
+        {"--internal_debug", [_]}   -> internal_debug(OrigArgs);
+        {"--internal_trace", [_]}   -> internal_trace(Opts);
+        {"--make", [_]}             -> make();
+        {"--install", [InstallDir]} -> install(InstallDir, Opts);
+        {"--reltool", [_]}          -> reltool(Opts);
+        {"--annotate", [LogFile]}   -> annotate(LogFile);
+        {"--history", [LogDir]}     -> history(LogDir);
+        undefined                   -> run(Opts);
+        _                           -> usage(Specs)
+    end,
+    safe_halt(0).
+
+expand_flags(Args, OpModes) ->
+    case Args of
+        [First | _] ->
+            case lists:member(First, OpModes) of
+                true  -> Args; % Ignore additional flags for aux commands
+                false -> do_expand_flags(Args)
+            end;
+        [] ->
+            do_expand_flags(Args)
+    end.
+
+do_expand_flags(Args) ->
+   env_to_args("LUX_FLAGS") ++ env_to_args("LUX_SYSTEM_FLAGS") ++ Args.
+
+env_to_args(Var) ->
+    case os:getenv(Var) of
+        false -> [];
+        Flags -> string:tokens(Flags, " ")
+    end.
+
+select_op(Opts, [Key | Keys]) ->
+    case proplists:get_value(Key, Opts) of
+        [] ->
+            select_op(Opts, Keys);
+        Vals ->
+            {Key, Vals}
+    end;
+select_op(_Opts, []) ->
+    undefined.
+
+specs() ->
+    [
+     {"-h",                   ["--help"]},
+     {"-c",                   ["--progress=compact"]},
+     {"-v",                   ["--progress=verbose"]},
+     {"-d",                   ["--debug"]},
+     {"-D",                   ["--internal_debug"]},
+     {?FILES,                 "",          string,                 mandatory},
+     {"--help",               false,       boolean,                none},
+     {"--markdown",           false,       boolean,                none},
+     {"--internal_debug",     false,       boolean,                none},
+     {"--internal_trace",     false,       boolean,                none},
+     {"--make",               false,       boolean,                none},
+     {"--install",            "",          string,                 optional},
+     {"--reltool",            false,       boolean,                none},
+     {"--annotate",           false,       string,                 mandatory},
+     {"--history",            false,       string,                 mandatory},
+     {"--html",               enable,      fun html_arg/1,         mandatory},
+     {"--debug",              false,       boolean,                none},
+     {"--debug_file",         undefined,   string,                 mandatory},
+     {"--skip",               undefined,   string,                 mandatory},
+     {"--require",            undefined,   string,                 mandatory},
+     {"--log_dir",            undefined,   string,                 mandatory},
+     {"--config_dir",         undefined,   string,                 mandatory},
+     {"--config_name",        undefined,   string,                 mandatory},
+     {"--suite",              undefined,   string,                 mandatory},
+     {"--run",                undefined,   string,                 mandatory},
+     {"--revision",           undefined,   string,                 mandatory},
+     {"--mode",               execute,     fun mode_arg/1,         mandatory},
+     {"--progress",           brief,       fun progress_arg/1,     mandatory},
+     {"--multiplier",         1000,        {integer, 0, infinity}, mandatory},
+     {"--suite_timeout",      infinity,    {integer, 0, infinity}, mandatory},
+     {"--case_timeout",       5*60*1000,   {integer, 0, infinity}, mandatory},
+     {"--flush_timeout",      1000,        {integer, 0, infinity}, mandatory},
+     {"--poll_timeout",       100,         {integer, 0, infinity}, mandatory},
+     {"--timeout",            10*1000,     {integer, 0, infinity}, mandatory},
+     {"--cleanup_timeout",    100*1000,    {integer, 0, infinity}, mandatory},
+     {"--shell_wrapper",      "",          string,                 optional},
+     {"--shell_cmd",          "/bin/sh",   string,                 mandatory},
+     {"--shell_arg",          ["-i"],      string,                 mandatory},
+     {"--file_pattern", ".*\.lux" ++ [$$], string,                 mandatory},
+     {"--root_dir",           undefined,   string,                 mandatory},
+     {"--var",                undefined,   string,                 mandatory}
+    ].
+
+mode_arg(usage) ->
+    "enum(list|doc|validate|execute)";
+mode_arg(Mode) ->
+    case Mode of
+        "list"     -> list;
+        "doc"      -> doc;
+        "validate" -> validate;
+        "execute"  -> execute
+    end.
+
+html_arg(usage) ->
+    "enum(enable|success|skip|warning|fail|error|disabled)";
+html_arg(Mode) ->
+    case Mode of
+        "enable"  -> enable;
+        "success" -> success;
+        "skip"    -> skip;
+        "warning" -> warning;
+        "fail"    -> fail;
+        "error"   -> error;
+        "disable" -> disable
+    end.
+
+progress_arg(usage) ->
+    "enum(silent|brief|doc|compact|verbose)";
+progress_arg(Level) ->
+    case Level of
+        "silent"  -> silent;
+        "brief"   -> brief;
+        "doc"     -> doc;
+        "compact" -> compact;
+        "verbose" -> verbose
+    end.
+
+usage(Specs) ->
+    do_usage(Specs),
+    safe_halt(1).
+
+do_usage(Specs) ->
+    io:format("usage: ~s [OPTION]... [FILE]...\n", [script_base_name()]),
+    P = fun(Atom) -> [H | T] = atom_to_list(Atom), [string:to_upper(H) | T] end,
+    PrettyType = fun(Type) ->
+                         case Type of
+                             F when is_function(F, 1) -> F(usage);
+                             {T, _Min, _Max}          -> P(T);
+                             T                        -> P(T)
+                         end
+                 end,
+    Pretty = fun(Spec) ->
+                     case Spec of
+                         {Short, Opts} -> % alias
+                             Long = lists:flatten([[O, " "] || O <- Opts]),
+                             io:format("\t~s short for ~s\n", [Short, Long]);
+                         {Name, _Default, Type, mandatory} ->
+                             io:format("\t~s ~s\n", [Name, PrettyType(Type)]);
+                         {Name, _Default, Type, optional} ->
+                             io:format("\t~s [~s]\n", [Name, PrettyType(Type)]);
+                         {Name, _Default, _Type, none} ->
+                             io:format("\t~s\n", [Name])
+                     end
+             end,
+    [Pretty(S) || S <- Specs, element(1, S) =/= ?FILES],
+
+    _AppDir = ensure_app_dir(true),
+    AppDir = code:lib_dir(?APPLICATION),
+    require_app(?APPLICATION, "--help"),
+    Url = doc_url(AppDir),
+    io:format("\nRead the full documentation in the browser:\n\n\t~s\n", [Url]).
+
+help(Specs) ->
+    _AppDir = ensure_app_dir(true),
+    AppDir = code:lib_dir(?APPLICATION),
+    require_app(?APPLICATION, "--help"),
+    try
+	wx:new(),
+        Url = doc_url(AppDir),
+        io:format("\nOpening the documentation in the browser...\n\n~s\n", [Url]),
+        true = wx_misc:launchDefaultBrowser(Url),
+        timer:sleep(1000),
+        wx:destroy()
+    catch _:_ ->
+            do_usage(Specs)
+    end,
+    safe_halt(0).
+
+doc_url(AppDir) ->
+    UsersGuide = filename:join([AppDir, "lux.html"]),
+    "file://" ++ filename:absname(UsersGuide).
+
+markdown() ->
+    _AppDir = ensure_app_dir(true),
+    lux_debug:markdown(),
+    safe_halt(0).
+
+internal_debug(Args) ->
+    require_app(debugger, "--internal_debug"),
+    Escript = escript:script_name(),
+    {ok, [{shebang, Shebang0} | _Rest]} = escript:extract(Escript, []),
+    case Shebang0 of
+        default -> Shebang = "/usr/bin/env escript";
+        Shebang -> ok
+    end,
+    FlatArgs = lists:flatten([[" ", A] || A <- Args,
+                                          A =/= "-D",
+                                          A =/= "--internal_debug"]),
+    DebugCmd = Shebang ++ " -d " ++ Escript ++ FlatArgs,
+    io:format("~s\n", [DebugCmd]),
+    PortOpts = [binary, stream, use_stdio, stderr_to_stdout, eof],
+    Port = open_port({spawn, DebugCmd}, PortOpts),
+    spawn_link(fun() -> forward_stdin(Port, 1) end),
+    forward_stdout(Port).
+
+internal_trace(Args) ->
+    require_app(runtime_tools, "--internal_trace"),
+    dbg:start(),
+    dbg:tracer(),
+    dbg:p(new, [c, m, p]),
+    dbg:tpl({'_', '_', '_'}, [{'_', [], [{return_trace}]}]),
+    %%dbg:tpl({lux_shell, '_', '_'}, [{'_', [], [{return_trace}]}]),
+    run(Args).
+
+forward_stdin(Port, N) ->
+    case io:get_line("") of
+        eof when N =:= 1 ->
+            %% Closed already at startup
+            exit(normal);
+        eof ->
+            io:format("\nEOF: stdin closed\n", []),
+            exit(normal);
+        {error,terminated} ->
+            exit(normal);
+        Data ->
+            %% forward to port
+            true = port_command(Port, Data),
+            forward_stdin(Port, N+2)
+    end.
+
+forward_stdout(Port) ->
+    receive
+        {Port, {data, Data}} ->
+            io:format("~s", [Data]),
+            forward_stdout(Port);
+        {Port, eof} ->
+            port_close(Port),
+            safe_halt(0);
+        Unexpected ->
+            io:format("Got something unexpected from port: ~p\n",
+                      [Unexpected]),
+            forward_stdout(Port)
+    end.
+
+make()                        ->
+    io:format("Making ~p...\n", [?APPLICATION]),
+    require_app(tools, "--make"),
+    AppDir = ensure_app_dir(true),
+    SrcDir = filename:join([AppDir, "src"]),
+    EbinDir = filename:join([AppDir, "ebin"]),
+    {ok, SrcDir} = {file:set_cwd(SrcDir), SrcDir},
+    {up_to_date, EbinDir} = {make:all([debug_info,{outdir, EbinDir}]), EbinDir},
+    AppStr = atom_to_list(?APPLICATION),
+    SrcAppFile = filename:join([SrcDir, AppStr ++ ".app.src"]),
+    DestAppFile = filename:join([EbinDir, AppStr ++ ".app"]),
+    io:format("Copy: ~s\n", [filename:basename(DestAppFile)]),
+    {{ok, _}, SrcAppFile, DestAppFile} =
+        {file:copy(SrcAppFile, DestAppFile), SrcAppFile, DestAppFile},
+    safe_halt(0).
+
+install(InstallDir, Opts) ->
+    io:format("Installing ~p as standalone... ~s\n",
+              [?APPLICATION, InstallDir]),
+    {RootDir, ReltoolOpts} = reltool_opts("--install", Opts),
+    case reltool:get_target_spec(ReltoolOpts) of
+        {ok, Spec} ->
+            case InstallDir of
+                "" ->
+                    io:format("Spec: ~p.\n", [Spec]),
+                    safe_halt(0);
+                _ ->
+                    case reltool:eval_target_spec(Spec, RootDir, InstallDir) of
+                        ok ->
+                            ok;
+                        {error, ReasonStr} ->
+                            io:format("ERROR: ~s\n", [ReasonStr]),
+                            safe_halt(1)
+                    end
+            end;
+        {error, ReasonStr} ->
+            io:format("ERROR: ~s\n", [ReasonStr]),
+            safe_halt(1)
+    end.
+
+reltool(Opts) ->
+    io:format("Starting reltool...\n", []),
+    process_flag(trap_exit, true),
+    {_RootDir, ReltoolOpts} = reltool_opts("--reltool", Opts),
+    case reltool:start(ReltoolOpts) of
+        {ok, Pid} ->
+            link(Pid),
+            receive
+                {'EXIT', Pid, Reason} ->
+                    io:format("reltool exit: ~p\n", [Reason])
+            end;
+        {error, ReasonStr} ->
+            io:format("ERROR: ~s\n", [ReasonStr]),
+            safe_halt(1)
+    end.
+
+reltool_opts(MainOpt, Opts) ->
+    require_app(reltool, MainOpt),
+    RootDir = root_dir(Opts),
+    AppDir = ensure_app_dir(true),
+    ThisEscript = escript:script_name(),
+    %% Include some extra files beside the default files
+    ExtraFiles = ["^LICENSE", "^lux.html", "^examples.*", "^emacs.*"],
+    Apps = application:loaded_applications(),
+    NewOrOld =
+        case lists:keyfind(reltool, 1, Apps) of
+            {_Name, _Slogan, Version} when Version >= "0.6" ->
+                %% New reltool can handle lib_dir in app
+                {app, ?APPLICATION, [{lib_dir, AppDir}]};
+            _Version ->
+                %% Old reltool
+                {lib_dirs, [filename:dirname(AppDir)]}
+        end,
+    {RootDir,
+     [{sys,
+       [{root_dir, RootDir},
+        NewOrOld,
+        {debug_info, strip},
+        {escript, ThisEscript, [{incl_cond, include}]},
+        {app, crypto, [{incl_cond, exclude}]},
+        {app, erts, [{incl_cond, exclude}]},
+        {app, hipe, [{incl_cond, exclude}]},
+        {app, reltool, [{incl_cond, exclude}]},
+        %% {app, debugger, [{incl_cond, include}]},   % --internal_debugger
+        {app, runtime_tools, [{incl_cond, exclude}]}, % --internal_trace
+        {app, tools, [{incl_cond, exclude}]},
+        {profile, standalone},
+        {incl_app_filters, {add, ExtraFiles}},
+        {excl_archive_filters, {add, ExtraFiles}},
+        {excl_sys_filters,
+         {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
+                "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++
+                    [$$]]}}]}]}.
+
+root_dir(Opts) ->
+    case lists:keyfind("--root_dir", 1, Opts) of
+        false          -> code:root_dir();
+        {_, []}        -> code:root_dir();
+        {_, [RootDir]} -> RootDir
+    end.
+
+annotate(LogFile0) ->
+    LogFile = filename:absname(LogFile0),
+    io:format("Annotating logs ~s...", [LogFile]),
+    ensure_app_dir(true),
+    Res = lux:annotate_log(LogFile),
+    case Res of
+        ok ->
+            io:format("...ok\n", []),
+            io:format("\nfile://~s\n", [LogFile ++ ".html"]);
+        {error, File, ReasonStr} ->
+            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr])
+    end,
+    Res.
+
+history(LogDir0) ->
+    LogDir = filename:absname(LogDir0),
+    io:format("Assembling history of logs in ~s...", [LogDir]),
+    ensure_app_dir(true),
+    HtmlFile = filename:join([LogDir, "lux_history.html"]),
+    Res = lux:history(LogDir, HtmlFile),
+    case Res of
+        ok ->
+            io:format("...ok\n", []),
+            io:format("\nfile://~s\n", [HtmlFile]);
+        {error, File, ReasonStr} ->
+            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr])
+    end,
+    Res.
+
+run([
+     {?FILES,                 Files},
+     {"--help",               _Help},
+     {"--markdown",           _Markdown},
+     {"--internal_debug",     _InternalDebug},
+     {"--internal_trace",     _InternalTrace},
+     {"--make",               _Make},
+     {"--install",            _InstallDir},
+     {"--reltool",            _Reltool},
+     {"--annotate",           _LogFile},
+     {"--history",            _LogDir},
+     {"--html",               Html},
+     {"--debug",              Debug},
+     {"--debug_file",         DebugFile},
+     {"--skip",               Skip},
+     {"--require",            Require},
+     {"--log_dir",            LogDir},
+     {"--config_dir",         ConfigDir},
+     {"--config_name",        ConfigName},
+     {"--suite",              Suite},
+     {"--run",                Run},
+     {"--revision",           Revision},
+     {"--mode",               Mode},
+     {"--progress",           Progress},
+     {"--multiplier",         Multiplier},
+     {"--suite_timeout",      SuiteTimeout},
+     {"--case_timeout",       CaseTimeout},
+     {"--flush_timeout",      FlushTimeout},
+     {"--poll_timeout",       PollTimeout},
+     {"--timeout",            ExpectTimeout},
+     {"--cleanup_timeout",    CleanupTimeout},
+     {"--shell_wrapper",      ShellWrapper},
+     {"--shell_cmd",          ShellCmd},
+     {"--shell_arg",          ShellArgs},
+     {"--file_pattern",       FilePattern},
+     {"--root_dir",           _RootDir},
+     {"--var",                Var}
+    ]) ->
+    ensure_app_dir(true),
+    Opts =
+        [
+         {debug,              Debug},
+         {debug_file,         DebugFile},
+         {progress,           Progress},
+         {html,               Html},
+         {case_timeout,       CaseTimeout},
+         {flush_timeout,      FlushTimeout},
+         {poll_timeout,       PollTimeout},
+         {timeout,            ExpectTimeout},
+         {cleanup_timeout,    CleanupTimeout},
+         {shell_wrapper,      ShellWrapper},
+         {shell_cmd,          ShellCmd},
+         {shell_args,         ShellArgs},
+         {multiplier,         Multiplier},
+         {suite_timeout,      SuiteTimeout},
+         {log_dir,            LogDir},
+         {skip,               Skip},
+         {require,            Require},
+         {var,                Var},
+         {mode,               Mode},
+         {config_dir,         ConfigDir},
+         {config_name,        ConfigName},
+         {suite,              Suite},
+         {run,                Run},
+         {revision,           Revision},
+         {file_pattern,       FilePattern}
+        ],
+    Opts2 = lists:zf(fun filter_arg/1, Opts),
+    Res = lux:run(Files, Opts2),
+    case Res of
+        {ok, Summary, _SummaryLog, _Results} ->
+            ok;
+        {error, File, ReasonStr} ->
+            io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonStr]),
+            Summary = error
+    end,
+    run_halt(Summary).
+
+run_halt(Summary) ->
+    case Summary of
+        success -> safe_halt(0);
+        skip    -> safe_halt(0);
+        fail    -> safe_halt(1);
+        error   -> safe_halt(1)
+    end.
+
+filter_arg(KeyVal) ->
+    case KeyVal of
+        {_, []}         -> false;
+        {var, _Vals}    -> true;
+        {skip, _}       -> true;
+        {shell_args, _} -> true;
+        {Key, Vals}     -> {true, {Key, lists:last(Vals)}}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Generic option handling
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-type opt()      :: string() .
+-type name()     :: string().
+-type default()  :: term().
+-type type()     :: string | binary |
+                    atom | existing_atom |
+                    integer | {integer, min(), max()} |
+                    float | {float, min(), max()} |
+                    boolean | validate().
+-type min()      :: integer().
+-type max()      :: integer() | infinity.
+-type validate() :: fun((opt() | default()) -> val()).
+-type presence() :: none | optional | mandatory.
+-type spec()     :: {name(), [opt()]} | % alias
+                    {name(), default(), type(), presence()}.
+-type val()      :: term().
+-spec getopts([opt()], [spec()]) -> [[val()]].
+
+%% Parse options and validate their values.
+%% All options in the specs are returned and they keep that order.
+getopts(Args, Specs) ->
+    try
+        Opts = do_getopts(Args, Specs, []),
+        expand_opts(Opts, Specs)
+    catch
+        throw:{badarg, Bad} ->
+            io:format("~s: ~p is an illegal argument.\n\n",
+                      [script_base_name(), Bad]),
+            usage(Specs);
+        throw:{badarg, Bad, Type} ->
+            io:format("~s: ~p is an illegal argument. ~p expected.\n\n",
+                      [script_base_name(), Bad, Type]),
+            usage(Specs);
+        throw:{badarg, Name, Bad, Type} ->
+            io:format("~s: ~p is an illegal value of argument ~s."
+                      " ~p expected.\n\n",
+                      [script_base_name(), Bad, Name, Type]),
+            usage(Specs)
+    end.
+
+do_getopts([], _Specs, Acc) ->
+    lists:reverse(Acc);
+do_getopts(Args, Specs, Acc) ->
+    {MoreArgs, Name, Val, Type, Presence} = getopt(Args, Specs),
+    Val2 = validate(Name, Val, Type, Presence),
+    do_getopts(MoreArgs, Specs, [{Name, Val2} | Acc]).
+
+getopt([?FILES | Args], _Specs) ->
+    {[], ?FILES, Args, string, optional};
+getopt([Arg | Args], Specs) when hd(Arg) =:= $- ->
+    {Val, Spec} = find_spec(Arg, Specs),
+    case Spec of
+        {_Short, Long} ->
+            getopt(Long ++ Args, Specs);
+        {Name, Default, Type, Presence} ->
+            case {Presence, Val, Args} of
+                {none, undefined, _} when Type =:= boolean ->
+                    %% boolean - no value, return opposite of default
+                    {Args, Name, not Default, Type, Presence};
+                {none, "true", _} when Type =:= boolean ->
+                    %% boolean - got name=true
+                    {Args, Name, true, Type, Presence};
+                {none, "false", _} when Type =:= boolean ->
+                    %% boolean - got name=false
+                    {Args, Name, false, Type, Presence};
+                {none, _, _} ->
+                    %% boolean - got -name=val
+                    badarg(Arg, Type);
+                {mandatory, undefined, []} ->
+                    %% val required - no more options
+                    badarg(Arg, Type);
+                {mandatory, undefined, ["-" ++ _NextArg | _NextArgs]} ->
+                    %% val required - next option is not a val
+                    badarg(Arg, Type);
+                {mandatory, undefined, [NextVal | NextArgs]} ->
+                    %% val required - return separate val
+                    {NextArgs, Name, NextVal, Type, Presence};
+                {mandatory, _, _} ->
+                    %% val required - got name=val
+                    {Args, Name, Val, Type, Presence};
+                {optional, undefined, []} ->
+                    %% optional val - return default val
+                    {Args, Name, Default, Type, Presence};
+                {optional, undefined, ["-" ++ _NextArg | _NextArgs]} ->
+                    %% optional val - return default val
+                    {Args, Name, Default, Type, Presence};
+                {optional, undefined, [NextVal | NextArgs]} ->
+                    %% optional val - got name=val
+                    {NextArgs, Name, NextVal, Type, Presence};
+                {optional, _, _} ->
+                    %% optional val - return default val
+                    {Args, Name, Val, Type, Presence}
+            end
+    end;
+getopt(Args, _Specs) ->
+    {[], ?FILES, Args, string, optional}.
+
+expand_opts(Opts, Specs) ->
+    Fun = fun({_Short, _Long}, Acc) -> % alias
+                  Acc;
+             ({Name, _Default, _Type, _Presence}, Acc) ->
+                  Vals = proplists:get_all_values(Name, Opts),
+                  Vals2 =
+                      if
+                          Name =:= ?FILES ->
+                              lists:append(Vals);
+                          true ->
+                              Vals
+                      end,
+                     [{Name, Vals2} | Acc]
+          end,
+    lists:reverse(lists:foldl(Fun, [], Specs)).
+
+validate(Name, Val, Type, Presence) ->
+    try
+        case Type of
+            string when is_list(Val) ->
+                Val;
+            binary ->
+                list_to_binary(Val);
+            atom ->
+                list_to_atom(Val);
+            existing_atom ->
+                list_to_existing_atom(Val);
+            integer ->
+                list_to_integer(Val);
+            {integer, _Min, infinity} when Val =:= "infinity" ->
+                infinity;
+            {integer, Min, infinity} when Val >= Min ->
+                list_to_integer(Val);
+            {integer, Min, Max} when Val >= Min, Val =< Max ->
+                list_to_integer(Val);
+            float ->
+                list_to_float(Val);
+            {float, _Min, infinity} when Val =:= "infinity" ->
+                infinity;
+            {float, Min, infinity} when Val >= Min ->
+                list_to_float(Val);
+            {float, Min, Max} when Val >= Min, Val =< Max ->
+                list_to_float(Val);
+            boolean when Val =:= true; Val =:= "true" ->
+                true;
+            boolean when Val =:= false; Val =:= "false" ->
+                false;
+            Fun when is_function(Fun, 1) ->
+                Fun(Val);
+            _ when Val =:= undefined, Presence =/= mandatory ->
+                Val
+        end
+    catch
+        _:_ ->
+            badarg(Name, Val, Type)
+    end.
+
+find_spec(Opt, Specs) ->
+    {Name, Val} =
+        case lists:prefix("--", Opt) of
+            true ->
+                %% --name=val
+                Eq = $=,
+                case lists:splitwith(fun(Char) -> Char =/= Eq end, Opt) of
+                    {N, [Eq | V]} -> {N, V};
+                    {N, []}       -> {N, undefined}
+                end;
+            false ->
+                {Opt, undefined}
+        end,
+    %% io:format("Option ~p: ~p -> ~p\n~p\n", [Opt, Name, Val, Specs]),
+    case lists:keysearch(Name, 1, Specs) of
+        {value, Spec} ->
+            {Val, Spec};
+        false ->
+            badarg(Opt)
+
+    end.
+
+badarg(Opt) ->
+    do_throw({badarg, Opt}).
+
+badarg(Val, Type) ->
+    do_throw({badarg, Val, Type}).
+
+badarg(Name, Val, Type) ->
+    do_throw({badarg, Name, Val, Type}).
+
+do_throw(Reason) ->
+    throw(Reason).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Generic application handling
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+fatal_error(RetCode, Format, Args) ->
+    ThisEscript = escript:script_name(),
+    io:format("~s: " ++ Format, [ThisEscript  | Args]),
+    safe_halt(RetCode).
+
+safe_halt(RetCode) ->
+    init:stop(RetCode),
+    timer:sleep(infinity).
+
+require_app(App, MainOpt) ->
+    case code:lib_dir(App) of
+        {error, _Reason} ->
+            fatal_error(4,
+                        "The application '~p' is required for the option ~p.\n",
+                        [App, MainOpt]);
+        _ ->
+            application:load(App)
+    end.
+
+ensure_app_dir(Retry) ->
+    App = ?APPLICATION,
+    case code:lib_dir(App, ebin) of
+        {error, _Reason} when Retry =:= true ->
+            %% Add application ebin to the code path and see if it works
+            ThisEscript = resolve_path(escript:script_name()),
+            AppDir = filename:dirname(filename:dirname(ThisEscript)),
+            EbinDir = filename:join([AppDir, "ebin"]),
+            %% io:format("~s: Add directory ~p to code path\n",
+            %%           [Name, EbinDir]),
+            code:add_patha(EbinDir),
+            ensure_app_dir(false);
+        {error, Reason} ->
+            fatal_error(2, "The application '~p' is required to run: ~p\n",
+                        [App, Reason]);
+        EbinDir ->
+            filename:dirname(EbinDir)
+    end.
+
+script_base_name() ->
+    filename:basename(escript:script_name()).
+
+resolve_path(Path) ->
+    do_resolve_path(filename:split(Path), []).
+
+do_resolve_path([H | T], ResolvedPath) ->
+    ResolvedPath2 = case ResolvedPath of
+                        [] -> filename:absname(H);
+                        _  -> filename:join([ResolvedPath, H])
+                    end,
+    case file:read_link(ResolvedPath2) of
+        {error, _} -> % Normal file
+            do_resolve_path(T, ResolvedPath2);
+        {ok, Link} -> % Symbolic Link
+            ResolvedPath3 =
+                filename:absname(filename:join([ResolvedPath, Link])),
+            resolve_path(filename:join([ResolvedPath3] ++ T))
+    end;
+do_resolve_path([], ResolvedPath) ->
+    ResolvedPath.
+

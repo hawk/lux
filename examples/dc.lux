@@ -1,0 +1,23 @@
+[doc dc - reverse-polish desk calculator]
+
+[shell dc]
+    """!
+    dc
+    2
+    3
+    p
+    +
+    p
+    q
+    """
+
+    """?
+    3
+    5
+    """
+
+    !echo ==$$?==
+    ?==0==
+
+    !exit
+    [endshell]

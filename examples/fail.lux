@@ -1,0 +1,38 @@
+[doc Demonstrate a failure]
+
+[doc2 show examples of config settings]
+
+[config timeout=2000]
+[config skip=FOO_BAR]
+[config require=HOME]
+[config var=FUM=xxx]
+
+[shell vars]
+    !echo $HOME yyy \$HOME zzz $$HOME
+    !echo ==\$==
+    ?==0==
+
+[doc2 provoke a failure to get something interesting in the logs]
+
+[shell dc]
+
+    """!
+    dc
+    2
+    3
+    p
+    +
+    p
+    """
+
+    """?
+    3
+    5
+    """
+
+    !1
+    !+
+    !p
+
+    [progress expect failure]
+    ?7

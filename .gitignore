@@ -1,0 +1,24 @@
+# Emacs
+*~
+\#*\#
+
+# Autotools
+/autom4te.cache
+/configure
+/config.log
+/config.status
+/include.mk
+
+# Erlang
+erl_crash.dump
+ebin/*.beam
+ebin/*.app
+
+# C
+core*
+/priv/bin/runpty
+
+# Doc
+/lux.html.tmp
+/doc/tmp.md
+/doc/debug_cmds.md

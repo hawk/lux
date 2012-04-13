@@ -1,0 +1,57 @@
+[doc Test of macros]
+
+# Define a few macros
+"""[macro xxx arg1 arg2 arg3]
+!echo arg1=xxx$arg1xxx
+!echo arg2=xxx$arg2xxx
+!echo arg3=xxx$arg3xxx
+!echo hohoho
+?(ho){3}
+"""
+
+[macro yyy arg1 arg2 arg3]
+    !echo arg1=yyy$arg1yyy
+    !echo arg2=yyy$arg2yyy
+    !echo arg3=yyy$arg3yyy
+    !echo hahaha
+    """?
+    (ha){3}
+    """
+[endmacro]
+
+[macro inner aa bb cc ee]
+    [my dd=d3]
+    !echo inner aa=$aa bb=$bb cc=$cc dd=$dd ee=$ee
+    !echo ==$$?==
+    ?==0==
+
+    !echo inner aa=$aa bb=$bb cc=$cc dd=$dd ee=$ee
+    !echo ==$$?==
+    ?==0==
+    [shell other_shell]
+[endmacro]
+
+[macro outer aa bb cc dd]
+    [my ee=e2]
+    !echo before aa=$aa bb=$bb cc=$cc dd=$dd ee=$ee
+    !echo ==$$?==
+    ?==0==
+
+    [invoke inner a2 $bb c2 e2]
+
+    !echo after aa=$aa bb=$bb cc=$cc dd=$dd ee=$ee
+    !echo ==$$?==
+    ?==0==
+[endmacro]
+
+[shell macro_test]
+       [timeout 1]
+
+       [invoke outer a1 b1 c1 d1]
+
+#       [local arg2=fff]
+#       [local zzz=ggg]
+#       [invoke xxx abc def ww${arg3}ww]
+#       [invoke yyy abc def ww${arg3}ww]
+
+[cleanup]

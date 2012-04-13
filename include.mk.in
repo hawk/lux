@@ -1,0 +1,37 @@
+# This is a -*-makefile-*-
+
+ifeq ($(DESTDIR),)
+  DESTDIR=@prefix@
+endif
+
+ifeq ($(ETCDIR),)
+  ETCDIR=@sysconfdir@
+endif
+
+# Erlang
+ERL="@ERL@"
+ERLC="@ERLC@"
+EMULATOR=beam
+ERLC_FLAGS += +warnings_as_errors +warn_unused_vars +debug_info
+
+# C
+CC=@CC@
+CFLAGS=@CFLAGS@
+LDFLAGS=@LDFLAGS@
+C_SRC_TARGET=@C_SRC_TARGET@
+
+# Doc
+MARKDOWN=@MARKDOWN@
+
+# Targets
+../ebin/%.app: %.app.src ../vsn.mk Makefile
+	sed -e "s/%VSN%/$(VSN)/g" < $< > $@
+
+../ebin/%.appup: %.appup.src ../vsn.mk Makefile
+	sed -e "s/%VSN%/$(VSN)/g" < $< > $@
+
+../ebin/%.$(EMULATOR): %.erl
+	$(ERLC) $(ERLC_FLAGS) -o ../ebin $<
+
+%.$(EMULATOR): %.erl
+	$(ERLC) $(ERLC_FLAGS) $<

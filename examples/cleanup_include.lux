@@ -1,0 +1,11 @@
+[doc Test cleanup mechanism of include files]
+
+[shell main]
+    [include outer.luxinc]
+    !sleep 21
+    ?SH-PROMPT:
+
+[cleanup]
+    [progress $LUX_START_REASON]
+    !echo main
+    ?SH-PROMPT:

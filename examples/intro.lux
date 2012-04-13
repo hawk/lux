@@ -1,0 +1,35 @@
+[doc Test of single and multi line regular expressions]
+
+# A global variable is accessible in all shells
+[global file=removeme.txt]
+
+[shell single]
+    # The terminal echoes all input
+    !echo foo
+    ?foo
+
+[shell multi]
+    # bar is indented 4 characters
+    !echo "foo"      > $file
+    !echo "    bar" >> $file
+    !echo "fum"     >> $file
+    !cat $file
+
+    # The first double quote char defines the
+    # first column of the multi line regexp
+    """?
+    foo
+        bar
+    fum
+    """
+
+# Let single be the active shell again
+[shell single]
+    ?^foo
+
+# Cleanup is executed regardless of the script succeeds or fails
+[cleanup]
+    # Match of command exit status. Observe the double dollar sign.
+    !rm -f $file
+    !echo ==$$?==
+    ?==0==

@@ -1,0 +1,44 @@
+[doc Test of multiple shells and variable scope]
+
+[global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
+
+[macro calc expr]
+    [my myshell=$LUX_SHELLNAME]
+    [shell calc]
+    	!$expr
+	?^.*$
+    	?(.*)
+	[global last_result=$1]
+    [shell $myshell]
+    [progress $expr=$last_result]
+[endmacro]
+
+[macro verify expected]
+    !echo "xxx${last_result}yyy"
+    ?^xxx${expected}yyy
+    ?SH-PROMPT:
+[endmacro]
+
+[shell calc]
+    # Setup a shell dedicated to perform calculations
+    -$fail_pattern|SH-PROMPT:
+    !bc
+    # Skip the welcome banner
+    !2^8
+    ?256
+
+[shell main]
+    [invoke calc "2+1"]
+    [invoke verify 3]
+
+[shell other]
+    [local last_result=2]
+    [invoke verify 2]
+
+[shell main]
+    [invoke verify 3]
+    [invoke calc "$last_result^4"]
+    [invoke verify 81]
+
+[shell other]
+    [invoke verify 81]

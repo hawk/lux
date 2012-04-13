@@ -1,0 +1,28 @@
+%% This is an -*- erlang -*- file
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Copyright (c) 2012 Hakan Mattsson
+%%
+%% See the file "LICENSE" for information on usage and redistribution
+%% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+{application, lux,
+ [{description, "LUcid eXpect scripting"},
+  {vsn, "%VSN%"},
+  {modules,
+   [	
+        lux,
+        lux_debug,
+        lux_html,
+        lux_interpret,
+        lux_suite,
+        lux_parse,
+        lux_shell,
+        lux_utils
+   ]},
+  {registered, []},
+  {applications, [stdlib, kernel]},
+   %% Dev apps: reltool debugger wx runtime_tools
+  {env, []}
+ ]}.

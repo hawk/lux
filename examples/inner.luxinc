@@ -1,0 +1,16 @@
+# This is a -*- lux -*- file.
+
+[config timeout=2000]
+
+[doc3 Test inner]
+
+    [include nice.luxinc]
+
+    !echo inner
+    [progress expect failure]
+    ?outer
+
+[cleanup]
+    [progress $LUX_START_REASON]
+    !echo inner
+    ?SH-PROMPT:

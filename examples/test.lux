@@ -1,0 +1,78 @@
+[doc misc tests]
+
+[global h1=$HOME]
+[global h2=$h1]
+
+#
+# test include file
+#
+
+[include test.luxinc]
+
+#
+# test local and global variables
+#
+[shell first]
+    [timeout 5]
+    !echo "hello world"
+    ?hello world
+    [local my_var1=myVAL1]
+    [global our_var1=ourVAL1]
+
+[shell second]
+    [timeout 5]
+    [global our_var2=ourVAL2]
+    [local my_var2=myVAL2]
+    [local my_var3=myVAL3]
+    [local my_var4=$my_var3]
+
+    -myVAL1
+    !echo "local2 x$my_var2"
+    ?local2 xmyVAL2
+    !echo "local3 x$my_var3"
+    ?local3 xmyVAL3
+    !echo "global1 x$our_var1"
+    ?global1 xourVAL1
+    !echo "global22 x$our_var2"
+    ?global22 xourVAL2
+    !echo "global23 x$$our_var2"
+    ?global23 x.our_var2
+
+    # Capture sub-patterns
+    !echo foo begin xxx middle yyy end baz
+    ?baz
+    ?.*begin (.*) middle (.*) end.*
+
+    [local x=$1]
+    [local y=$2]
+    !echo $x
+    ?xxx
+    !echo $y
+    ?yyy
+
+    #
+    # test match of success pattern while shell is suspended
+    #
+    +SUCCESS
+    !echo "SUCCESS"
+
+[shell first]
+    [timeout 20]
+    ?SHOULD NOT FAIL DUE TO SUCCESS IN THE OTHER SHELL
+
+[shell test_sleep]
+    [local secs=3]
+    [sleep 2]
+    [sleep $secs]
+
+[shell test_timeout]
+    [local secs=3]
+    [timeout infinity]
+    [timeout 0]
+    [timeout]
+    [timeout $secs]
+    -foo
+    !echo foo
+    ?bar
+
+[cleanup]
