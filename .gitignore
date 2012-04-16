@@ -20,4 +20,5 @@ core*
 
 # Doc
 /lux.html.tmp
+/doc/toc.md
 /doc/debug_cmds.md

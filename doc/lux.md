@@ -537,8 +537,11 @@ form `var=value`.
 **--config_name ConfigName**  
 Normally Lux figures out which system software/hardware it runs on,
 but it can explicitly be overridden with the `ConfigName` option. The
-`ConfigNamed` is used to read system architecture specific configuration
-parameters from a file named `ConfigName.luxcfg`.
+`ConfigName` is used to read system architecture specific configuration
+parameters from a file named `ConfigName.luxcfg`. By default `ConfigName`
+is obtained from `uname -sm` where `ConfigName is set to `Kernel-Machine`.
+This behavior can be overridden by adding a file named after the name of
+the host (`hostname.luxcfg`) on the `ConfigDir` directory. 
 
 **--config\_dir ConfigDir**  
 A directory where architecture specific connfiguration files may

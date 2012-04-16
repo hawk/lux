@@ -546,7 +546,7 @@ parse_config(R) ->
     check_file({config_dir, ConfigDir}),
 
     %% Arch spec opts
-    ActualConfigName = erlang:system_info(system_architecture),
+    ActualConfigName = config_name(),
     {ConfigName, ConfigFile} = config_file(ConfigDir, R2#rstate.config_name, ActualConfigName),
     ConfigOpts = parse_config_file(R2, ConfigFile),
 
@@ -564,17 +564,26 @@ parse_config(R) ->
               config_file = ConfigFile,
               config_opts = ConfigOpts}.
 
+config_name() ->
+    case string:tokens(os:cmd("uname -sm; echo $?"), "\n ") of
+        [Kernel, Machine, CmdStatus] when CmdStatus =:= "0" ->
+            Kernel ++ "-" ++ Machine;
+        _Bad ->
+            erlang:system_info(system_architecture)
+    end.
+
 parse_config_file(R, ConfigFile) ->
+    Key = config_dir,
     case lux:parse_file(ConfigFile, []) of
         {ok, _File, _Commands, Opts} ->
             Opts2 =
-                case lists:keyfind(config_dir, 1, Opts) of
+                case lists:keyfind(Key, 1, Opts) of
                     false ->
                         Opts;
                     {_, Dir} ->
                         Top = filename:dirname(ConfigFile),
                         Dir2 = filename:absname(Dir, Top),
-                        lists:keystore(config_dir, 1, Opts, {config_dir, Dir2})
+                        lists:keystore(Key, 1, Opts, {Key, Dir2})
                 end,
             lists:keydelete(log_dir, 1, Opts2);
         {error, Script, _FullLineNo, Bin} ->
