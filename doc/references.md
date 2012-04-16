@@ -15,7 +15,7 @@ References
                       "Erlang programming language"
 [regular expression]: http://www.erlang.org/doc/man/re.html
                       "Erlang style regular expressions (re)"
-[PCRE]:               http://www.pcre.org/	
+[PCRE]:               http://www.pcre.org/
                       "PCRE - Perl Compatible Regular Expressions"
 [Emacs]:              http://www.gnu.org/software/emacs
                       "Emacs text editor"

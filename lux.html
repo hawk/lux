@@ -137,9 +137,9 @@ Assembling history of logs in /home/hm.......4 test runs...ok
 
 file:///home/hm/lux_history.html
 </code></pre>
+</blockquote>
 
 <p><a name="main_concepts"/></p>
-</blockquote>
 
 <h2>Concepts</h2>
 
@@ -553,8 +553,11 @@ form <code>var=value</code>.</p>
 <p><strong>--config_name ConfigName</strong> <br />
 Normally Lux figures out which system software/hardware it runs on,
 but it can explicitly be overridden with the <code>ConfigName</code> option. The
-<code>ConfigNamed</code> is used to read system architecture specific configuration
-parameters from a file named <code>ConfigName.luxcfg</code>.</p>
+<code>ConfigName</code> is used to read system architecture specific configuration
+parameters from a file named <code>ConfigName.luxcfg</code>. By default <code>ConfigName</code>
+is obtained from <code>uname -sm</code> where <code>ConfigName is set to</code>Kernel-Machine<code>.
+This behavior can be overridden by adding a file named after the name of
+the host (</code>hostname.luxcfg<code>) on the</code>ConfigDir` directory. </p>
 
 <p><strong>--config_dir ConfigDir</strong> <br />
 A directory where architecture specific connfiguration files may

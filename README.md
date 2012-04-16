@@ -104,3 +104,4 @@ identities if provided with `--revision`).
 >     Assembling history of logs in /home/hm.......4 test runs...ok
 >
 >     file:///home/hm/lux_history.html
+
