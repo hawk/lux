@@ -8,7 +8,6 @@ include ../vsn.mk
 # See http://www.daringfireball.net/projects/markdown
 
 HTML=../lux.html
-HTML_TMP=$(HTML).tmp
 MD_TMP=lux.md
 GEN_TOC=toc
 GEN_DBG_CMDS=debug_cmds
@@ -31,7 +30,8 @@ MARKDOWNS=$(patsubst %,%.md,$(CHAPTERS))
 all doc: $(HTML)
 
 clean:
-	rm -f $(HTML) $(HTML_TMP) $(MD_TMP) $(GEN_DBG_CMDS).md
+	rm -f $(HTML) $(HTML).tmp $(MD_TMP) $(GEN_TOC).md $(GEN_TOC).md.tmp
+	rm -f $(GEN_DBG_CMDS).md $(GEN_DBG_CMDS).md.tmp
 
 $(HTML): \
     html.header \
@@ -40,33 +40,36 @@ $(HTML): \
     html.footer \
     ../include.mk \
     Makefile
-	-rm -f $(MD_TMP) $(HTML_TMP)
-	cat html.header > $(HTML_TMP)
+	-rm -f $(MD_TMP) $(HTML).tmp
+	cat html.header > $(HTML).tmp
 	cat $(GEN_TOC).md >> $(MD_TMP)
 	@for f in $(CHAPTERS); do \
 		echo "<a name=\"$$f\"/>" >> $(MD_TMP); \
 		echo >> $(MD_TMP); \
 		cat $$f.md >> $(MD_TMP); \
 	done
-	$(MARKDOWN) $(MD_TMP) >> $(HTML_TMP)
-	cat html.footer >> $(HTML_TMP)
-	mv $(HTML_TMP) $(HTML)
+	$(MARKDOWN) $(MD_TMP) >> $(HTML).tmp
+	cat html.footer >> $(HTML).tmp
+	mv $(HTML).tmp $(HTML)
 	echo "\nRead the documentation in the browser:\n\n\tfile://$(PWD)/$(HTML)"
 
-$(GEN_TOC).md: Makefile
-	rm -f $(GEN_TOC).md
-	echo "Lux - LUcid eXpect scripting" > $(GEN_TOC).md
-	echo "============================" >> $(GEN_TOC).md
-	echo -n "Version $(LUX_VSN) - " >> $(GEN_TOC).md
-	date "+%F" >> $(GEN_TOC).md
-	echo >> $(GEN_TOC).md
+$(GEN_TOC).md: Makefile $(MARKDOWNS)
+	rm -f $@ $@.tmp
+	echo "Lux - LUcid eXpect scripting" > $@.tmp
+	echo "============================" >> $@.tmp
+	echo -n "Version $(LUX_VSN) - " >> $@.tmp
+	date "+%F" >> $@.tmp
+	echo >> $@.tmp
+	echo $(CHAPTERS)
 	@for f in $(CHAPTERS); do \
-		echo -n "* [" >> $(GEN_TOC).md; \
-		head -1 "$$f.md" | tr -d '\n' >> $(GEN_TOC).md; \
-		echo -n "]" >> $(GEN_TOC).md; \
-		echo "(#$$f)" >> $(GEN_TOC).md; \
+		echo -n "* [" >> $@.tmp; \
+		head -1 "$$f.md" | tr -d '\n' >> $@.tmp; \
+		echo -n "]" >> $@.tmp; \
+		echo "(#$$f)" >> $@.tmp; \
 	done
-	echo >> $(GEN_TOC).md
+	echo >> $@.tmp
+	mv $@.tmp $@
 
 $(GEN_DBG_CMDS).md: ../ebin/lux_debug.beam Makefile
-	lux --markdown > $@
+	lux --markdown > $@.tmp
+	mv $@.tmp $@
