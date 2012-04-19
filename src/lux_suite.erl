@@ -333,7 +333,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                doc ->
                     Docs = extract_doc(Script2, Commands),
                     {ok, Cwd} = file:get_cwd(),
-                    io:format("~s\n",
+                    io:format("~s:\n",
                               [lux_utils:drop_prefix(Cwd, Script)]),
                     [io:format("~s~s\n", [lists:duplicate(Level, $\t), Str]) ||
                         #cmd{arg = {Level, Str}} <- Docs],

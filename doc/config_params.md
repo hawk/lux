@@ -43,9 +43,9 @@ Mode can be one of :
                each line.
 * `doc`      - extract all `[doc]` strings and display them on a
                simple format. First the main file name is printed on
-               an own line followed by all doc strings, one on each
-               line. The doc strings are indented with a tab char for
-               each doc level.
+               an own line ending with a colon, followed by all doc
+               strings, one on each line. The doc strings are indented
+               with a tab char for each doc level.
 
 **--file\_pattern**  
 Specify file pattern for scripts to be executed when a directory is
