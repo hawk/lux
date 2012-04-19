@@ -1,6 +1,7 @@
 [doc dc - reverse-polish desk calculator]
 
 [shell dc]
+    # Multi-line send
     """!
     dc
     2
@@ -11,13 +12,19 @@
     q
     """
 
+    # Multi-line expect
     """?
     3
     5
     """
 
+    # Test exit status
     !echo ==$$?==
     ?==0==
 
+    # Exit the shell and verify that it really exits
     !exit
     [endshell]
+
+[cleanup]
+    !echo "LUX_START_REASON=$LUX_START_REASON"

@@ -12,7 +12,7 @@
 -include("lux.hrl").
 
 -record(cstate,
-        {file                    :: string(),
+        {orig_file               :: string(),
          parent                  :: pid(),
          name                    :: string(),
          latest_cmd              :: #cmd{},
@@ -58,11 +58,11 @@
 %% Client
 
 start_monitor(I, Cmd, Name) ->
-    File = I#istate.file,
+    OrigFile = I#istate.orig_file,
     Self = self(),
-    Base = filename:basename(File),
+    Base = filename:basename(OrigFile),
     Prefix = filename:join([I#istate.log_dir, Base ++ "." ++ Name]),
-    C = #cstate{file = File,
+    C = #cstate{orig_file = OrigFile,
                 parent = Self,
                 name = Name,
                 start_reason = I#istate.cleanup_reason,
@@ -108,7 +108,7 @@ init(C) when is_record(C, cstate) ->
     StartReason = atom_to_list(C#cstate.start_reason),
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason}],
-    WorkDir = filename:dirname(C#cstate.file),
+    WorkDir = filename:dirname(C#cstate.orig_file),
     Opts = [binary, stream, use_stdio, stderr_to_stdout, eof,
             {args, Args}, {cd, WorkDir}, {env, PortEnv}],
     try

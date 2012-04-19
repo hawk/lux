@@ -1,44 +1,75 @@
-[doc Test of multiple shells and variable scope]
+[doc Test of macros and variable scope]
 
 [global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
 
-[macro calc expr]
-    [my myshell=$LUX_SHELLNAME]
-    [shell calc]
-    	!$expr
-	?^.*$
-    	?(.*)
-	[global last_result=$1]
-    [shell $myshell]
-    [progress $expr=$last_result]
-[endmacro]
-
-[macro verify expected]
-    !echo "xxx${last_result}yyy"
-    ?^xxx${expected}yyy
-    ?SH-PROMPT:
-[endmacro]
-
+# Setup a shell dedicated for calculations
 [shell calc]
-    # Setup a shell dedicated to perform calculations
+    # Setup a failure pattern
     -$fail_pattern|SH-PROMPT:
     !bc
     # Skip the welcome banner
     !2^8
     ?256
 
+# Call some macros and use global+my variable
 [shell main]
+    -$fail_pattern
     [invoke calc "2+1"]
     [invoke verify 3]
 
+# Change variable in local scope
 [shell other]
-    [local last_result=2]
+    -$fail_pattern
+    [local result=2]
     [invoke verify 2]
 
+# Access variable from other shell
 [shell main]
     [invoke verify 3]
-    [invoke calc "$last_result^4"]
+    [invoke calc "$result^4"]
     [invoke verify 81]
 
 [shell other]
     [invoke verify 81]
+
+    # Test some error cases
+[shell calc]
+     # Reset the failure pattern
+     -
+[shell other]
+    [invoke calc "1+p"]
+    [invoke calc "1/0"]
+
+    # Exit the shell and verify that it really exits
+    !exit
+    [endshell]
+
+### Macros ###
+
+# Calculate an expression and return the result in the global variable result
+[macro calc expr]
+    # Use a temporary variable that only is alive in one macro invocation
+    [my myshell=$LUX_SHELLNAME]
+    [shell calc]
+    	!$expr
+	!
+	!help
+	# Use multi-line expr to sync output
+	"""?
+	.*
+	(.*)
+	help
+	0
+	"""
+	# Retrieve the value from the sub-expression
+	[global result=$1]
+    [shell $myshell]
+    # [progress $expr=$result]
+[endmacro]
+
+# Verify that the calculated (global) result fulfills the expectations
+[macro verify expected]
+    !echo "xxx${result}yyy"
+    ?^xxx${expected}yyy
+    ?SH-PROMPT:
+[endmacro]

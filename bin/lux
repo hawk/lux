@@ -327,37 +327,41 @@ reltool_opts(MainOpt, Opts) ->
     AppDir = ensure_app_dir(true),
     ThisEscript = escript:script_name(),
     %% Include some extra files beside the default files
-    ExtraFiles = ["^LICENSE", "^lux.html", "^examples.*", "^emacs.*"],
+    AppFilters =
+        [{incl_app_filters, ["^LICENSE", "^lux.html",
+                             "ebin", "^priv", "^examples.*", "^emacs.*"]},
+         {excl_archive_filters, ["^LICENSE", "^lux.html",
+                                 "^priv", "^examples.*", "^emacs.*"]},
+         {excl_app_filters, [".*empty$"]}],
     Apps = application:loaded_applications(),
-    NewOrOld =
+    App =
         case lists:keyfind(reltool, 1, Apps) of
             {_Name, _Slogan, Version} when Version >= "0.6" ->
                 %% New reltool can handle lib_dir in app
-                {app, ?APPLICATION, [{lib_dir, AppDir}]};
+                [{app, ?APPLICATION, [{lib_dir, AppDir} | AppFilters]}];
             _Version ->
                 %% Old reltool
-                {lib_dirs, [filename:dirname(AppDir)]}
+                [{app, ?APPLICATION, AppFilters},
+                 {lib_dirs, [filename:dirname(AppDir)]}]
         end,
     {RootDir,
      [{sys,
+       App ++
        [{root_dir, RootDir},
-        NewOrOld,
         {debug_info, strip},
         {escript, ThisEscript, [{incl_cond, include}]},
         {app, crypto, [{incl_cond, exclude}]},
         {app, erts, [{incl_cond, exclude}]},
         {app, hipe, [{incl_cond, exclude}]},
         {app, reltool, [{incl_cond, exclude}]},
+        {app, wx, [{incl_cond, exclude}]},
         %% {app, debugger, [{incl_cond, include}]},   % --internal_debugger
         {app, runtime_tools, [{incl_cond, exclude}]}, % --internal_trace
         {app, tools, [{incl_cond, exclude}]},
         {profile, standalone},
-        {incl_app_filters, {add, ExtraFiles}},
-        {excl_archive_filters, {add, ExtraFiles}},
         {excl_sys_filters,
          {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
-                "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++
-                    [$$]]}}]}]}.
+                "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}]}]}.
 
 root_dir(Opts) ->
     case lists:keyfind("--root_dir", 1, Opts) of

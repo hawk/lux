@@ -1,8 +1,7 @@
 [doc Demonstrate a failure]
 
-[doc2 show examples of config settings]
+[doc2 Show examples of config settings]
 
-[config timeout=2000]
 [config skip=FOO_BAR]
 [config require=HOME]
 [config var=FUM=xxx]
@@ -12,10 +11,10 @@
     !echo ==\$==
     ?==0==
 
-[doc2 provoke a failure to get something interesting in the logs]
+[doc2 Provoke a failure to get something interesting in the logs]
 
 [shell dc]
-
+    # Multi-line send
     """!
     dc
     2
@@ -25,14 +24,17 @@
     p
     """
 
+    # Multi-line expect
     """?
     3
     5
     """
 
+    # Demonstrate a failure
     !1
     !+
     !p
-
-    [progress expect failure]
     ?7
+
+[cleanup]
+    !echo "LUX_START_REASON=$LUX_START_REASON"
