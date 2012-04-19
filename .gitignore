@@ -22,3 +22,6 @@ core*
 /lux.html.tmp
 /doc/toc.md
 /doc/debug_cmds.md
+
+# Lux
+lux_logs
