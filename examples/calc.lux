@@ -11,7 +11,7 @@
     !2^8
     ?256
 
-# Call some macros and use global+my variable
+# Call some macros and use global and my scoped variables
 [shell main]
     -$fail_pattern
     [invoke calc "2+1"]
@@ -32,12 +32,11 @@
 [shell other]
     [invoke verify 81]
 
-    # Test some error cases
+    # Test an error case
 [shell calc]
      # Reset the failure pattern
      -
 [shell other]
-    [invoke calc "1+p"]
     [invoke calc "1/0"]
 
     # Exit the shell and verify that it really exits

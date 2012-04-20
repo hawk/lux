@@ -547,7 +547,8 @@ parse_config(R) ->
 
     %% Arch spec opts
     ActualConfigName = config_name(),
-    {ConfigName, ConfigFile} = config_file(ConfigDir, R2#rstate.config_name, ActualConfigName),
+    {ConfigName, ConfigFile} =
+        config_file(ConfigDir, R2#rstate.config_name, ActualConfigName),
     ConfigOpts = parse_config_file(R2, ConfigFile),
 
     %% Log
@@ -605,7 +606,7 @@ log_builtins(R, ActualConfigName) ->
     log(R, "~s~s\n",
         [?TAG("hostname"), hostname()]),
     log(R, "~s~s\n",
-        [?TAG("config name"), ActualConfigName]),
+        [?TAG("architecture"), ActualConfigName]),
     log(R, "~s~s\n",
         [?TAG("system info"), sys_info()]),
     log(R, "~s~s\n",
@@ -617,6 +618,8 @@ log_builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
     log(R, "~s~s\n",
         [?TAG("workdir"), Cwd]),
+    log(R, "~s~s\n",
+        [?TAG("config name"), R#rstate.config_name]),
     log(R, "~s~s\n",
         [?TAG("config_dir"), R#rstate.config_dir]).
 
