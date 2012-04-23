@@ -6,10 +6,12 @@ AC_PREFIX_DEFAULT(/usr/local/lux)
 
 # Default config installation dir is $prefix/etc. Override with --sysconfdir
 
+use_default_sysconfdir=false
 if test "x$sysconfdir" == 'x${prefix}/etc'; then
-  # No $sysconfdir set
+  # $sysconfdir is not set
+  use_default_sysconfdir=true
   if test "x$prefix" == "xNONE"; then
-    # No $prefix set
+    # $prefix is not set
     sysconfdir="/usr/local/lux/priv"
   else
     sysconfdir="$prefix/priv"
@@ -17,6 +19,7 @@ if test "x$sysconfdir" == 'x${prefix}/etc'; then
 fi
 
 AC_SUBST(sysconfdir)
+AC_SUBST(use_default_sysconfdir)
 
 ################################################################################
 # C

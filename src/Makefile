@@ -26,7 +26,7 @@ clean:
 install:
 	mkdir -p $(DESTDIR)
 	lux --install $(DESTDIR)
-	if [ "$(ETCDIR)" != "$(DESTDIR)/etc" ]; then \
+	if [ "$(ETCDIR)" != "$(DESTDIR)/priv" ]; then \
 	  echo "# Added by Lux installer" >> $(LUXCFG); \
 	  echo "[config config_dir=$(ETCDIR)]" >> $(LUXCFG); \
 	fi
