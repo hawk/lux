@@ -710,19 +710,20 @@ require_app(App, MainOpt) ->
 
 ensure_app_dir(Retry) ->
     App = ?APPLICATION,
+    ThisEscript = resolve_path(escript:script_name()),
+    AppDir = filename:dirname(filename:dirname(ThisEscript)),
     case code:lib_dir(App, ebin) of
         {error, _Reason} when Retry =:= true ->
             %% Add application ebin to the code path and see if it works
-            ThisEscript = resolve_path(escript:script_name()),
-            AppDir = filename:dirname(filename:dirname(ThisEscript)),
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
             %%           [Name, EbinDir]),
             code:add_patha(EbinDir),
             ensure_app_dir(false);
-        {error, Reason} ->
-            fatal_error(2, "The application '~p' is required to run: ~p\n",
-                        [App, Reason]);
+        {error, _Reason} ->
+            fatal_error(2, "Illegal directory name '~s'."
+                        " It must be named '~p' or '~p-vsn'.\n",
+                        [filename:basename(AppDir), App, App]);
         EbinDir ->
             filename:dirname(EbinDir)
     end.
