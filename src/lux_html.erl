@@ -1058,12 +1058,15 @@ parse_run_summary(HtmlDir,
         list_to_binary(lux_utils:datetime_to_string(FI#file_info.ctime)),
     StartTime = find_config(<<"start time">>, Config, Ctime),
     Hostname = find_config(<<"hostname">>, Config, ?DEFAULT_HOSTNAME),
-    case find_config(<<"config name">>, Config, ?DEFAULT_CONFIG_NAME) of
-        ?DEFAULT_CONFIG_NAME ->
-            ConfigName = find_config(<<"architecture">>, Config, ?DEFAULT_CONFIG_NAME);
-        ConfigName ->
-            ok
-    end,
+    ConfigName0 = find_config(<<"config name">>, Config, ?DEFAULT_CONFIG_NAME),
+    ConfigName =
+        if
+            ConfigName0 =/= ?DEFAULT_CONFIG_NAME,
+            ConfigName0 =/= <<"undefined">> ->
+                ConfigName0;
+            true ->
+                find_config(<<"architecture">>, Config, ?DEFAULT_CONFIG_NAME)
+        end,
     Suite = find_config(<<"suite">>, Config, ?DEFAULT_SUITE),
     RunId = find_config(<<"run">>, Config, ?DEFAULT_RUN),
     ReposRev = find_config(<<"revision">>, Config, ?DEFAULT_REV),

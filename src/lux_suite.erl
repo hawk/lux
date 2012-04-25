@@ -550,20 +550,21 @@ parse_config(R) ->
     {ConfigName, ConfigFile} =
         config_file(ConfigDir, R2#rstate.config_name, ActualConfigName),
     ConfigOpts = parse_config_file(R2, ConfigFile),
+    R3 = R2#rstate{config_name = ConfigName,
+                   config_dir = ConfigDir,
+                   config_file = ConfigFile,
+                   config_opts = ConfigOpts},
 
     %% Log
-    log_builtins(R2, ActualConfigName),
-    log(R2, "~s~s\n", [?TAG("default file"), DefaultFile]),
-    [log(R2, "~s~p\n",
+    log_builtins(R3, ActualConfigName),
+    log(R3, "~s~s\n", [?TAG("default file"), DefaultFile]),
+    [log(R3, "~s~p\n",
          [?TAG(Tag), Val]) || {Tag, Val} <- DefaultOpts],
-    log(R2, "~s~s\n",
+    log(R3, "~s~s\n",
         [?TAG("config file"), ConfigFile]),
-    [log(R2, "~s~p\n",
+    [log(R3, "~s~p\n",
          [?TAG(Tag), Val]) || {Tag, Val} <- ConfigOpts],
-    R2#rstate{config_name = ConfigName,
-              config_dir = ConfigDir,
-              config_file = ConfigFile,
-              config_opts = ConfigOpts}.
+    R3.
 
 config_name() ->
     case string:tokens(os:cmd("uname -sm; echo $?"), "\n ") of
@@ -624,9 +625,9 @@ log_builtins(R, ActualConfigName) ->
         [?TAG("config_dir"), R#rstate.config_dir]).
 
 
-config_file(ConfigDir, ConfigName, ActualConfigName) ->
+config_file(ConfigDir, UserConfigName, ActualConfigName) ->
     Ext = ".luxcfg",
-    case ConfigName of
+    case UserConfigName of
         undefined ->
             Host = hostname(),
             HostFile = filename:join([ConfigDir, Host ++ Ext]),
@@ -635,7 +636,7 @@ config_file(ConfigDir, ConfigName, ActualConfigName) ->
                 false -> config_file2(ConfigDir, ActualConfigName, Ext)
             end;
         _ ->
-            config_file2(ConfigDir, ConfigName, Ext)
+            config_file2(ConfigDir, UserConfigName, Ext)
     end.
 
 config_file2(ConfigDir, ConfigName, Ext) ->
