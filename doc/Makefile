@@ -11,6 +11,7 @@ HTML=../lux.html
 MD_TMP=lux.md
 GEN_TOC=toc
 GEN_DBG_CMDS=debug_cmds
+APP_DIR=$(shell dirname $(PWD))
 
 CHAPTERS= \
 	../README \
@@ -71,5 +72,5 @@ $(GEN_TOC).md: Makefile $(MARKDOWNS)
 	mv $@.tmp $@
 
 $(GEN_DBG_CMDS).md: ../ebin/lux_debug.beam Makefile
-	lux --markdown > $@.tmp
+	$(APP_DIR)/bin/lux --markdown > $@.tmp
 	mv $@.tmp $@
