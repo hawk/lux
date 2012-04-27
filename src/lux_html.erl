@@ -261,7 +261,7 @@ html_cases(A, [{test_case, Name, EventLog, Doc, HtmlLog, Res} | Cases]) ->
      html_doc(Tag, Doc),
      html_href(Tag, "Raw event log: ", "", RelEventLog, RelEventLog),
      html_href(Tag, "Annotated script: ", "", RelHtmlLog, RelHtmlLog),
-     html_result(Tag, Res, HtmlLog),
+     html_result(Tag, Res, RelHtmlLog),
      "\n",
      "</pre></div>",
      html_cases(A, Cases)
