@@ -176,9 +176,10 @@ do_usage(Specs) ->
                      end
              end,
     [Pretty(S) || S <- Specs, element(1, S) =/= ?FILES],
+    info_doc().
 
-    _AppDir = ensure_app_dir(true),
-    AppDir = code:lib_dir(?APPLICATION),
+info_doc() ->
+    AppDir = ensure_app_dir(true),
     require_app(?APPLICATION, "--help"),
     Url = doc_url(AppDir),
     io:format("\nRead the full documentation in the browser:\n\n\t~s\n", [Url]).
@@ -187,14 +188,21 @@ help(Specs) ->
     _AppDir = ensure_app_dir(true),
     AppDir = code:lib_dir(?APPLICATION),
     require_app(?APPLICATION, "--help"),
+    Url = doc_url(AppDir),
+    io:format("\nTrying to automatically launch the"
+              " default browser with file...\n\n\t~s\n",
+              [Url]),
     try
 	wx:new(),
-        Url = doc_url(AppDir),
-        io:format("\nOpening the documentation in the browser...\n\n~s\n", [Url]),
         true = wx_misc:launchDefaultBrowser(Url),
         timer:sleep(1000),
         wx:destroy()
-    catch _:_ ->
+    catch
+        error:{load_driver,"No driver found"} ->
+            io:format("\n...failed since wxWidgets is not properly installed."
+                      " Browser needs to be manually started in order to read"
+                      " the full documentation.\n", []);
+        _Class:_Reason ->
             do_usage(Specs)
     end,
     safe_halt(0).
@@ -710,20 +718,19 @@ require_app(App, MainOpt) ->
 
 ensure_app_dir(Retry) ->
     App = ?APPLICATION,
-    ThisEscript = resolve_path(escript:script_name()),
-    AppDir = filename:dirname(filename:dirname(ThisEscript)),
     case code:lib_dir(App, ebin) of
         {error, _Reason} when Retry =:= true ->
             %% Add application ebin to the code path and see if it works
+            ThisEscript = resolve_path(escript:script_name()),
+            AppDir = filename:dirname(filename:dirname(ThisEscript)),
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
             %%           [Name, EbinDir]),
             code:add_patha(EbinDir),
             ensure_app_dir(false);
-        {error, _Reason} ->
-            fatal_error(2, "Illegal directory name '~s'."
-                        " It must be named '~p' or '~p-vsn'.\n",
-                        [filename:basename(AppDir), App, App]);
+        {error, Reason} ->
+            fatal_error(2, "The application '~p' is required to run: ~p\n",
+                        [App, Reason]);
         EbinDir ->
             filename:dirname(EbinDir)
     end.

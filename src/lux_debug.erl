@@ -492,6 +492,7 @@ opt_block(I) ->
             lists:foreach(fun(#shell{pid = Pid}) -> Pid ! {block, self()} end,
                           I#istate.shells),
             {true, I#istate{blocked = true,
+                            has_been_blocked = true,
                             want_more = false,
                             old_want_more = I#istate.want_more}}
     end.

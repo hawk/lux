@@ -436,6 +436,7 @@ interpret_init(I) ->
                                        I#istate.orig_commands),
     I2 = I#istate{macros = Macros,
                   blocked = false,
+                  has_been_blocked = false,
                   want_more = true,
                   old_want_more = undefined},
 
@@ -520,9 +521,9 @@ interpret_loop(I) ->
             interpret_loop(I2);
         {TimeoutType, _TimeoutMillis} when TimeoutType =:= suite_timeout;
                                            TimeoutType =:= case_timeout,
-                                           I#istate.blocked ->
+                                           I#istate.has_been_blocked ->
             io:format("WARNING: Ignoring ~p"
-                      " as the script is attached by the debugger.\n",
+                      " as the script has been attached by the debugger.\n",
                       [TimeoutType]),
             interpret_loop(I);
         {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;

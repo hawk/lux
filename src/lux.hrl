@@ -75,6 +75,7 @@
          results = []               :: [#result{} | {'EXIT', term()}],
          active                     :: undefined | pid(),
          blocked                    :: boolean(),
+         has_been_blocked           :: boolean(),
          want_more                  :: boolean(),
          old_want_more              :: boolean(),
          breakpoints = []           :: [#break{}],
