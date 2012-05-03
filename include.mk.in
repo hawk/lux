@@ -6,7 +6,7 @@ endif
 
 USE_DEFAULT_ETCDIR=@use_default_sysconfdir@
 ifeq ($(ETCDIR),)
-  ifeq ($(USE_DEFAULT_ETCDIR),true))
+  ifeq ($(USE_DEFAULT_ETCDIR),true)
     ETCDIR=$(DESTDIR)/priv
   else
     ETCDIR=@sysconfdir@
