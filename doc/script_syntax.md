@@ -28,14 +28,13 @@ Interacting with a shell
 ------------------------
 
 **!String**  
-A `send` operation. Sends a `String` on the active shell. Adds a `LF`
-at the end of the string. `String` may contain references to variables
-using `$Var` or `${Var}`.
+
+A `send` operation. Sends a `String` to the `stdin` of the active
+shell. Adds a `LF` at the end of the string. `String` may contain
+references to variables using `$Var` or `${Var}`.
 
 **~String**  
-A `send` operation sends a `String` on the active shell. It does NOT
-send `LF` at the end. `String` may contain references to variables
-using `$Var` or `${Var}`.
+Same as `!String`, but it does NOT add a `LF` at the end.
 
 **?Regexp**  
 An `expect` operation which waits for a string matching a
