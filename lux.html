@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.0 - 2012-04-19</p>
+<p>Version 1.0 - 2012-05-04</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -211,12 +211,12 @@ an extended subset of <a href="http://www.pcre.org/" title="PCRE - Perl Compatib
 
 <p>The Lux script syntax is as follows. The <strong>first non whitespace</strong>
 character on each line determines how it will be processed. Lines
-beginning with <code>#</code>, <code>SPACE</code>, <code>TAB</code>, <code>CR</code>, <code>LF</code> are ignored. It is
-recommended to use indentation to make the scripts more readable. The
-<strong>Lux mode for <a href="http://www.gnu.org/software/emacs" title="Emacs text editor">Emacs</a></strong> (<code>lux/emacs/lux-mode.el</code>) is
-quite useful as it simplifies the indentation and makes scripts more
-easy to read as it provides different coloring for different types of
-language constructs.</p>
+beginning with a <code>#</code> are comments. It is recommended to use
+indentation and comments to make the scripts more readable. The <strong>Lux
+mode for <a href="http://www.gnu.org/software/emacs" title="Emacs text editor">Emacs</a></strong> (<code>lux/emacs/lux-mode.el</code>) is quite useful as it
+simplifies the indentation and makes scripts more easy to read as it
+provides different coloring for different types of language
+constructs.</p>
 
 <p>Lines beginning with <code>"""Char</code> are <strong>multi line quotes</strong>. The quote
 ends with the next line beginning with <code>"""</code>. The opening quote and
@@ -234,15 +234,18 @@ is treated as 8 space characters.</p>
 
 <h2>Interacting with a shell</h2>
 
-<p><strong>!String</strong> <br />
-A <code>send</code> operation. Sends a <code>String</code> on the active shell. Adds a <code>LF</code>
-at the end of the string. <code>String</code> may contain references to variables
-using <code>$Var</code> or <code>${Var}</code>.</p>
+<p><strong>#String</strong> <br />
+Inline style comment. The <code>#</code> must be the first non-whitespace
+character on the line.</p>
+
+<p><strong>!String</strong>  </p>
+
+<p>A <code>send</code> operation. Sends a <code>String</code> to the <code>stdin</code> of the active
+shell. Adds a <code>LF</code> at the end of the string. <code>String</code> may contain
+references to variables using <code>$Var</code> or <code>${Var}</code>.</p>
 
 <p><strong>~String</strong> <br />
-A <code>send</code> operation sends a <code>String</code> on the active shell. It does NOT
-send <code>LF</code> at the end. <code>String</code> may contain references to variables
-using <code>$Var</code> or <code>${Var}</code>.</p>
+Same as <code>!String</code>, but it does NOT add a <code>LF</code> at the end.</p>
 
 <p><strong>?Regexp</strong> <br />
 An <code>expect</code> operation which waits for a string matching a

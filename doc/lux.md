@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.0 - 2012-04-19
+Version 1.0 - 2012-05-04
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -197,12 +197,12 @@ Script syntax
 
 The Lux script syntax is as follows. The **first non whitespace**
 character on each line determines how it will be processed. Lines
-beginning with `#`, `SPACE`, `TAB`, `CR`, `LF` are ignored. It is
-recommended to use indentation to make the scripts more readable. The
-**Lux mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is
-quite useful as it simplifies the indentation and makes scripts more
-easy to read as it provides different coloring for different types of
-language constructs.
+beginning with a `#` are comments. It is recommended to use
+indentation and comments to make the scripts more readable. The **Lux
+mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is quite useful as it
+simplifies the indentation and makes scripts more easy to read as it
+provides different coloring for different types of language
+constructs.
 
 Lines beginning with `"""Char` are **multi line quotes**. The quote
 ends with the next line beginning with `"""`. The opening quote and
@@ -218,18 +218,22 @@ of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
 is treated as 8 space characters.
 
+
 Interacting with a shell
 ------------------------
 
+**#String**  
+Inline style comment. The `#` must be the first non-whitespace
+character on the line.
+
 **!String**  
-A `send` operation. Sends a `String` on the active shell. Adds a `LF`
-at the end of the string. `String` may contain references to variables
-using `$Var` or `${Var}`.
+
+A `send` operation. Sends a `String` to the `stdin` of the active
+shell. Adds a `LF` at the end of the string. `String` may contain
+references to variables using `$Var` or `${Var}`.
 
 **~String**  
-A `send` operation sends a `String` on the active shell. It does NOT
-send `LF` at the end. `String` may contain references to variables
-using `$Var` or `${Var}`.
+Same as `!String`, but it does NOT add a `LF` at the end.
 
 **?Regexp**  
 An `expect` operation which waits for a string matching a

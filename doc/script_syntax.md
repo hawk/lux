@@ -3,12 +3,12 @@ Script syntax
 
 The Lux script syntax is as follows. The **first non whitespace**
 character on each line determines how it will be processed. Lines
-beginning with `#`, `SPACE`, `TAB`, `CR`, `LF` are ignored. It is
-recommended to use indentation to make the scripts more readable. The
-**Lux mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is
-quite useful as it simplifies the indentation and makes scripts more
-easy to read as it provides different coloring for different types of
-language constructs.
+beginning with a `#` are comments. It is recommended to use
+indentation and comments to make the scripts more readable. The **Lux
+mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is quite useful as it
+simplifies the indentation and makes scripts more easy to read as it
+provides different coloring for different types of language
+constructs.
 
 Lines beginning with `"""Char` are **multi line quotes**. The quote
 ends with the next line beginning with `"""`. The opening quote and
@@ -24,8 +24,13 @@ of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
 is treated as 8 space characters.
 
+
 Interacting with a shell
 ------------------------
+
+**#String**  
+Inline style comment. The `#` must be the first non-whitespace
+character on the line.
 
 **!String**  
 
