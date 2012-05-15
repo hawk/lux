@@ -863,7 +863,7 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             tail(I, LogFile, CmdState, Format, UserN)
     end.
 
-all_logs(#istate{file=Script, log_dir=LogDir, logs=StdLogs}) ->
+all_logs(#istate{orig_file=Script, log_dir=LogDir, logs=StdLogs}) ->
     Split = fun({_Name, Stdin, Stdout}, Acc) -> [Stdout, Stdin | Acc] end,
     Logs = lists:reverse(lists:foldl(Split, [], StdLogs)),
     Base = filename:basename(Script),
