@@ -369,7 +369,7 @@ shell_eval(#cstate{name = Name} = C0,
                 throw:{no_such_var, BadName} ->
                     BinErr = list_to_binary(["Variable $", BadName,
                                              " is not set"]),
-                    io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
+                    %% io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
                     stop(C, error, BinErr)
             end;
         send_lf when is_binary(Arg) ->
@@ -384,7 +384,7 @@ shell_eval(#cstate{name = Name} = C0,
                 throw:{no_such_var, BadName} ->
                     BinErr = list_to_binary(["Variable $", BadName,
                                              " is not set"]),
-                    io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
+                    %% io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
                     stop(C, error, BinErr)
             end;
         send when is_binary(Arg) ->
