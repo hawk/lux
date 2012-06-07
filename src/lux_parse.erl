@@ -395,7 +395,7 @@ split_invoke_args(P, LineNo, [H | T], quoted = Mode, Arg, Args) ->
             split_invoke_args(P, LineNo, T, Mode, [Char | Arg], Args)
     end.
 
-parse_multi(P, <<$":8/integer, $":8/integer, Rest/binary>>,
+parse_multi(P, <<$":8/integer, $":8/integer, Char:1/binary>>,
             #cmd{lineno = LineNo}, Lines, OrigLine, Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
     {RevBefore, After, RemPrefixLen} = scan_multi(Lines, PrefixLen, []),
@@ -427,23 +427,16 @@ parse_multi(P, <<$":8/integer, $":8/integer, Rest/binary>>,
                     [] ->
                         <<"">>
                 end,
-            Rest2 = lux_utils:strip_leading_whitespaces(Rest),
-            {Extra, ExtraLineNo} =
-                case Rest2 of
-                    <<>> ->
-                        parse_error(P,
-                                    ["Syntax error at line ",
-                                     integer_to_list(LineNo),
-                                     ": '\"\"\"' must be followed by a command"],
-                                    LineNo);
-                    <<"[", _/binary>> ->
-                        {[<<Rest2/binary, "\n", Multi/binary>>], LineNo};
-                    _ ->
-                        {[<<Rest2/binary, Multi/binary>>], LastLineNo}
-                end,
-            Tokens2 = do_parse(P, Extra, ExtraLineNo, OrigLine, Tokens),
+            Extra = [<<Char/binary, Multi/binary>>],
+            Tokens2 = do_parse(P, Extra, LastLineNo, OrigLine, Tokens),
             parse(P, Lines2, LastLineNo+1, Tokens2)
     end;
+parse_multi(P, <<$":8/integer, $":8/integer, _Chars/binary>>,
+            #cmd{lineno = LineNo}, _Lines, _OrigLine, _Tokens) ->
+    parse_error(P,
+                ["Syntax error at line ", integer_to_list(LineNo),
+                 ": '\"\"\"' must be followed by a single char"],
+                LineNo);
 parse_multi(P, _, #cmd{lineno = LineNo}, _Lines, _OrigLine, _Tokens) ->
     parse_error(P,
                 ["Syntax error at line ", integer_to_list(LineNo),
