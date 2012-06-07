@@ -55,11 +55,11 @@ loop(I, Ipid, PrevCmd, CmdState, N) ->
             %% Closed already at startup
             exit(normal);
         eof ->
-            catch erlang:display("\nEOF: stdin closed\n"),
+            catch io:format("\nEOF: stdin closed\n", []),
             exit(normal);
         {error, Reason} ->
             ReasonStr = file:format_error(Reason),
-            catch erlang:display("\nERROR: " ++ ReasonStr ++ "\n"),
+            catch io:format("\nERROR: ~s\n", [ReasonStr]),
             exit(Reason);
         Cmd0 ->
             [$\n | Rest] = lists:reverse(Cmd0),
