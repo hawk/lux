@@ -17,8 +17,8 @@
   '("set-line-terminator" "reset-line-terminator" "set-timestamp"))
 
 (defvar lux-config-params
-  '("progress" "debug" "log_dir" "arch" "config_dir" "skip" "timeout"
-    "multiplier" "suite_timeout" "case_timeout" "flush_timeout"
+  '("progress" "debug" "log_dir" "arch" "config_dir" "skip" "skip_unless"
+    "timeout" "multiplier" "suite_timeout" "case_timeout" "flush_timeout"
     "poll_timeout" "require" "shell_wrapper" "shell_cmd" "shell_arg"
     "line_term" "file_pattern" "var"))
 

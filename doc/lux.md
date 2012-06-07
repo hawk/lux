@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.0 - 2012-05-04
+Version 1.1 - 2012-06-07
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -564,6 +564,14 @@ option can be used multiple times, which means that it suffices
 that one of the given `Var`s is set in order to skip the test
 case. Typically `--skip` is used to test on presence of environment
 variables. `--skip` is intended to be used as `[config skip=Var]`
+statements within scripts.
+
+**--skip_unless Var**  
+Skip execution of the script if the given variable NOT is set. This
+option can be used multiple times, which means that it suffices
+that one of the given `Var`s NOT is set in order to skip the test
+case. Typically `--skip` is used to test on presence of environment
+variables. `--skip_unless` is intended to be used as `[config skip_unless=Var]`
 statements within scripts.
 
 **--require Var**  

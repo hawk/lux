@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.0 - 2012-05-04</p>
+<p>Version 1.1 - 2012-06-07</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -578,6 +578,14 @@ option can be used multiple times, which means that it suffices
 that one of the given <code>Var</code>s is set in order to skip the test
 case. Typically <code>--skip</code> is used to test on presence of environment
 variables. <code>--skip</code> is intended to be used as <code>[config skip=Var]</code>
+statements within scripts.</p>
+
+<p><strong>--skip_unless Var</strong> <br />
+Skip execution of the script if the given variable NOT is set. This
+option can be used multiple times, which means that it suffices
+that one of the given <code>Var</code>s NOT is set in order to skip the test
+case. Typically <code>--skip</code> is used to test on presence of environment
+variables. <code>--skip_unless</code> is intended to be used as <code>[config skip_unless=Var]</code>
 statements within scripts.</p>
 
 <p><strong>--require Var</strong> <br />

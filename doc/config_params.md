@@ -82,6 +82,14 @@ case. Typically `--skip` is used to test on presence of environment
 variables. `--skip` is intended to be used as `[config skip=Var]`
 statements within scripts.
 
+**--skip_unless Var**  
+Skip execution of the script if the given variable NOT is set. This
+option can be used multiple times, which means that it suffices
+that one of the given `Var`s NOT is set in order to skip the test
+case. Typically `--skip` is used to test on presence of environment
+variables. `--skip_unless` is intended to be used as `[config skip_unless=Var]`
+statements within scripts.
+
 **--require Var**  
 Require that the given variable is set. The script will fail if
 the variable not is set. This option can be used multiple times,

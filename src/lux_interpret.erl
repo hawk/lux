@@ -128,6 +128,8 @@ config_type(Name) ->
             {ok, #istate.debug_file, [string, {atom, [undefined]}]};
         skip ->
             {ok, #istate.skip, [{list, [string]}]};
+        skip_unless ->
+            {ok, #istate.skip_unless, [{list, [string]}]};
         require ->
             {ok, #istate.require, [{list, [string]}]};
         config_dir ->
@@ -392,6 +394,7 @@ config_data(I) ->
      io_lib:format("~s~p\n", [?TAG("debug_file"),      I#istate.debug_file]),
      io_lib:format("~s~p\n", [?TAG("progress"),        I#istate.progress]),
      io_lib:format("~s~p\n", [?TAG("skip"),            I#istate.skip]),
+     io_lib:format("~s~p\n", [?TAG("skip_unless"),     I#istate.skip_unless]),
      io_lib:format("~s~p\n", [?TAG("require"),         I#istate.require]),
      io_lib:format("~s~s\n", [?TAG("log_dir"),         I#istate.log_dir]),
      io_lib:format("~s~p\n", [?TAG("multiplier"),      I#istate.multiplier]),

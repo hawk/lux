@@ -1,1 +1,1 @@
-LUX_VSN=1.0
+LUX_VSN=1.1

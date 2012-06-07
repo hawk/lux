@@ -297,6 +297,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
         {ok, R2, Script2, Commands, Opts} ->
             SkipNames = list_skip_variables(R2),
+            SkipUnlessNames = list_skip_unless_variables(R2),
             RequireNames = list_require_variables(R2),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
@@ -306,11 +307,17 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                 list ->
                     io:format("~s\n", [Script]),
                     run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
-                _ when SkipNames =/= [] ->
+                _ when SkipNames =/= []; SkipUnlessNames =/= [] ->
                     double_log(R2, "\n~s~s\n",
                                [?TAG("test case"), Script]),
-                    double_log(R2, "~sSKIP as variable ~s is set\n",
-                               [?TAG("result"), hd(SkipNames)]),
+                    case SkipNames of
+                        [SkipName | _] ->
+                            double_log(R2, "~sSKIP as variable ~s is set\n",
+                                       [?TAG("result"), SkipName]);
+                        [] ->
+                            double_log(R2, "~sSKIP as variable ~s is not set\n",
+                                       [?TAG("result"), hd(SkipUnlessNames)])
+                    end,
                     NewSummary = skip,
                     Summary = lux_utils:summary(OldSummary, NewSummary),
                     Res = {ok, Script2, NewSummary, "0", []},
@@ -414,6 +421,20 @@ list_skip_variables(R) ->
                   Expanded =/= UnExpanded
           end,
     Names = pick_vals(skip, R, []),
+    lists:filter(Fun, Names).
+
+list_skip_unless_variables(R) ->
+    Fun = fun(Name) ->
+                  UnExpanded = [$$ | Name],
+                  try expand_vars(R, UnExpanded, error) of
+                      _ ->
+                          false
+                  catch
+                      throw:{no_such_var, _} ->
+                          true
+                  end
+          end,
+    Names = pick_vals(skip_unless, R, []),
     lists:filter(Fun, Names).
 
 list_require_variables(R) ->

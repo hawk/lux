@@ -64,7 +64,7 @@ extract_config(Cmd, _RevFile, _InclStack, Acc) ->
 
 parse_config(I, [{Name, Vals} | T]) ->
     Val =
-        case lists:member(Name, [skip, require, var, shell_args]) of
+        case lists:member(Name, [skip, skip_unless, require, var, shell_args]) of
             true  -> Vals;
             false -> lists:last(Vals)
         end,
@@ -82,6 +82,7 @@ updated_opts(I, DefaultI) ->
         [
          {debug, #istate.debug},
          {skip, #istate.skip},
+         {skip_unless, #istate.skip_unless},
          {require, #istate.require},
          {config_dir, #istate.config_dir},
          {progress, #istate.progress},

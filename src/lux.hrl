@@ -52,6 +52,7 @@
          debug = false              :: boolean(),
          debug_file                 :: string(),
          skip = []                  :: [string()],
+         skip_unless = []           :: [string()],
          require = []               :: [string()],
          config_dir = undefined     :: undefined | string(),
          progress = brief           :: silent | brief | doc | compact | verbose,

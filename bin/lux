@@ -90,6 +90,7 @@ specs() ->
      {"--debug",              false,       boolean,                none},
      {"--debug_file",         undefined,   string,                 mandatory},
      {"--skip",               undefined,   string,                 mandatory},
+     {"--skip_unless",        undefined,   string,                 mandatory},
      {"--require",            undefined,   string,                 mandatory},
      {"--log_dir",            undefined,   string,                 mandatory},
      {"--config_dir",         undefined,   string,                 mandatory},
@@ -422,6 +423,7 @@ run([
      {"--debug",              Debug},
      {"--debug_file",         DebugFile},
      {"--skip",               Skip},
+     {"--skip_unless",        SkipUnless},
      {"--require",            Require},
      {"--log_dir",            LogDir},
      {"--config_dir",         ConfigDir},
@@ -464,6 +466,7 @@ run([
          {suite_timeout,      SuiteTimeout},
          {log_dir,            LogDir},
          {skip,               Skip},
+         {skip_unless,        SkipUnless},
          {require,            Require},
          {var,                Var},
          {mode,               Mode},
@@ -495,11 +498,13 @@ run_halt(Summary) ->
 
 filter_arg(KeyVal) ->
     case KeyVal of
-        {_, []}         -> false;
-        {var, _Vals}    -> true;
-        {skip, _}       -> true;
-        {shell_args, _} -> true;
-        {Key, Vals}     -> {true, {Key, lists:last(Vals)}}
+        {_, []}          -> false;
+        {var, _Vals}     -> true;
+        {skip, _}        -> true;
+        {skip_unless, _} -> true;
+        {require, _}     -> true;
+        {shell_args, _}  -> true;
+        {Key, Vals}      -> {true, {Key, lists:last(Vals)}}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
