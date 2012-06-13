@@ -186,15 +186,14 @@ info_doc() ->
     io:format("\nRead the full documentation in the browser:\n\n\t~s\n", [Url]).
 
 help(Specs) ->
-    _AppDir = ensure_app_dir(true),
-    AppDir = code:lib_dir(?APPLICATION),
+    AppDir = ensure_app_dir(true),
     require_app(?APPLICATION, "--help"),
     Url = doc_url(AppDir),
     io:format("\nTrying to automatically launch the"
               " default browser with file...\n\n\t~s\n",
               [Url]),
     try
-	wx:new(),
+	wx:new([{silent_start, true}]),
         true = wx_misc:launchDefaultBrowser(Url),
         timer:sleep(1000),
         wx:destroy()
