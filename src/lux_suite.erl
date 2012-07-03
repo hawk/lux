@@ -461,17 +461,18 @@ print_results(R, Summary, Results) when R#rstate.mode == list;
                                         R#rstate.mode == doc ->
     {ok, Summary, R#rstate.summary_log, Results};
 print_results(R, Summary, Results) ->
+    %% Display most important results last
     io:nl(),
     log(R, "\n", []),
-    print_error(R, Results),
-    print_fail(R, Results),
-    print_skip(R, Results),
-    print_warning(R),
     SuccessScripts =
         [Script || {ok, Script, success, _FullLineNo, _Events} <- Results],
     double_log(R, "~s~p\n",
                [?TAG("successful"),
                 length(SuccessScripts)]),
+    print_skip(R, Results),
+    print_warning(R),
+    print_fail(R, Results),
+    print_error(R, Results),
     double_log(R, "~s~s\n",
                [?TAG("summary"),
                 [string:to_upper(Char) ||

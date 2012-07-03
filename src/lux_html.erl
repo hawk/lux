@@ -115,7 +115,7 @@ split_result2([Heading | Lines], Acc) ->
     Files2 = lists:map(Parse, Files),
     split_result2(Lines2, [{section, Slogan2, Count, Files2} | Acc]);
 split_result2([], Acc) ->
-    Acc.
+    Acc. % Return in reverse order (most important first)
 
 split_groups(IsRecursive, [GroupEnd | Groups], Acc) ->
     Pred = fun(Case) ->
