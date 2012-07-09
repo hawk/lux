@@ -398,6 +398,9 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
         {error, _R2, _File2, _FullLineNo, _Error2} when Mode =:= list ->
             io:format("~s\n", [Script]),
             run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
+        {error, _R2, File2, _FullLineNo, Error2} when Mode =:= doc ->
+            io:format("~s:\n\tERROR: ~s: ~s\n", [Script, File2, Error2]),
+            run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
         {error, R2, File2, FullLineNo, Error2} ->
             double_log(R2, "\n~s~s\n",
                        [?TAG("test case"), Script]),
