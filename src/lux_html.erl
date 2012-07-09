@@ -774,7 +774,7 @@ html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
       lux_utils:now_to_string(erlang:now()),
       "</h1>"],
 
-     "<h3>Range of ", N, " repository revisions</h3>\n",
+     "<h3>", N, " runs within this range of repository revisions</h3>\n",
      "<table border=0>",
      "<tr>",
      "<td>Latest:</td><td><strong>", LatestRev, "</strong></td>",
