@@ -754,7 +754,8 @@ html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
             FirstRev = Default,
             LatestRev = Default,
             FirstTime = Default,
-            LatestTime = Default;
+            LatestTime = Default,
+            N = 0;
         SortedRuns ->
             FirstRev = (hd(SortedRuns))#run.repos_rev,
             LatestRev = (lists:last(SortedRuns))#run.repos_rev,
@@ -763,7 +764,8 @@ html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
             FirstRuns2 = lists:keysort(#run.repos_rev, FirstRuns),
             LatestRuns2 = lists:keysort(#run.repos_rev, LatestRuns),
             FirstTime = (hd(FirstRuns2))#run.start_time,
-            LatestTime = (hd(LatestRuns2))#run.start_time
+            LatestTime = (hd(LatestRuns2))#run.start_time,
+            N = integer_to_list(length(SortedRuns))
     end,
     [
      html_header(["Lux history (", Dir, ")"]),
@@ -772,7 +774,7 @@ html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
       lux_utils:now_to_string(erlang:now()),
       "</h1>"],
 
-     "<h3>Range of repository revisions</h3>\n",
+     "<h3>Range of ", N, " repository revisions</h3>\n",
      "<table border=0>",
      "<tr>",
      "<td>Latest:</td><td><strong>", LatestRev, "</strong></td>",
