@@ -339,7 +339,8 @@ scan(EventLog) ->
 
 scan_0_1(EventLog, LogBin) ->
     EventSections = binary:split(LogBin, <<"\n\n">>, [global]),
-    EventSections2 = [binary:split(S, <<"\n">>, [global]) || S <- EventSections],
+    EventSections2 = [binary:split(S, <<"\n">>, [global]) ||
+                         S <- EventSections],
     case EventSections2 of
         [[Script], EventBins, ResultBins] -> ok;
         [[Script], ResultBins]            -> EventBins = []
@@ -565,7 +566,8 @@ pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _InclStack) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Return event log as HTML
 
-html_events(A, EventLog, ConfigLog, Script, Result, Files, Logs, Annotated, Config) ->
+html_events(A, EventLog, ConfigLog, Script, Result, Files,
+            Logs, Annotated, Config) ->
     Dir = filename:basename(filename:dirname(EventLog)),
     [
      html_header(["Lux event log (", Dir, ")"]),
@@ -832,7 +834,10 @@ html_history_all(AllRuns, HtmlDir) ->
     ].
 
 html_history_config_names(SplitConfigNames, HtmlDir) ->
-    [html_history_double_table(ConfigName, "ConfigName: " ++ ConfigName, Runs, HtmlDir) ||
+    [html_history_double_table(ConfigName,
+                               "ConfigName: " ++ ConfigName,
+                               Runs,
+                               HtmlDir) ||
         {ConfigName, Runs} <- SplitConfigNames].
 
 html_history_double_table(Name, Label, AllRuns, HtmlDir) ->
@@ -867,7 +872,8 @@ html_history_table(_Name, Grain, Runs, HtmlDir, SuppressAllSuccess) ->
        "<strong>", html_href("", "#" ++ Host, Host), "</strong>",
        "<br>", html_href("", "#" ++ ConfigName, ConfigName),
        "</td>\n"] ||
-         {_, [#run{hostname = Host, config_name = ConfigName} |_ ]} <- SplitIds3],
+         {_, [#run{hostname = Host, config_name = ConfigName} |_ ]}
+             <- SplitIds3],
      "    </tr>\n",
      [html_history_row(Test, TestRuns, SplitIds3, HtmlDir, SuppressAllSuccess)
       || {Test, TestRuns} <- SplitTests2],
@@ -1117,7 +1123,8 @@ parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName, Suite, RunId, ReposRev,
          run_dir = RunDir,
          repos_rev = ReposRev,
          details = []};
-parse_run_case(_HtmlDir, RunDir, Start, Host, ConfigName, Suite, RunId, ReposRev,
+parse_run_case(_HtmlDir, RunDir, Start, Host, ConfigName, Suite,
+               RunId, ReposRev,
                {result_case, Name, Res, _Reason}) ->
     File = drop_prefix(RunDir, Name),
     File2 = drop_some_dirs(File),
@@ -1261,8 +1268,8 @@ html_anchor(Tag, Prefix, Name, Label) ->
 
 html_header(Title) ->
     [
-     <<"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">\n">>,
-
+     <<"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" "
+       "\"http://www.w3.org/TR/html4/strict.dtd\">\n">>,
      <<"<html>\n">>,
      <<"<head>\n">>,
      html_style(),
@@ -1283,13 +1290,13 @@ html_style() ->
   }
 
   div {
-  	<--- width: 300px; !--->
+        <--- width: 300px; !--->
         overflow: auto;
-  	padding: 2px;
-  	border: 1px solid #b00;
-  	margin-left: 2%;
-  	margin-bottom: 2px;
-  	margin-top: 2px;
+        padding: 2px;
+        border: 1px solid #b00;
+        margin-left: 2%;
+        margin-bottom: 2px;
+        margin-top: 2px;
         color: #000000;
         background-color: #FFFFE0
   }
@@ -1307,11 +1314,11 @@ html_style() ->
   div.code {
         font-weight: bold;
         overflow: visible;
-  	padding: 0px;
-  	border: 0px;
-  	margin-left: 0%;
-  	margin-bottom: 0px;
-  	margin-top: 0px;
+        padding: 0px;
+        border: 0px;
+        margin-left: 0%;
+        margin-bottom: 0px;
+        margin-top: 0px;
         color: #000000;
         background-color: white
   }
@@ -1341,11 +1348,11 @@ html_style() ->
   }
 
   td.fail {
-        background-color: #FF0000
+        background-color: #CC3333
   }
 
   td.secondary_fail {
-        background-color: #FF4500
+        background-color: #FF9900
   }
 
   td.none {
@@ -1362,19 +1369,3 @@ html_style() ->
   </style>
 
 ">>.
-
-%%  td.secondary_fail {
-%%        background-color: #FF6600
-%%  }
-%% td.secondary_fail {
-%%        background-color: #FF4500
-%% }
-%% td.secondary_fail {
-%%        background-color: #DC143C
-%% }
-%%  td.secondary_fail {
-%%        background-color: #FF3300 	
-%%  }
-%%  td.secondary_fail {
-%%        background-color: #CC3300 	
-%%  }
