@@ -1352,7 +1352,7 @@ html_style() ->
   }
 
   td.secondary_fail {
-        background-color: #FF9900
+        background-color: #CC6633
   }
 
   td.none {
