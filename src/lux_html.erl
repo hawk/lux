@@ -8,6 +8,7 @@
 -module(lux_html).
 
 -export([annotate_log/1, history/2]).
+-export([keysplit/2, keysplit/3]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -298,7 +299,7 @@ html_doc(Tag, [Slogan | Desc]) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate a lux with events from the log
 
-annotate_event_log(#astate{log_file = EventLog} = A) ->
+annotate_event_log(#astate{log_file=EventLog} = A) ->
     try
         case scan(EventLog) of
             {ok, EventLog2, ConfigLog,
@@ -734,21 +735,32 @@ history(TopDir, HtmlFile) ->
     HtmlDir = filename:dirname(HtmlFile2),
     AllRuns = parse_summary_logs(HtmlDir, TopDir2, []),
     io:format("~p test runs", [length(AllRuns)]),
-    SplitHosts = keysplit(#run.hostname, AllRuns),
-    SplitConfigNames = keysplit(#run.config_name, AllRuns),
-    LatestRuns = latest_runs(SplitHosts),
+    {LatestRuns, SplitHosts} = latest_tests_per_host(AllRuns),
+    HostTables = html_history_table_hosts(SplitHosts, HtmlDir),
+    SplitConfigs = keysplit(#run.config_name, AllRuns, fun compare_run/2),
+    ConfigTables = html_history_table_configs(SplitConfigs, HtmlDir),
     IoList =
         [
-         html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile),
-         html_history_latest(LatestRuns, HtmlDir),
-         html_history_all(AllRuns, HtmlDir),
-         html_history_config_names(SplitConfigNames, HtmlDir),
-         html_history_hosts(SplitHosts, HtmlDir),
+         html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile),
+         html_history_table_latest(LatestRuns, HtmlDir),
+         html_history_table_all(AllRuns, HtmlDir),
+         [IoList || {table, _, _, IoList} <- ConfigTables],
+         [IoList || {table, _, _, IoList} <- HostTables],
          html_footer()
         ],
     safe_write_file(HtmlFile, IoList).
 
-html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
+latest_tests_per_host(Runs) ->
+    SplitHosts = keysplit(#run.hostname, Runs, fun compare_run/2),
+    Fun = fun({_Tag, HostRuns}) ->
+                  %% Keep only the last run for each test
+                  SplitTests = keysplit(#run.test, HostRuns, fun compare_run/2),
+                  [hd(TestRuns) || {_Test, TestRuns} <- SplitTests]
+          end,
+    LatestRuns = lists:flatmap(Fun, SplitHosts),
+    {LatestRuns, SplitHosts}.
+
+html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile) ->
     Dir = filename:basename(filename:dirname(HtmlFile)),
     case lists:keysort(#run.repos_rev, AllRuns) of
         [] ->
@@ -771,10 +783,9 @@ html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
     end,
     [
      html_header(["Lux history (", Dir, ")"]),
-     [
-      "<h1>Lux history (", Dir, ") generated at ",
-      lux_utils:now_to_string(erlang:now()),
-      "</h1>"],
+     "<h1>Lux history (", Dir, ") generated at ",
+     lux_utils:now_to_string(erlang:now()),
+     "</h1>",
 
      "<h3>", N, " runs within this range of repository revisions</h3>\n",
      "<table border=0>",
@@ -786,25 +797,28 @@ html_history_header(AllRuns, SplitConfigNames, SplitHosts, HtmlFile) ->
      "<td>First:</td><td><strong>", FirstRev, "</strong></td>",
      "<td>at ", FirstTime, "</td>\n",
      "</tr>",
-     "</table>\n\n"
+     "</table>\n\n",
 
+     html_history_legend(),
+     "\n\n"
      "<h3>Configuration names</h3>",
      "  <table border=1>\n",
      "    <tr>\n",
-     [["<td>", html_href("", "#" ++ ConfigName, ConfigName), "</td>"] ||
-         {ConfigName, _} <- SplitConfigNames],
+     [
+      html_href_td(ConfigName, ConfigRes) ||
+         {table, ConfigName, ConfigRes, _ConfigIoList} <- ConfigTables
+     ],
      "    </tr>\n",
      "  </table>\n",
-
      "<h3>Hosts</h3>",
      "  <table border=1>\n",
      "    <tr>\n",
-     [["<td>", html_href("", "#" ++ Host, Host), "</td>"] ||
-         {Host, _} <- SplitHosts],
+     [
+      html_href_td(Host, HostRes) ||
+         {table, Host, HostRes, _HostIoList} <- HostTables
+     ],
      "    </tr>\n",
-     "  </table>\n",
-
-     html_history_legend()
+     "  </table>\n"
     ].
 
 html_history_legend() ->
@@ -821,138 +835,183 @@ html_history_legend() ->
      "  </table>\n"
     ].
 
-html_history_latest(LatestRuns, HtmlDir) ->
+html_history_table_latest(LatestRuns, HtmlDir) ->
+    {table, _, _, IoList} =
+        html_history_table("Latest", "All test suites",
+                           LatestRuns, HtmlDir, false, worst),
     [
      "<h3>Latest run on each host</h3>\n",
-     html_history_table("Latest", "All test suites", LatestRuns, HtmlDir, false)
+     IoList
     ].
 
-html_history_all(AllRuns, HtmlDir) ->
+html_history_table_all(AllRuns, HtmlDir) ->
+    {table, _, _, IoList} =
+        html_history_table("All", "All test suites",
+                           AllRuns, HtmlDir, false, latest),
     [
      "<h3>All runs</h3>\n",
-     html_history_table("All", "All test suites", AllRuns, HtmlDir, false)
+     IoList
     ].
 
-html_history_config_names(SplitConfigNames, HtmlDir) ->
-    [html_history_double_table(ConfigName,
-                               "ConfigName: " ++ ConfigName,
-                               Runs,
-                               HtmlDir) ||
-        {ConfigName, Runs} <- SplitConfigNames].
-
-html_history_double_table(Name, Label, AllRuns, HtmlDir) ->
-    Details = [D#run{details = [D]}  || R <- AllRuns, D <- R#run.details],
+html_history_table_hosts(SplitHosts, HtmlDir) ->
     [
-     "<br><br>\n",
-     ["<h3>", html_anchor(Name, Label), "</h3>\n"],
-     html_history_table(Name, "All test suites", AllRuns, HtmlDir, false),
-     html_history_table(Name, "Failed test cases", Details, HtmlDir, true)
-    ].
-
-html_history_table(_Name, Grain, Runs, HtmlDir, SuppressAllSuccess) ->
-    SplitIds  = keysplit(#run.id, Runs),
-    SplitIds2 = [{Id, lists:sort(fun test_run/2, IdRuns)} ||
-                    {Id, IdRuns} <- SplitIds],
-    SplitIds3 = lists:reverse(lists:sort(fun test_run/2, SplitIds2)), % rev
-    SplitTests  = keysplit(#run.test, Runs),
-    SplitTests2 = [{Test, lists:sort(fun test_run/2, TestRuns)} ||
-                      {Test, TestRuns} <- SplitTests],
-    [
-     "  <table border=1>\n",
-     "    <tr>\n",
-     "      <td align=\"left\" rowspan=\"2\"><strong>",Grain,"</strong></td>\n",
-     [["      <td>", Rev,
-       "<br>", "<strong>", Id, "</strong>",
-       "<br>", Time,
-       "</td>\n"] ||
-         {Id, [#run{start_time = Time, repos_rev = Rev} |_ ]} <- SplitIds3],
-     "    </tr>\n",
-     "    <tr>\n",
-     [["      <td>",
-       "<strong>", html_href("", "#" ++ Host, Host), "</strong>",
-       "<br>", html_href("", "#" ++ ConfigName, ConfigName),
-       "</td>\n"] ||
-         {_, [#run{hostname = Host, config_name = ConfigName} |_ ]}
-             <- SplitIds3],
-     "    </tr>\n",
-     [html_history_row(Test, TestRuns, SplitIds3, HtmlDir, SuppressAllSuccess)
-      || {Test, TestRuns} <- SplitTests2],
-     "  </table>\n"
-    ].
-
-html_history_hosts(SplitHosts, HtmlDir) ->
-    [html_history_double_table(Host,
+     html_history_double_table(Host,
                                ["Host: ", Host,
                                 " (", (hd(Runs))#run.config_name, ")"],
                                Runs,
-                               HtmlDir) ||
-        {Host, Runs} <- SplitHosts].
+                               HtmlDir,
+                               latest) ||
+        {Host, Runs} <- SplitHosts
+    ].
 
-html_history_row(Test, Runs, SplitIds, HtmlDir, SuppressAllSuccess) ->
+html_history_table_configs(SplitConfigs, HtmlDir) ->
+    [
+     html_history_double_table(ConfigName,
+                               "ConfigName: " ++ ConfigName,
+                               Runs,
+                               HtmlDir,
+                               latest) ||
+        {ConfigName, Runs} <- SplitConfigs
+    ].
+
+html_history_double_table(Name, Label, AllRuns, HtmlDir, ResKind) ->
+    Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
+    {table, _, WorstRes, AllIoList} =
+        html_history_table(Name, "All test suites",
+                           AllRuns, HtmlDir, false, ResKind),
+    {table, _, _, FailedIoList} =
+        html_history_table(Name, "Failed test cases",
+                           Details, HtmlDir, true, ResKind),
+    {table,
+     Name,
+     WorstRes,
+     [
+      "<br><br>\n",
+      ["<h3>", html_anchor(Name, Label), "</h3>\n"],
+      AllIoList,
+      FailedIoList
+     ]
+    }.
+
+html_history_table(Name, Grain, Runs, HtmlDir, SuppressSuccess, ResKind) ->
+    SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
+    SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
+    SplitIds2 = lists:sort(fun compare_split/2, SplitIds),
+    RowHistory =
+        [
+         html_history_row(Test, TestRuns, SplitIds, HtmlDir,
+                          ResKind, SuppressSuccess)
+         || {Test, TestRuns} <- lists:reverse(SplitTests)
+        ],
+    PickWorst = fun({row, Worst, _}, Acc) -> lux_utils:summary(Acc, Worst) end,
+    WorstRes = lists:foldl(PickWorst, no_data, RowHistory),
+    {table,
+     Name,
+     WorstRes,
+     [
+      "  <table border=1>\n",
+      "    <tr>\n",
+      html_history_table_td(Grain, WorstRes, "left"),
+      [["      <td>", Rev,
+        "<br>", "<strong>", Id, "</strong>",
+        "<br>", Time,
+        "</td>\n"] ||
+          {Id, [#run{start_time=Time, repos_rev=Rev} |_ ]}
+              <- SplitIds2
+      ],
+      "    </tr>\n",
+      "    <tr>\n",
+      [["      <td>",
+        "<strong>", html_href("", "#" ++ Host, Host), "</strong>",
+        "<br>", html_href("", "#" ++ ConfigName, ConfigName),
+        "</td>\n"] ||
+          {_, [#run{hostname=Host, config_name=ConfigName} |_ ]}
+              <- SplitIds2
+      ],
+      "    </tr>\n",
+      [RowIoList || {row, _Worst, RowIoList} <- RowHistory],
+      "  </table>\n"
+     ]
+    }.
+
+html_history_row(Test, Runs, SplitIds, HtmlDir, ResKind, SuppressSuccess) ->
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
     Cells = [html_history_cell(Id, RevRuns, HtmlDir) || {Id, _} <- SplitIds],
-    ValidRes = [Res || {Res, _} <- Cells, Res =/= no_data],
+    ValidResFilter = fun (Cell) -> valid_res_filter(Cell, SuppressSuccess) end,
+    ValidRes = lists:zf(ValidResFilter, Cells),
     case lists:usort(ValidRes) of
-        [] when SuppressAllSuccess ->
-            [];
-        [success] when SuppressAllSuccess ->
-            [];
-        [none] when SuppressAllSuccess ->
-            [];
+        [] when SuppressSuccess ->
+            {row, no_data, []}; % Skip row
+        [success] when SuppressSuccess ->
+            {row, no_data, []}; % Skip row
+        [none] when SuppressSuccess ->
+            {row, no_data, []}; % Skip row
         _ ->
-            SplitHosts = keysplit(#run.hostname, Runs),
-            LatestRuns = latest_runs(SplitHosts),
-            Fun = fun(#run{result = New}, Acc) ->
-                          lux_utils:summary(Acc, New)
-                  end,
-            WorstRes = lists:foldl(Fun, no_data, LatestRuns),
-            [
-             "    <tr>\n",
-             html_history_td(Test, WorstRes, "left"),
-             [Text || {_, Text} <- Cells],
-             "    </tr>\n"
-            ]
+            Res = select_row_res(Cells, ResKind),
+            {row,
+             Res,
+             [
+              "    <tr>\n",
+              html_history_td(Test, Res, "left"),
+              [Text || {cell, _Res, _Run, Text} <- Cells],
+              "    </tr>\n"
+             ]
+            }
     end.
 
-latest_runs(SplitRuns) ->
-    Fun = fun({_Tag, Runs}) ->
-                  SplitTests = keysplit(#run.test, Runs),
-                  [lists:last(lists:keysort(#run.id, TestRuns)) ||
-                      {_Test, TestRuns} <- SplitTests]
-          end,
-    lists:flatten(lists:map(Fun, SplitRuns)).
+valid_res_filter({cell, Res, _Run, _Html}, SuppressSuccess) ->
+    case Res of
+        no_data                      -> false;
+        success when SuppressSuccess -> false;
+        _                            -> {true, Res}
+    end.
 
-test_run(#run{repos_rev = R1}, #run{repos_rev = R2}) when R1 < R2 ->
-    true;
-test_run(#run{repos_rev = R1}, #run{repos_rev = R2}) when R1 > R2 ->
+select_row_res(Cells, worst) ->
+    PickWorst = fun({cell, Res, _, _}, Acc) -> lux_utils:summary(Acc, Res) end,
+    lists:foldl(PickWorst, no_data, Cells);
+select_row_res([{cell, no_data, _, _} | Cells], latest) ->
+    %% Try to find latest true result (not no_data)
+    select_row_res(Cells, latest);
+select_row_res([{cell, Res, _, _} | _Cells], latest) ->
+    Res;
+select_row_res([], latest) ->
+    no_data.
+
+%% Returns true if first run is newer than (or equal) to second run
+%% Compare fields in this order: repos_rev, start_time, hostname and id
+compare_run(#run{repos_rev=A}, #run{repos_rev=B}) when A < B ->
     false;
-test_run(#run{start_time = R1}, #run{start_time = R2}) when R1 < R2 ->
+compare_run(#run{repos_rev=A}, #run{repos_rev=B}) when A > B ->
     true;
-test_run(#run{start_time = R1}, #run{start_time = R2}) when R1 > R2 ->
+compare_run(#run{start_time=A}, #run{start_time=B}) when A < B ->
     false;
-test_run(#run{hostname = R1}, #run{hostname = R2}) when R1 < R2 ->
+compare_run(#run{start_time=A}, #run{start_time=B}) when A > B ->
     true;
-test_run(#run{hostname = R1}, #run{hostname = R2}) when R1 > R2 ->
+compare_run(#run{hostname=A}, #run{hostname=B}) when A < B ->
     false;
-test_run(#run{id = R1}, #run{id = R2}) ->
-    R1 =< R2;
-test_run({_, []}, {_, [#run{}|_]}) ->
+compare_run(#run{hostname=A}, #run{hostname=B}) when A > B ->
     true;
-test_run({_, [#run{}|_]}, {_, []}) ->
+compare_run(#run{id=A}, #run{id=B}) ->
+    A > B.
+
+compare_split({_, []}, {_, [#run{}|_]}) ->
+    true;
+compare_split({_, [#run{}|_]}, {_, []}) ->
     false;
-test_run({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
+compare_split({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
     %% Test on first run
-    test_run(R1, R2).
+    compare_run(R1, R2).
 
 html_history_cell(Id, Runs, HtmlDir) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
             Text= "-",
+            Run = undefined,
             Res = no_data;
         Run ->
-            RunN  = length([run  || #run{result = R} <- Run#run.details,
+            RunN  = length([run  || #run{result=R} <- Run#run.details,
                                     R =/= skip]),
-            FailN = length([fail || #run{result = R} <- Run#run.details,
+            FailN = length([fail || #run{result=R} <- Run#run.details,
                                     R =:= fail]),
             FailCount = lists:concat([FailN, " (", RunN, ")"]),
             Text =
@@ -960,7 +1019,8 @@ html_history_cell(Id, Runs, HtmlDir) ->
                     ?DEFAULT_LOG ->
                         FailCount;
                     Log ->
-                        html_href("", [drop_prefix(HtmlDir, Log), ".html"],
+                        html_href("",
+                                  [drop_prefix(HtmlDir, Log), ".html"],
                                   FailCount)
                 end,
             ThisRes =
@@ -970,28 +1030,48 @@ html_history_cell(Id, Runs, HtmlDir) ->
                 end,
             HostRuns = [R || R <- Runs, R#run.hostname =:= Run#run.hostname],
             Pred = fun(#run{id = SomeId}) -> SomeId =/= Id end,
-            {_Before, [Run | Rest]} = lists:splitwith(Pred, HostRuns),
+            {_Before, [Run | Rest]} =
+                lists:splitwith(Pred, lists:reverse(HostRuns)),
             case Rest of
                 [] -> PrevRes = success;
                 [#run{result = PrevRes} | _] -> ok
             end,
             case {ThisRes, PrevRes} of
                 {fail, fail} -> Res = secondary_fail;
-                {fail, _}    -> Res = fail;
                 {Res, _}     -> ok
             end
     end,
-    {Res, html_history_td(Text, Res)}.
+    {cell, Res, Run, html_history_td(Text, Res, "right")}.
 
-html_history_td(Text, Res) ->
-    html_history_td(Text, Res, "right").
+html_href_td(Text, skip) ->
+    html_href_td(Text, none);
+html_href_td(Text, Res) ->
+    [
+     "    ",
+     "<td class=", atom_to_list(Res), "> ",
+     html_href("", "#" ++ Text, Text),
+     "</td>\n"
+    ].
+
+html_history_table_td(Text, skip, Align) ->
+    html_history_table_td(Text, none, Align);
+html_history_table_td(Text, Res, Align) ->
+    [
+     "      ",
+     "<td class=", atom_to_list(Res), " align=\"", Align, "\" rowspan=\"2\">",
+     "<strong>", Text, "</strong>",
+     "</td>\n"
+    ].
 
 html_history_td(Text, skip, Align) ->
     html_history_td(Text, none, Align);
 html_history_td(Text, Res, Align) ->
-    ["    <td class=", atom_to_list(Res), " align=\"", Align, "\"> ",
+    [
+     "    ",
+     "<td class=", atom_to_list(Res), " align=\"", Align, "\"> ",
      Text,
-     "</td>\n"].
+     "</td>\n"
+    ].
 
 multi_member([H | T], Files) ->
     case lists:member(H, Files) of
@@ -1023,7 +1103,7 @@ do_parse_summary_logs(HtmlDir, Dir, Acc, Cands) ->
                         true ->
                             %% A summary log
                             File = filename:join([Dir, Base]),
-                            SumA = #astate{log_dir = Dir, log_file = File},
+                            SumA = #astate{log_dir=Dir, log_file=File},
                             io:format(".", []),
                             Res = parse_summary_log(false, SumA),
                             [parse_run_summary(HtmlDir, Res) | Acc];
@@ -1169,16 +1249,35 @@ find_config(Key, Tuples, Default) ->
     end.
 
 %% Keysort list of tuples and group items with same tag
-keysplit(Pos, List) ->
-    do_keysplit(Pos, lists:keysort(Pos, List), [], []).
+%%
+%% Items are returned in reverse order:
+%%
+%%   lux_html:keysplit(1, [{3,3},{3,1},{3,2},{1,1},{1,2},{2,2},{2,1},{1,3}]).
+%%   [{1,[{1,3},{1,2},{1,1}]},
+%%    {2,[{2,1},{2,2}]},
+%%    {3,[{3,2},{3,1},{3,3}]}]
 
-do_keysplit(Pos, [H, N | T], Siblings, Acc)
+keysplit(Pos, List) ->
+    keysplit(Pos, List, undefined).
+
+keysplit(Pos, List, Fun) ->
+    do_keysplit(Pos, lists:keysort(Pos, List), Fun, [], []).
+
+do_keysplit(Pos, [H, N | T], Fun, Siblings, Acc)
   when element(Pos, H) =:= element(Pos, N) ->
     %% Collect items with same tag
-    do_keysplit(Pos, [N | T], [H | Siblings], Acc);
-do_keysplit(Pos, [H | T], Siblings, Acc) ->
-    do_keysplit(Pos, T, [], [{element(Pos, H), [H | Siblings]} | Acc]);
-do_keysplit(_Pos, [], [], Acc) ->
+    do_keysplit(Pos, [N | T], Fun, [H | Siblings], Acc);
+do_keysplit(Pos, [H | T], Fun, Siblings, Acc) ->
+    Siblings2 = [H | Siblings],
+    Siblings3 =
+        if
+            Fun =:= undefined ->
+                Siblings2;
+            is_function(Fun, 2) ->
+                lists:sort(Fun, Siblings2)
+        end,
+    do_keysplit(Pos, T, Fun, [], [{element(Pos, H), Siblings3} | Acc]);
+do_keysplit(_Pos, [], _Fun, [], Acc) ->
     lists:reverse(Acc).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1225,7 +1324,7 @@ unquote(Bin) ->
             {plain, Plain}
     end.
 
-drop_prefix(#astate{log_dir = LogDir}, File) ->
+drop_prefix(#astate{log_dir=LogDir}, File) ->
     drop_prefix(LogDir, File);
 drop_prefix(LogDir, File) when is_binary(File) ->
     list_to_binary(drop_prefix(LogDir, binary_to_list(File)));
@@ -1356,11 +1455,11 @@ html_style() ->
   }
 
   td.none {
-        background-color: #FFCC66
+        background-color: #80FF80
   }
 
   td.success {
-        background-color: #80FF80
+        background-color: #0CB50C
   }
 
   td.no_data {
@@ -1369,3 +1468,5 @@ html_style() ->
   </style>
 
 ">>.
+%% none:    FFCC66
+%% success: 80FF80

@@ -67,7 +67,7 @@ do_expand_vars(Dicts, {variable, []}, [${=H | T], Acc, MissingVar) ->
 do_expand_vars(Dicts, {variable, RevName}, [H | T], Acc, MissingVar) ->
     case is_var(H) of
         true ->
-            do_expand_vars(Dicts, {variable, [H | RevName]}, T, Acc, MissingVar);
+            do_expand_vars(Dicts, {variable, [H|RevName]}, T, Acc, MissingVar);
         false ->
             %% Found a variable name "prefix$var/suffix"
             Name = lists:reverse(RevName),
@@ -146,14 +146,16 @@ summary(Old, New) ->
 
 summary_prio(Summary) ->
     case Summary of
-        enable   -> 0;
-        no_data  -> 1;
-        success  -> 2;
-        skip     -> 3;
-        warning  -> 4;
-        fail     -> 5;
-        error    -> 6;
-        disable  -> 999
+        enable         -> 0;
+        no_data        -> 1;
+        success        -> 2;
+        none           -> 3;
+        skip           -> 4;
+        warning        -> 5;
+        secondary_fail -> 6;
+        fail           -> 7;
+        error          -> 8;
+        disable        -> 999
     end.
 
 multiply(infinity, _Factor) ->
@@ -391,5 +393,7 @@ datetime_to_string({{Year, Month, Day}, {Hour, Min, Sec}}) ->
     lists:concat([Year, "-", p(Month), "-", p(Day), " ",
                   p(Hour), ":", p(Min), ":", p(Sec)]).
 
-p(Int) when Int >= 0, Int < 10 -> [$0 | integer_to_list(Int)];
-p(Int) when Int < 100 -> integer_to_list(Int).
+p(Int) when Int >= 0, Int < 10 ->
+    [$0 | integer_to_list(Int)];
+p(Int) when Int < 100 ->
+    integer_to_list(Int).
