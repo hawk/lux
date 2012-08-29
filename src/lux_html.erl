@@ -899,7 +899,7 @@ html_history_table(Name, Grain, Runs, HtmlDir, SuppressSuccess, ResKind) ->
     SplitIds2 = lists:sort(fun compare_split/2, SplitIds),
     RowHistory =
         [
-         html_history_row(Test, TestRuns, SplitIds, HtmlDir,
+         html_history_row(Test, TestRuns, SplitIds2, HtmlDir,
                           ResKind, SuppressSuccess)
          || {Test, TestRuns} <- lists:reverse(SplitTests)
         ],
@@ -1451,7 +1451,7 @@ html_style() ->
   }
 
   td.secondary_fail {
-        background-color: #CC6633
+        background-color: #F26C4F
   }
 
   td.none {
@@ -1459,7 +1459,7 @@ html_style() ->
   }
 
   td.success {
-        background-color: #0CB50C
+        background-color: #00A651
   }
 
   td.no_data {
@@ -1468,5 +1468,3 @@ html_style() ->
   </style>
 
 ">>.
-%% none:    FFCC66
-%% success: 80FF80
