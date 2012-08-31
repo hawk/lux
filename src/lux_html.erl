@@ -766,18 +766,6 @@ latest_runs(SplitHosts) ->
         Run <- TestRuns,
         lists:member(Run#run.id, Ids)].
 
-%% latest_runs2(SplitHosts) ->
-%%     HostTests =
-%%         [keysplit(#run.test, HostRuns, fun compare_run/2) ||
-%%             {_Host, HostRuns} <- SplitHosts],
-%%     io:format("HostTests: ~p\n", [HostTests]),
-%%     LatestIds = [(hd(TestRuns))#run.id || {_Test, TestRuns} <- HostTests],
-%%     LatestIds2 = lists:usort(LatestIds),
-%%     io:format("LatestIds2: ~p\n", [LatestIds2]),
-%%     FilterRun = fun(Run) -> lists:member(Run#run.id, LatestIds2) end,
-%%     lists:flatten([lists:filter(FilterRun, TestRuns) ||
-%%                       {_Test, TestRuns} <- HostTests]).
-
 html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile) ->
     Dir = filename:basename(filename:dirname(HtmlFile)),
     case lists:keysort(#run.repos_rev, AllRuns) of
