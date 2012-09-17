@@ -63,8 +63,9 @@ extract_config(Cmd, _RevFile, _InclStack, Acc) ->
     end.
 
 parse_config(I, [{Name, Vals} | T]) ->
+    Keywords = [skip, skip_unless, require, var, shell_args],
     Val =
-        case lists:member(Name, [skip, skip_unless, require, var, shell_args]) of
+        case lists:member(Name, Keywords) of
             true  -> Vals;
             false -> lists:last(Vals)
         end,
@@ -327,7 +328,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
             {FirstLineNo, LastLineNo, InclCmds} =
                 parse_file2(P#pstate{file=InclFile}),
             Cmd#cmd{type = include,
-                    arg = {include, InclFile, FirstLineNo, LastLineNo, InclCmds}};
+                    arg = {include,InclFile,FirstLineNo,LastLineNo,InclCmds}};
         "macro" ++ Head ->
             case string:tokens(string:strip(Head), " ") of
                 [Name | ArgNames] ->
@@ -364,7 +365,7 @@ split_invoke_args(P, LineNo, [], quoted, Arg, _Args) ->
                 ["Syntax error at line ",
                  integer_to_list(LineNo),
                  ": Unterminated quote '",
-                 Arg, "'"],
+                 lists:reverse(Arg), "'"],
                 LineNo);
 split_invoke_args(_P, _LineNo, [], normal, [], Args) ->
     lists:reverse(Args);
