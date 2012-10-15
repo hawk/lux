@@ -329,10 +329,10 @@ cmds() ->
                 "Each one is preceeded by its index number and optionally a\n"
                 "star. Star means that the log has been updated since the\n"
                 "previous status check. Use the index to display a particular\n"
-                "log. Such as \"t 2\" for the event log. Press enter to display\n"
-                "more lines. n_lines can be used to override that behavior and\n"
-                "only display a fixed number of lines regardless of the command\n"
-                "is repeated or not.",
+                "log. Such as \"t 2\" for the event log. Press enter to\n"
+                "display more lines. n_lines can be used to override that\n"
+                "behavior andonly display a fixed number of lines regardless\n"
+                "of the command is repeated or not.",
                 callback = fun cmd_tail/3},
      #debug_cmd{name = "list",
                 params = [#debug_param{name = "n_lines",
@@ -420,23 +420,29 @@ lineno_help() ->
         "lineno parameter\n"
         "----------------\n"
         "Several commands has a lineno as parameter. It is a string which\n"
-        "is divided in several components. The components are separated with\n"
-        "a colon and are used to refer to line numbers in include files and\n"
-        "macros. Each component may either be a line number, an (abbreviated)\n"
-        "file name or a combination of both separated with an at-sign (int@file).\n"
+        "is divided in several components. The components are separated\n"
+        "with a colon and are used to refer to line numbers in include\n"
+        "files and macros. Each component may either be a line number,\n"
+        "an (possibly abbreviated) file name or a combination of both\n"
+        "separated with an at-sign (int@file).\n"
         "\n"
-        "Assume that there is a file called main, which includes a file called\n"
-        "outer at line 4 and the file outer includes a file called inner at line 12.\n"
+        "Assume that there is a file called main, which includes a file\n"
+        "called outer at line 4 and the file outer includes a file called\n"
+        "inner at line 12.\n"
+        "\n"
         "Here are a few examples of how lineno can be used:\n"
         "\n"
         "* 3       - line 3 in file main\n"
         "* main    - first line in file main\n"
         "* 3@m     - line 3 in file main\n"
         "* inner   - any line in file inner\n"
-        "* outer:i - any line in file inner if it is directly included from outer\n"
-        "* 12@o:i  - any line in file inner if it is directly included from outer on line 12\n"
-        "* 4:12:6  - line 6 in file inner if it is included on line 12 in outer and outer\n"
-        "            is included on line 4 in main.\n\n".
+        "* outer:i - any line in file inner if it is directly\n"
+        "            included from outer\n"
+        "* 12@o:i  - any line in file inner if it is directly\n"
+        "            included from outer on line 12\n"
+        "* 4:12:6  - line 6 in file inner if it is included\n"
+        "            on line 12 in outer and outer is included\n"
+        "            on line 4 in main.\n\n".
 
 markdown() ->
     Intro = intro_help(),
@@ -458,6 +464,8 @@ cmd_attach(I, _, CmdState) ->
                 BreakPos = full_lineno_to_break_pos(CurrentFullLineNo),
                 [{"n_lines", 1}, {"lineno", BreakPos}];
             _ ->
+                io:format("\nBreak at ~s\n",
+                          [pretty_break_pos(CurrentFullLineNo)]),
                 [{RevFile, LineNo} | InclStack] = CurrentFullLineNo,
                 LineNo2 =
                     if
@@ -472,8 +480,6 @@ cmd_attach(I, _, CmdState) ->
                     end,
                 FullLineNo = [{RevFile, LineNo2} | InclStack],
                 BreakPos2 = full_lineno_to_break_pos(FullLineNo),
-                io:format("\nBreak at ~s.\n",
-                          [pretty_break_pos(FullLineNo)]),
                 [{"n_lines", 10}, {"lineno", BreakPos2}]
         end,
     case opt_block(I) of
@@ -584,12 +590,12 @@ add_break(I, BreakPos, Type) ->
             PrettyBreakPos = pretty_break_pos(FullLineNo),
             case Type of
                 temporary ->
-                    io:format("\nSet temporary breakpoint at ~s.\n",
+                    io:format("\nSet temporary breakpoint at ~s\n",
                               [PrettyBreakPos]);
                 next ->
                     ok;
                 _ ->
-                    io:format("\nSet breakpoint at ~s.\n",
+                    io:format("\nSet breakpoint at ~s\n",
                               [PrettyBreakPos])
             end,
             NewBreak = #break{pos = BreakPos, type = Type},
@@ -708,7 +714,7 @@ do_continue(I, Args, _CmdState, Type) ->
         next ->
             ok;
         _ ->
-            io:format("\nContinue to run at ~s\n",
+            io:format("\nContinue to run from ~s\n",
                       [pretty_break_pos(current_full_lineno(I))])
     end,
     case opt_unblock(I2) of
