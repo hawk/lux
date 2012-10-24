@@ -144,8 +144,7 @@ select_first(_Char, [], Acc) ->
     lists:reverse(Acc).
 
 ambiguous(Orig, NamedCmds) ->
-    Lengths = [length(N) || {_, #debug_cmd{name = N}} <- NamedCmds],
-    Longest = lists:max([0 | Lengths]),
+    Longest = longest(NamedCmds),
     Fun = fun({_, #debug_cmd{name = Name, help = Help}}) ->
                   {Slogan, _} =
                       lists:splitwith(fun(Char) -> Char =/= $\n end, Help),
@@ -155,29 +154,22 @@ ambiguous(Orig, NamedCmds) ->
     lists:flatten(["Available commands: ", Orig, "\n",
                    "-------------------\n", DeepList]).
 
-parse_params([#debug_param{name = Name,
-                           type = Type,
-                           presence = Presence} = P | Params],
-             [Arg | Args], Acc, Bad) ->
+parse_params([#debug_param{name = Name,type = Type} | Params],
+             [Arg | Args], Acc, _Bad) ->
 
     try
         Val = parse_param(Type, Arg),
         parse_params(Params, Args, [{Name, Val} | Acc], [])
     catch
         error:_ ->
-            case Presence of
-                optional ->
-                    parse_params(Params, [Arg | Args], Acc, [P | Bad]);
-                mandatory ->
-                    Type2 =
-                        if
-                            is_atom(Type) -> atom_to_list(Type);
-                            true          -> atom_to_list(element(1, Type))
-                        end,
-                    ReasonStr = lists:flatten(["Bad type of parameter ", Name,
-                                               ". Expected ", Type2]),
-                    {error, ReasonStr}
-            end
+            Type2 =
+                if
+                    is_atom(Type) -> atom_to_list(Type);
+                    true          -> atom_to_list(element(1, Type))
+                end,
+            ReasonStr = lists:flatten(["Bad type of parameter ", Name,
+                                       ". Expected ", Type2]),
+            {error, ReasonStr}
     end;
 parse_params(Params, [], Acc, Bad) ->
     case [P || P <- Params, P#debug_param.presence =/= optional] of
@@ -185,15 +177,13 @@ parse_params(Params, [], Acc, Bad) ->
             {ok, lists:reverse(Acc)};
         Mandatory ->
             All = Bad ++ Mandatory,
-            Lengths = [length(N) || #debug_param{name = N} <- All],
-            Longest = lists:max([0 | Lengths]),
+            Longest = longest(All),
             DeepList = ["Missing parameter.\nPossible parameters:\n",
                         [pretty_param(P, Longest) || P <- All]],
             {error, lists:flatten(DeepList)}
     end;
 parse_params([], [Arg | _], _Acc, Bad) ->
-    Lengths = [length(N) || #debug_param{name = N} <- Bad],
-    Longest = lists:max([0 | Lengths]),
+    Longest = longest(Bad),
     DeepList = ["Value ", Arg, " has the wrong type.\nPossible parameters:\n",
                 [pretty_param(P, Longest) || P <- Bad]],
     {error, lists:flatten(DeepList)}.
@@ -758,8 +748,7 @@ cmd_help(I, [{_, CmdName}], CmdState) ->
     end.
 
 pretty_cmd(#debug_cmd{name = Name, params = Params, help = Help}) ->
-    Lengths = [length(N) || #debug_param{name = N} <- Params],
-    Longest = lists:max([0 | Lengths]),
+    Longest = longest(Params),
     Fun = fun(#debug_param{name = N, presence = Pres}) ->
                   case Pres of
                       optional  -> [" [", N, "]"];
@@ -781,8 +770,7 @@ pretty_cmd(#debug_cmd{name = Name, params = Params, help = Help}) ->
      end
     ].
 
-pretty_param(#debug_param{name = Name, type = Type, help = Help},
-             Longest) ->
+pretty_param(#debug_param{name = Name, type = Type, help = Help}, Longest) ->
     PrettyType =
         case Type of
             binary ->
@@ -810,6 +798,19 @@ pretty_param(#debug_param{name = Name, type = Type, help = Help},
         end,
     ["* ", string:left(Name, Longest, $\ ),
      " - ", Help, "; ", PrettyType, "  \n"].
+
+longest(Elems) ->
+    longest2(Elems, 0).
+
+longest2([H | T], Longest) ->
+    case H of
+        #debug_cmd{name = Str} -> ok;
+        #debug_param{name = Str} -> ok;
+        Str when is_list(Str) -> ok
+    end,
+    longest2(T, lists:max([Longest, length(Str)]));
+longest2([], Longest) ->
+    Longest.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
