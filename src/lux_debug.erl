@@ -366,7 +366,8 @@ cmds() ->
                 callback = fun cmd_progress/3},
      #debug_cmd{name = "quit",
                 params = [],
-                help = "exit lux ",
+                help = "exit lux in a controlled manner. "
+                "Runs cleanup if applicable. ",
                 callback = fun cmd_quit/3},
      #debug_cmd{name = "save",
                 params = [#debug_param{name = "file",
@@ -804,6 +805,7 @@ longest(Elems) ->
 
 longest2([H | T], Longest) ->
     case H of
+        {_Name, #debug_cmd{name = Str}} -> ok;
         #debug_cmd{name = Str} -> ok;
         #debug_param{name = Str} -> ok;
         Str when is_list(Str) -> ok
