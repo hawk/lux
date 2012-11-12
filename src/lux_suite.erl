@@ -302,7 +302,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             case Mode of
-                list when SkipNames =/= []->
+                list when SkipNames =/= []; SkipUnlessNames =/= [] ->
                     run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
                 list ->
                     io:format("~s\n", [Script]),
@@ -350,8 +350,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                             Results2 = Results;
                         _ ->
                             NewSummary = warning,
-                            Summary = lux_utils:summary(OldSummary,
-                                                             NewSummary),
+                            Summary = lux_utils:summary(OldSummary, NewSummary),
                             Results2 = [{NewSummary, Script2, NewWarnings} |
                                         Results]
                     end,
@@ -366,8 +365,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                             Results2 = Results;
                         _ ->
                             NewSummary = warning,
-                            Summary = lux_utils:summary(OldSummary,
-                                                             NewSummary),
+                            Summary = lux_utils:summary(OldSummary, NewSummary),
                             Results2 = [{NewSummary, Script2, NewWarnings} |
                                         Results]
                     end,
@@ -382,14 +380,12 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     Res = lux:interpret_commands(Script2, Commands, Opts),
                     case Res of
                         {ok, _, NewSummary, FullLineNo, Events} ->
-                            Summary = lux_utils:summary(OldSummary,
-                                                             NewSummary),
+                            Summary = lux_utils:summary(OldSummary, NewSummary),
                             Res2 = {ok, Script, NewSummary, FullLineNo, Events},
                             Results2 = [Res2 | Results];
                         {error, _, _, _} ->
                             NewSummary = error,
-                            Summary = lux_utils:summary(OldSummary,
-                                                             NewSummary),
+                            Summary = lux_utils:summary(OldSummary, NewSummary),
                             Results2 = [Res | Results]
                     end,
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
