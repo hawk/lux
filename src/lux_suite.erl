@@ -318,12 +318,12 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                             double_log(R2, "~sSKIP as variable ~s is not set\n",
                                        [?TAG("result"), hd(SkipUnlessNames)])
                     end,
-                    NewSummary = skip,
-                    Summary = lux_utils:summary(OldSummary, NewSummary),
-                    Res = {ok, Script2, NewSummary, "0", []},
+                    Summary = skip,
+                    NewSummary = lux_utils:summary(OldSummary, Summary),
+                    Res = {ok, Script2, Summary, "0", []},
                     Results2 = [Res | Results],
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, Summary, Results2);
+                              SuiteFile, Scripts, NewSummary, Results2);
               _ when RequireNames =/= [] ->
                     double_log(R2, "\n~s~s\n",
                                [?TAG("test case"), Script]),
@@ -331,12 +331,12 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                                "~sFAIL as required variable ~s is not set\n",
                                [?TAG("result"),
                                 hd(RequireNames)]),
-                    NewSummary = fail,
-                    Summary = lux_utils:summary(OldSummary, NewSummary),
-                    Res = {ok, Script2, NewSummary, "0", []},
+                    Summary = fail,
+                    NewSummary = lux_utils:summary(OldSummary, Summary),
+                    Res = {ok, Script2, Summary, "0", []},
                     Results2 = [Res | Results],
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, Summary, Results2);
+                              SuiteFile, Scripts, NewSummary, Results2);
                doc ->
                     Docs = extract_doc(Script2, Commands),
                     {ok, Cwd} = file:get_cwd(),
@@ -346,26 +346,27 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                         #cmd{arg = {Level, Str}} <- Docs],
                     case NewWarnings of
                         [] ->
-                            Summary = OldSummary,
+                            NewSummary = OldSummary,
                             Results2 = Results;
                         _ ->
-                            NewSummary = warning,
-                            Summary = lux_utils:summary(OldSummary, NewSummary),
-                            Results2 = [{NewSummary, Script2, NewWarnings} |
+                            Summary = warning,
+                            NewSummary = lux_utils:summary(OldSummary, Summary),
+                            Results2 = [{Summary, Script2, NewWarnings} |
                                         Results]
                     end,
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, Summary, Results2);
+                              SuiteFile, Scripts, NewSummary, Results2);
                validate ->
                     double_log(R2, "\n~s~s\n",
                                [?TAG("test case"), Script]),
                     case NewWarnings of
                         [] ->
-                            Summary = OldSummary,
+                            Summary = success,
+                            NewSummary = OldSummary,
                             Results2 = Results;
                         _ ->
-                            NewSummary = warning,
-                            Summary = lux_utils:summary(OldSummary, NewSummary),
+                            Summary = warning,
+                            NewSummary = lux_utils:summary(OldSummary, Summary),
                             Results2 = [{NewSummary, Script2, NewWarnings} |
                                         Results]
                     end,
@@ -373,23 +374,23 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                                [?TAG("result"),
                                 string:to_upper(atom_to_list(Summary))]),
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, Summary, Results2);
+                              SuiteFile, Scripts, NewSummary, Results2);
                 execute ->
                     double_log(R2, "\n~s~s\n",
                                [?TAG("test case"), Script]),
                     Res = lux:interpret_commands(Script2, Commands, Opts),
                     case Res of
-                        {ok, _, NewSummary, FullLineNo, Events} ->
-                            Summary = lux_utils:summary(OldSummary, NewSummary),
-                            Res2 = {ok, Script, NewSummary, FullLineNo, Events},
+                        {ok, _, Summary, FullLineNo, Events} ->
+                            NewSummary = lux_utils:summary(OldSummary, Summary),
+                            Res2 = {ok, Script, Summary, FullLineNo, Events},
                             Results2 = [Res2 | Results];
                         {error, _, _, _} ->
-                            NewSummary = error,
-                            Summary = lux_utils:summary(OldSummary, NewSummary),
+                            Summary = error,
+                            NewSummary = lux_utils:summary(OldSummary, Summary),
                             Results2 = [Res | Results]
                     end,
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, Summary, Results2)
+                              SuiteFile, Scripts, NewSummary, Results2)
             end;
         {error, _R2, _File2, _FullLineNo, _Error2} when Mode =:= list ->
             io:format("~s\n", [Script]),
@@ -404,11 +405,11 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                        [?TAG("result"), File2, Error2]),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
-            NewSummary = error,
-            Summary = lux_utils:summary(OldSummary, NewSummary),
+            Summary = error,
+            NewSummary = lux_utils:summary(OldSummary, Summary),
             Results2 = [{error, File2, FullLineNo, Error2} | Results],
             run_cases(Mode, R#rstate{warnings = AllWarnings},
-                     SuiteFile, Scripts, Summary, Results2)
+                     SuiteFile, Scripts, NewSummary, Results2)
     end;
 run_cases(_Mode, R, _SuiteFile, [], Summary, Results) ->
     {R, Summary, Results}.
