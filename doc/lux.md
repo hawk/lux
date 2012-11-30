@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.1 - 2012-10-15
+Version 1.1 - 2012-11-30
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -812,31 +812,36 @@ Available commands:
 * load     - load file with debug commands
 * next     - execute one or more commands. A multiline command counts as one command.
 * progress - set verbosity level of progress
-* quit     - exit lux 
+* quit     - exit lux in a controlled manner. Runs cleanup if applicable. 
 * save     - save debug state to file
 * skip     - skip execution of one or more commands. A multiline command counts as one command.
-
 
 lineno parameter
 ----------------
 Several commands has a lineno as parameter. It is a string which
-is divided in several components. The components are separated with
-a colon and are used to refer to line numbers in include files and
-macros. Each component may either be a line number, an (abbreviated)
-file name or a combination of both separated with an at-sign (int@file).
+is divided in several components. The components are separated
+with a colon and are used to refer to line numbers in include
+files and macros. Each component may either be a line number,
+an (possibly abbreviated) file name or a combination of both
+separated with an at-sign (int@file).
 
-Assume that there is a file called main, which includes a file called
-outer at line 4 and the file outer includes a file called inner at line 12.
+Assume that there is a file called main, which includes a file
+called outer at line 4 and the file outer includes a file called
+inner at line 12.
+
 Here are a few examples of how lineno can be used:
 
 * 3       - line 3 in file main
 * main    - first line in file main
 * 3@m     - line 3 in file main
 * inner   - any line in file inner
-* outer:i - any line in file inner if it is directly included from outer
-* 12@o:i  - any line in file inner if it is directly included from outer on line 12
-* 4:12:6  - line 6 in file inner if it is included on line 12 in outer and outer
-            is included on line 4 in main.
+* outer:i - any line in file inner if it is directly
+            included from outer
+* 12@o:i  - any line in file inner if it is directly
+            included from outer on line 12
+* 4:12:6  - line 6 in file inner if it is included
+            on line 12 in outer and outer is included
+            on line 4 in main.
 
 
 
@@ -896,10 +901,10 @@ With no argument, the names of the log files will be listed.
 Each one is preceeded by its index number and optionally a
 star. Star means that the log has been updated since the
 previous status check. Use the index to display a particular
-log. Such as "t 2" for the event log. Press enter to display
-more lines. n_lines can be used to override that behavior and
-only display a fixed number of lines regardless of the command
-is repeated or not.
+log. Such as "t 2" for the event log. Press enter to
+display more lines. n_lines can be used to override that
+behavior andonly display a fixed number of lines regardless
+of the command is repeated or not.
 
 **Parameters:**  
 
@@ -951,7 +956,7 @@ set verbosity level of progress
 quit
 ----
 
-exit lux 
+exit lux in a controlled manner. Runs cleanup if applicable. 
 
 **Parameters:**  
 
@@ -992,8 +997,11 @@ Prerequisites
 The following software is required:
 
 * The tool **Lux** is implemented with **[Erlang/OTP][]** and its
-  runtime system must be installed in order to build the tool. Once
-  the tool has been installed, it will be self-contained and does
+  runtime system must be installed in order to build the tool. Install
+  `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
+>     sudo apt-get install erlang
+
+  Once `Lux` has been installed, it will be self-contained and does
   not need a separate `Erlang/OTP` runtime system any more.
 
 * The documentation is pre-built. Re-generation of the documentation
@@ -1094,15 +1102,19 @@ References
 1. [Lux - LUcid eXpect scripting][Lux]  
 2. [Expect homepage][Expect]  
 3. [Erlang programming language][Erlang/OTP]  
-4. [Erlang style regular expressions (re)][regular expression]  
-5. [PCRE - Perl Compatible Regular Expressions][PCRE]  
-6. [Erlang release management tool][Reltool]  
-7. [Markdown][Markdown]  
+4. [Pre-built Erlang packages][pre-built packages]  
+5. [Erlang style regular expressions (re)][regular expression]  
+6. [PCRE - Perl Compatible Regular Expressions][PCRE]  
+7. [Erlang release management tool][Reltool]  
+8. [Markdown][Markdown]  
 
 [Expect]:             http://www.nist.gov/el/msid/expect.cfm
                       "Expect homepage"
 [Erlang/OTP]:         http://www.erlang.org/
                       "Erlang programming language"
+[pre-built packages]:    https://www.erlang-solutions.com/downloads/download-erlang-otp
+                      "Prebuilt packages at Erlang Solutions"
+
 [regular expression]: http://www.erlang.org/doc/man/re.html
                       "Erlang style regular expressions (re)"
 [PCRE]:               http://www.pcre.org/

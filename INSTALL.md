@@ -7,8 +7,11 @@ Prerequisites
 The following software is required:
 
 * The tool **Lux** is implemented with **[Erlang/OTP][]** and its
-  runtime system must be installed in order to build the tool. Once
-  the tool has been installed, it will be self-contained and does
+  runtime system must be installed in order to build the tool. Install
+  `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
+>     sudo apt-get install erlang
+
+  Once `Lux` has been installed, it will be self-contained and does
   not need a separate `Erlang/OTP` runtime system any more.
 
 * The documentation is pre-built. Re-generation of the documentation

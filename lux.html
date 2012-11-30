@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.1 - 2012-10-15</p>
+<p>Version 1.1 - 2012-11-30</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -824,7 +824,7 @@ If no command has been entered yet, the command <code>help</code> is assumed.</p
 <li>load     - load file with debug commands</li>
 <li>next     - execute one or more commands. A multiline command counts as one command.</li>
 <li>progress - set verbosity level of progress</li>
-<li>quit     - exit lux </li>
+<li>quit     - exit lux in a controlled manner. Runs cleanup if applicable. </li>
 <li>save     - save debug state to file</li>
 <li>skip     - skip execution of one or more commands. A multiline command counts as one command.</li>
 </ul>
@@ -832,24 +832,30 @@ If no command has been entered yet, the command <code>help</code> is assumed.</p
 <h2>lineno parameter</h2>
 
 <p>Several commands has a lineno as parameter. It is a string which
-is divided in several components. The components are separated with
-a colon and are used to refer to line numbers in include files and
-macros. Each component may either be a line number, an (abbreviated)
-file name or a combination of both separated with an at-sign (int@file).</p>
+is divided in several components. The components are separated
+with a colon and are used to refer to line numbers in include
+files and macros. Each component may either be a line number,
+an (possibly abbreviated) file name or a combination of both
+separated with an at-sign (int@file).</p>
 
-<p>Assume that there is a file called main, which includes a file called
-outer at line 4 and the file outer includes a file called inner at line 12.
-Here are a few examples of how lineno can be used:</p>
+<p>Assume that there is a file called main, which includes a file
+called outer at line 4 and the file outer includes a file called
+inner at line 12.</p>
+
+<p>Here are a few examples of how lineno can be used:</p>
 
 <ul>
 <li>3       - line 3 in file main</li>
 <li>main    - first line in file main</li>
 <li>3@m     - line 3 in file main</li>
 <li>inner   - any line in file inner</li>
-<li>outer:i - any line in file inner if it is directly included from outer</li>
-<li>12@o:i  - any line in file inner if it is directly included from outer on line 12</li>
-<li>4:12:6  - line 6 in file inner if it is included on line 12 in outer and outer
-        is included on line 4 in main.</li>
+<li>outer:i - any line in file inner if it is directly
+        included from outer</li>
+<li>12@o:i  - any line in file inner if it is directly
+        included from outer on line 12</li>
+<li>4:12:6  - line 6 in file inner if it is included
+        on line 12 in outer and outer is included
+        on line 4 in main.</li>
 </ul>
 
 <h2>attach</h2>
@@ -909,10 +915,10 @@ Without parameters, all breakpoints are listed.</p>
 Each one is preceeded by its index number and optionally a
 star. Star means that the log has been updated since the
 previous status check. Use the index to display a particular
-log. Such as "t 2" for the event log. Press enter to display
-more lines. n_lines can be used to override that behavior and
-only display a fixed number of lines regardless of the command
-is repeated or not.</p>
+log. Such as "t 2" for the event log. Press enter to
+display more lines. n_lines can be used to override that
+behavior andonly display a fixed number of lines regardless
+of the command is repeated or not.</p>
 
 <p><strong>Parameters:</strong>  </p>
 
@@ -969,7 +975,7 @@ commands have been given in between.</p>
 
 <h2>quit</h2>
 
-<p>exit lux </p>
+<p>exit lux in a controlled manner. Runs cleanup if applicable. </p>
 
 <p><strong>Parameters:</strong>  </p>
 
@@ -1011,8 +1017,15 @@ commands have been given in between.</p>
 
 <ul>
 <li><p>The tool <strong>Lux</strong> is implemented with <strong><a href="http://www.erlang.org/" title="Erlang programming language">Erlang/OTP</a></strong> and its
-runtime system must be installed in order to build the tool. Once
-the tool has been installed, it will be self-contained and does
+runtime system must be installed in order to build the tool. Install
+<code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">pre-built packages</a>:</p>
+
+<blockquote>
+<pre><code>sudo apt-get install erlang
+</code></pre>
+</blockquote>
+
+<p>Once <code>Lux</code> has been installed, it will be self-contained and does
 not need a separate <code>Erlang/OTP</code> runtime system any more.</p></li>
 <li><p>The documentation is pre-built. Re-generation of the documentation
 requires <strong><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></strong>.</p></li>
@@ -1144,6 +1157,7 @@ firefox ../lux.html
 <li><a href="https://github.com/hawk/lux" title="LUcid eXpect scripting">Lux - LUcid eXpect scripting</a>  </li>
 <li><a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect homepage</a>  </li>
 <li><a href="http://www.erlang.org/" title="Erlang programming language">Erlang programming language</a>  </li>
+<li><a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">Pre-built Erlang packages</a>  </li>
 <li><a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">Erlang style regular expressions (re)</a>  </li>
 <li><a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE - Perl Compatible Regular Expressions</a>  </li>
 <li><a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Erlang release management tool</a>  </li>
