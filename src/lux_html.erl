@@ -575,6 +575,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      "\n<h2>", drop_prefix(A, Script), "</h2>\n",
      html_result("h2", Result, ""),
      html_href("h3", "", "", "#config", "Script configuration"),
+     html_href("h3", "", "", "#cleanup", "Cleanup"),
      "\n<h3>Source files: ",
      html_files(A, Files),
      "\n</h3>",
@@ -583,6 +584,9 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      html_logs(A, Logs),
      "\n<h2>Annotated source code</h2>\n",
      html_code(A, Annotated),
+
+     "<div class=code><pre><a name=\"cleanup\"></a></pre></div>\n",
+
      html_anchor("h2", "", "config", "Script configuration:"),
      html_config(Config),
      html_footer()
@@ -650,6 +654,10 @@ html_code2(A, [Ann | Annotated], Prev) ->
             FullLineNo = lux_utils:full_lineno(LineNoStack),
             [
              html_toggle_div(Curr, Prev),
+             case Code of
+                 <<"[cleanup]">> -> "<a name=\"cleanup\"></a>";
+                 _               -> ""
+             end,
              html_anchor(FullLineNo, FullLineNo), ": ",
              html_cleanup(Code),
              "\n",
