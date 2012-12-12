@@ -17,7 +17,7 @@ after the first `"""` determines how the multi line quote will be
 interpreted. The char is interpreted as a statement just like any of
 the single line statement characters (so it can be e.g. `?`, `!`, `~`,
 `#`, `-`, etc).
-	   
+
 When multi line quotes are indented the leading whitespaces are
 stripped from the quoted lines, up to but not including the column
 of the double quote character, or to the first non-whitespace

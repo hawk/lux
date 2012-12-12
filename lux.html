@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.1 - 2012-11-30</p>
+<p>Version 1.2 - 2012-12-12</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -573,28 +573,38 @@ command line options. Architecture specific files are by default
 located in the subdirectory called <code>priv</code> in the <code>Lux</code> application.</p>
 
 <p><strong>--skip Var</strong> <br />
+<strong>--skip Var=Value</strong> <br />
 Skip execution of the script if the given variable is set. This
 option can be used multiple times, which means that it suffices
 that one of the given <code>Var</code>s is set in order to skip the test
 case. Typically <code>--skip</code> is used to test on presence of environment
 variables. <code>--skip</code> is intended to be used as <code>[config skip=Var]</code>
-statements within scripts.</p>
+or <code>[config skip=Var=Value]</code> statements within scripts. The
+construction <strong>Var=Value</strong> is little more restrictive as it requires
+that the variable is set to a certain value.</p>
 
 <p><strong>--skip_unless Var</strong> <br />
+<strong>--skip_unless Var=Value</strong> <br />
 Skip execution of the script if the given variable NOT is set. This
 option can be used multiple times, which means that it suffices
 that one of the given <code>Var</code>s NOT is set in order to skip the test
 case. Typically <code>--skip</code> is used to test on presence of environment
-variables. <code>--skip_unless</code> is intended to be used as <code>[config skip_unless=Var]</code>
-statements within scripts.</p>
+variables. <code>--skip_unless</code> is intended to be used as
+<code>[config skip_unless=Var]</code> or <code>[config skip_unless=Var=Value]</code>
+ statements within scripts. The construction <strong>Var=Val</strong> is little
+more restrictive as it requires that the variable is set to a certain
+value.</p>
 
 <p><strong>--require Var</strong> <br />
+<strong>--require Var=Value</strong> <br />
 Require that the given variable is set. The script will fail if
 the variable not is set. This option can be used multiple times,
 which means that all given Vars are required to be set.
 Typically require is used to test on presence of environment
 variables. <code>--require</code> is intended to be used as <code>[config require=Var]</code>
-statements within scripts.</p>
+or <code>[config require=Var=Value]</code> statements within scripts. The
+construction <strong>Var=Value</strong> is little more restrictive as it
+requires that the variable is set to a certain value.</p>
 
 <h2>Log control</h2>
 

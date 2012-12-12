@@ -296,9 +296,9 @@ list_files(R, File) ->
 run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
         {ok, R2, Script2, Commands, Opts} ->
-            SkipNames = list_skip_variables(R2),
-            SkipUnlessNames = list_skip_unless_variables(R2),
-            RequireNames = list_require_variables(R2),
+            SkipNames = list_matching_variables(R2, skip, false),
+            SkipUnlessNames = list_matching_variables(R2, skip_unless, true),
+            RequireNames = list_matching_variables(R2, require, true),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             case Mode of
@@ -414,37 +414,40 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
 run_cases(_Mode, R, _SuiteFile, [], Summary, Results) ->
     {R, Summary, Results}.
 
-list_skip_variables(R) ->
-    Fun = fun(Name) ->
-                  UnExpanded = [$$ | Name],
-                  Expanded = expand_vars(R, UnExpanded, keep),
-                  Expanded =/= UnExpanded
-          end,
-    Names = pick_vals(skip, R, []),
-    lists:filter(Fun, Names).
+list_matching_variables(R, Tag, DoNegate) ->
+    Fun =
+        fun(NameVal) ->
+                Bool = test_variable(R, NameVal),
+                case DoNegate of
+                    true  -> not Bool;
+                    false -> Bool
+                end
+        end,
+    NameVals = pick_vals(Tag, R, []),
+    lists:filter(Fun, NameVals).
 
-list_skip_unless_variables(R) ->
-    Fun = fun(Name) ->
-                  UnExpanded = [$$ | Name],
-                  try expand_vars(R, UnExpanded, error) of
-                      _ ->
-                          false
-                  catch
-                      throw:{no_such_var, _} ->
-                          true
-                  end
-          end,
-    Names = pick_vals(skip_unless, R, []),
-    lists:filter(Fun, Names).
+test_variable(R, NameVal) ->
+    Pred = fun(Char) -> Char =/= $= end,
+    {Name, OptVal} = lists:splitwith(Pred, NameVal),
+    UnExpanded = [$$ | Name],
+    try
+        Expanded = expand_vars(R, UnExpanded, error),
+        case OptVal of
+            [$= | Val] when Val =:= Expanded ->
+                %% Test on value. Possible empty.
+                true;
+            [] when Expanded =/= UnExpanded ->
+                %% Test on existence
+                true;
+            _ ->
+                %% No match
+                false
+        end
+    catch
+        throw:{no_such_var, _} ->
+            false
+    end.
 
-list_require_variables(R) ->
-    Fun = fun(Name) ->
-                  UnExpanded = [$$ | Name],
-                  Expanded = expand_vars(R, UnExpanded, keep),
-                  Expanded =:= UnExpanded
-          end,
-    Names = pick_vals(require, R, []),
-    lists:filter(Fun, Names).
 
 extract_doc(File, Cmds) ->
     Fun = fun(Cmd, _RevFile, _InclStack, Acc) ->

@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.1 - 2012-11-30
+Version 1.2 - 2012-12-12
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -211,7 +211,7 @@ after the first `"""` determines how the multi line quote will be
 interpreted. The char is interpreted as a statement just like any of
 the single line statement characters (so it can be e.g. `?`, `!`, `~`,
 `#`, `-`, etc).
-	   
+
 When multi line quotes are indented the leading whitespaces are
 stripped from the quoted lines, up to but not including the column
 of the double quote character, or to the first non-whitespace
@@ -557,30 +557,40 @@ architecture specific file may be overridden by config settings in the
 script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
-      
+
 **--skip Var**  
+**--skip Var=Value**  
 Skip execution of the script if the given variable is set. This
 option can be used multiple times, which means that it suffices
 that one of the given `Var`s is set in order to skip the test
 case. Typically `--skip` is used to test on presence of environment
 variables. `--skip` is intended to be used as `[config skip=Var]`
-statements within scripts.
+or `[config skip=Var=Value]` statements within scripts. The
+construction **Var=Value** is little more restrictive as it requires
+that the variable is set to a certain value.
 
-**--skip_unless Var**  
+**--skip\_unless Var**  
+**--skip\_unless Var=Value**  
 Skip execution of the script if the given variable NOT is set. This
 option can be used multiple times, which means that it suffices
 that one of the given `Var`s NOT is set in order to skip the test
 case. Typically `--skip` is used to test on presence of environment
-variables. `--skip_unless` is intended to be used as `[config skip_unless=Var]`
-statements within scripts.
+variables. `--skip_unless` is intended to be used as
+`[config skip_unless=Var]` or `[config skip_unless=Var=Value]`
+ statements within scripts. The construction **Var=Val** is little
+more restrictive as it requires that the variable is set to a certain
+value.
 
 **--require Var**  
+**--require Var=Value**  
 Require that the given variable is set. The script will fail if
 the variable not is set. This option can be used multiple times,
 which means that all given Vars are required to be set.
 Typically require is used to test on presence of environment
 variables. `--require` is intended to be used as `[config require=Var]`
-statements within scripts.
+or `[config require=Var=Value]` statements within scripts. The
+construction **Var=Value** is little more restrictive as it
+requires that the variable is set to a certain value.
 
 Log control
 -----------
@@ -815,6 +825,7 @@ Available commands:
 * quit     - exit lux in a controlled manner. Runs cleanup if applicable. 
 * save     - save debug state to file
 * skip     - skip execution of one or more commands. A multiline command counts as one command.
+
 
 lineno parameter
 ----------------
