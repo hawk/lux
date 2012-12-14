@@ -739,25 +739,44 @@ html_opt_div(Item, Data) ->
 
 history(TopDir, HtmlFile) ->
     TopDir2 = filename:absname(TopDir),
-    HtmlFile2 = filename:absname(HtmlFile),
-    HtmlDir = filename:dirname(HtmlFile2),
-    AllRuns = parse_summary_logs(HtmlDir, TopDir2, []),
+    AbsHtmlFile = filename:absname(HtmlFile),
+    AllRuns = parse_summary_logs(AbsHtmlFile, TopDir2, []),
     io:format("~p test runs", [length(AllRuns)]),
     SplitHosts = keysplit(#run.hostname, AllRuns),
     LatestRuns = latest_runs(SplitHosts),
-    HostTables = html_history_table_hosts(SplitHosts, HtmlDir),
+    HostTables = html_history_table_hosts(SplitHosts, AbsHtmlFile),
     SplitConfigs = keysplit(#run.config_name, AllRuns, fun compare_run/2),
-    ConfigTables = html_history_table_configs(SplitConfigs, HtmlDir),
-    IoList =
+    ConfigTables = html_history_table_configs(SplitConfigs, AbsHtmlFile),
+    OverviewIoList =
         [
-         html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile),
-         html_history_table_latest(LatestRuns, HtmlDir),
-         html_history_table_all(AllRuns, HtmlDir),
+         html_history_header("overview", AllRuns,
+                             ConfigTables, HostTables, HtmlFile),
+         html_history_table_latest(LatestRuns, AbsHtmlFile),
+         html_history_table_all(AllRuns, AbsHtmlFile),
+         html_footer()
+        ],
+    ConfigIoList =
+        [
+         html_history_header("config", AllRuns,
+                             ConfigTables, HostTables, HtmlFile),
          [IoList || {table, _, _, IoList} <- ConfigTables],
+         html_footer()
+        ],
+    HostIoList =
+        [
+         html_history_header("host", AllRuns,
+                             ConfigTables, HostTables, HtmlFile),
          [IoList || {table, _, _, IoList} <- HostTables],
          html_footer()
         ],
-    safe_write_file(HtmlFile, IoList).
+    HtmlDir = filename:dirname(HtmlFile),
+    ConfigHtmlFile =
+        filename:join(HtmlDir, insert_html_suffix(HtmlFile, "", "_config")),
+    HostHtmlFile =
+        filename:join(HtmlDir, insert_html_suffix(HtmlFile, "", "_host")),
+    safe_write_file(HtmlFile, OverviewIoList),
+    safe_write_file(ConfigHtmlFile, ConfigIoList),
+    safe_write_file(HostHtmlFile, HostIoList).
 
 latest_runs(SplitHosts) ->
     SplitHostTests =
@@ -774,7 +793,7 @@ latest_runs(SplitHosts) ->
         Run <- TestRuns,
         lists:member(Run#run.id, Ids)].
 
-html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile) ->
+html_history_header(Section, AllRuns, ConfigTables, HostTables, HtmlFile) ->
     Dir = filename:basename(filename:dirname(HtmlFile)),
     case lists:keysort(#run.repos_rev, AllRuns) of
         [] ->
@@ -796,8 +815,8 @@ html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile) ->
             N = integer_to_list(length(SortedRuns))
     end,
     [
-     html_header(["Lux history (", Dir, ")"]),
-     "<h1>Lux history (", Dir, ") generated at ",
+     html_header(["Lux history ", Section, " (", Dir, ")"]),
+     "<h1>Lux history ", Section, " (", Dir, ") generated at ",
      lux_utils:now_to_string(erlang:now()),
      "</h1>",
 
@@ -815,11 +834,11 @@ html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile) ->
 
      html_history_legend(),
      "\n\n"
-     "<h3>Configuration names</h3>",
+     "<h3>Configurations</h3>",
      "  <table border=1>\n",
      "    <tr>\n",
      [
-      html_href_td(ConfigName, ConfigRes) ||
+      html_config_href_td(HtmlFile, ConfigName, ConfigRes) ||
          {table, ConfigName, ConfigRes, _ConfigIoList} <- ConfigTables
      ],
      "    </tr>\n",
@@ -828,7 +847,7 @@ html_history_header(AllRuns, ConfigTables, HostTables, HtmlFile) ->
      "  <table border=1>\n",
      "    <tr>\n",
      [
-      html_href_td(Host, HostRes) ||
+      html_host_href_td(HtmlFile, Host, HostRes) ||
          {table, Host, HostRes, _HostIoList} <- HostTables
      ],
      "    </tr>\n",
@@ -849,53 +868,53 @@ html_history_legend() ->
      "  </table>\n"
     ].
 
-html_history_table_latest(LatestRuns, HtmlDir) ->
+html_history_table_latest(LatestRuns, HtmlFile) ->
     {table, _, _, IoList} =
         html_history_table("Latest", "All test suites",
-                           LatestRuns, HtmlDir, false, worst),
+                           LatestRuns, HtmlFile, false, worst),
     [
      "<h3>Latest run on each host</h3>\n",
      IoList
     ].
 
-html_history_table_all(AllRuns, HtmlDir) ->
+html_history_table_all(AllRuns, HtmlFile) ->
     {table, _, _, IoList} =
         html_history_table("All", "All test suites",
-                           AllRuns, HtmlDir, false, latest),
+                           AllRuns, HtmlFile, false, latest),
     [
      "<h3>All runs</h3>\n",
      IoList
     ].
 
-html_history_table_hosts(SplitHosts, HtmlDir) ->
+html_history_table_configs(SplitConfigs, HtmlFile) ->
+    [
+     html_history_double_table(ConfigName,
+                               "Config: " ++ ConfigName,
+                               Runs,
+                               HtmlFile,
+                               latest) ||
+        {ConfigName, Runs} <- SplitConfigs
+    ].
+
+html_history_table_hosts(SplitHosts, HtmlFile) ->
     [
      html_history_double_table(Host,
                                ["Host: ", Host,
                                 " (", (hd(Runs))#run.config_name, ")"],
                                Runs,
-                               HtmlDir,
+                               HtmlFile,
                                latest) ||
         {Host, Runs} <- SplitHosts
     ].
 
-html_history_table_configs(SplitConfigs, HtmlDir) ->
-    [
-     html_history_double_table(ConfigName,
-                               "ConfigName: " ++ ConfigName,
-                               Runs,
-                               HtmlDir,
-                               latest) ||
-        {ConfigName, Runs} <- SplitConfigs
-    ].
-
-html_history_double_table(Name, Label, AllRuns, HtmlDir, ResKind) ->
+html_history_double_table(Name, Label, AllRuns, HtmlFile, ResKind) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
     {table, _, WorstRes, AllIoList} =
         html_history_table(Name, "All test suites",
-                           AllRuns, HtmlDir, false, ResKind),
+                           AllRuns, HtmlFile, false, ResKind),
     {table, _, _, FailedIoList} =
         html_history_table(Name, "Failed test cases",
-                           Details, HtmlDir, true, ResKind),
+                           Details, HtmlFile, true, ResKind),
     {table,
      Name,
      WorstRes,
@@ -907,13 +926,13 @@ html_history_double_table(Name, Label, AllRuns, HtmlDir, ResKind) ->
      ]
     }.
 
-html_history_table(Name, Grain, Runs, HtmlDir, SuppressSuccess, ResKind) ->
+html_history_table(Name, Grain, Runs, HtmlFile, SuppressSuccess, ResKind) ->
     SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
     SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
     SplitIds2 = lists:sort(fun compare_split/2, SplitIds),
     RowHistory =
         [
-         html_history_row(Test, TestRuns, SplitIds2, HtmlDir,
+         html_history_row(Test, TestRuns, SplitIds2, HtmlFile,
                           ResKind, SuppressSuccess)
          || {Test, TestRuns} <- lists:reverse(SplitTests)
         ],
@@ -936,8 +955,10 @@ html_history_table(Name, Grain, Runs, HtmlDir, SuppressSuccess, ResKind) ->
       "    </tr>\n",
       "    <tr>\n",
       [["      <td>",
-        "<strong>", html_href("", "#" ++ Host, Host), "</strong>",
-        "<br>", html_href("", "#" ++ ConfigName, ConfigName),
+        "<strong>",
+        html_host_href(HtmlFile, "", "#" ++ Host, Host),
+        "</strong>",
+        "<br>", html_config_href(HtmlFile, "", "#" ++ ConfigName, ConfigName),
         "</td>\n"] ||
           {_, [#run{hostname=Host, config_name=ConfigName} |_ ]}
               <- SplitIds2
@@ -948,11 +969,11 @@ html_history_table(Name, Grain, Runs, HtmlDir, SuppressSuccess, ResKind) ->
      ]
     }.
 
-html_history_row(Test, Runs, SplitIds, HtmlDir, ResKind, SuppressSuccess) ->
+html_history_row(Test, Runs, SplitIds, HtmlFile, ResKind, SuppressSuccess) ->
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
     EmitCell =
         fun({Id, _}, AccRes) ->
-                html_history_cell(Id, RevRuns, HtmlDir, AccRes)
+                html_history_cell(Id, RevRuns, HtmlFile, AccRes)
         end,
     {Cells, _} = lists:mapfoldr(EmitCell, [], SplitIds),
     ValidResFilter = fun (Cell) -> valid_res_filter(Cell, SuppressSuccess) end,
@@ -1020,7 +1041,7 @@ compare_split({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
     %% Test on first run
     compare_run(R1, R2).
 
-html_history_cell(Id, Runs, HtmlDir, AccRes) ->
+html_history_cell(Id, Runs, HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
             Td = html_history_td("-", no_data, "right"),
@@ -1036,6 +1057,7 @@ html_history_cell(Id, Runs, HtmlDir, AccRes) ->
                     ?DEFAULT_LOG ->
                         FailCount;
                     Log ->
+                        HtmlDir = filename:dirname(HtmlFile),
                         html_href("",
                                   [drop_prefix(HtmlDir, Log), ".html"],
                                   FailCount)
@@ -1058,13 +1080,23 @@ html_history_cell(Id, Runs, HtmlDir, AccRes) ->
             {{cell, Res, Run, Td}, AccRes2}
     end.
 
-html_href_td(Text, skip) ->
-    html_href_td(Text, none);
-html_href_td(Text, Res) ->
+html_config_href_td(HtmlFile, Text, skip) ->
+    html_config_href_td(HtmlFile, Text, none);
+html_config_href_td(HtmlFile, Text, Res) ->
     [
      "    ",
      "<td class=", atom_to_list(Res), "> ",
-     html_href("", "#" ++ Text, Text),
+     html_config_href(HtmlFile,"", "#" ++ Text, Text),
+     "</td>\n"
+    ].
+
+html_host_href_td(HtmlFile, Text, skip) ->
+    html_host_href_td(HtmlFile, Text, none);
+html_host_href_td(HtmlFile, Text, Res) ->
+    [
+     "    ",
+     "<td class=", atom_to_list(Res), "> ",
+     html_host_href(HtmlFile, "", "#" ++ Text, Text),
      "</td>\n"
     ].
 
@@ -1098,7 +1130,7 @@ multi_member([H | T], Files) ->
 multi_member([], _Files) ->
     false.
 
-parse_summary_logs(HtmlDir, Dir, Acc) ->
+parse_summary_logs(HtmlFile, Dir, Acc) ->
     Cands = ["lux.skip",
              "lux_summary.log",
              "lux_summary.log.tmp",
@@ -1106,9 +1138,9 @@ parse_summary_logs(HtmlDir, Dir, Acc) ->
              "qmscript_summary.log",
              "qmscript_summary.log.tmp",
              "qmscript.summary.log"],
-    do_parse_summary_logs(HtmlDir, Dir, Acc, Cands).
+    do_parse_summary_logs(HtmlFile, Dir, Acc, Cands).
 
-do_parse_summary_logs(HtmlDir, Dir, Acc, Cands) ->
+do_parse_summary_logs(HtmlFile, Dir, Acc, Cands) ->
     %% io:format("~s\n", [Dir]),
     case file:list_dir(Dir) of
         {ok, Files} ->
@@ -1121,7 +1153,7 @@ do_parse_summary_logs(HtmlDir, Dir, Acc, Cands) ->
                             SumA = #astate{log_dir=Dir, log_file=File},
                             io:format(".", []),
                             Res = parse_summary_log(false, SumA),
-                            [parse_run_summary(HtmlDir, Res) | Acc];
+                            [parse_run_summary(HtmlFile, Res) | Acc];
                         false ->
                             io:format("s", []),
                             %% Skip
@@ -1135,7 +1167,8 @@ do_parse_summary_logs(HtmlDir, Dir, Acc, Cands) ->
                                 A;
                            (File, A) ->
                                 SubDir = filename:join([Dir, File]),
-                                do_parse_summary_logs(HtmlDir, SubDir, A, Cands)
+                                do_parse_summary_logs(HtmlFile, SubDir,
+                                                      A, Cands)
                         end,
                     lists:foldl(Fun, Acc, Files)
             end;
@@ -1144,7 +1177,7 @@ do_parse_summary_logs(HtmlDir, Dir, Acc, Cands) ->
             Acc
     end.
 
-parse_run_summary(HtmlDir,
+parse_run_summary(HtmlFile,
                   {ok, SummaryLog, SummaryRes, Groups, ArchConfig, FI}) ->
     Split =
         fun(Config) ->
@@ -1177,10 +1210,11 @@ parse_run_summary(HtmlDir,
     RunDir = binary_to_list(find_config(<<"workdir">>,
                                         Config,
                                         list_to_binary(Cwd))),
-    Cases = [parse_run_case(HtmlDir, RunDir, StartTime, Host, ConfigName,
+    Cases = [parse_run_case(HtmlFile, RunDir, StartTime, Host, ConfigName,
                             Suite, RunId, ReposRev, Case) ||
                 {test_group, _Group, Cases} <- Groups,
                 Case <- Cases],
+    HtmlDir = filename:dirname(HtmlFile),
     #run{test = Suite,
          id = RunId,
          result = run_result(SummaryRes),
@@ -1191,7 +1225,8 @@ parse_run_summary(HtmlDir,
          run_dir = RunDir,
          repos_rev = ReposRev,
          details = Cases};
-parse_run_summary(HtmlDir, {error, SummaryLog, _ReasonStr}) ->
+parse_run_summary(HtmlFile, {error, SummaryLog, _ReasonStr}) ->
+    HtmlDir = filename:dirname(HtmlFile),
     {ok, Cwd} = file:get_cwd(),
     #run{test = ?DEFAULT_SUITE,
          id = ?DEFAULT_RUN,
@@ -1204,8 +1239,10 @@ parse_run_summary(HtmlDir, {error, SummaryLog, _ReasonStr}) ->
          repos_rev = ?DEFAULT_REV,
          details = []}.
 
-parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName, Suite, RunId, ReposRev,
+parse_run_case(HtmlFile, RunDir, Start, Host, ConfigName,
+               Suite, RunId, ReposRev,
                {test_case, Name, Log, _Doc, _HtmlLog, CaseRes}) ->
+    HtmlDir = filename:dirname(HtmlFile),
     File = drop_prefix(RunDir, Name),
     File2 = drop_some_dirs(File),
     #run{test = <<Suite/binary, ":", File2/binary>>,
@@ -1218,7 +1255,7 @@ parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName, Suite, RunId, ReposRev,
          run_dir = RunDir,
          repos_rev = ReposRev,
          details = []};
-parse_run_case(_HtmlDir, RunDir, Start, Host, ConfigName, Suite,
+parse_run_case(_HtmlFile, RunDir, Start, Host, ConfigName, Suite,
                RunId, ReposRev,
                {result_case, Name, Res, _Reason}) ->
     File = drop_prefix(RunDir, Name),
@@ -1355,6 +1392,19 @@ orig_script(A, LogFile, Script) ->
     Dir = filename:dirname(drop_prefix(A, LogFile)),
     Base = filename:basename(binary_to_list(Script)),
     filename:join([A#astate.log_dir, Dir, Base ++ ".orig"]).
+
+html_config_href(HtmlFile, Protocol, Name, Label) ->
+    Name2 = insert_html_suffix(HtmlFile, Name, "_config"),
+    html_href(Protocol, Name2, Label).
+
+html_host_href(HtmlFile, Protocol, Name, Label) ->
+    Name2 = insert_html_suffix(HtmlFile, Name, "_host"),
+    html_href(Protocol, Name2, Label).
+
+insert_html_suffix(HtmlFile, Name, Suffix) ->
+    Ext = filename:extension(HtmlFile),
+    BaseName = filename:basename(HtmlFile, Ext),
+    BaseName ++ Suffix ++ Ext ++ Name.
 
 html_href(Protocol, Name, Label) ->
     [
