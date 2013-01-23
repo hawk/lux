@@ -377,23 +377,38 @@ shell_eval(#cstate{name = Name} = C0,
                 Data = <<Arg/binary, "\n">>,
                 Data2 = expand_vars(C, Data, error),
                 lux_utils:safe_write(C#cstate.progress, C#cstate.log_fun,
-                                          C#cstate.stdin_log_fd, Data2),
-                true = port_command(C#cstate.port, Data2),
+                                     C#cstate.stdin_log_fd, Data2),
+                try
+                    true = port_command(C#cstate.port, Data)
+                catch
+                    error:Reason ->
+                        Err =  io_lib:format("~p", [Reason]),
+                        SendErr = list_to_binary(["cannot send data to port: ",
+                                                 Data2, " -> ", Err]),
+                        stop(C, error, SendErr)
+                end,
                 C#cstate{events = save_event(C, send, Data2)}
             catch
                 throw:{no_such_var, BadName} ->
                     BinErr = list_to_binary(["Variable $", BadName,
-                                             " is not set"]),
-                    %% io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
+                                              " is not set"]),
                     stop(C, error, BinErr)
             end;
         send when is_binary(Arg) ->
             try
                 Data = expand_vars(C, Arg, error),
                 lux_utils:safe_write(C#cstate.progress, C#cstate.log_fun,
-                                          C#cstate.stdin_log_fd, Data),
-                true = port_command(C#cstate.port, Data),
-                C#cstate{events = save_event(C, send, Data)}
+                                     C#cstate.stdin_log_fd, Data),
+                try
+                    true = port_command(C#cstate.port, Data),
+                    C#cstate{events = save_event(C, send, Data)}
+                catch
+                    error:Reason ->
+                        Err =  io_lib:format("~p", [Reason]),
+                        SendErr = list_to_binary(["cannot send data to port: ",
+                                                  Data, " -> ", Err]),
+                        stop(C, error, SendErr)
+                end
             catch
                 throw:{no_such_var, BadName} ->
                     BinErr = list_to_binary(["Variable $", BadName,
