@@ -1,0 +1,7 @@
+[doc Handle killed shell]
+
+[shell foo]
+    !kill -9 $$$
+    ?Child terminated by signal 9
+    !echo "This should fail"
+    ?This should never be executed
