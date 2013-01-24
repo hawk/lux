@@ -482,7 +482,7 @@ send_to_port(C, RawData) ->
             true = port_command(C2#cstate.port, Data),
             C2
         catch
-            error:Reason ->
+            error:_Reason ->
                 receive
                     {'EXIT', Port, _PosixCode}
                       when Port =:= C2#cstate.port ->
