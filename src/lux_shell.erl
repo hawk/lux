@@ -97,6 +97,7 @@ start_monitor(I, Cmd, Name) ->
 
 init(C) when is_record(C, cstate) ->
     erlang:monitor(process, C#cstate.parent),
+    process_flag(trap_exit, true),
     Name = C#cstate.name,
     {InFile, InFd} = open_logfile(C, "stdin"),
     {OutFile, OutFd} = open_logfile(C, "stdout"),
@@ -109,7 +110,7 @@ init(C) when is_record(C, cstate) ->
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason}],
     WorkDir = filename:dirname(C#cstate.orig_file),
-    Opts = [binary, stream, use_stdio, stderr_to_stdout, eof,
+    Opts = [binary, stream, use_stdio, stderr_to_stdout,
             {args, Args}, {cd, WorkDir}, {env, PortEnv}],
     try
         Port = open_port({spawn_executable, Exec}, Opts),
@@ -204,6 +205,11 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                                        C#cstate.actual),
                     log(C, "skip \"~s\"\n", [lux_utils:to_string(Waste)]),
                     close_logs_and_exit(C, Reason);
+                {'EXIT', Port, _PosixCode} ->
+                    C2 = C#cstate{state_changed = true,
+                                  no_more_output = true,
+                                  events = save_event(C, recv, shell_exit)},
+                    shell_wait_for_event(C2, OrigC);
                 {shutdown = Data, _From} ->
                     stop(C, shutdown, Data)
             end;
@@ -272,11 +278,6 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
             log(C, "wake up (~p seconds)\n", [Secs]),
             C#cstate{mode = resume};
         {'EXIT', Port, _PosixCode} ->
-            C#cstate{state_changed = true,
-                     no_more_output = true,
-                     events = save_event(C, recv, shell_exit)};
-        {Port, eof} ->
-            port_close(Port),
             C#cstate{state_changed = true,
                      no_more_output = true,
                      events = save_event(C, recv, shell_exit)};
@@ -476,19 +477,22 @@ send_to_port(C, RawData) ->
         Data = expand_vars(C, RawData, error),
         lux_utils:safe_write(C#cstate.progress, C#cstate.log_fun,
                              C#cstate.stdin_log_fd, Data),
+        C2 = C#cstate{events = save_event(C, send, Data)},
         try
-            true = port_command(C#cstate.port, Data)
+            true = port_command(C2#cstate.port, Data),
+            C2
         catch
-            error:badarg ->
-                Extra =
-                    if C#cstate.no_more_output -> " (shell has exited): ";
-                       true                    -> ": "
-                    end,
-                SendErr = list_to_binary(["cannot send data to port",
-                                          Extra, Data]),
-                stop(C, error, SendErr)
-        end,
-        C#cstate{events = save_event(C, send, Data)}
+            error:Reason ->
+                receive
+                    {'EXIT', Port, _PosixCode}
+                      when Port =:= C2#cstate.port ->
+                        C2#cstate{state_changed = true,
+                                  no_more_output = true,
+                                  events = save_event(C2, recv, shell_exit)}
+                after 0 ->
+                        C2
+                end
+        end
     catch
         throw:{no_such_var, BadName} ->
             VarErr = list_to_binary(["Variable $", BadName,
@@ -811,7 +815,12 @@ wait_for_down(C) ->
             C2 = opt_ping_reply(C, From, When),
             wait_for_down(C2);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
-            close_port_and_exit(C, Reason)
+            close_port_and_exit(C, Reason);
+        {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
+            C2 = C#cstate{state_changed = true,
+                          no_more_output = true,
+                          events = save_event(C, recv, shell_exit)},
+            wait_for_down(C2)
     end.
 
 save_event(#cstate{latest_cmd = Cmd, events = Events} = C, Op, Data) ->
