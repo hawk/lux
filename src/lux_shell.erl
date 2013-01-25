@@ -517,7 +517,8 @@ sleep_walker(Progress, ReplyTo, WakeUp) ->
     lux_utils:progress_write(Progress, "z"),
     receive
         WakeUp ->
-            ReplyTo ! WakeUp
+            ReplyTo ! WakeUp,
+            unlink(ReplyTo)
     after 1000 ->
             sleep_walker(Progress, ReplyTo, WakeUp)
     end.
