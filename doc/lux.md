@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.2 - 2012-12-12
+Version 1.2 - 2013-02-21
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -580,6 +580,10 @@ variables. `--skip_unless` is intended to be used as
  statements within scripts. The construction **Var=Val** is little
 more restrictive as it requires that the variable is set to a certain
 value.
+
+**--skip\_skip**  
+**--skip\_skip=true**  
+Forces Lux to not care about `--skip` and `--skip_unless` settings.
 
 **--require Var**  
 **--require Var=Value**  
