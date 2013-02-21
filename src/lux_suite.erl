@@ -15,6 +15,7 @@
 -record(rstate,
         {files                      :: [string()],
          mode = execute             :: list | doc | validate | execute | doc,
+         skip_skip = false          :: boolean(),
          config_dir                 :: string(),
          file_pattern = ".+\\\.lux" ++ [$$] :: string(),
          log_fd                     :: file:io_device(),
@@ -184,6 +185,8 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{run = Val});
         revision when is_list(Val) ->
             parse_ropts(T, R#rstate{revision = Val});
+        skip_skip when Val =:= true; Val =:= false ->
+            parse_ropts(T, R#rstate{skip_skip = Val});
         mode when Val =:= list; Val =:= doc;
                   Val =:= validate; Val =:= execute ->
             parse_ropts(T, R#rstate{mode = Val});
@@ -296,8 +299,14 @@ list_files(R, File) ->
 run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
         {ok, R2, Script2, Commands, Opts} ->
-            SkipNames = list_matching_variables(R2, skip, false),
-            SkipUnlessNames = list_matching_variables(R2, skip_unless, true),
+            {SkipNames, SkipUnlessNames} =
+                case R2#rstate.skip_skip of
+                    true ->
+                        {[], []};
+                    false ->
+                        {list_matching_variables(R2, skip, false),
+                         list_matching_variables(R2, skip_unless, true)}
+                end,
             RequireNames = list_matching_variables(R2, require, true),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
@@ -324,7 +333,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     Results2 = [Res | Results],
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
                               SuiteFile, Scripts, NewSummary, Results2);
-              _ when RequireNames =/= [] ->
+                _ when RequireNames =/= [] ->
                     double_log(R2, "\n~s~s\n",
                                [?TAG("test case"), Script]),
                     double_log(R2,
@@ -337,7 +346,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     Results2 = [Res | Results],
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
                               SuiteFile, Scripts, NewSummary, Results2);
-               doc ->
+                doc ->
                     Docs = extract_doc(Script2, Commands),
                     {ok, Cwd} = file:get_cwd(),
                     io:format("~s:\n",
@@ -356,7 +365,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     end,
                     run_cases(Mode, R#rstate{warnings = AllWarnings},
                               SuiteFile, Scripts, NewSummary, Results2);
-               validate ->
+                validate ->
                     double_log(R2, "\n~s~s\n",
                                [?TAG("test case"), Script]),
                     case NewWarnings of
@@ -409,7 +418,7 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Results2 = [{error, File2, FullLineNo, Error2} | Results],
             run_cases(Mode, R#rstate{warnings = AllWarnings},
-                     SuiteFile, Scripts, NewSummary, Results2)
+                      SuiteFile, Scripts, NewSummary, Results2)
     end;
 run_cases(_Mode, R, _SuiteFile, [], Summary, Results) ->
     {R, Summary, Results}.

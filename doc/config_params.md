@@ -97,6 +97,10 @@ variables. `--skip_unless` is intended to be used as
 more restrictive as it requires that the variable is set to a certain
 value.
 
+**--skip\_skip**  
+**--skip\_skip=true**  
+Forces Lux to not care about `--skip` and `--skip_unless` settings.
+
 **--require Var**  
 **--require Var=Value**  
 Require that the given variable is set. The script will fail if
