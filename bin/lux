@@ -18,24 +18,27 @@
 main(OrigArgs) ->
     OpModes = ["--help", "--markdown",
                "--internal_debug", "--internal_trace",
-               "--make", "--install", "--reltool",
+               "--make", "--install", "--install_debug",
+                "--install_trace", "--reltool",
                "--annotate", "--history"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
     Opts  = getopts(Args, Specs),
     %% io:format("Args: ~p\n", [Opts]),
     case select_op(Opts, OpModes) of
-        {"--help", [_]}             -> help(Specs);
-        {"--markdown", [_]}         -> markdown();
-        {"--internal_debug", [_]}   -> internal_debug(OrigArgs);
-        {"--internal_trace", [_]}   -> internal_trace(Opts);
-        {"--make", [_]}             -> make();
-        {"--install", [InstallDir]} -> install(InstallDir, Opts);
-        {"--reltool", [_]}          -> reltool(Opts);
-        {"--annotate", [LogFile]}   -> annotate(LogFile);
-        {"--history", [LogDir]}     -> history(LogDir);
-        undefined                   -> run(Opts);
-        _                           -> usage(Specs)
+        {"--help"=Op, [_]}                   -> help(Op, Specs);
+        {"--markdown", [_]}                  -> markdown();
+        {"--internal_debug"=Op, [_]}         -> internal_debug(Op, OrigArgs);
+        {"--internal_trace"=Op, [_]}         -> internal_trace(Op, Opts);
+        {"--make"=Op, [_]}                   -> make(Op);
+        {"--install"=Op, [InstallDir]}       -> install(Op, InstallDir, Opts);
+        {"--install_debug"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
+        {"--install_trace"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
+        {"--reltool"=Op, [_]}                -> reltool(Op, Opts);
+        {"--annotate", [LogFile]}            -> annotate(LogFile);
+        {"--history", [LogDir]}              -> history(LogDir);
+        undefined                            -> run(Opts);
+        _                                    -> usage(Specs)
     end,
     safe_halt(0).
 
@@ -76,6 +79,7 @@ specs() ->
      {"-v",                   ["--progress=verbose"]},
      {"-d",                   ["--debug"]},
      {"-D",                   ["--internal_debug"]},
+     {"-T",                   ["--internal_trace"]},
      {?FILES,                 "",          string,                 mandatory},
      {"--help",               false,       boolean,                none},
      {"--markdown",           false,       boolean,                none},
@@ -83,6 +87,8 @@ specs() ->
      {"--internal_trace",     false,       boolean,                none},
      {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
+     {"--install_debug",      "",          string,                 optional},
+     {"--install_trace",      "",          string,                 optional},
      {"--reltool",            false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
@@ -181,13 +187,14 @@ do_usage(Specs) ->
     info_doc().
 
 info_doc() ->
-    AppDir = ensure_app_dir(true),
-    require_app(?APPLICATION, "--help"),
-    Url = doc_url(AppDir),
+    ensure_lux_app_dir(true),
+    LuxAppDir = require_app(undefined, ?APPLICATION),
+    Url = doc_url(LuxAppDir),
     io:format("\nRead the full documentation in the browser:\n\n\t~s\n", [Url]).
 
-help(Specs) ->
-    AppDir = ensure_app_dir(true),
+help(MainOp, Specs) ->
+    ensure_lux_app_dir(true),
+    AppDir = require_app(MainOp, ?APPLICATION),
     require_app(?APPLICATION, "--help"),
     Url = doc_url(AppDir),
     io:format("\nTrying to automatically launch the"
@@ -213,12 +220,12 @@ doc_url(AppDir) ->
     "file://" ++ filename:absname(UsersGuide).
 
 markdown() ->
-    _AppDir = ensure_app_dir(true),
+    ensure_lux_app_dir(true),
     lux_debug:markdown(),
     safe_halt(0).
 
-internal_debug(Args) ->
-    require_app(debugger, "--internal_debug"),
+internal_debug(MainOp, Args) ->
+    require_app(MainOp, debugger),
     Escript = escript:script_name(),
     {ok, [{shebang, Shebang0} | _Rest]} = escript:extract(Escript, []),
     case Shebang0 of
@@ -235,8 +242,8 @@ internal_debug(Args) ->
     spawn_link(fun() -> forward_stdin(Port, 1) end),
     forward_stdout(Port).
 
-internal_trace(Args) ->
-    require_app(runtime_tools, "--internal_trace"),
+internal_trace(MainOp, Args) ->
+    require_app(MainOp, runtime_tools),
     dbg:start(),
     dbg:tracer(),
     dbg:p(new, [c, m, p]),
@@ -274,12 +281,12 @@ forward_stdout(Port) ->
             forward_stdout(Port)
     end.
 
-make()                        ->
+make(MainOp) ->
     io:format("Making ~p...\n", [?APPLICATION]),
-    require_app(tools, "--make"),
-    AppDir = ensure_app_dir(true),
-    SrcDir = filename:join([AppDir, "src"]),
-    EbinDir = filename:join([AppDir, "ebin"]),
+    require_app(MainOp, tools),
+    LuxAppDir = ensure_lux_app_dir(true),
+    SrcDir = filename:join([LuxAppDir, "src"]),
+    EbinDir = filename:join([LuxAppDir, "ebin"]),
     {ok, SrcDir} = {file:set_cwd(SrcDir), SrcDir},
     {up_to_date, EbinDir} = {make:all([debug_info,{outdir, EbinDir}]), EbinDir},
     AppStr = atom_to_list(?APPLICATION),
@@ -290,10 +297,10 @@ make()                        ->
         {file:copy(SrcAppFile, DestAppFile), SrcAppFile, DestAppFile},
     safe_halt(0).
 
-install(InstallDir, Opts) ->
+install(MainOp, InstallDir, Opts) ->
     io:format("Installing ~p as standalone... ~s\n",
               [?APPLICATION, InstallDir]),
-    {RootDir, ReltoolOpts} = reltool_opts("--install", Opts),
+    {RootDir, ReltoolOpts} = reltool_opts(MainOp, Opts),
     case reltool:get_target_spec(ReltoolOpts) of
         {ok, Spec} ->
             case InstallDir of
@@ -314,10 +321,10 @@ install(InstallDir, Opts) ->
             safe_halt(1)
     end.
 
-reltool(Opts) ->
+reltool(MainOp, Opts) ->
     io:format("Starting reltool...\n", []),
     process_flag(trap_exit, true),
-    {_RootDir, ReltoolOpts} = reltool_opts("--reltool", Opts),
+    {_RootDir, ReltoolOpts} = reltool_opts(MainOp, Opts),
     case reltool:start(ReltoolOpts) of
         {ok, Pid} ->
             link(Pid),
@@ -330,10 +337,10 @@ reltool(Opts) ->
             safe_halt(1)
     end.
 
-reltool_opts(MainOpt, Opts) ->
-    require_app(reltool, MainOpt),
+reltool_opts(MainOp, Opts) ->
+    require_app(MainOp, reltool),
     RootDir = root_dir(Opts),
-    AppDir = ensure_app_dir(true),
+    LuxAppDir = ensure_lux_app_dir(true),
     ThisEscript = escript:script_name(),
     %% Include some extra files beside the default files
     AppFilters =
@@ -342,35 +349,54 @@ reltool_opts(MainOpt, Opts) ->
          {excl_archive_filters, ["^LICENSE", "^lux.html",
                                  "^priv", "^examples.*", "^emacs.*"]},
          {excl_app_filters, [".*empty$"]}],
-    Apps = application:loaded_applications(),
-    App =
-        case lists:keyfind(reltool, 1, Apps) of
+    LoadedApps = application:loaded_applications(),
+    ReltoolApp =
+        case lists:keyfind(reltool, 1, LoadedApps) of
             {_Name, _Slogan, Version} when Version >= "0.6" ->
                 %% New reltool can handle lib_dir in app
-                [{app, ?APPLICATION, [{lib_dir, AppDir} | AppFilters]}];
+                [{app, ?APPLICATION, [{lib_dir, LuxAppDir} | AppFilters]}];
             _Version ->
                 %% Old reltool
                 [{app, ?APPLICATION, AppFilters},
-                 {lib_dirs, [filename:dirname(AppDir)]}]
+                 {lib_dirs, [filename:dirname(LuxAppDir)]}]
         end,
+    AppConds0 = [{erts, exclude}, {crypto, exclude}, {hipe, exclude},
+                 {reltool, exclude}, {tools, exclude}],
+    AppConds =
+        case MainOp of
+            "--install" ->
+                AppConds0 ++ [{wx, exclude}, {runtime_tools, exclude}];
+            "--install_trace" ->
+                AppConds0 ++ [{wx, exclude}, {runtime_tools, include}];
+            "--install_debug" ->
+                AppConds0 ++ [{debugger, include}, {runtime_tools, include}]
+        end,
+    Apps = filter_apps(MainOp, AppConds),
     {RootDir,
      [{sys,
-       App ++
        [{root_dir, RootDir},
         {debug_info, strip},
-        {escript, ThisEscript, [{incl_cond, include}]},
-        {app, crypto, [{incl_cond, exclude}]},
-        {app, erts, [{incl_cond, exclude}]},
-        {app, hipe, [{incl_cond, exclude}]},
-        {app, reltool, [{incl_cond, exclude}]},
-        {app, wx, [{incl_cond, exclude}]},
-        %% {app, debugger, [{incl_cond, include}]},   % --internal_debugger
-        {app, runtime_tools, [{incl_cond, exclude}]}, % --internal_trace
-        {app, tools, [{incl_cond, exclude}]},
-        {profile, standalone},
-        {excl_sys_filters,
-         {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
-                "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}]}]}.
+        {escript, ThisEscript, [{incl_cond, include}]}] ++
+           ReltoolApp ++ Apps ++
+           [{profile, standalone},
+            {excl_sys_filters,
+             {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
+                    "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}]}]}.
+
+filter_apps(MainOp, AppConds) ->
+    lists:zf(fun({App, InclCond}) ->
+                     case application:load(App) of
+                         ok ->
+                             {true, {app, App, [{incl_cond, InclCond}]}};
+                         {error, {already_loaded,App}}->
+                             {true, {app, App, [{incl_cond, InclCond}]}};
+                         {error, _} when InclCond =:= include ->
+                             missing_app(MainOp, App);
+                         {error, _} ->
+                             false
+                     end
+             end,
+             AppConds).
 
 root_dir(Opts) ->
     case lists:keyfind("--root_dir", 1, Opts) of
@@ -382,7 +408,7 @@ root_dir(Opts) ->
 annotate(LogFile0) ->
     LogFile = filename:absname(LogFile0),
     io:format("Annotating logs ~s...", [LogFile]),
-    ensure_app_dir(true),
+    ensure_lux_app_dir(true),
     Res = lux:annotate_log(LogFile),
     case Res of
         ok ->
@@ -396,7 +422,7 @@ annotate(LogFile0) ->
 history(LogDir0) ->
     LogDir = filename:absname(LogDir0),
     io:format("Assembling history of logs in ~s...", [LogDir]),
-    ensure_app_dir(true),
+    ensure_lux_app_dir(true),
     HtmlFile = filename:join([LogDir, "lux_history.html"]),
     Res = lux:history(LogDir, HtmlFile),
     case Res of
@@ -416,6 +442,8 @@ run([
      {"--internal_trace",     _InternalTrace},
      {"--make",               _Make},
      {"--install",            _InstallDir},
+     {"--install_debug",      _InstallDir},
+     {"--install_trace",      _InstallDir},
      {"--reltool",            _Reltool},
      {"--annotate",           _LogFile},
      {"--history",            _LogDir},
@@ -448,7 +476,7 @@ run([
      {"--root_dir",           _RootDir},
      {"--var",                Var}
     ]) ->
-    ensure_app_dir(true),
+    ensure_lux_app_dir(true),
     Opts =
         [
          {debug,              Debug},
@@ -713,17 +741,30 @@ safe_halt(RetCode) ->
     init:stop(RetCode),
     timer:sleep(infinity).
 
-require_app(App, MainOpt) ->
+require_app(MainOp, App) ->
     case code:lib_dir(App) of
         {error, _Reason} ->
-            fatal_error(4,
-                        "The application '~p' is required for the option ~p.\n",
-                        [App, MainOpt]);
-        _ ->
-            application:load(App)
+            missing_app(MainOp, App);
+        AppDir ->
+            case application:load(App) of
+                ok ->
+                    AppDir;
+                {error, {already_loaded,App}}->
+                    AppDir;
+                {error, _} ->
+                    missing_app(MainOp, App)
+            end
     end.
 
-ensure_app_dir(Retry) ->
+missing_app(undefined, App) ->
+    fatal_error(4, "The application '~p' is missing.\n", [App]);
+missing_app(MainOp, App) ->
+    fatal_error(4,
+                "The application '~p' is required"
+                " for the option ~p.\n",
+                [App, MainOp]).
+
+ensure_lux_app_dir(Retry) ->
     App = ?APPLICATION,
     case code:lib_dir(App, ebin) of
         {error, _Reason} when Retry =:= true ->
@@ -734,7 +775,7 @@ ensure_app_dir(Retry) ->
             %% io:format("~s: Add directory ~p to code path\n",
             %%           [Name, EbinDir]),
             code:add_patha(EbinDir),
-            ensure_app_dir(false);
+            ensure_lux_app_dir(false);
         {error, Reason} ->
             fatal_error(2, "The application '~p' is required to run: ~p\n",
                         [App, Reason]);
