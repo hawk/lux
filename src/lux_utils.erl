@@ -340,11 +340,10 @@ do_fold_files(File, RegExp, Recursive, Fun, Acc, IsTopLevel) ->
                 directory ->
                     Acc;
                 _ -> % device | regular | symlink | other
-                    case re:run(File, RegExp, [{capture,none}]) of
-                        match  ->
-                            Fun(File, Acc);
-                        nomatch ->
-                            Acc
+                    Base = filename:basename(File),
+                    case re:run(Base, RegExp, [{capture,none}]) of
+                        match   -> Fun(File, Acc);
+                        nomatch -> Acc
                     end
             end;
         {error, _Reason} ->

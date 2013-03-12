@@ -17,7 +17,7 @@
          mode = execute             :: list | doc | validate | execute | doc,
          skip_skip = false          :: boolean(),
          config_dir                 :: string(),
-         file_pattern = ".+\\\.lux" ++ [$$] :: string(),
+         file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
          log_fd                     :: file:io_device(),
          summary_log                :: string(),
          config_name                :: string(),
@@ -287,8 +287,8 @@ list_files(R, File) ->
     case file:read_file_info(File) of
         {ok, #file_info{type = directory}} ->
             Fun = fun(F, Acc) -> [F | Acc] end,
-            Pat = R#rstate.file_pattern,
-            Files = lux_utils:fold_files(File, Pat, true, Fun, []),
+            RegExp = R#rstate.file_pattern,
+            Files = lux_utils:fold_files(File, RegExp, true, Fun, []),
             {ok, lists:sort(Files)};
         {ok, _} ->
             {ok, [File]};
