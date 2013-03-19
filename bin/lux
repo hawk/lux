@@ -195,13 +195,17 @@ info_doc() ->
 help(MainOp, Specs) ->
     ensure_lux_app_dir(true),
     AppDir = require_app(MainOp, ?APPLICATION),
-    require_app(?APPLICATION, "--help"),
     Url = doc_url(AppDir),
     io:format("\nTrying to automatically launch the"
               " default browser with file...\n\n\t~s\n",
               [Url]),
+    WxOpts =
+        case app_has_feature(wx, "1.0") of
+            true  -> [{silent_start, true}]; % Avoid spurious printouts
+            false -> []
+        end,
     try
-	wx:new([{silent_start, true}]),
+        wx:new(WxOpts),
         true = wx_misc:launchDefaultBrowser(Url),
         timer:sleep(1000),
         wx:destroy()
@@ -301,23 +305,40 @@ install(MainOp, InstallDir, Opts) ->
     io:format("Installing ~p as standalone... ~s\n",
               [?APPLICATION, InstallDir]),
     {RootDir, ReltoolOpts} = reltool_opts(MainOp, Opts),
-    case reltool:get_target_spec(ReltoolOpts) of
-        {ok, Spec} ->
-            case InstallDir of
-                "" ->
-                    io:format("Spec: ~p.\n", [Spec]),
-                    safe_halt(0);
-                _ ->
-                    case reltool:eval_target_spec(Spec, RootDir, InstallDir) of
-                        ok ->
-                            ok;
-                        {error, ReasonStr} ->
-                            io:format("ERROR: ~s\n", [ReasonStr]),
-                            safe_halt(1)
-                    end
+    case reltool:start_server(ReltoolOpts) of
+        {ok, ServerPid} ->
+            case reltool:get_status(ServerPid) of
+                {ok, Warnings} ->
+                    [io:format("WARNING: ~s\n", [W]) || W <- Warnings];
+                {error, StatusReasonStr} ->
+                    io:format("ERROR: ~s\n", [StatusReasonStr]),
+                    safe_halt(1)
+            end,
+            GetSpecRes = reltool:get_target_spec(ServerPid),
+            _StopRes = reltool:stop(ServerPid),
+            case GetSpecRes of
+                {ok, Spec} ->
+                    case InstallDir of
+                        "" ->
+                            io:format("Spec: ~p.\n", [Spec]),
+                            safe_halt(0);
+                        _ ->
+                            case reltool:eval_target_spec(Spec,
+                                                          RootDir,
+                                                          InstallDir) of
+                                ok ->
+                                    ok;
+                                {error, EvalReasonStr} ->
+                                    io:format("ERROR: ~s\n", [EvalReasonStr]),
+                                    safe_halt(1)
+                            end
+                    end;
+                {error, SpecReasonStr} ->
+                    io:format("ERROR: ~s\n", [SpecReasonStr]),
+                    safe_halt(1)
             end;
-        {error, ReasonStr} ->
-            io:format("ERROR: ~s\n", [ReasonStr]),
+        {error, StartReasonStr} ->
+            io:format("ERROR: ~s\n", [StartReasonStr]),
             safe_halt(1)
     end.
 
@@ -339,7 +360,7 @@ reltool(MainOp, Opts) ->
 
 reltool_opts(MainOp, Opts) ->
     require_app(MainOp, reltool),
-    RootDir = root_dir(Opts),
+    {IsCross, RootDir} = root_dir(Opts),
     LuxAppDir = ensure_lux_app_dir(true),
     ThisEscript = escript:script_name(),
     %% Include some extra files beside the default files
@@ -349,60 +370,64 @@ reltool_opts(MainOp, Opts) ->
          {excl_archive_filters, ["^LICENSE", "^lux.html",
                                  "^priv", "^examples.*", "^emacs.*"]},
          {excl_app_filters, [".*empty$"]}],
-    LoadedApps = application:loaded_applications(),
-    ReltoolApp =
-        case lists:keyfind(reltool, 1, LoadedApps) of
-            {_Name, _Slogan, Version} when Version >= "0.6" ->
+    LuxApps =
+        case app_has_feature(reltool, "0.6") of
+            true ->
                 %% New reltool can handle lib_dir in app
                 [{app, ?APPLICATION, [{lib_dir, LuxAppDir} | AppFilters]}];
-            _Version ->
+            false ->
                 %% Old reltool
                 [{app, ?APPLICATION, AppFilters},
                  {lib_dirs, [filename:dirname(LuxAppDir)]}]
         end,
-    AppConds0 = [{erts, exclude}, {crypto, exclude}, {hipe, exclude},
-                 {reltool, exclude}, {tools, exclude}],
-    AppConds =
+    {AppCondsWx, AppCondsCross} =
+        %% case IsCross andalso not app_has_feature(reltool, "0.6.4") of
+        case IsCross andalso not app_has_feature(reltool, "0.6.4") of
+            true ->
+                {[],
+                 []};
+            false ->
+                %% New reltool can handle excluded non-existent apps
+                {[{wx, exclude}],
+                 [{hipe, exclude}, {reltool, exclude}]}
+        end,
+    AppCondsCommon = [{erts, exclude}, {crypto, exclude}, {tools, exclude}],
+    AppCondsMain =
         case MainOp of
             "--install" ->
-                AppConds0 ++ [{wx, exclude}, {runtime_tools, exclude}];
+                AppCondsWx ++ [{runtime_tools, exclude}];
             "--install_trace" ->
-                AppConds0 ++ [{wx, exclude}, {runtime_tools, include}];
+                AppCondsWx ++ [{runtime_tools, include}];
             "--install_debug" ->
-                AppConds0 ++ [{debugger, include}, {runtime_tools, include}]
+                [{debugger, include}, {runtime_tools, include}]
         end,
-    Apps = filter_apps(MainOp, AppConds),
+    AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsMain,
+    Apps = [{app, App, [{incl_cond, InclCond}]} || {App, InclCond} <- AppConds],
     {RootDir,
      [{sys,
        [{root_dir, RootDir},
         {debug_info, strip},
         {escript, ThisEscript, [{incl_cond, include}]}] ++
-           ReltoolApp ++ Apps ++
+           LuxApps ++ Apps ++
            [{profile, standalone},
             {excl_sys_filters,
              {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
                     "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}]}]}.
 
-filter_apps(MainOp, AppConds) ->
-    lists:zf(fun({App, InclCond}) ->
-                     case application:load(App) of
-                         ok ->
-                             {true, {app, App, [{incl_cond, InclCond}]}};
-                         {error, {already_loaded,App}}->
-                             {true, {app, App, [{incl_cond, InclCond}]}};
-                         {error, _} when InclCond =:= include ->
-                             missing_app(MainOp, App);
-                         {error, _} ->
-                             false
-                     end
-             end,
-             AppConds).
+app_has_feature(AppName, LowestVersion) ->
+    LoadedApps = application:loaded_applications(),
+    case lists:keyfind(AppName, 1, LoadedApps) of
+        {_Name, _Slogan, Version} when Version >= LowestVersion ->
+            true;
+        _Version ->
+            false
+    end.
 
 root_dir(Opts) ->
     case lists:keyfind("--root_dir", 1, Opts) of
-        false          -> code:root_dir();
-        {_, []}        -> code:root_dir();
-        {_, [RootDir]} -> RootDir
+        false          -> {false, code:root_dir()};
+        {_, []}        -> {false, code:root_dir()};
+        {_, [RootDir]} -> {true, RootDir}
     end.
 
 annotate(LogFile0) ->
