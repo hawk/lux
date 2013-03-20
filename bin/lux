@@ -380,13 +380,13 @@ reltool_opts(MainOp, Opts) ->
                 [{app, ?APPLICATION, AppFilters},
                  {lib_dirs, [filename:dirname(LuxAppDir)]}]
         end,
+    RelaxedExclusion = app_has_feature(reltool, "0.6.4"),
     {AppCondsWx, AppCondsCross} =
-        %% case IsCross andalso not app_has_feature(reltool, "0.6.4") of
-        case IsCross andalso not app_has_feature(reltool, "0.6.4") of
-            true ->
+        case {IsCross, RelaxedExclusion} of
+            {true, false} ->
                 {[],
                  []};
-            false ->
+            _ ->
                 %% New reltool can handle excluded non-existent apps
                 {[{wx, exclude}],
                  [{hipe, exclude}, {reltool, exclude}]}
@@ -402,7 +402,7 @@ reltool_opts(MainOp, Opts) ->
                 [{debugger, include}, {runtime_tools, include}]
         end,
     AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsMain,
-    Apps = [{app, App, [{incl_cond, InclCond}]} || {App, InclCond} <- AppConds],
+    Apps = filter_apps(MainOp, AppConds, IsCross, RelaxedExclusion),
     {RootDir,
      [{sys,
        [{root_dir, RootDir},
@@ -422,6 +422,23 @@ app_has_feature(AppName, LowestVersion) ->
         _Version ->
             false
     end.
+
+filter_apps(_MainOp, AppConds, _IsCross, true) ->
+    [{app, AppName, [{incl_cond,InclCond}]} || {AppName,InclCond} <- AppConds];
+filter_apps(MainOp, AppConds, _IsCross, false) ->
+    lists:zf(fun({AppName, InclCond}) ->
+                     case application:load(AppName) of
+                         ok ->
+                             {true, {app, AppName, [{incl_cond, InclCond}]}};
+                         {error, {already_loaded,AppName}}->
+                             {true, {app, AppName, [{incl_cond, InclCond}]}};
+                         {error, _} when InclCond =:= include ->
+                             missing_app(MainOp, AppName);
+                         {error, _} ->
+                             false
+                     end
+             end,
+             AppConds).
 
 root_dir(Opts) ->
     case lists:keyfind("--root_dir", 1, Opts) of
@@ -766,32 +783,32 @@ safe_halt(RetCode) ->
     init:stop(RetCode),
     timer:sleep(infinity).
 
-require_app(MainOp, App) ->
-    case code:lib_dir(App) of
+require_app(MainOp, AppName) ->
+    case code:lib_dir(AppName) of
         {error, _Reason} ->
-            missing_app(MainOp, App);
+            missing_app(MainOp, AppName);
         AppDir ->
-            case application:load(App) of
+            case application:load(AppName) of
                 ok ->
                     AppDir;
-                {error, {already_loaded,App}}->
+                {error, {already_loaded,AppName}}->
                     AppDir;
                 {error, _} ->
-                    missing_app(MainOp, App)
+                    missing_app(MainOp, AppName)
             end
     end.
 
-missing_app(undefined, App) ->
-    fatal_error(4, "The application '~p' is missing.\n", [App]);
-missing_app(MainOp, App) ->
+missing_app(undefined, AppName) ->
+    fatal_error(4, "The application '~p' is missing.\n", [AppName]);
+missing_app(MainOp, AppName) ->
     fatal_error(4,
                 "The application '~p' is required"
                 " for the option ~p.\n",
-                [App, MainOp]).
+                [AppName, MainOp]).
 
 ensure_lux_app_dir(Retry) ->
-    App = ?APPLICATION,
-    case code:lib_dir(App, ebin) of
+    AppName = ?APPLICATION,
+    case code:lib_dir(AppName, ebin) of
         {error, _Reason} when Retry =:= true ->
             %% Add application ebin to the code path and see if it works
             ThisEscript = resolve_path(escript:script_name()),
@@ -803,7 +820,7 @@ ensure_lux_app_dir(Retry) ->
             ensure_lux_app_dir(false);
         {error, Reason} ->
             fatal_error(2, "The application '~p' is required to run: ~p\n",
-                        [App, Reason]);
+                        [AppName, Reason]);
         EbinDir ->
             filename:dirname(EbinDir)
     end.
@@ -829,4 +846,3 @@ do_resolve_path([H | T], ResolvedPath) ->
     end;
 do_resolve_path([], ResolvedPath) ->
     ResolvedPath.
-
