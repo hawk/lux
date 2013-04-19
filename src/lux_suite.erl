@@ -307,7 +307,11 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                         {list_matching_variables(R2, skip, false),
                          list_matching_variables(R2, skip_unless, true)}
                 end,
-            RequireNames = list_matching_variables(R2, require, true),
+            RequireNames =
+                case Mode of
+                    doc -> [];
+                    _   -> list_matching_variables(R2, require, true)
+                end,
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             case Mode of
