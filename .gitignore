@@ -1,6 +1,7 @@
 # Emacs
 *~
 \#*\#
+.edts
 
 # Autotools
 /autom4te.cache
