@@ -701,15 +701,22 @@ eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo, InclFile, InclCmds,
                           latest_lineno = InclLineNo,
                           incl_stack = NewStack,
                           commands = InclCmds},
-    AfterI = interpret_loop(BeforeI),
+    AfterI =
+        try
+            interpret_loop(BeforeI)
+        catch
+            Class:Reason ->
+                erlang:raise(Class, Reason, erlang:get_stacktrace())
+        after
+            lux_utils:progress_write(OldI#istate.progress, ")"),
+            log(OldI, "include_end ~p ~p ~p ~p\n",
+                [InclLineNo, FirstLineNo, LastLineNo, InclFile])
+        end,
     NewI = AfterI#istate{file_level = OldI#istate.file_level,
                          file = OldI#istate.file,
                          latest_lineno = OldI#istate.latest_lineno,
                          incl_stack = OldI#istate.incl_stack,
                          commands = OldI#istate.commands},
-    lux_utils:progress_write(OldI#istate.progress, ")"),
-    log(OldI, "include_end ~p ~p ~p ~p\n",
-        [InclLineNo, FirstLineNo, LastLineNo, InclFile]),
     if
         %% NewI#istate.cleanup_reason =:= normal,
         %% NewI#istate.mode =:= cleanup,
