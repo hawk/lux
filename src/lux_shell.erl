@@ -161,15 +161,20 @@ choose_exec(C) ->
     end.
 
 shell_loop(#cstate{idle_count = IdleCount} = C, OrigC) ->
-    ProgressStr =
+    {C2, ProgressStr} =
         case IdleCount of
-            0 -> ".";
-            _ ->  "?"
+            0 ->
+                {C, "."};
+            1 ->
+                {C#cstate{idle_count = IdleCount+1},
+                 integer_to_list((C#cstate.latest_cmd)#cmd.lineno) ++ "?"};
+            _ ->
+                {C, "?"}
         end,
-    lux_utils:progress_write(C#cstate.progress, ProgressStr),
-    C2 = expect_more(C),
-    C3 = shell_wait_for_event(C2, OrigC),
-    shell_loop(C3, OrigC).
+    lux_utils:progress_write(C2#cstate.progress, ProgressStr),
+    C3 = expect_more(C2),
+    C4 = shell_wait_for_event(C3, OrigC),
+    shell_loop(C4, OrigC).
 
 shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
     IdleThreshold = 3*1000,

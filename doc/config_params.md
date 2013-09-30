@@ -220,7 +220,7 @@ meanings:
        z - is printed out each second while sleeping
        ( - beginning of a macro or an include file
        ) - end of a macro or an include file
-       ? - waiting for shell output
+       ? - waiting for shell output. Can be preceded with lineno of potential error.
 
 In addition to these characters, line number are printed when there is
 a failure or a potential failure.

@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.2 - 2013-03-14
+Version 1.2 - 2013-09-30
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -704,7 +704,7 @@ meanings:
        z - is printed out each second while sleeping
        ( - beginning of a macro or an include file
        ) - end of a macro or an include file
-       ? - waiting for shell output
+       ? - waiting for shell output. Can be preceded with lineno of potential error.
 
 In addition to these characters, line number are printed when there is
 a failure or a potential failure.

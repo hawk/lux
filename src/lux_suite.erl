@@ -494,31 +494,6 @@ print_results(R, Summary, Results) ->
                 [string:to_upper(Char) ||
                     Char <- atom_to_list(Summary)]]).
 
-print_error(R, Results) ->
-    case [{Script, FullLineNo} ||
-             {error, Script, FullLineNo, _String} <- Results] of
-        [] ->
-            ok;
-        ErrorScripts ->
-            double_log(R, "~s~p\n",
-                       [?TAG("errors"),
-                        length(ErrorScripts)]),
-            [double_log(R, "\t~s:~s\n", [F, L]) ||
-                {F, L} <- ErrorScripts]
-    end.
-
-print_fail(R, Results) ->
-    case [{Script, FullLineNo} ||
-             {ok, Script, fail, FullLineNo, _Events} <- Results] of
-        [] ->
-            ok;
-        FailScripts ->
-            double_log(R, "~s~p\n",
-                       [?TAG("failed"),
-                        length(FailScripts)]),
-            [double_log(R, "\t~s:~s\n", [F, L]) || {F, L} <- FailScripts]
-    end.
-
 print_skip(R, Results) ->
     case [{Script, FullLineNo} ||
              {ok, Script, skip, FullLineNo, _Events} <- Results] of
@@ -542,6 +517,31 @@ print_warning(R) ->
                        [?TAG("warnings"),
                         length(WarnScripts)]),
             [double_log(R, "\t~s:~s\n", [F, L]) || {F, L} <- WarnScripts]
+    end.
+
+print_fail(R, Results) ->
+    case [{Script, FullLineNo} ||
+             {ok, Script, fail, FullLineNo, _Events} <- Results] of
+        [] ->
+            ok;
+        FailScripts ->
+            double_log(R, "~s~p\n",
+                       [?TAG("failed"),
+                        length(FailScripts)]),
+            [double_log(R, "\t~s:~s\n", [F, L]) || {F, L} <- FailScripts]
+    end.
+
+print_error(R, Results) ->
+    case [{Script, FullLineNo} ||
+             {error, Script, FullLineNo, _String} <- Results] of
+        [] ->
+            ok;
+        ErrorScripts ->
+            double_log(R, "~s~p\n",
+                       [?TAG("errors"),
+                        length(ErrorScripts)]),
+            [double_log(R, "\t~s:~s\n", [F, L]) ||
+                {F, L} <- ErrorScripts]
     end.
 
 parse_script(R, SuiteFile, Script) ->
