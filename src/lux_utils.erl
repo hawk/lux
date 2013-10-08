@@ -26,6 +26,7 @@ builtin_dict() ->
      "_TAB_="    ++ [9],  % tab
      "_LF_="     ++ [10], % line feed
      "_CR_="     ++ [13], % carriage return
+     "_CTRL_U_=" ++ [21], % kill line
      "_CTRL_Z_=" ++ [26], % substitute (sub)
      "_DEL_="    ++ [127] % delete
     ].
