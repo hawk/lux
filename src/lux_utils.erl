@@ -20,16 +20,16 @@
 
 builtin_dict() ->
     [
-     "_CTRL_C_=" ++ [3],  % end of text (etx)
-     "_CTRL_D_=" ++ [4],  % end of transmission (eot)
-     "_BS_="     ++ [8],  % backspace
-     "_TAB_="    ++ [9],  % tab
-     "_LF_="     ++ [10], % line feed
-     "_CR_="     ++ [13], % carriage return
-     "_CTRL_U_=" ++ [21], % kill line
-     "_CTRL_Z_=" ++ [26], % substitute (sub)
-     "_DEL_="    ++ [127] % delete
+     "_BS_="  ++ [8],   % backspace
+     "_TAB_=" ++ [9],   % tab
+     "_LF_="  ++ [10],  % line feed
+     "_CR_="  ++ [13],  % carriage return
+     "_DEL_=" ++ [127]| % delete
+     ctrl_dict()
     ].
+
+ctrl_dict() -> % From a-z
+    ["_CTRL_" ++ [Ctrl+64] ++ "_=" ++ [Ctrl] ||  Ctrl <- lists:seq(1,26)].
 
 system_dict() ->
     os:getenv().
