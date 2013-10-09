@@ -844,8 +844,17 @@ prepare_stop(#istate{results = Acc,
     end.
 
 goto_cleanup(I, CleanupReason) ->
+    Prefix =
+        case I#istate.results of
+            [#result{actual=fail_pattern_matched}|_] ->
+                "-";
+            [#result{actual=success_pattern_matched}|_] ->
+                "+";
+            _ ->
+                ""
+        end,
     LineNo = integer_to_list(I#istate.latest_lineno),
-    lux_utils:progress_write(I#istate.progress, LineNo),
+    lux_utils:progress_write(I#istate.progress, Prefix ++ LineNo),
 
     %% Ensure that the cleanup does not take too long time
     safe_send_after(I, I#istate.case_timeout, self(),

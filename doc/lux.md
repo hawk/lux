@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.2 - 2013-09-30
+Version 1.2 - 2013-10-09
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -355,7 +355,25 @@ assigns a value to a macro variable. Works like `[global]`, but can
 only be set and used in a macro. The variable setting is only valid
 within the macro that assigns the variable.
 
-###Miscellaneous statements###
+###Builtin variables###
+
+    _BS_      - backspace       (ASCII 8)
+    _TAB_     - tab             (ASCII 9)
+    _LF_      - line feed       (ASCII (10)
+    _CR_      - carriage return (ASCII 13)
+    _DEL_     - delete          (ASCII 127)
+    _CTRL_A_  - control a       (ASCII 1)
+    ...
+    _CTRL_Z_  - control z       (ASCII 26)
+    N         - where N is an integer refering to a captured substring
+
+###Builtin environment variables###
+
+    LUX_SHELLNAME    - name of active Lux shell
+    LUX_START_REASON - reason for starting a shell (normal|fail|success)
+    PS1              - shell prompt variable set by Lux
+
+###Miscellaneous statements##d##
 
 **\[doc String\]**  
 **\[docN String\]**  
