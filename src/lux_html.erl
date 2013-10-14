@@ -724,6 +724,9 @@ html_opt_div(Item, Data) ->
 -define(DEFAULT_RUN, <<"unknown">>).
 -define(DEFAULT_REV, <<"">>).
 -define(DEFAULT_TIME, <<"yyyy-mm-dd hh:mm:ss">>).
+-define(CURRENT_SUFFIX, "_current").
+-define(CONFIG_SUFFIX, "_config").
+-define(HOST_SUFFIX, "_host").
 
 -record(run,
         {id,
@@ -755,6 +758,13 @@ history(TopDir, HtmlFile) ->
          html_history_table_all(AllRuns, AbsHtmlFile),
          html_footer()
         ],
+    CurrentIoList =
+        [
+         html_history_header("current failures", AllRuns,
+                             ConfigTables, HostTables, HtmlFile),
+         html_history_table_current(AllRuns, AbsHtmlFile),
+         html_footer()
+        ],
     ConfigIoList =
         [
          html_history_header("config", AllRuns,
@@ -770,11 +780,17 @@ history(TopDir, HtmlFile) ->
          html_footer()
         ],
     HtmlDir = filename:dirname(HtmlFile),
+    CurrentHtmlFile =
+        filename:join(HtmlDir,
+                      insert_html_suffix(HtmlFile, "", ?CURRENT_SUFFIX)),
     ConfigHtmlFile =
-        filename:join(HtmlDir, insert_html_suffix(HtmlFile, "", "_config")),
+        filename:join(HtmlDir,
+                      insert_html_suffix(HtmlFile, "", ?CONFIG_SUFFIX)),
     HostHtmlFile =
-        filename:join(HtmlDir, insert_html_suffix(HtmlFile, "", "_host")),
+        filename:join(HtmlDir,
+                      insert_html_suffix(HtmlFile, "", ?HOST_SUFFIX)),
     safe_write_file(HtmlFile, OverviewIoList),
+    safe_write_file(CurrentHtmlFile, CurrentIoList),
     safe_write_file(ConfigHtmlFile, ConfigIoList),
     safe_write_file(HostHtmlFile, HostIoList).
 
@@ -814,6 +830,8 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables, HtmlFile) ->
             LatestTime = (hd(LatestRuns2))#run.start_time,
             N = integer_to_list(length(SortedRuns))
     end,
+    PickRes = fun({table, _, R, _}, Acc) -> lux_utils:summary(Acc, R) end,
+    CurrentRes = lists:foldl(PickRes, no_data, ConfigTables),
     [
      html_header(["Lux history ", Section, " (", Dir, ")"]),
      "<h1>Lux history ", Section, " (", Dir, ") generated at ",
@@ -833,21 +851,33 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables, HtmlFile) ->
      "</table>\n\n",
 
      html_history_legend(),
+
      "\n\n"
-     "<h3>Configurations</h3>",
+     "<h3>Current failures</h3>\n",
+     "  <table border=1>\n",
+     "    <tr>\n",
+     "       <td class=", atom_to_list(CurrentRes), "> ",
+     html_suffix_href(HtmlFile,"", "", "All hosts", ?CURRENT_SUFFIX),
+     "      </td>\n"
+     "    </tr>\n",
+     "  </table>\n",
+     "\n\n"
+
+     "<h3>Configurations</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
      [
-      html_config_href_td(HtmlFile, ConfigName, ConfigRes) ||
+      html_suffix_href_td(HtmlFile, ConfigName, ConfigRes, ?CONFIG_SUFFIX) ||
          {table, ConfigName, ConfigRes, _ConfigIoList} <- ConfigTables
      ],
      "    </tr>\n",
      "  </table>\n",
-     "<h3>Hosts</h3>",
+
+     "<h3>Hosts</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
      [
-      html_host_href_td(HtmlFile, Host, HostRes) ||
+      html_suffix_href_td(HtmlFile, Host, HostRes, ?HOST_SUFFIX) ||
          {table, Host, HostRes, _HostIoList} <- HostTables
      ],
      "    </tr>\n",
@@ -871,7 +901,7 @@ html_history_legend() ->
 html_history_table_latest(LatestRuns, HtmlFile) ->
     {table, _, _, IoList} =
         html_history_table("Latest", "All test suites",
-                           LatestRuns, HtmlFile, false, worst),
+                           LatestRuns, HtmlFile, none, worst),
     [
      "<h3>Latest run on each host</h3>\n",
      IoList
@@ -880,9 +910,19 @@ html_history_table_latest(LatestRuns, HtmlFile) ->
 html_history_table_all(AllRuns, HtmlFile) ->
     {table, _, _, IoList} =
         html_history_table("All", "All test suites",
-                           AllRuns, HtmlFile, false, latest),
+                           AllRuns, HtmlFile, none, latest),
     [
      "<h3>All runs</h3>\n",
+     IoList
+    ].
+
+html_history_table_current(AllRuns, HtmlFile) ->
+    Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
+    {table, _, _, IoList} =
+        html_history_table("All", "Still failing test cases",
+                           Details, HtmlFile, latest_success, latest),
+    [
+     "<h3>Still failing test cases</h3>\n",
      IoList
     ].
 
@@ -907,17 +947,17 @@ html_history_table_hosts(SplitHosts, HtmlFile) ->
         {Host, Runs} <- SplitHosts
     ].
 
-html_history_double_table(Name, Label, AllRuns, HtmlFile, ResKind) ->
+html_history_double_table(Name, Label, AllRuns, HtmlFile, Select) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
-    {table, _, WorstRes, AllIoList} =
+    {table, _, SelectedRes, AllIoList} =
         html_history_table(Name, "All test suites",
-                           AllRuns, HtmlFile, false, ResKind),
+                           AllRuns, HtmlFile, none, Select),
     {table, _, _, FailedIoList} =
         html_history_table(Name, "Failed test cases",
-                           Details, HtmlFile, true, ResKind),
+                           Details, HtmlFile, any_success, Select),
     {table,
      Name,
-     WorstRes,
+     SelectedRes,
      [
       "<br><br>\n",
       ["<h3>", html_anchor(Name, Label), "</h3>\n"],
@@ -926,25 +966,25 @@ html_history_double_table(Name, Label, AllRuns, HtmlFile, ResKind) ->
      ]
     }.
 
-html_history_table(Name, Grain, Runs, HtmlFile, SuppressSuccess, ResKind) ->
+html_history_table(Name, Grain, Runs, HtmlFile, Suppress, Select) ->
     SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
     SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
     SplitIds2 = lists:sort(fun compare_split/2, SplitIds),
     RowHistory =
         [
          html_history_row(Test, TestRuns, SplitIds2, HtmlFile,
-                          ResKind, SuppressSuccess)
+                          Select, Suppress)
          || {Test, TestRuns} <- lists:reverse(SplitTests)
         ],
-    PickWorst = fun({row, Worst, _}, Acc) -> lux_utils:summary(Acc, Worst) end,
-    WorstRes = lists:foldl(PickWorst, no_data, RowHistory),
+    PickRes = fun({row, R, _}, Acc) -> lux_utils:summary(Acc, R) end,
+    SelectedRes = lists:foldl(PickRes, no_data, RowHistory),
     {table,
      Name,
-     WorstRes,
+     SelectedRes,
      [
       "  <table border=1>\n",
       "    <tr>\n",
-      html_history_table_td(Grain, WorstRes, "left"),
+      html_history_table_td(Grain, SelectedRes, "left"),
       [["      <td>", Rev,
         "<br>", "<strong>", Id, "</strong>",
         "<br>", Time,
@@ -964,57 +1004,69 @@ html_history_table(Name, Grain, Runs, HtmlFile, SuppressSuccess, ResKind) ->
               <- SplitIds2
       ],
       "    </tr>\n",
-      [RowIoList || {row, _Worst, RowIoList} <- RowHistory],
+      [RowIoList || {row, _Selected, RowIoList} <- RowHistory],
       "  </table>\n"
      ]
     }.
 
-html_history_row(Test, Runs, SplitIds, HtmlFile, ResKind, SuppressSuccess) ->
+html_history_row(Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
     EmitCell =
         fun({Id, _}, AccRes) ->
                 html_history_cell(Id, RevRuns, HtmlFile, AccRes)
         end,
     {Cells, _} = lists:mapfoldr(EmitCell, [], SplitIds),
-    ValidResFilter = fun (Cell) -> valid_res_filter(Cell, SuppressSuccess) end,
+    ValidResFilter = fun (Cell) -> valid_res_filter(Cell, Suppress) end,
     ValidRes = lists:zf(ValidResFilter, Cells),
     case lists:usort(ValidRes) of
-        [] when SuppressSuccess ->
+        [] when Suppress =:= any_success ->
             {row, no_data, []}; % Skip row
-        [success] when SuppressSuccess ->
+        [success] when Suppress =:= any_success ->
             {row, no_data, []}; % Skip row
-        [none] when SuppressSuccess ->
+        [none] when Suppress =:= any_success ->
+            {row, no_data, []}; % Skip row
+        [no_data, none] when Suppress =:= any_success ->
             {row, no_data, []}; % Skip row
         _ ->
-            Res = select_row_res(Cells, ResKind),
-            {row,
-             Res,
-             [
-              "    <tr>\n",
-              html_history_td(Test, Res, "left"),
-              [Td || {cell, _Res, _Run, Td} <- Cells],
-              "    </tr>\n"
-             ]
-            }
+            SelectedRes = select_row_res(Cells, Select, no_data),
+            case Suppress of
+                latest_success
+                  when SelectedRes =:= success;
+                       SelectedRes =:= none;
+                       SelectedRes =:= no_data ->
+                    {row, no_data, []}; % Skip row
+                _ ->
+                    {row,
+                     SelectedRes,
+                     [
+                      "    <tr>\n",
+                      html_history_td(Test, SelectedRes, "left"),
+                      [Td || {cell, _Res, _Run, Td} <- Cells],
+                      "    </tr>\n"
+                     ]
+                    }
+            end
     end.
 
-valid_res_filter({cell, Res, _Run, _Td}, SuppressSuccess) ->
+valid_res_filter({cell, Res, _Run, _Td}, Suppress) ->
     case Res of
-        no_data                      -> false;
-        success when SuppressSuccess -> false;
-        _                            -> {true, Res}
+        no_data                               -> false;
+        success when Suppress =:= any_success -> false;
+        _                                     -> {true, Res}
     end.
 
-select_row_res(Cells, worst) ->
-    PickWorst = fun({cell, Res, _, _}, Acc) -> lux_utils:summary(Acc, Res) end,
-    lists:foldl(PickWorst, no_data, Cells);
-select_row_res([{cell, no_data, _, _} | Cells], latest) ->
-    %% Try to find latest true result (not no_data)
-    select_row_res(Cells, latest);
-select_row_res([{cell, Res, _, _} | _Cells], latest) ->
+select_row_res(Cells, worst, Acc) ->
+    PickRes = fun({cell, Res, _, _}, A) -> lux_utils:summary(A, Res) end,
+    lists:foldl(PickRes, Acc, Cells);
+select_row_res([{cell, Res, _, _} | Cells], latest, Acc)
+  when Res =:= no_data; Res =:= none ->
+    NewAcc = lux_utils:summary(Acc, Res),
+    %% Try to find latest real result
+    select_row_res(Cells, latest, NewAcc);
+select_row_res([{cell, Res, _, _} | _Cells], latest, _Acc) ->
     Res;
-select_row_res([], latest) ->
-    no_data.
+select_row_res([], latest, Acc) ->
+    Acc.
 
 %% Returns true if first run is newer than (or equal) to second run
 %% Compare fields in this order: repos_rev, start_time, hostname and id
@@ -1080,23 +1132,13 @@ html_history_cell(Id, Runs, HtmlFile, AccRes) ->
             {{cell, Res, Run, Td}, AccRes2}
     end.
 
-html_config_href_td(HtmlFile, Text, skip) ->
-    html_config_href_td(HtmlFile, Text, none);
-html_config_href_td(HtmlFile, Text, Res) ->
+html_suffix_href_td(HtmlFile, Text, skip, Suffix) ->
+    html_suffix_href_td(HtmlFile, Text, none, Suffix);
+html_suffix_href_td(HtmlFile, Text, Res, Suffix) ->
     [
      "    ",
      "<td class=", atom_to_list(Res), "> ",
-     html_config_href(HtmlFile,"", "#" ++ Text, Text),
-     "</td>\n"
-    ].
-
-html_host_href_td(HtmlFile, Text, skip) ->
-    html_host_href_td(HtmlFile, Text, none);
-html_host_href_td(HtmlFile, Text, Res) ->
-    [
-     "    ",
-     "<td class=", atom_to_list(Res), "> ",
-     html_host_href(HtmlFile, "", "#" ++ Text, Text),
+     html_suffix_href(HtmlFile,"", "#" ++ Text, Text, Suffix),
      "</td>\n"
     ].
 
@@ -1392,6 +1434,10 @@ orig_script(A, LogFile, Script) ->
     Dir = filename:dirname(drop_prefix(A, LogFile)),
     Base = filename:basename(binary_to_list(Script)),
     filename:join([A#astate.log_dir, Dir, Base ++ ".orig"]).
+
+html_suffix_href(HtmlFile, Protocol, Name, Label, Suffix) ->
+    Name2 = insert_html_suffix(HtmlFile, Name, Suffix),
+    html_href(Protocol, Name2, Label).
 
 html_config_href(HtmlFile, Protocol, Name, Label) ->
     Name2 = insert_html_suffix(HtmlFile, Name, "_config"),
