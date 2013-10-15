@@ -889,11 +889,11 @@ html_history_legend() ->
      "<h3>Legend</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
-     html_history_td("First fail", fail, "left"),
-     html_history_td("Secondary fails on same host", secondary_fail, "left"),
-     html_history_td("Skipped", none, "left"),
-     html_history_td("Success", success, "left"),
-     html_history_td("No data", no_data, "left"),
+     html_history_td("First fail", fail, "left", ""),
+     html_history_td("Secondary fails on same host", secondary_fail, "left",""),
+     html_history_td("Skipped", none, "left", ""),
+     html_history_td("Success", success, "left", ""),
+     html_history_td("No data", no_data, "left", ""),
      "    </tr>\n",
      "  </table>\n"
     ].
@@ -1012,8 +1012,8 @@ html_history_table(Name, Grain, Runs, HtmlFile, Suppress, Select) ->
 html_history_row(Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
     EmitCell =
-        fun({Id, _}, AccRes) ->
-                html_history_cell(Id, RevRuns, HtmlFile, AccRes)
+        fun({Id, _R}, AccRes) ->
+                html_history_cell(Test, Id, RevRuns, HtmlFile, AccRes)
         end,
     {Cells, _} = lists:mapfoldr(EmitCell, [], SplitIds),
     ValidResFilter = fun (Cell) -> valid_res_filter(Cell, Suppress) end,
@@ -1040,7 +1040,7 @@ html_history_row(Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
                      SelectedRes,
                      [
                       "    <tr>\n",
-                      html_history_td(Test, SelectedRes, "left"),
+                      html_history_td(Test, SelectedRes, "left", ""),
                       [Td || {cell, _Res, _Run, Td} <- Cells],
                       "    </tr>\n"
                      ]
@@ -1093,10 +1093,10 @@ compare_split({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
     %% Test on first run
     compare_run(R1, R2).
 
-html_history_cell(Id, Runs, HtmlFile, AccRes) ->
+html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
-            Td = html_history_td("-", no_data, "right"),
+            Td = html_history_td("-", no_data, "right", Test),
             {{cell, no_data, undefined, Td}, AccRes};
         Run ->
             RunN  = length([run  || R <- Run#run.details,
@@ -1128,7 +1128,13 @@ html_history_cell(Id, Runs, HtmlFile, AccRes) ->
                         OrigRes
                 end,
             AccRes2 = [{Host, OrigRes} | AccRes],
-            Td = html_history_td(Text, Res, "right"),
+            ToolTip = [Test, "\n",
+                       Run#run.config_name,"\n",
+                       Run#run.hostname,"\n",
+                       Run#run.start_time,"\n",
+                       Run#run.id,"\n",
+                       Run#run.repos_rev],
+            Td = html_history_td(Text, Res, "right", ToolTip),
             {{cell, Res, Run, Td}, AccRes2}
     end.
 
@@ -1152,12 +1158,18 @@ html_history_table_td(Text, Res, Align) ->
      "</td>\n"
     ].
 
-html_history_td(Text, skip, Align) ->
-    html_history_td(Text, none, Align);
-html_history_td(Text, Res, Align) ->
+html_history_td(Text, skip, Align, Title) ->
+    html_history_td(Text, none, Align, Title);
+html_history_td(Text, Res, Align, Title) ->
     [
      "    ",
-     "<td class=", atom_to_list(Res), " align=\"", Align, "\"> ",
+     "<td class=", atom_to_list(Res),
+     " align=\"", Align, "\"",
+     case Title of
+         "" -> [];
+         _  -> [" title=\"", Title, "\""]
+     end,
+     ">",
      Text,
      "</td>\n"
     ].
@@ -1173,20 +1185,20 @@ multi_member([], _Files) ->
     false.
 
 parse_summary_logs(HtmlFile, Dir, Acc) ->
-    Cands = ["lux.skip",
+    Skip = ["lux.skip",
              "lux_summary.log",
              "lux_summary.log.tmp",
              "qmscript.skip",
              "qmscript_summary.log",
              "qmscript_summary.log.tmp",
              "qmscript.summary.log"],
-    do_parse_summary_logs(HtmlFile, Dir, Acc, Cands).
+    do_parse_summary_logs(HtmlFile, Dir, Acc, Skip).
 
-do_parse_summary_logs(HtmlFile, Dir, Acc, Cands) ->
+do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
     %% io:format("~s\n", [Dir]),
     case file:list_dir(Dir) of
         {ok, Files} ->
-            case multi_member(Cands, Files) of
+            case multi_member(Skip, Files) of
                 {true, Base} ->
                     case lists:suffix(".log", Base) of
                         true ->
@@ -1209,8 +1221,7 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Cands) ->
                                 A;
                            (File, A) ->
                                 SubDir = filename:join([Dir, File]),
-                                do_parse_summary_logs(HtmlFile, SubDir,
-                                                      A, Cands)
+                                do_parse_summary_logs(HtmlFile, SubDir, A, Skip)
                         end,
                     lists:foldl(Fun, Acc, Files)
             end;
@@ -1465,6 +1476,8 @@ html_href(Tag, Prefix, Protocol, Name, Label) when Tag =/= "" ->
      Prefix, html_href(Protocol, Name, Label),
      "</", Tag, ">\n"
     ].
+
+%% " title=\"", Title, "\" "
 
 html_anchor(Name, Label) ->
     [
