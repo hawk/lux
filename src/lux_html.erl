@@ -740,6 +740,10 @@ html_opt_div(Item, Data) ->
          repos_rev,
          details}).
 
+-record(table, {name, res, iolist}).
+-record(row,   {res, iolist}).
+-record(cell,  {res, run, iolist}).
+
 history(TopDir, HtmlFile) ->
     TopDir2 = filename:absname(TopDir),
     AbsHtmlFile = filename:absname(HtmlFile),
@@ -750,10 +754,11 @@ history(TopDir, HtmlFile) ->
     HostTables = html_history_table_hosts(SplitHosts, AbsHtmlFile),
     SplitConfigs = keysplit(#run.config_name, AllRuns, fun compare_run/2),
     ConfigTables = html_history_table_configs(SplitConfigs, AbsHtmlFile),
+    HtmlDir = filename:dirname(HtmlFile),
     OverviewIoList =
         [
          html_history_header("overview", AllRuns,
-                             ConfigTables, HostTables, HtmlFile),
+                             ConfigTables, HostTables, HtmlDir, HtmlFile),
          html_history_table_latest(LatestRuns, AbsHtmlFile),
          html_history_table_all(AllRuns, AbsHtmlFile),
          html_footer()
@@ -761,25 +766,26 @@ history(TopDir, HtmlFile) ->
     CurrentIoList =
         [
          html_history_header("current failures", AllRuns,
-                             ConfigTables, HostTables, HtmlFile),
+                             ConfigTables, HostTables, HtmlDir, HtmlFile),
          html_history_table_current(AllRuns, AbsHtmlFile),
          html_footer()
         ],
     ConfigIoList =
         [
          html_history_header("config", AllRuns,
-                             ConfigTables, HostTables, HtmlFile),
-         [IoList || {table, _, _, IoList} <- ConfigTables],
+                             ConfigTables, HostTables, HtmlDir, HtmlFile),
+         "</a name=\"#configs\">",
+         [T#table.iolist || T <- ConfigTables],
          html_footer()
         ],
     HostIoList =
         [
          html_history_header("host", AllRuns,
-                             ConfigTables, HostTables, HtmlFile),
-         [IoList || {table, _, _, IoList} <- HostTables],
+                             ConfigTables, HostTables, HtmlDir, HtmlFile),
+         "</a name=\" #hosts\">",
+         [T#table.iolist || T <- HostTables],
          html_footer()
         ],
-    HtmlDir = filename:dirname(HtmlFile),
     CurrentHtmlFile =
         filename:join(HtmlDir,
                       insert_html_suffix(HtmlFile, "", ?CURRENT_SUFFIX)),
@@ -809,7 +815,8 @@ latest_runs(SplitHosts) ->
         Run <- TestRuns,
         lists:member(Run#run.id, Ids)].
 
-html_history_header(Section, AllRuns, ConfigTables, HostTables, HtmlFile) ->
+html_history_header(Section, AllRuns, ConfigTables, HostTables,
+                    HtmlDir, HtmlFile) ->
     Dir = filename:basename(filename:dirname(HtmlFile)),
     case lists:keysort(#run.repos_rev, AllRuns) of
         [] ->
@@ -830,8 +837,6 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables, HtmlFile) ->
             LatestTime = (hd(LatestRuns2))#run.start_time,
             N = integer_to_list(length(SortedRuns))
     end,
-    PickRes = fun({table, _, R, _}, Acc) -> lux_utils:summary(Acc, R) end,
-    CurrentRes = lists:foldl(PickRes, no_data, ConfigTables),
     [
      html_header(["Lux history ", Section, " (", Dir, ")"]),
      "<h1>Lux history ", Section, " (", Dir, ") generated at ",
@@ -852,36 +857,44 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables, HtmlFile) ->
 
      html_history_legend(),
 
-     "\n\n"
-     "<h3>Current failures</h3>\n",
-     "  <table border=1>\n",
-     "    <tr>\n",
-     "       <td class=", atom_to_list(CurrentRes), "> ",
-     html_suffix_href(HtmlFile,"", "", "All hosts", ?CURRENT_SUFFIX),
-     "      </td>\n"
-     "    </tr>\n",
-     "  </table>\n",
-     "\n\n"
+     "<h3>",
+     html_href("", [drop_prefix(HtmlDir,HtmlFile), "#latest_runs"],
+               "Latest run on each host"),
+     "</h3>\n\n",
 
-     "<h3>Configurations</h3>\n",
+     "<h3>",
+     html_href("", [drop_prefix(HtmlDir,HtmlFile), "#all_runs"],  "All runs"),
+     "</h3>\n\n",
+
+     "<h3>",
+     html_suffix_href(HtmlFile,"", "", "Still failing test cases",
+                      ?CURRENT_SUFFIX),
+     "</h3>\n\n",
+
+     "<h3>",
+     html_suffix_href(HtmlFile,"","#configs", "Configurations", ?CONFIG_SUFFIX),
+     "</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
      [
       html_suffix_href_td(HtmlFile, ConfigName, ConfigRes, ?CONFIG_SUFFIX) ||
-         {table, ConfigName, ConfigRes, _ConfigIoList} <- ConfigTables
+         #table{name=ConfigName, res=ConfigRes} <- ConfigTables
      ],
      "    </tr>\n",
      "  </table>\n",
 
-     "<h3>Hosts</h3>\n",
+     "<h3>",
+     html_suffix_href(HtmlFile,"", "#hosts", "Hosts", ?HOST_SUFFIX),
+     "</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
      [
       html_suffix_href_td(HtmlFile, Host, HostRes, ?HOST_SUFFIX) ||
-         {table, Host, HostRes, _HostIoList} <- HostTables
+         #table{name=Host, res=HostRes} <- HostTables
      ],
      "    </tr>\n",
      "  </table>\n"
+     "<br><hr>\n"
     ].
 
 html_history_legend() ->
@@ -899,31 +912,28 @@ html_history_legend() ->
     ].
 
 html_history_table_latest(LatestRuns, HtmlFile) ->
-    {table, _, _, IoList} =
-        html_history_table("Latest", "All test suites",
-                           LatestRuns, HtmlFile, none, worst),
+    T =html_history_table("Latest", "All test suites",
+                          LatestRuns, HtmlFile, none, worst),
     [
-     "<h3>Latest run on each host</h3>\n",
-     IoList
+     html_anchor("latest_run", "<h3>Latest run on each host</h3>\n"),
+     T#table.iolist
     ].
 
 html_history_table_all(AllRuns, HtmlFile) ->
-    {table, _, _, IoList} =
-        html_history_table("All", "All test suites",
+    T = html_history_table("All", "All test suites",
                            AllRuns, HtmlFile, none, latest),
     [
-     "<h3>All runs</h3>\n",
-     IoList
+     html_anchor("all_runs", "<h3>All runs</h3>\n"),
+     T#table.iolist
     ].
 
 html_history_table_current(AllRuns, HtmlFile) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
-    {table, _, _, IoList} =
-        html_history_table("All", "Still failing test cases",
+    T = html_history_table("All", "Still failing test cases",
                            Details, HtmlFile, latest_success, latest),
     [
      "<h3>Still failing test cases</h3>\n",
-     IoList
+     T#table.iolist
     ].
 
 html_history_table_configs(SplitConfigs, HtmlFile) ->
@@ -949,22 +959,20 @@ html_history_table_hosts(SplitHosts, HtmlFile) ->
 
 html_history_double_table(Name, Label, AllRuns, HtmlFile, Select) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
-    {table, _, SelectedRes, AllIoList} =
-        html_history_table(Name, "All test suites",
-                           AllRuns, HtmlFile, none, Select),
-    {table, _, _, FailedIoList} =
-        html_history_table(Name, "Failed test cases",
-                           Details, HtmlFile, any_success, Select),
-    {table,
-     Name,
-     SelectedRes,
-     [
-      "<br><br>\n",
-      ["<h3>", html_anchor(Name, Label), "</h3>\n"],
-      AllIoList,
-      FailedIoList
-     ]
-    }.
+    AllT = html_history_table(Name, "All test suites",
+                              AllRuns, HtmlFile, none, Select),
+    FailedT = html_history_table(Name, "Failed test cases",
+                                 Details, HtmlFile, any_success, Select),
+    #table{name=Name,
+           res=AllT#table.res,
+           iolist=
+               [
+                "\n",
+                ["<h3>", html_anchor(Name, Label), "</h3>\n"],
+                AllT#table.iolist,
+                "\n<br>\n",
+                FailedT#table.iolist
+               ]}.
 
 html_history_table(Name, Grain, Runs, HtmlFile, Suppress, Select) ->
     SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
@@ -976,38 +984,42 @@ html_history_table(Name, Grain, Runs, HtmlFile, Suppress, Select) ->
                           Select, Suppress)
          || {Test, TestRuns} <- lists:reverse(SplitTests)
         ],
-    PickRes = fun({row, R, _}, Acc) -> lux_utils:summary(Acc, R) end,
+    PickRes = fun(#row{res=R}, Acc) -> lux_utils:summary(Acc, R) end,
     SelectedRes = lists:foldl(PickRes, no_data, RowHistory),
-    {table,
-     Name,
-     SelectedRes,
-     [
-      "  <table border=1>\n",
-      "    <tr>\n",
-      html_history_table_td(Grain, SelectedRes, "left"),
-      [["      <td>", Rev,
-        "<br>", "<strong>", Id, "</strong>",
-        "<br>", Time,
-        "</td>\n"] ||
-          {Id, [#run{start_time=Time, repos_rev=Rev} |_ ]}
-              <- SplitIds2
-      ],
-      "    </tr>\n",
-      "    <tr>\n",
-      [["      <td>",
-        "<strong>",
-        html_host_href(HtmlFile, "", "#" ++ Host, Host),
-        "</strong>",
-        "<br>", html_config_href(HtmlFile, "", "#" ++ ConfigName, ConfigName),
-        "</td>\n"] ||
-          {_, [#run{hostname=Host, config_name=ConfigName} |_ ]}
-              <- SplitIds2
-      ],
-      "    </tr>\n",
-      [RowIoList || {row, _Selected, RowIoList} <- RowHistory],
-      "  </table>\n"
-     ]
-    }.
+    #table{name=Name,
+           res=SelectedRes,
+           iolist=
+               [
+                "  <table border=1>\n",
+                "    <tr>\n",
+                html_history_table_td(Grain, SelectedRes, "left"),
+                [["      <td>", Rev,
+                  "<br>", "<strong>", Id, "</strong>",
+                  "<br>", Time,
+                  "</td>\n"] ||
+                    {Id, [#run{start_time=Time, repos_rev=Rev} |_ ]}
+                        <- SplitIds2
+                ],
+                "    </tr>\n",
+                "    <tr>\n",
+                [["      <td>",
+                  "<strong>",
+                  html_suffix_href(HtmlFile, "", "#"++Host, Host, ?HOST_SUFFIX),
+                  "</strong>",
+                  "<br>", html_suffix_href(HtmlFile,
+                                           "",
+                                           "#" ++ ConfigName,
+                                           ConfigName,
+                                           ?CONFIG_SUFFIX),
+                  "</td>\n"] ||
+                    {_, [#run{hostname=Host, config_name=ConfigName} |_ ]}
+                        <- SplitIds2
+                ],
+                "    </tr>\n",
+                [R#row.iolist || R <- RowHistory],
+                "  </table>\n"
+               ]
+          }.
 
 html_history_row(Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
@@ -1020,13 +1032,13 @@ html_history_row(Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
     ValidRes = lists:zf(ValidResFilter, Cells),
     case lists:usort(ValidRes) of
         [] when Suppress =:= any_success ->
-            {row, no_data, []}; % Skip row
+            #row{res=no_data, iolist=[]}; % Skip row
         [success] when Suppress =:= any_success ->
-            {row, no_data, []}; % Skip row
+            #row{res=no_data, iolist=[]}; % Skip row
         [none] when Suppress =:= any_success ->
-            {row, no_data, []}; % Skip row
+            #row{res=no_data, iolist=[]}; % Skip row
         [no_data, none] when Suppress =:= any_success ->
-            {row, no_data, []}; % Skip row
+            #row{res=no_data, iolist=[]}; % Skip row
         _ ->
             SelectedRes = select_row_res(Cells, Select, no_data),
             case Suppress of
@@ -1034,21 +1046,21 @@ html_history_row(Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
                   when SelectedRes =:= success;
                        SelectedRes =:= none;
                        SelectedRes =:= no_data ->
-                    {row, no_data, []}; % Skip row
+                    #row{res=no_data, iolist=[]}; % Skip row
                 _ ->
-                    {row,
-                     SelectedRes,
-                     [
-                      "    <tr>\n",
-                      html_history_td(Test, SelectedRes, "left", ""),
-                      [Td || {cell, _Res, _Run, Td} <- Cells],
-                      "    </tr>\n"
-                     ]
-                    }
+                    #row{res=SelectedRes,
+                         iolist=
+                             [
+                              "    <tr>\n",
+                              html_history_td(Test, SelectedRes, "left", ""),
+                              [C#cell.iolist || C <- Cells],
+                              "    </tr>\n"
+                             ]
+                        }
             end
     end.
 
-valid_res_filter({cell, Res, _Run, _Td}, Suppress) ->
+valid_res_filter(#cell{res=Res}, Suppress) ->
     case Res of
         no_data                               -> false;
         success when Suppress =:= any_success -> false;
@@ -1056,16 +1068,27 @@ valid_res_filter({cell, Res, _Run, _Td}, Suppress) ->
     end.
 
 select_row_res(Cells, worst, Acc) ->
-    PickRes = fun({cell, Res, _, _}, A) -> lux_utils:summary(A, Res) end,
+    PickRes = fun(#cell{res=Res}, A) -> lux_utils:summary(A, Res) end,
     lists:foldl(PickRes, Acc, Cells);
-select_row_res([{cell, Res, _, _} | Cells], latest, Acc)
+select_row_res(Cells, latest, Acc) ->
+    select_latest_row_res(Cells, Acc).
+
+select_latest_row_res([#cell{res=Res} | Cells], Acc)
   when Res =:= no_data; Res =:= none ->
+    %% Skip useless results
     NewAcc = lux_utils:summary(Acc, Res),
-    %% Try to find latest real result
-    select_row_res(Cells, latest, NewAcc);
-select_row_res([{cell, Res, _, _} | _Cells], latest, _Acc) ->
+    select_latest_row_res(Cells, NewAcc);
+select_latest_row_res([#cell{run=#run{repos_rev=Rev}}=C | Cells], Acc) ->
+    PickSameRev = fun(#cell{run=#run{repos_rev=R}}) when R =:= Rev ->
+                          true;
+                     (_) ->
+                          false
+                  end,
+    SameRevCells = lists:takewhile(PickSameRev, Cells),
+    select_row_res([C|SameRevCells], worst, Acc);
+select_latest_row_res([#cell{res=Res, run=undefined} | _Cells], _Acc) ->
     Res;
-select_row_res([], latest, Acc) ->
+select_latest_row_res([], Acc) ->
     Acc.
 
 %% Returns true if first run is newer than (or equal) to second run
@@ -1097,7 +1120,7 @@ html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
             Td = html_history_td("-", no_data, "right", Test),
-            {{cell, no_data, undefined, Td}, AccRes};
+            {#cell{res=no_data, run=undefined, iolist=Td}, AccRes};
         Run ->
             RunN  = length([run  || R <- Run#run.details,
                                     R#run.result =/= skip]),
@@ -1135,7 +1158,7 @@ html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
                        Run#run.id,"\n",
                        Run#run.repos_rev],
             Td = html_history_td(Text, Res, "right", ToolTip),
-            {{cell, Res, Run, Td}, AccRes2}
+            {#cell{res=Res, run=Run, iolist=Td}, AccRes2}
     end.
 
 html_suffix_href_td(HtmlFile, Text, skip, Suffix) ->
@@ -1450,23 +1473,10 @@ html_suffix_href(HtmlFile, Protocol, Name, Label, Suffix) ->
     Name2 = insert_html_suffix(HtmlFile, Name, Suffix),
     html_href(Protocol, Name2, Label).
 
-html_config_href(HtmlFile, Protocol, Name, Label) ->
-    Name2 = insert_html_suffix(HtmlFile, Name, "_config"),
-    html_href(Protocol, Name2, Label).
-
-html_host_href(HtmlFile, Protocol, Name, Label) ->
-    Name2 = insert_html_suffix(HtmlFile, Name, "_host"),
-    html_href(Protocol, Name2, Label).
-
 insert_html_suffix(HtmlFile, Name, Suffix) ->
     Ext = filename:extension(HtmlFile),
     BaseName = filename:basename(HtmlFile, Ext),
     BaseName ++ Suffix ++ Ext ++ Name.
-
-html_href(Protocol, Name, Label) ->
-    [
-     "<a href=\"", Protocol, Name, "\">", Label, "</a>"
-    ].
 
 html_href("a", "", Protocol, Name, Label) ->
     ["\n",html_href(Protocol, Name, Label)];
@@ -1477,16 +1487,19 @@ html_href(Tag, Prefix, Protocol, Name, Label) when Tag =/= "" ->
      "</", Tag, ">\n"
     ].
 
-%% " title=\"", Title, "\" "
-
-html_anchor(Name, Label) ->
+html_href(Protocol, Name, Label) ->
     [
-     "<a name=\"", Name, "\">", Label, "</a>"
+     "<a href=\"", Protocol, Name, "\">", Label, "</a>"
     ].
 
 html_anchor(Tag, Prefix, Name, Label) ->
     [
      "\n<", Tag, ">", Prefix, html_anchor(Name, Label), "</", Tag, ">\n"
+    ].
+
+html_anchor(Name, Label) ->
+    [
+     "<a name=\"", Name, "\">", Label, "</a>"
     ].
 
 html_header(Title) ->
