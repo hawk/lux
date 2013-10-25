@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.2 - 2013-10-09
+Version 1.2 - 2013-10-25
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1148,7 +1148,7 @@ References
 [pre-built packages]:    https://www.erlang-solutions.com/downloads/download-erlang-otp
                       "Prebuilt packages at Erlang Solutions"
 
-[regular expression]: http://www.erlang.org/doc/man/re.html
+[regular expression]: http://www.erlang.org/doc/man/re.html#sect2
                       "Erlang style regular expressions (re)"
 [PCRE]:               http://www.pcre.org/
                       "PCRE - Perl Compatible Regular Expressions"
