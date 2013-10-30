@@ -774,7 +774,7 @@ history(TopDir, HtmlFile) ->
         [
          html_history_header("config", AllRuns,
                              ConfigTables, HostTables, HtmlDir, HtmlFile),
-         "</a name=\"#configs\">",
+         "</a name=\"#content\">",
          [T#table.iolist || T <- ConfigTables],
          html_footer()
         ],
@@ -782,7 +782,7 @@ history(TopDir, HtmlFile) ->
         [
          html_history_header("host", AllRuns,
                              ConfigTables, HostTables, HtmlDir, HtmlFile),
-         "</a name=\" #hosts\">",
+         "</a name=\" #content\">",
          [T#table.iolist || T <- HostTables],
          html_footer()
         ],
@@ -858,21 +858,16 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables,
      html_history_legend(),
 
      "<h3>",
-     html_href("", [drop_prefix(HtmlDir,HtmlFile), "#latest_runs"],
-               "Latest run on each host"),
+     html_href("", [drop_prefix(HtmlDir,HtmlFile), "#content"], "Overview"),
      "</h3>\n\n",
 
      "<h3>",
-     html_href("", [drop_prefix(HtmlDir,HtmlFile), "#all_runs"],  "All runs"),
-     "</h3>\n\n",
-
-     "<h3>",
-     html_suffix_href(HtmlFile,"","#still_failing", "Still failing test cases",
+     html_suffix_href(HtmlFile,"","#content", "Still failing test cases",
                       ?CURRENT_SUFFIX),
      "</h3>\n\n",
 
      "<h3>",
-     html_suffix_href(HtmlFile,"","#configs", "Configurations", ?CONFIG_SUFFIX),
+     html_suffix_href(HtmlFile,"","#content", "Configurations", ?CONFIG_SUFFIX),
      "</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
@@ -884,7 +879,7 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables,
      "  </table>\n",
 
      "<h3>",
-     html_suffix_href(HtmlFile,"", "#hosts", "Hosts", ?HOST_SUFFIX),
+     html_suffix_href(HtmlFile,"", "#content", "Hosts", ?HOST_SUFFIX),
      "</h3>\n",
      "  <table border=1>\n",
      "    <tr>\n",
@@ -915,7 +910,7 @@ html_history_table_latest(LatestRuns, HtmlFile) ->
     T =html_history_table("Latest", "All test suites",
                           LatestRuns, HtmlFile, none, worst),
     [
-     html_anchor("latest_run", "<h3>Latest run on each host</h3>\n"),
+     html_anchor("content", "<h3>Latest run on each host</h3>\n"),
      T#table.iolist
     ].
 
@@ -932,7 +927,7 @@ html_history_table_current(AllRuns, HtmlFile) ->
     T = html_history_table("All", "Still failing test cases",
                            Details, HtmlFile, latest_success, latest),
     [
-     html_anchor("still_failing", "<h3>Still failing test cases</h3>\n"),
+     html_anchor("content", "<h3>Still failing test cases</h3>\n"),
      T#table.iolist
     ].
 
