@@ -867,7 +867,7 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables,
      "</h3>\n\n",
 
      "<h3>",
-     html_suffix_href(HtmlFile,"", "", "Still failing test cases",
+     html_suffix_href(HtmlFile,"","#still_failing", "Still failing test cases",
                       ?CURRENT_SUFFIX),
      "</h3>\n\n",
 
@@ -932,7 +932,7 @@ html_history_table_current(AllRuns, HtmlFile) ->
     T = html_history_table("All", "Still failing test cases",
                            Details, HtmlFile, latest_success, latest),
     [
-     "<h3>Still failing test cases</h3>\n",
+     html_anchor("still_failing", "<h3>Still failing test cases</h3>\n"),
      T#table.iolist
     ].
 
