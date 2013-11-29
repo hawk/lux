@@ -286,7 +286,24 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
         "cleanup" ++ Name ->
             Cmd#cmd{type = cleanup, arg = string:strip(Name)};
         "shell" ++ Name ->
-            Cmd#cmd{type = shell, arg = string:strip(Name)};
+            Name2 = string:strip(Name),
+            Match = re:run(Name2, "\\$\\$", [{capture,none}]),
+            case {Name2, Match} of
+                {"", _} ->
+                    parse_error(P,
+                                ["Syntax error at line ",
+                                 integer_to_list(LineNo),
+                                 ": missing shell name"],
+                                LineNo);
+                {_, match} ->
+                    parse_error(P,
+                                ["Syntax error at line ",
+                                 integer_to_list(LineNo),
+                                 ": $$ in shell name"],
+                                LineNo);
+                {_, nomatch} ->
+                    Cmd#cmd{type = shell, arg = Name2}
+            end;
         "endshell" ->
             Cmd2 = Cmd#cmd{type = expect, raw = <<".">>},
             parse_regexp(Cmd2, shell_exit);
