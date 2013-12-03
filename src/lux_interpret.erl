@@ -935,11 +935,14 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
     case lux_shell:start_monitor(I2, Cmd, Name) of
         {ok, I3} ->
             %% Wait for some shell output
-            Wait = Cmd#cmd{type = expect, arg = <<".+">>},
+            Wait = Cmd#cmd{type = expect,
+                           arg = {regexp, <<".+">>}},
             %% Set the prompt (after the rc files has ben run)
-            Prompt = Cmd#cmd{type = send_lf, arg = <<"export PS1=SH-PROMPT:">>},
+            Prompt = Cmd#cmd{type = send_lf,
+                             arg = <<"export PS1=SH-PROMPT:">>},
             %% Wait for the prompt
-            Sync = Cmd#cmd{type = expect, arg = <<"^SH-PROMPT:">>},
+            Sync = Cmd#cmd{type = expect,
+                           arg = {regexp, <<"^SH-PROMPT:">>}},
             Cmds = [Wait, Prompt, Sync | I3#istate.commands],
             I3#istate{commands = Cmds, want_more = false};
         {error, I3, Pid, Reason} ->

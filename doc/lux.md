@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.2 - 2013-10-25
+Version 1.2 - 2013-12-03
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -245,6 +245,14 @@ option. If no `Regexp` is given, the output streams (`stdout`,
 received is discarded. See also the `--flush_timeout` and
 `--poll_timeout` configuration parameters about customizing the
 `?` behavior.
+
+**??Template**  
+Like `?Regexp`, but more restricted as all regular expression
+keywords are ignored. Variables are still substituted.
+
+**???Verbatim**  
+Like `??Template`, but more restricted as no variables are substituted.
+That is the string is matched as is.
 
 **-Regexp**  
 Sets a failure condition [regular expression][]. If the given `Regexp`

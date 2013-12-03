@@ -379,6 +379,11 @@ shell_eval(#cstate{name = Name} = C0,
             send_to_port(C, <<Arg/binary, "\n">>);
         send when is_binary(Arg) ->
             send_to_port(C, Arg);
+        expect when Arg =:= shell_exit ->
+            log(C, "expect ~p\n", [Arg]),
+            C2 = start_timer(C),
+            C2#cstate{state_changed = true,
+                      expected = Cmd};
         expect when Arg =:= reset ->
             %% Reset output buffer
             C2 = cancel_timer(C),
@@ -388,25 +393,20 @@ shell_eval(#cstate{name = Name} = C0,
             C2#cstate{state_changed = true,
                       actual = <<>>,
                       events = save_event(C, recv, Waste)};
-        expect when Arg =:= shell_exit ->
-            log(C, "expect ~p\n", [Arg]),
-            C2 = start_timer(C),
-            C2#cstate{state_changed = true,
-                      expected = Cmd};
-        expect when is_binary(Arg) ->
-            {C2, Cmd2, RegExp2} = parse_regexp(C, Arg),
+        expect ->
+            {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
             log(C2, "expect \"~s\"\n", [lux_utils:to_string(RegExp2)]),
             C3 = start_timer(C2),
             C3#cstate{state_changed = true,
                       expected = Cmd2};
-        fail when is_binary(Arg); Arg =:= reset ->
-            {C2, Cmd2, RegExp2} = parse_regexp(C, Arg),
+        fail ->
+            {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
             log(C2, "fail pattern ~p\n", [lux_utils:to_string(RegExp2)]),
             C3 = C2#cstate{state_changed = true,
                            fail = Cmd2},
             match_fail_pattern(C3, C3#cstate.actual);
-        success when is_binary(Arg); Arg =:= reset ->
-            {C2, Cmd2, RegExp2} = parse_regexp(C, Arg),
+        success ->
+            {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
             log(C2, "success pattern ~p\n",
                 [lux_utils:to_string(RegExp2)]),
             C3 = C2#cstate{state_changed = true,
@@ -469,9 +469,9 @@ shell_eval(#cstate{name = Name} = C0,
                            success = undefined},
             opt_late_ping_reply(C3);
         Unexpected ->
-            io:format("[shell ~s] got cmd with type ~p (~p)\n",
-                      [Name, Unexpected, Arg]),
-            C
+            Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
+                                [Name, Unexpected, Arg]),
+            stop(C, error, list_to_binary(Err))
     end.
 
 send_to_port(C, RawData) ->
@@ -611,18 +611,29 @@ expect(#cstate{state_changed = true,
             end
     end.
 
-match(Bin, Cmd) ->
+match(Actual, Cmd) ->
     case Cmd of
         undefined ->
             nomatch;
-        #cmd{type = Type, arg = {_RegExp, MP}}
-          when Type =:= expect; Type =:= fail; Type =:= success ->
-            Opts = [{capture, all, index}, notempty],
-            %% io:format("\nre:run(~p,\n"
-            %%           "       ~p,\n"
-            %%           "       ~p).\n",
-            %%           [Bin, _RegExp, Opts]),
-            re:run(Bin, MP, Opts)
+        #cmd{type = Type, arg = Arg} ->
+            if
+                Type =:= expect; Type =:= fail; Type =:= success ->
+                    case Arg of
+                        {verbatim, Expected} ->
+                            %% io:format("\nbinary:match(~p,\n"
+                            %%           "            ~p,\n"
+                            %%           "            ~p).\n",
+                            %%           [Actual, Expected, []]),
+                            lux_utils:verbatim_match(Actual, Expected);
+                        {mp, _RegExp, MP} ->
+                            Opts = [{capture, all, index}, notempty],
+                            %% io:format("\nre:run(~p,\n"
+                            %%           "       ~p,\n"
+                            %%           "       ~p).\n",
+                            %%           [Actual, _RegExp, Opts]),
+                            re:run(Actual, MP, Opts)
+                    end
+            end
     end.
 
 match_fail_pattern(C, Actual) ->
@@ -713,9 +724,18 @@ cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
              timer = undefined,
              timer_started_at = undefined}.
 
-parse_regexp(C, reset) ->
+compile_regexp(C, reset) ->
     {C, undefined, reset};
-parse_regexp(C, RegExp) ->
+compile_regexp(C, shell_exit) ->
+    {C, undefined, shell_exit};
+compile_regexp(C, {verbatim, Verbatim}) ->
+    {C, C#cstate.latest_cmd, Verbatim};
+compile_regexp(C, {mp, RegExp, _MP}) ->
+    {C, C#cstate.latest_cmd, RegExp};
+compile_regexp(C, {template, Template}) ->
+    Verbatim = expand_vars(C, Template, error),
+    patch_latest(C, {verbatim, Verbatim}, Verbatim);
+compile_regexp(C, {regexp, RegExp}) ->
     try
         RegExp2 = expand_vars(C, RegExp, error),
         RegExp3 = normalize_newlines(RegExp2),
@@ -723,9 +743,7 @@ parse_regexp(C, RegExp) ->
         Opts = [multiline, {newline, anycrlf}],
         case re:compile(RegExp3, Opts) of
             {ok, MP2} ->
-                Cmd = C#cstate.latest_cmd,
-                Cmd2 = Cmd#cmd{arg = {RegExp3, MP2}},
-                {C#cstate{latest_cmd = Cmd2}, Cmd2, RegExp3};
+                patch_latest(C, {mp, RegExp3, MP2}, RegExp3);
             {error, {Reason, _Pos}} ->
                 BinErr = list_to_binary(["Syntax error: ", Reason,
                                          " in regexp '", RegExp3, "'"]),
@@ -738,6 +756,11 @@ parse_regexp(C, RegExp) ->
                                       RegExp, "'"]),
             stop(C, error, BinErr2)
     end.
+
+patch_latest(C, NewArg, Expect) ->
+    Cmd = C#cstate.latest_cmd,
+    Cmd2 = Cmd#cmd{arg = NewArg},
+    {C#cstate{latest_cmd = Cmd2}, Cmd2, Expect}.
 
 normalize_newlines(Bin) ->
     re:replace(Bin, <<"\n">>, <<"[\r\n]+">>, [global, {return, binary}]).
@@ -762,9 +785,9 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
                 {Outcome, undefined}
         end,
     case Cmd of
-        #cmd{type = expect, arg = {Expected, _MP}} ->
+        #cmd{type = expect, arg = {verbatim, Expected}} ->
             ok;
-        #cmd{type = expect, arg = Expected} when is_atom(Expected) ->
+        #cmd{type = expect, arg = {mp, Expected, _MP}} ->
             ok;
         #cmd{} ->
             Expected = <<"">>

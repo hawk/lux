@@ -14,7 +14,7 @@
          to_string/1, safe_format/5, safe_write/4, tag_prefix/1,
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
-         now_to_string/1, datetime_to_string/1]).
+         now_to_string/1, datetime_to_string/1, verbatim_match/2]).
 
 -include("lux.hrl").
 
@@ -397,3 +397,72 @@ p(Int) when Int >= 0, Int < 10 ->
     [$0 | integer_to_list(Int)];
 p(Int) when Int < 100 ->
     integer_to_list(Int).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Verbatim match
+verbatim_match(<<>>, _Expected) ->
+    nomatch;
+verbatim_match(_Actual, <<>>) ->
+    nomatch;
+verbatim_match(Actual, Expected) ->
+    verbatim_search(Actual, Expected, Expected, 0).
+
+verbatim_normalize(<<"\r\n", Rest/binary>>) ->
+    {1, <<"\n", Rest/binary>>};
+verbatim_normalize(<<"\n\r", Rest/binary>>) ->
+    {1, <<"\n", Rest/binary>>};
+verbatim_normalize(<<"\r", Rest/binary>>) ->
+    {0, <<"\n", Rest/binary>>};
+verbatim_normalize(Rest) ->
+    {0, Rest}.
+
+verbatim_search(Actual, Expected, Orig, Pos) ->
+    {Add, Actual2} = verbatim_normalize(Actual),
+    {_Sub, Expected2} = verbatim_normalize(Expected),
+    verbatim_search2(Actual2, Expected2, Orig, Pos+Add).
+
+verbatim_search2(<<Match:1/binary, Actual/binary>>,
+                <<Match:1/binary, Expected/binary>>,
+                Orig,
+                Pos) ->
+    %% First match
+    verbatim_collect(Actual, Expected, Orig, Pos, Pos, 1);
+verbatim_search2(<<_A:1/binary, Actual/binary>>,
+                Expected,
+                Orig,
+                Pos) ->
+    %% No match while searching - reset expr
+    verbatim_search(Actual, Expected, Orig, Pos+1);
+verbatim_search2(_Actual,
+                _Expected,
+                _Orig,
+                _Pos) ->
+    nomatch.
+
+verbatim_collect(Actual, Expected, Orig, Base, Pos, Len) ->
+    {Add, Actual2} = verbatim_normalize(Actual),
+    {_Sub, Expected2} = verbatim_normalize(Expected),
+    verbatim_collect2(Actual2, Expected2, Orig, Base, Pos+Add, Len+Add).
+
+verbatim_collect2(<<Match:1/binary, Actual/binary>>,
+                 <<Match:1/binary, Expected/binary>>,
+                 Orig,
+                 Base,
+                 Pos,
+                 Len) ->
+    %% Match
+    verbatim_collect(Actual, Expected, Orig, Base, Pos+1, Len+1);
+verbatim_collect2(<<_A:1/binary, Actual/binary>>,
+                 <<_E:1/binary, _/binary>>,
+                 Orig,
+                 _Base,
+                 Pos,
+                 _Len) ->
+    %% No match
+    verbatim_search(Actual, Orig, Orig, Pos+1);
+verbatim_collect2(_Actual, <<>>, _Orig, Base, _Pos, Len) ->
+    %% Match completed
+    {match, [{Base, Len}]};
+verbatim_collect2(_Actual, _Expected, _Orig, _Base, _Pos, _Len) ->
+    %% No match
+    nomatch.

@@ -181,9 +181,23 @@ parse_oper(P, Op, LineNo, Raw) ->
                            LineNo)
     end.
 
+%% Arg :: shell_exit           |
+%%        reset                |
+%%        {verbatim, binary()} |
+%%        {template, binary()} |
+%%        {regexp, binary}     |
+%%        {mp, binary(), mp()}   (compliled later)
 parse_regexp(Cmd, RegExp) when is_binary(RegExp) ->
-    Cmd#cmd{arg = lux_utils:strip_trailing_whitespaces(RegExp)};
-parse_regexp(Cmd, Value) when is_atom(Value) ->
+    case lux_utils:strip_trailing_whitespaces(RegExp) of
+        <<$?:8/integer, $?:8/integer, Stripped/binary>> ->
+            Cmd#cmd{arg = {verbatim, Stripped}};
+        <<$?:8/integer, Stripped/binary>> ->
+            Cmd#cmd{arg = {template, Stripped}};
+        Stripped ->
+            Cmd#cmd{arg = {regexp, Stripped}}
+    end;
+parse_regexp(Cmd, Value) when Value =:= shell_exit;
+                              Value =:= reset ->
     Cmd#cmd{arg = Value}.
 
 parse_var(P, Cmd, Scope, String) ->
@@ -413,7 +427,7 @@ split_invoke_args(P, LineNo, [H | T], quoted = Mode, Arg, Args) ->
             split_invoke_args(P, LineNo, T, Mode, [Char | Arg], Args)
     end.
 
-parse_multi(P, <<$":8/integer, $":8/integer, Char:1/binary>>,
+parse_multi(P, <<$":8/integer, $":8/integer, Chars/binary>>,
             #cmd{lineno = LineNo}, Lines, OrigLine, Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
     {RevBefore, After, RemPrefixLen} = scan_multi(Lines, PrefixLen, []),
@@ -445,16 +459,10 @@ parse_multi(P, <<$":8/integer, $":8/integer, Char:1/binary>>,
                     [] ->
                         <<"">>
                 end,
-            Extra = [<<Char/binary, Multi/binary>>],
+            Extra = [<<Chars/binary, Multi/binary>>],
             Tokens2 = do_parse(P, Extra, LastLineNo, OrigLine, Tokens),
             parse(P, Lines2, LastLineNo+1, Tokens2)
     end;
-parse_multi(P, <<$":8/integer, $":8/integer, _Chars/binary>>,
-            #cmd{lineno = LineNo}, _Lines, _OrigLine, _Tokens) ->
-    parse_error(P,
-                ["Syntax error at line ", integer_to_list(LineNo),
-                 ": '\"\"\"' must be followed by a single char"],
-                LineNo);
 parse_multi(P, _, #cmd{lineno = LineNo}, _Lines, _OrigLine, _Tokens) ->
     parse_error(P,
                 ["Syntax error at line ", integer_to_list(LineNo),
