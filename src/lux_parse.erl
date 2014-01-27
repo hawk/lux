@@ -189,9 +189,13 @@ parse_oper(P, Op, LineNo, Raw) ->
 %%        {mp, binary(), mp()}   (compliled later)
 parse_regexp(Cmd, RegExp) when is_binary(RegExp) ->
     case lux_utils:strip_trailing_whitespaces(RegExp) of
-        <<$?:8/integer, $?:8/integer, Stripped/binary>> ->
+        <<$?:8/integer, $?:8/integer, Stripped/binary>>
+          when Cmd#cmd.type =/= fail,
+               Cmd#cmd.type =/= success ->
             Cmd#cmd{arg = {verbatim, Stripped}};
-        <<$?:8/integer, Stripped/binary>> ->
+        <<$?:8/integer, Stripped/binary>>
+          when Cmd#cmd.type =/= fail,
+               Cmd#cmd.type =/= success ->
             Cmd#cmd{arg = {template, Stripped}};
         Stripped ->
             Cmd#cmd{arg = {regexp, Stripped}}
