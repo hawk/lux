@@ -488,6 +488,8 @@ interpret_loop(I) ->
             interpret_loop(I2);
         stopped_by_user ->
             %% Ordered to stop by user
+            log(I, "lux(~p): stopped_by_user\n",
+                [I#istate.latest_lineno]),
             I2 = prepare_stop(I, dummy_pid, {fail, stopped_by_user}),
             interpret_loop(I2);
         {stop, Pid, Res} ->
