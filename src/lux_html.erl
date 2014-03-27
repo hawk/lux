@@ -626,11 +626,7 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              html_href("", [HtmlLog, "#", Anchor], Anchor),
              "</strong></", Tag, ">\n",
              "<h3>Expected</h3>",
-             [
-              "\n<div class=annotate><pre>",
-              expand_lines(html_color([{<<"">>, "black", "", Expected}])),
-              "</pre></div>"
-             ],
+              html_div(<<"annotate">>, expand_lines(Expected)),
              "<h3>Actual: ", html_cleanup(Actual), "</h3>",
              [
               "\n<div class=annotate><pre>",
@@ -641,37 +637,86 @@ html_result(Tag, {result, Result}, HtmlLog) ->
     end.
 
 html_diff([H|T], Acc, Where) ->
+    Plain = "",
+    Bold = "b",
     case H of
         {common, Com} ->
-            html_diff(T, [{<<"  ">>, "black", "b", Com}|Acc], middle);
-        {insert, Ins} when element(1,hd(T)) =:= common,
-                           Where =/= first ->
-            html_diff(T, [{<<"+ ">>, "blue", "b", Ins}|Acc], middle);
+            html_diff(T, [{<<"  ">>, "black",Bold,clean,Com}|Acc], middle);
+        {insert, Ins} when element(1,hd(T)) =:= common, Where =/= first ->
+            html_diff(T, [{<<"+ ">>,"blue",Bold,clean,Ins}|Acc], middle);
         {insert, Ins} ->
-            html_diff(T, [{<<"  ">>, "black", "", Ins}|Acc], middle);
+            html_diff(T, [{<<"  ">>,"black",Plain,clean,Ins}|Acc], middle);
         {delete, Del} ->
-            html_diff(T, [{<<"- ">>, "red", "b", Del}|Acc], middle);
+            html_diff(T, [{<<"- ">>,"red",Bold,clean,Del}|Acc], middle);
         {replace, Ins, Del} ->
-            html_diff(T, [{<<"- ">>, "red", "b", Del},
-                          {<<"+ ">>, "blue", "b", Ins}|Acc], middle)
+            {Clean, Del2, Ins2} = html_part(Del, Ins),
+            html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
+                          {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle)
     end;
 html_diff([], Acc, _Where) ->
     html_color(lists:reverse(Acc)).
 
-html_color(LineSpec) ->
-    [[
-      "<font color=\"",Color,"\">",
-      html_style(Style, html_cleanup(<<Prefix/binary, L/binary>>)),
-      "</font>"
-     ] ||
-        {Prefix,Color,Style, Lines} <- LineSpec,
-        L <- Lines].
+html_part([Del], [Ins]) ->
+    Diff = lux_utils:diff(binary_to_list(Del), binary_to_list(Ins)),
+    html_part_diff(Diff, [], []);
+html_part(Del, Ins) ->
+    {clean, Del, Ins}.
 
-html_style(Style, Line) ->
-    case Style of
-        "" -> Line;
-        _  -> ["<", Style, ">", Line, "</", Style, ">"]
+html_part_diff([H|T], Old, New) ->
+    Underline = "u",
+    case H of
+        {common, Com} ->
+            html_part_diff(T, [html_cleanup(Com)|Old], [Com|New]);
+        {insert, Ins} ->
+            html_part_diff(T,
+                           [tag(Underline,html_cleanup(Ins))|Old],
+                           [tag(Underline,html_cleanup(New))|New]);
+        {delete, Del} ->
+            html_part_diff(T,
+                           [tag(Underline,html_cleanup(Del))|Old],
+                           [tag(Underline,html_cleanup(Del))|New]);
+        {replace, Ins, Del} ->
+            html_part_diff(T,
+                           [tag(Underline,html_cleanup(Del))|Old],
+                           [tag(Underline,html_cleanup(Ins))|New])
+    end;
+html_part_diff([], Old, New) ->
+    {noclean,
+     [list_to_binary(lists:reverse(Old))],
+     [list_to_binary(lists:reverse(New))]}.
+
+html_color([{Prefix,Color,Style,Clean,Lines}|LineSpec]) ->
+    html_color2(Prefix, Color, Style, Clean, Lines) ++ html_color(LineSpec);
+html_color([]) ->
+    [].
+
+html_color2(Prefix, Color, Style, Clean, [Line|Lines]) ->
+    [
+     list_to_binary(["<font color=\"",Color,"\">",
+                     opt_tag(Style, opt_clean(Prefix, Clean, Line)),
+                     "</font>"])
+     | html_color2(Prefix, Color, Style, Clean, Lines)
+    ];
+html_color2(_Prefix, _Color, _Style, _Clean, []) ->
+    [].
+
+opt_clean(Prefix, Clean, Line) ->
+    [
+     html_cleanup(Prefix),
+     case Clean of
+         clean   -> html_cleanup(Line);
+         noclean -> Line
+     end
+    ].
+
+opt_tag(Tag, Text) ->
+    case Tag of
+        "" -> Text;
+        _  -> tag(Tag, Text)
     end.
+
+tag(Tag, Text) ->
+    ["<", Tag, ">", Text, "</", Tag, ">"].
 
 html_config(Config) ->
     html_div(<<"annotate">>, expand_lines(Config)).
