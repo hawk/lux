@@ -577,7 +577,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
     Dir = filename:basename(filename:dirname(EventLog)),
     [
      html_header(["Lux event log (", Dir, ")"]),
-     "\n<h2>", drop_prefix(A, Script), "</h2>\n",
+     "\n", html_href("h2", "", "", "#annotate", drop_prefix(A, Script)),
      html_result("h2", Result, ""),
      html_href("h3", "", "", "#config", "Script configuration"),
      html_href("h3", "", "", "#cleanup", "Cleanup"),
@@ -587,7 +587,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      html_href("h3", "", "", drop_prefix(A, EventLog), "Raw event log"),
      html_href("h3", "", "", drop_prefix(A, ConfigLog), "Raw config log"),
      html_logs(A, Logs),
-     "\n<h2>Annotated source code</h2>\n",
+     "\n",html_anchor("h2", "", "annotate", "Annotated source code"),"\n",
      html_code(A, Annotated),
 
      "<div class=code><pre><a name=\"cleanup\"></a></pre></div>\n",
@@ -622,7 +622,9 @@ html_result(Tag, {result, Result}, HtmlLog) ->
             Diff = lux_utils:diff(Expected, Details),
             HtmlDiff = html_diff(Diff, [], first),
             [
-             "\n<", Tag, ">Result: <strong>FAILED at line ",
+             "\n<", Tag, ">Result: <strong>",
+             html_href("", [HtmlLog, "#failed"], "FAILED"),
+             " at line ",
              html_href("", [HtmlLog, "#", Anchor], Anchor),
              "</strong></", Tag, ">\n",
              "<h3>Expected</h3>",
@@ -692,7 +694,11 @@ html_color([]) ->
 
 html_color2(Prefix, Color, Style, Clean, [Line|Lines]) ->
     [
-     list_to_binary(["<font color=\"",Color,"\">",
+     list_to_binary([case Color of
+                         "black" -> "";
+                         _       -> html_anchor("failed", "")
+                     end,
+                     "<font color=\"",Color,"\">",
                      opt_tag(Style, opt_clean(Prefix, Clean, Line)),
                      "</font>"])
      | html_color2(Prefix, Color, Style, Clean, Lines)
