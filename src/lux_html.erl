@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Copyright (c) 2012 Hakan Mattsson
+%% Copyright (c) 2012-2014 Hakan Mattsson
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -431,11 +431,16 @@ do_parse_events([Event | Events], Acc) ->
 do_parse_events([], Acc) ->
     lists:reverse(Acc).
 
+split_lines(<<"">>) ->
+    [];
 split_lines(Bin) ->
     Opts = [global],
-    Bin2 = binary:replace(Bin, <<"[\\r\\n]+">>, <<"\n">>, Opts),
-    Bin3 = binary:replace(Bin2, <<"\\r">>, <<"">>, Opts),
-    binary:split(Bin3, <<"\\n">>, Opts).
+    Replace = fun(NL, B) -> binary:replace(B , NL, <<"\n">>, Opts) end,
+    NLs = [<<"[\\r\\n]+">>, <<"\\r\\n">>,
+           <<"\n\r">>, <<"\r\n">>,
+           <<"\\n">>, <<"\\r">>],
+    Normalized = lists:foldl(Replace, Bin, NLs),
+    binary:split(Normalized, <<"\n">>, Opts).
 
 parse_config(RawConfig) ->
     %% io:format("Config: ~p\n", [RawConfig]),
@@ -614,15 +619,58 @@ html_result(Tag, {result, Result}, HtmlLog) ->
             ];
         {fail, _Script, RawLineNo, Expected, Actual, Details} ->
             Anchor = RawLineNo,
+            Diff = lux_utils:diff(Expected, Details),
+            HtmlDiff = html_diff(Diff, [], first),
             [
              "\n<", Tag, ">Result: <strong>FAILED at line ",
              html_href("", [HtmlLog, "#", Anchor], Anchor),
              "</strong></", Tag, ">\n",
              "<h3>Expected</h3>",
-             html_div(<<"annotate">>, expand_lines(Expected)),
+             [
+              "\n<div class=annotate><pre>",
+              expand_lines(html_color([{<<"">>, "black", "", Expected}])),
+              "</pre></div>"
+             ],
              "<h3>Actual: ", html_cleanup(Actual), "</h3>",
-             html_div(<<"annotate">>, expand_lines(Details))
+             [
+              "\n<div class=annotate><pre>",
+              expand_lines(HtmlDiff),
+              "</pre></div>"
+             ]
             ]
+    end.
+
+html_diff([H|T], Acc, Where) ->
+    case H of
+        {common, Com} ->
+            html_diff(T, [{<<"  ">>, "black", "b", Com}|Acc], middle);
+        {insert, Ins} when element(1,hd(T)) =:= common,
+                           Where =/= first ->
+            html_diff(T, [{<<"+ ">>, "blue", "b", Ins}|Acc], middle);
+        {insert, Ins} ->
+            html_diff(T, [{<<"  ">>, "black", "", Ins}|Acc], middle);
+        {delete, Del} ->
+            html_diff(T, [{<<"- ">>, "red", "b", Del}|Acc], middle);
+        {replace, Ins, Del} ->
+            html_diff(T, [{<<"- ">>, "red", "b", Del},
+                          {<<"+ ">>, "blue", "b", Ins}|Acc], middle)
+    end;
+html_diff([], Acc, _Where) ->
+    html_color(lists:reverse(Acc)).
+
+html_color(LineSpec) ->
+    [[
+      "<font color=\"",Color,"\">",
+      html_style(Style, html_cleanup(<<Prefix/binary, L/binary>>)),
+      "</font>"
+     ] ||
+        {Prefix,Color,Style, Lines} <- LineSpec,
+        L <- Lines].
+
+html_style(Style, Line) ->
+    case Style of
+        "" -> Line;
+        _  -> ["<", Style, ">", Line, "</", Style, ">"]
     end.
 
 html_config(Config) ->

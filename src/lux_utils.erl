@@ -14,7 +14,8 @@
          to_string/1, safe_format/5, safe_write/4, tag_prefix/1,
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
-         now_to_string/1, datetime_to_string/1, verbatim_match/2]).
+         now_to_string/1, datetime_to_string/1, verbatim_match/2,
+         diff_files/2, diff/2]).
 
 -include("lux.hrl").
 
@@ -466,3 +467,131 @@ verbatim_collect2(_Actual, <<>>, _Orig, Base, _Pos, Len) ->
 verbatim_collect2(_Actual, _Expected, _Orig, _Base, _Pos, _Len) ->
     %% No match
     nomatch.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Diff
+
+diff_files(OldFile, NewFile) ->
+    {OldFile, {ok, OldBin}} = {OldFile, file:read_file(OldFile)},
+    {NewFile, {ok, NewBin}} = {NewFile, file:read_file(NewFile)},
+    diff(split_lines(OldBin), split_lines(NewBin)).
+
+split_lines(<<"">>) ->
+    [];
+split_lines(Bin) when is_binary(Bin) ->
+    Opts = [global],
+    Bin2 = binary:replace(Bin, <<"\r\n">>, <<"\n">>, Opts),
+    Bin3 = binary:replace(Bin2, <<"\n\r">>, <<"\n">>, Opts),
+    binary:split(Bin3, <<"\n">>, Opts).
+
+diff(OldBins, NewBins) ->
+    Old = numerate_lines(OldBins),
+    New = numerate_lines(NewBins),
+    Patch = diff(New, Old, [], 0),
+    merge(Patch, Old).
+
+numerate_lines(List) ->
+    numerate_lines(List, 1, []).
+
+numerate_lines([H|T], N, Acc) ->
+    numerate_lines(T, N+1, [{N,H}|Acc]);
+numerate_lines([], _N, Acc) ->
+    lists:reverse(Acc).
+
+-type patch() :: {From :: non_neg_integer(),
+                  To   :: non_neg_integer()} |
+                  binary().
+
+-type diff() :: {common,[binary()]} |
+                {insert,[binary()]} |
+                {delete,[binary()]} |
+                {replace,[binary()],[binary()]}.
+
+-spec diff(New :: [{non_neg_integer(),binary()}],
+           Old :: [{non_neg_integer(),binary()}],
+           [patch()],
+           Min :: non_neg_integer()) ->
+          [patch()].
+
+diff([], _, Patch,_Min) ->
+    lists:reverse(Patch);
+diff([{_,Line}|T]=New, Old, Patch, Min) ->
+    case match(New, Old, Min) of
+        {yes, From, To, Rest} ->
+            diff(Rest, Old, [{From,To}|Patch], To);
+        no ->
+            diff(T, Old, [Line|Patch], Min)
+    end.
+
+match([{_,NewElem}|NewT]=New, [{From,OldElem}|OldT], Min) when From > Min ->
+    case equal(OldElem, NewElem) of
+        match   -> extend_match(NewT, OldT, From, From);
+        nomatch -> match(New, OldT, Min)
+    end;
+match(New, [_|T], Min) ->
+    match(New, T, Min);
+match(_New, [], _Min) ->
+    no.
+
+extend_match([{_,NewElem}|NewT]=New, [{To,OldElem}|OldT], From, PrevTo) ->
+    case equal(OldElem, NewElem) of
+        match   -> extend_match(NewT, OldT, From, To);
+        nomatch -> {yes, From, PrevTo, New}
+    end;
+extend_match(New, _, From, To) ->
+    {yes, From, To, New}.
+
+equal(Line, Line) ->
+    match;
+equal(Expected, Actual) ->
+    try
+        re:run(Actual, Expected,[{capture, none}, notempty])
+    catch _:_ ->
+            nomatch
+    end.
+
+-spec merge([patch()], Old  :: [{non_neg_integer(),binary()}]) ->
+          [diff()].
+
+merge(Patch, Old) ->
+    merge(Patch, Old, 1, []).
+
+merge([{From,To}|Patch], Old, Next, Acc) ->
+    {Next2, Common} = get_lines(From, To, Old, []),
+    Acc2 =
+        if
+            From > Next ->
+                %% Add missing lines
+                {_, Delete} = get_lines(Next, From-1, Old, []),
+                add({common,Common}, add({delete,Delete}, Acc));
+            true ->
+                add({common,Common},Acc)
+        end,
+    merge(Patch, Old, Next2, Acc2);
+merge([Insert|Patch], Old, Next, Acc) ->
+    merge(Patch, Old, Next, add({insert,[Insert]},Acc));
+merge([], Old, Next, Acc) ->
+    %% Add missing lines in the end
+    Fun = fun({N,L}, A) when N >= Next -> [L|A];
+             (_,A)                    -> A
+          end,
+    Acc2 =
+        case lists:foldl(Fun, [], Old) of
+            []     -> Acc;
+            Delete -> add({delete,Delete}, Acc)
+        end,
+    lists:reverse(Acc2).
+
+get_lines(_, To, [{To,Line}|_Rest], Acc) ->
+    {To+1, lists:reverse([Line|Acc])};
+get_lines(From, To, [{From,Line}|Rest], Acc) ->
+    get_lines(From+1, To, Rest, [Line|Acc]);
+get_lines(From, To, [_|Rest], Acc) ->
+    get_lines(From, To, Rest, Acc).
+
+add({insert,Curr}, [{insert,Prev}|Merge]) ->
+    [{insert,Prev++Curr}|Merge];
+add({delete,Delete}, [{insert,Insert}|Merge]) ->
+    [{replace,Insert,Delete}|Merge];
+add(Curr, Merge) ->
+    [Curr|Merge].
