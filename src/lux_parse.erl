@@ -313,6 +313,18 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                                  integer_to_list(LineNo),
                                  ": missing shell name"],
                                 LineNo);
+                {"lux"++_, _} ->
+                    parse_error(P,
+                                ["Syntax error at line ",
+                                 integer_to_list(LineNo),
+                                 ": ~s is a reserved shell name"],
+                                [Name2], LineNo);
+                {"cleanup"++_, _} ->
+                    parse_error(P,
+                                ["Syntax error at line ",
+                                 integer_to_list(LineNo),
+                                 ": ~s is a reserved shell name"],
+                                [Name2], LineNo);
                 {_, match} ->
                     parse_error(P,
                                 ["Syntax error at line ",
@@ -510,6 +522,10 @@ scan_single(Line, PrefixLen) ->
         _ ->
             {more, Line}
     end.
+
+parse_error(Pstate, IoList, Args, LineNo) ->
+    IoList2 = io_lib:format(binary_to_list(iolist_to_binary(IoList)), Args),
+    parse_error(Pstate, IoList2, LineNo).
 
 parse_error(#pstate{file = File}, IoList, LineNo) ->
     throw({error, File, LineNo, list_to_binary(IoList)});
