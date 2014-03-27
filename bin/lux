@@ -116,7 +116,7 @@ specs() ->
      {"--cleanup_timeout",    100*1000,    {integer, 0, infinity}, mandatory},
      {"--shell_wrapper",      "",          string,                 optional},
      {"--shell_cmd",          "/bin/sh",   string,                 mandatory},
-     {"--shell_arg",          ["-i"],      string,                 mandatory},
+     {"--shell_args",         ["-i"],      string,                 mandatory},
      {"--file_pattern", ".*\.lux" ++ [$$], string,                 mandatory},
      {"--root_dir",           undefined,   string,                 mandatory},
      {"--var",                undefined,   string,                 mandatory}
@@ -513,7 +513,7 @@ run([
      {"--cleanup_timeout",    CleanupTimeout},
      {"--shell_wrapper",      ShellWrapper},
      {"--shell_cmd",          ShellCmd},
-     {"--shell_arg",          ShellArgs},
+     {"--shell_args",         ShellArgs},
      {"--file_pattern",       FilePattern},
      {"--root_dir",           _RootDir},
      {"--var",                Var}

@@ -185,7 +185,7 @@ config_val([Type | Types], Name, Val, Pos, I) ->
                 Val2 = expand_vars(I, Val, error),
                 config_val([Type], Name, list_to_binary(Val2), Pos, I);
             {atom, Atoms} when is_atom(Val) ->
-            true = lists:member(Val, Atoms),
+                true = lists:member(Val, Atoms),
                 {ok, setelement(Pos, I, Val)};
             {atom, _Atoms} when is_list(Val) ->
                 config_val([Type], Name, list_to_atom(Val), Pos, I);
