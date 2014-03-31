@@ -780,8 +780,27 @@ fatal_error(RetCode, Format, Args) ->
     safe_halt(RetCode).
 
 safe_halt(RetCode) ->
-    init:stop(RetCode),
-    timer:sleep(infinity).
+    Ports = erlang:ports(),
+    CloseStderr = fun(P) -> safe_port_close(P, name, "2/2", 300) end,
+    lists:foreach(CloseStderr, Ports),
+    User = whereis(user),
+    CloseStdout = fun(P) -> safe_port_close(P, connected, User, 700) end,
+    lists:foreach(CloseStdout, Ports),
+    erlang:halt(RetCode, [{flush,false}]).
+
+safe_port_close(Port, Item, Val, Timeout) ->
+    case erlang:port_info(Port, Item) of
+        {Item, Val} ->
+            erlang:port_connect(Port, self()),
+            Port ! {self(), close},
+            receive
+                {Port, closed} -> ok
+            after Timeout ->
+                    ok
+            end;
+        _ ->
+            ok
+    end.
 
 require_app(MainOp, AppName) ->
     case code:lib_dir(AppName) of
