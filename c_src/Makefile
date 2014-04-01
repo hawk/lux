@@ -11,4 +11,3 @@ clean:
 	rm -f $(PROG) core* *~
 
 install:
-

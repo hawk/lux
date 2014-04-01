@@ -50,18 +50,18 @@
     # Use a temporary variable that only is alive in one macro invocation
     [my myshell=$LUX_SHELLNAME]
     [shell calc]
-    	!$expr
-	!
-	!help
-	# Use multi-line expr to sync output
-	"""?
-	.*
-	(.*)
-	help
-	0
-	"""
-	# Retrieve the value from the sub-expression
-	[global result=$1]
+        !$expr
+        !
+        !help
+        # Use multi-line expr to sync output
+        """?
+        .*
+        (.*)
+        help
+        0
+        """
+        # Retrieve the value from the sub-expression
+        [global result=$1]
     [shell $myshell]
     # [progress $expr=$result]
 [endmacro]

@@ -11,7 +11,7 @@
  [{description, "LUcid eXpect scripting"},
   {vsn, "%VSN%"},
   {modules,
-   [	
+   [
         lux,
         lux_debug,
         lux_html,

@@ -2,9 +2,9 @@
 [doc Simple demo include]
 
 [shell include_sh]
-    !echo -n "aaa"		
-    !echo -n "bbb"		
-    !echo -n "ccc"		
+    !echo -n "aaa"
+    !echo -n "bbb"
+    !echo -n "ccc"
     ?bbb
     ?ccc
     !exit

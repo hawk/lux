@@ -92,7 +92,7 @@
 
 ;;;###autoload
 (dolist (a '(("\\.lux\\'" . lux-mode)
-	     ("\\.luxinc\\'" . lux-mode)))
+             ("\\.luxinc\\'" . lux-mode)))
   (add-to-list 'auto-mode-alist a))
 
  ;;;###autoload
