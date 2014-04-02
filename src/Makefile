@@ -7,6 +7,7 @@ ERL_MODULES = \
 	lux_debug \
 	lux_html \
 	lux_interpret \
+	lux_log \
 	lux_suite \
 	lux_parse \
 	lux_shell \

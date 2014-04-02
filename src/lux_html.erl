@@ -7,21 +7,18 @@
 
 -module(lux_html).
 
--export([annotate_log/1, history/2]).
+-export([annotate_log/2, history/2]).
 -export([keysplit/2, keysplit/3]).
 
--include_lib("kernel/include/file.hrl").
+ -include("lux.hrl").
 
 -record(astate, {log_dir, log_file}).
 
-annotate_log(LogFile) ->
-    annotate_log(true, LogFile).
-
 annotate_log(IsRecursive, LogFile) ->
-    LogFile2 = filename:absname(LogFile),
-    IsEventLog = lists:suffix("event.log", LogFile2),
-    LogDir = filename:dirname(LogFile2),
-    A = #astate{log_dir = LogDir, log_file = LogFile2},
+    AbsLogFile = filename:absname(LogFile),
+    IsEventLog = lists:suffix("event.log", AbsLogFile),
+    LogDir = filename:dirname(AbsLogFile),
+    A = #astate{log_dir = LogDir, log_file = AbsLogFile},
     Res =
         case IsEventLog of
             true  -> annotate_event_log(A);
@@ -29,7 +26,7 @@ annotate_log(IsRecursive, LogFile) ->
         end,
     case Res of
         {ok, IoList} ->
-            safe_write_file(LogFile2 ++ ".html", IoList);
+            safe_write_file(AbsLogFile ++ ".html", IoList);
         {error, _File, _ReasonStr} = Error ->
             Error
     end.
@@ -56,159 +53,73 @@ safe_write_file(File, IoList) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate a summary log and all its event logs
 
-annotate_summary_log(IsRecursive, A) ->
-    case parse_summary_log(IsRecursive, A) of
-        {ok, SummaryLog, Result, Groups, ArchConfig, _FileInfo} ->
-            Html = html_groups(A, SummaryLog, Result, Groups, ArchConfig),
+annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
+    try lux_log:parse_summary_log(AbsSummaryLog) of
+        {ok, Result, Groups, ArchConfig, _FileInfo, EventLogs} ->
+            Html = html_groups(A, AbsSummaryLog, Result, Groups, ArchConfig),
+            case IsRecursive of
+                true ->
+                    AnnotateEventLog =
+                        fun(EventLog) ->
+                                case annotate_log(IsRecursive, EventLog) of
+                                    ok ->
+                                        ok;
+                                    {error, _, Reason} ->
+                                        io:format("ERROR in ~s\n\~p\n",
+                                                  [EventLog, Reason])
+                                end
+                        end,
+                    lists:foreach(AnnotateEventLog, EventLogs);
+                false ->
+                    ignore
+            end,
             {ok, Html};
         {error, _File, _Reason} = Error ->
             Error
-    end.
-
-parse_summary_log(IsRecursive, #astate{log_file = SummaryLog}) ->
-    try
-        case file:read_file(SummaryLog) of
-            {ok, LogBin} ->
-                Sections = binary:split(LogBin, <<"\n\n">>, [global]),
-                [Summary, ArchConfig | Rest] = Sections,
-                [_, SummaryLog2] = binary:split(Summary, <<": ">>),
-                [Result | Rest2] = lists:reverse(Rest),
-                Result2 = split_result(Result),
-                Groups = split_groups(IsRecursive, Rest2, []),
-                {ok, FI} = file:read_file_info(SummaryLog),
-                {ok, SummaryLog2, Result2, Groups, ArchConfig, FI};
-            {error, FileReason} ->
-                {error, SummaryLog, file:format_error(FileReason)}
-        end
     catch
         error:Reason2 ->
             ReasonStr =
                 lists:flatten(io_lib:format("ERROR in ~s\n~p\n\~p\n",
-                                            [SummaryLog,
+                                            [AbsSummaryLog,
                                              Reason2,
                                              erlang:get_stacktrace()])),
             io:format("~s\n", [ReasonStr]),
-            {error, SummaryLog, ReasonStr}
-    end.
-
-split_result(Result) ->
-    Lines = binary:split(Result, <<"\n">>, [global]),
-    [_, Summary | Rest] = lists:reverse(Lines),
-    [_, Summary2] = binary:split(Summary, <<": ">>),
-    Lines2 = lists:reverse(Rest),
-    Sections = split_result2(Lines2, []),
-    {result, Summary2, Sections}.
-
-split_result2([Heading | Lines], Acc) ->
-    [Slogan, Count] = binary:split(Heading, <<": ">>),
-    [Slogan2, _] = binary:split(Slogan, <<" ">>),
-    Pred = fun(Line) ->
-                   case Line of
-                       <<"\t", _File/binary>> -> true;
-                       _ -> false
-                   end
-           end,
-    {Files, Lines2} = lists:splitwith(Pred, Lines),
-    Parse = fun(<<"\t", File/binary>>) ->
-                    [File2, LineNo] = binary:split(File, <<":">>),
-                    {file, File2, LineNo}
-            end,
-    Files2 = lists:map(Parse, Files),
-    split_result2(Lines2, [{section, Slogan2, Count, Files2} | Acc]);
-split_result2([], Acc) ->
-    Acc. % Return in reverse order (most important first)
-
-split_groups(IsRecursive, [GroupEnd | Groups], Acc) ->
-    Pred = fun(Case) ->
-                   case binary:split(Case, <<": ">>) of
-                       %% BUGBUG: Kept for backwards compatibility a while
-                       [<<"test suite begin", _/binary>> |_] -> false;
-                       [<<"test group begin", _/binary>> |_] -> false;
-                       _ -> true
-                   end
-           end,
-    Split = lists:splitwith(Pred, Groups),
-    {Cases, [GroupBegin | Groups2]} = Split,
-    [_, Group] = binary:split(GroupBegin, <<": ">>),
-    [_, Group] = binary:split(GroupEnd, <<": ">>),
-    Cases2 = split_cases(IsRecursive, lists:reverse(Cases), []),
-    split_groups(IsRecursive, Groups2, [{test_group, Group, Cases2} | Acc]);
-split_groups(_IsRecursive, [], Acc) ->
-    Acc.
-
-split_cases(IsRecursive, [Case | Cases], Acc) ->
-    [NameRow | Sections] = binary:split(Case, <<"\n">>, [global]),
-    [<<"test case", _/binary>>, Name] = binary:split(NameRow, <<": ">>),
-    case Sections of
-        [] ->
-            Res = {result_case, Name, <<"ERROR">>, <<"unknown">>},
-            split_cases(IsRecursive, Cases, [Res | Acc]);
-        [Reason] ->
-            Res =
-                case binary:split(Reason,    <<": ">>) of
-                    [<<"result", _/binary>>, Reason2] ->
-                        {result_case, Name, Reason2, Reason};
-                    [<<"error", _/binary>>, Reason2] ->
-                        {result_case, Name, <<"ERROR">>, Reason2}
-                end,
-            split_cases(IsRecursive, Cases, [Res | Acc]);
-        [_ScriptRow, LogRow | DocAndResult] ->
-            [<<"event log", _/binary>>, RawEventLog] =
-                binary:split(LogRow,  <<": ">>),
-            EventLog = binary_to_list(RawEventLog),
-            case IsRecursive of
-                true ->
-                    case annotate_log(EventLog) of
-                        ok ->
-                            ok;
-                        {error, _, Reason} ->
-                            io:format("ERROR in ~s\n\~p\n", [EventLog, Reason])
-                    end;
-                false ->
-                    ignore
-            end,
-            {Doc, ResultCase} = split_doc(DocAndResult, []),
-            Result = parse_result(ResultCase),
-            HtmlLog = EventLog ++ ".html",
-            Res = {test_case, Name, EventLog, Doc, HtmlLog, Result},
-            split_cases(IsRecursive, Cases, [Res | Acc])
-    end;
-split_cases(_IsRecursive, [], Acc) ->
-    lists:reverse(Acc).
-
-split_doc([H|T] = Rest, AccDoc) ->
-    case binary:split(H, <<": ">>) of
-        [<<"doc", _/binary>>, Doc] ->
-            split_doc(T, [Doc | AccDoc]);
-        _ ->
-            {lists:reverse(AccDoc), Rest}
+            {error, AbsSummaryLog, ReasonStr}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Return summary log as HTML
 
 html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
-    Dir = filename:basename(filename:dirname(binary_to_list(SummaryLog))),
+    Dir = filename:basename(filename:dirname(SummaryLog)),
     RelSummaryLog = drop_prefix(A, SummaryLog),
+    IsTmp = lux_log:is_temporary(SummaryLog),
     [
      html_header(["Lux summary log (", Dir, ")"]),
      html_href("h2", "Raw summary log: ", "", RelSummaryLog, RelSummaryLog),
      html_href("h3", "", "", "#suite_config", "Suite configuration"),
-     html_summary_result(A, Result, Groups),
+     html_summary_result(A, Result, Groups, IsTmp),
      html_groups2(A, Groups),
      html_anchor("h2", "", "suite_config", "Suite configuration:"),
      html_div(<<"annotate">>, ArchConfig),
      html_footer()
     ].
 
-html_summary_result(A, {result, Summary, Sections}, Groups) ->
+html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
     %% io:format("Sections: ~p\n", [Sections]),
+    ResultString = choose_tmp(IsTmp, "Temporary ","Final "),
     [
-     "\n<h2>Result: ", Summary, "</h2>\n",
+     "\n<h2>", ResultString, "result: ", Summary, "</h2>\n",
      "<div class=case><pre>",
      [html_summary_section(A, S, Groups) || S <- Sections],
      "</pre></div>"
     ].
+
+choose_tmp(IsTmp, TmpString, String) ->
+    case IsTmp of
+        true  -> TmpString;
+        false -> String
+    end.
 
 html_summary_section(A, {section, Slogan, Count, Files}, Groups) ->
     [
@@ -240,9 +151,8 @@ html_summary_file(A, {file, File, LineNo}, Groups) ->
             [html_href("", drop_prefix(A, HtmlLog), Label), "\n"]
     end.
 
-html_groups2(A, [{test_group, Group, Cases} | Groups]) ->
+html_groups2(A, [{test_group, _Group, Cases} | Groups]) ->
     [
-     "\n\n<h2>Test group: ", drop_prefix(A, Group), "</h2>\n",
      html_cases(A, Cases),
      html_groups2(A, Groups)
     ];
@@ -257,7 +167,7 @@ html_cases(A, [{test_case, Name, EventLog, Doc, HtmlLog, Res} | Cases]) ->
     [
      html_anchor(RelFile, ""),
      "\n",
-     html_href("h3", "Test case: ", "", RelHtmlLog, RelFile),
+     html_href("h2", "Test case: ", "", RelHtmlLog, RelFile),
      "\n<div class=case><pre>",
      html_doc(Tag, Doc),
      html_href(Tag, "Raw event log: ", "", RelEventLog, RelEventLog),
@@ -301,13 +211,13 @@ html_doc(Tag, [Slogan | Desc]) ->
 
 annotate_event_log(#astate{log_file=EventLog} = A) ->
     try
-        case scan(EventLog) of
+        case lux_log:scan_events(EventLog) of
             {ok, EventLog2, ConfigLog,
              Script, RawEvents, RawConfig, RawLogs, RawResult} ->
-                Events = parse_events(RawEvents, []),
-                Config = parse_config(RawConfig),
-                Logs = parse_logs(RawLogs, []),
-                Result = parse_result(RawResult),
+                Events = lux_log:parse_events(RawEvents, []),
+                Config = lux_log:parse_config(RawConfig),
+                Logs = lux_log:parse_io_logs(RawLogs, []),
+                Result = lux_log:parse_result(RawResult),
                 {Annotated, Files} =
                     interleave_code(A, Events, Script, 1, 999999, [], []),
                 Html = html_events(A, EventLog2, ConfigLog, Script, Result,
@@ -327,163 +237,6 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
             io:format("~s\n", [ReasonStr]),
             {error, EventLog, ReasonStr}
     end.
-
-scan(EventLog) ->
-    case file:read_file(EventLog) of
-        {ok, <<"event log         : 0.1\n\n", LogBin/binary>>} ->
-            scan_0_1(EventLog, LogBin);
-        {ok, LogBin} ->
-            scan_old(EventLog, LogBin);
-        {error, FileReason} ->
-            {error, EventLog, file:format_error(FileReason)}
-    end.
-
-scan_0_1(EventLog, LogBin) ->
-    EventSections = binary:split(LogBin, <<"\n\n">>, [global]),
-    EventSections2 = [binary:split(S, <<"\n">>, [global]) ||
-                         S <- EventSections],
-    case EventSections2 of
-        [[Script], EventBins, ResultBins] -> ok;
-        [[Script], ResultBins]            -> EventBins = []
-    end,
-    Dir = filename:dirname(EventLog),
-    Base = filename:basename(EventLog, ".event.log"),
-    ConfigLog = filename:join([Dir, Base ++ ".config.log"]),
-    case file:read_file(ConfigLog) of
-        {ok, <<"config log        : 0.1\n", ConfigBin/binary>>} ->
-            ConfigSections = binary:split(ConfigBin, <<"\n\n">>, [global]),
-            ConfigSections2 = [binary:split(S, <<"\n">>, [global])
-                               || S <- ConfigSections],
-            [ConfigBins, LogBins] = ConfigSections2,
-            {ok, EventLog, ConfigLog,
-             Script, EventBins, ConfigBins, LogBins, ResultBins};
-        {error, FileReason} ->
-            {error, ConfigLog, file:format_error(FileReason)}
-    end.
-
-scan_old(EventLog, LogBin) ->
-    Sections = binary:split(LogBin, <<"\n\n">>, [global]),
-    Sections2 = [binary:split(S, <<"\n">>, [global]) ||
-                    S <- Sections],
-    case Sections2 of
-        [ScriptBins, EventBins, ConfigBins, LogBins, ResultBins] ->
-            ok;
-        [ScriptBins, EventBins, ConfigBins, [<<>>|ResultBins]] ->
-            LogBins = [];
-        [ScriptBins, [<<>>|ConfigBins], [<<>>|ResultBins]] ->
-            LogBins = [],
-            EventBins = []
-    end,
-    [Script] = ScriptBins,
-    {ok, EventLog, <<"">>, Script, EventBins, ConfigBins, LogBins, ResultBins}.
-
-parse_events([<<>>], Acc) ->
-    %% Error case
-    lists:reverse(Acc);
-parse_events(Events, Acc) ->
-    do_parse_events(Events, Acc).
-
-do_parse_events([<<"include_begin ", SubFile/binary>> | Events], Acc) ->
-    %% include_begin 11 47 53 demo/test.include
-    %% include_end 11 47 53 demo/test.include
-    Pred = fun(E) ->
-                   case E of
-                       <<"include_end ", SubFile/binary>> ->
-                           false;
-                       _ ->
-                           true
-                   end
-           end,
-    {SubEvents, [_| Events2]} = lists:splitwith(Pred, Events),
-    [RawLineNoRange, SubFile2] = binary:split(SubFile, <<" \"">>),
-    [RawLineNo, RawFirstLineNo, RawLastLineNo] =
-        binary:split(RawLineNoRange, <<" ">>, [global]),
-    Len = byte_size(SubFile2) - 1 ,
-    <<SubFile3:Len/binary, _/binary>> = SubFile2,
-    LineNo = list_to_integer(binary_to_list(RawLineNo)),
-    FirstLineNo = list_to_integer(binary_to_list(RawFirstLineNo)),
-    LastLineNo = list_to_integer(binary_to_list(RawLastLineNo)),
-    SubEvents2 = parse_events(SubEvents, []),
-    E = {include, LineNo, FirstLineNo, LastLineNo, SubFile3, SubEvents2},
-    do_parse_events(Events2, [E | Acc]);
-do_parse_events([Event | Events], Acc) ->
-    [Prefix, Details] = binary:split(Event, <<"): ">>),
-    [Shell, RawLineNo] = binary:split(Prefix, <<"(">>),
-    LineNo = list_to_integer(binary_to_list(RawLineNo)),
-    [Item | RawContents] = binary:split(Details, <<" ">>),
-    Data =
-        case RawContents of
-            [] ->
-                %% cli(86): suspend
-                [<<>>];
-            [Contents] ->
-                case unquote(Contents) of
-                    {quote, C} ->
-                        %% cli(26): recv "echo ==$?==\r\n==0==\r\n$ "
-                        split_lines(C);
-                    {plain, C} ->
-                        %% cli(70): timer start (10 seconds)
-                        [C]
-                end
-        end,
-    E = {event, LineNo, Item, Shell, Data},
-    do_parse_events(Events, [E | Acc]);
-do_parse_events([], Acc) ->
-    lists:reverse(Acc).
-
-split_lines(<<"">>) ->
-    [];
-split_lines(Bin) ->
-    Opts = [global],
-    Replace = fun(NL, B) -> binary:replace(B , NL, <<"\n">>, Opts) end,
-    NLs = [<<"[\\r\\n]+">>, <<"\\r\\n">>,
-           <<"\n\r">>, <<"\r\n">>,
-           <<"\\n">>, <<"\\r">>],
-    Normalized = lists:foldl(Replace, Bin, NLs),
-    binary:split(Normalized, <<"\n">>, Opts).
-
-parse_config(RawConfig) ->
-    %% io:format("Config: ~p\n", [RawConfig]),
-    RawConfig.
-
-parse_logs([StdinLog, StdoutLog | Logs], Acc) ->
-    [_, Shell, Stdin] = binary:split(StdinLog, <<": ">>, [global]),
-    [_, Shell, Stdout] = binary:split(StdoutLog, <<": ">>, [global]),
-    L = {log, Shell, Stdin, Stdout},
-    %% io:format("Logs: ~p\n", [L]),
-    parse_logs(Logs, [L | Acc]);
-parse_logs([<<>>], Acc) ->
-    lists:reverse(Acc);
-parse_logs([], Acc) ->
-    lists:reverse(Acc).
-
-parse_result(RawResult) ->
-    case RawResult of
-        [<<>>, LongResult | Rest] -> ok;
-        [LongResult | Rest]       -> ok
-    end,
-    [_, Result] = binary:split(LongResult, <<": ">>),
-    R =
-        case Result of
-            <<"SUCCESS">> ->
-                success;
-            <<"ERROR at ", Error/binary>> ->
-                [RawLineNo, Reason] = binary:split(Error, <<":">>),
-                {error_line, RawLineNo, [Reason | Rest]};
-            <<"ERROR ", Reason/binary>> ->
-                {error, [Reason | Rest]};
-            <<"FAIL at ", Fail/binary>> ->
-                [<<"expected">>, Expected,
-                 <<"actual ", Actual/binary>>, Details | _] = Rest,
-                [Script, RawLineNo] = binary:split(Fail, <<":">>),
-                {quote, Expected2} = unquote(Expected),
-                Expected3 = split_lines(Expected2),
-                {quote, Details2} = unquote(Details),
-                Details3 = split_lines(Details2),
-                {fail, Script, RawLineNo, Expected3, Actual, Details3}
-        end,
-    %% io:format("Result: ~p\n", [R]),
-    {result, R}.
 
 interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, InclStack, Files) ->
     ScriptComps = lux_utils:filename_split(Script),
@@ -533,26 +286,26 @@ do_interleave_code(A, [{include, LineNo, FirstLineNo, LastLineNo,
     Event = {include_html, InclStack2, FirstLineNo, SubScript, SubAnnotated},
     do_interleave_code(A, Events, ScriptComps, CodeLines, CodeLineNo,
                        MaxLineNo, [Event | Acc], InclStack, Files2);
-do_interleave_code(A, [{event, SingleLineNo, Item, Shell, Data},
-                       {event, SingleLineNo, Item, Shell, Data2} | Events],
+do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
+                       {event, SingleLineNo, Shell, Op, Data2} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
-                   Acc, InclStack, Files) when Item =:= <<"recv">>,
+                   Acc, InclStack, Files) when Op =:= <<"recv">>,
                                                Data2 =/= [<<"timeout">>]->
     %% Combine two chunks of recv data into one in order to improve readability
     [Last | Rev] = lists:reverse(Data),
     [First | Rest] = Data2,
     Data3 = lists:reverse(Rev, [<<Last/binary, First/binary>> | Rest]),
-    do_interleave_code(A, [{event, SingleLineNo, Item, Shell, Data3} | Events],
+    do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data3} | Events],
                        ScriptComps, CodeLines, CodeLineNo,
                        MaxLineNo, Acc, InclStack, Files);
-do_interleave_code(A, [{event, SingleLineNo, _Item, Shell, Data} | Events],
+do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, InclStack, Files) ->
     {CodeLines2, CodeLineNo2, Code} =
         pick_code(ScriptComps, CodeLines, CodeLineNo, SingleLineNo,
                   [], InclStack),
     InclStack2 = [{ScriptComps, SingleLineNo} | InclStack],
-    Acc2 = [{event_html, InclStack2, _Item, Shell, Data}] ++ Code ++ Acc,
+    Acc2 = [{event_html, InclStack2, _Op, Shell, Data}] ++ Code ++ Acc,
     do_interleave_code(A, Events, ScriptComps, CodeLines2, CodeLineNo2,
                        MaxLineNo, Acc2, InclStack, Files);
 do_interleave_code(_A, [], ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
@@ -762,14 +515,14 @@ html_code2(A, [Ann | Annotated], Prev) ->
              "\n",
              html_code2(A, Annotated, Curr)
             ];
-        {event_html, LineNoStack, Item, Shell, Data} ->
+        {event_html, LineNoStack, Op, Shell, Data} ->
             Curr = event,
             FullLineNo = lux_utils:full_lineno(LineNoStack),
-            Html = [Shell, "(", FullLineNo, "): ", Item, " "],
+            Html = [Shell, "(", FullLineNo, "): ", Op, " "],
             [
              html_toggle_div(Curr, Prev),
              html_cleanup(Html),
-             html_opt_div(Item, Data),
+             html_opt_div(Op, Data),
              html_code2(A, Annotated, Curr)
             ];
         {include_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
@@ -802,42 +555,23 @@ html_toggle_div(Curr, Prev) ->
         {event, code}  -> "</pre></div>\n<div class=annotate><pre>\n"
     end.
 
-html_opt_div(Item, Data) ->
+html_opt_div(Op, Data) ->
     Html = expand_lines(Data),
-    case Item of
-        <<"send">>   -> html_div(Item, Html);
-        <<"recv">>   -> html_div(Item, Html);
-        <<"expect">> -> html_div(Item, Html);
-        <<"skip">>   -> html_div(Item, Html);
-        <<"match">>  -> html_div(Item, Html);
+    case Op of
+        <<"send">>   -> html_div(Op, Html);
+        <<"recv">>   -> html_div(Op, Html);
+        <<"expect">> -> html_div(Op, Html);
+        <<"skip">>   -> html_div(Op, Html);
+        <<"match">>  -> html_div(Op, Html);
         _            -> html_cleanup(Html)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% History
 
--define(DEFAULT_LOG, <<"unknown">>).
--define(DEFAULT_HOSTNAME, <<"unknown">>).
--define(DEFAULT_CONFIG_NAME, <<"unknown">>).
--define(DEFAULT_SUITE, <<"unknown">>).
--define(DEFAULT_RUN, <<"unknown">>).
--define(DEFAULT_REV, <<"">>).
--define(DEFAULT_TIME, <<"yyyy-mm-dd hh:mm:ss">>).
 -define(CURRENT_SUFFIX, "_current").
 -define(CONFIG_SUFFIX, "_config").
 -define(HOST_SUFFIX, "_host").
-
--record(run,
-        {id,
-         test,
-         result,
-         log,
-         start_time,
-         hostname,
-         config_name,
-         run_dir,
-         repos_rev,
-         details}).
 
 -record(table, {name, res, iolist}).
 -record(row,   {res, iolist}).
@@ -1321,10 +1055,10 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
                         true ->
                             %% A summary log
                             File = filename:join([Dir, Base]),
-                            SumA = #astate{log_dir=Dir, log_file=File},
                             io:format(".", []),
-                            Res = parse_summary_log(false, SumA),
-                            [parse_run_summary(HtmlFile, Res) | Acc];
+                            {Res, _EventLogs} = lux_log:parse_summary_log(File),
+                            R = lux_log:parse_run_summary(HtmlFile, File, Res),
+                            [R | Acc];
                         false ->
                             io:format("s", []),
                             %% Skip
@@ -1345,129 +1079,6 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
         {error, _Reason} ->
             %% Not a dir or problem to read dir
             Acc
-    end.
-
-parse_run_summary(HtmlFile,
-                  {ok, SummaryLog, SummaryRes, Groups, ArchConfig, FI}) ->
-    Split =
-        fun(Config) ->
-                case binary:split(Config, <<": ">>, []) of
-                    [Key, Val] ->
-                        {true, {lux_utils:strip_trailing_whitespaces(Key),
-                                Val}};
-                    _          ->
-                        false
-                end
-        end,
-    Config = lists:zf(Split, binary:split(ArchConfig, <<"\n">>, [global])),
-    Ctime =
-        list_to_binary(lux_utils:datetime_to_string(FI#file_info.ctime)),
-    StartTime = find_config(<<"start time">>, Config, Ctime),
-    Host = find_config(<<"hostname">>, Config, ?DEFAULT_HOSTNAME),
-    ConfigName0 = find_config(<<"architecture">>, Config, ?DEFAULT_CONFIG_NAME),
-    ConfigName =
-        if
-            ConfigName0 =/= ?DEFAULT_CONFIG_NAME,
-            ConfigName0 =/= <<"undefined">> ->
-                ConfigName0;
-            true ->
-                find_config(<<"config name">>, Config, ?DEFAULT_CONFIG_NAME)
-        end,
-    Suite = find_config(<<"suite">>, Config, ?DEFAULT_SUITE),
-    RunId = find_config(<<"run">>, Config, ?DEFAULT_RUN),
-    ReposRev = find_config(<<"revision">>, Config, ?DEFAULT_REV),
-    {ok, Cwd} = file:get_cwd(),
-    RunDir = binary_to_list(find_config(<<"workdir">>,
-                                        Config,
-                                        list_to_binary(Cwd))),
-    Cases = [parse_run_case(HtmlFile, RunDir, StartTime, Host, ConfigName,
-                            Suite, RunId, ReposRev, Case) ||
-                {test_group, _Group, Cases} <- Groups,
-                Case <- Cases],
-    HtmlDir = filename:dirname(HtmlFile),
-    #run{test = Suite,
-         id = RunId,
-         result = run_result(SummaryRes),
-         log = drop_prefix(HtmlDir, SummaryLog),
-         start_time = StartTime,
-         hostname = Host,
-         config_name = ConfigName,
-         run_dir = RunDir,
-         repos_rev = ReposRev,
-         details = Cases};
-parse_run_summary(HtmlFile, {error, SummaryLog, _ReasonStr}) ->
-    HtmlDir = filename:dirname(HtmlFile),
-    {ok, Cwd} = file:get_cwd(),
-    #run{test = ?DEFAULT_SUITE,
-         id = ?DEFAULT_RUN,
-         result = fail,
-         log = drop_prefix(HtmlDir, SummaryLog),
-         start_time = ?DEFAULT_TIME,
-         hostname = ?DEFAULT_HOSTNAME,
-         config_name = ?DEFAULT_CONFIG_NAME,
-         run_dir = Cwd,
-         repos_rev = ?DEFAULT_REV,
-         details = []}.
-
-parse_run_case(HtmlFile, RunDir, Start, Host, ConfigName,
-               Suite, RunId, ReposRev,
-               {test_case, Name, Log, _Doc, _HtmlLog, CaseRes}) ->
-    HtmlDir = filename:dirname(HtmlFile),
-    File = drop_prefix(RunDir, Name),
-    File2 = drop_some_dirs(File),
-    #run{test = <<Suite/binary, ":", File2/binary>>,
-         id = RunId,
-         result = run_result(CaseRes),
-         log = drop_prefix(HtmlDir, Log),
-         start_time = Start,
-         hostname = Host,
-         config_name = ConfigName,
-         run_dir = RunDir,
-         repos_rev = ReposRev,
-         details = []};
-parse_run_case(_HtmlFile, RunDir, Start, Host, ConfigName, Suite,
-               RunId, ReposRev,
-               {result_case, Name, Res, _Reason}) ->
-    File = drop_prefix(RunDir, Name),
-    File2 = drop_some_dirs(File),
-    #run{test = <<Suite/binary, ":", File2/binary>>,
-         id = RunId,
-         result = run_result(Res),
-         log = ?DEFAULT_LOG,
-         start_time = Start,
-         hostname = Host,
-         config_name = ConfigName,
-         run_dir = RunDir,
-         repos_rev = ReposRev,
-         details = []}.
-
-drop_some_dirs(File) when is_binary(File) -> % BUGBUG: Temporary solution
-    Q = <<"lux">>,
-    Comp = filename:split(File),
-    case lists:dropwhile(fun(E) -> E =/= Q end, Comp) of
-        [Q | Rest] -> filename:join(Rest);
-        _Rest      -> File
-    end.
-
-run_result({result, Res, _}) ->
-    run_result(Res);
-run_result({result, Res}) ->
-    run_result(Res);
-run_result(Res) ->
-    case Res of
-        success                                                -> success;
-        {fail, _Script, _LineNo, _Expected, _Actual, _Details} -> fail;
-        {error, _Reason}                                       -> fail;
-        <<"SUCCESS">>                                          -> success;
-        <<"SKIP", _/binary>>                                   -> skip;
-        <<"FAIL", _/binary>>                                   -> fail;
-        <<"ERROR", _/binary>>                                  -> fail
-    end.
-
-find_config(Key, Tuples, Default) ->
-    case lists:keyfind(Key, 1, Tuples) of
-        false         -> Default;
-        {_, Hostname} -> Hostname
     end.
 
 %% Keysort list of tuples and group items with same tag
@@ -1535,16 +1146,6 @@ html_files(A, [{file, Path, OrigPath} | Files]) ->
     ];
 html_files(_A, []) ->
     [].
-
-unquote(Bin) ->
-    Quote = <<"\"">>,
-    Size = byte_size(Bin)-2,
-    case Bin of
-        <<Quote:1/binary, Plain:Size/binary, Quote:1/binary>> ->
-            {quote, Plain};
-        Plain ->
-            {plain, Plain}
-    end.
 
 drop_prefix(#astate{log_dir=LogDir}, File) ->
     drop_prefix(LogDir, File);

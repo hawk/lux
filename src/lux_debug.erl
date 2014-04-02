@@ -79,9 +79,9 @@ loop(I, Ipid, PrevCmd, CmdState, N) ->
             end
     end.
 
-call(Ipid, CmdStr, CmdState) ->
+call(Ipid, Cmd, CmdState) when is_list(Cmd); is_function(Cmd, 2) ->
     %% io:format("DEBUG: ~p\n", [CmdStr]),
-    Ipid ! {debug_call, self(), CmdStr, CmdState},
+    Ipid ! {debug_call, self(), Cmd, CmdState},
     receive
         {debug_call, Ipid, NewCmdState} -> NewCmdState
     end.
@@ -89,12 +89,12 @@ call(Ipid, CmdStr, CmdState) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse and evaluate one command
 
-eval_cmd(I, Dpid, CmdStr, CmdState) ->
-    {CmdState2, I2} = do_eval_cmd(I, CmdStr, CmdState),
+eval_cmd(I, Dpid, Cmd, CmdState) ->
+    {CmdState2, I2} = do_eval_cmd(I, Cmd, CmdState),
     Dpid ! {debug_call, self(), CmdState2},
     I2.
 
-do_eval_cmd(I, CmdStr, CmdState) ->
+do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
     [CmdName | Args] = string:tokens(CmdStr, " "),
     case select(CmdName) of
         {ok, #debug_cmd{name = _Name, params = Params, callback = Fun}} ->
@@ -109,7 +109,9 @@ do_eval_cmd(I, CmdStr, CmdState) ->
                 {error, ReasonStr} ->
             io:format("\nERROR: ~s", [ReasonStr]),
             {CmdState, I}
-    end.
+    end;
+do_eval_cmd(I, Cmd, CmdState) when is_function(Cmd, 2) ->
+    Cmd(CmdState, I).
 
 select(CmdStr) ->
     NamedCmds = [{C#debug_cmd.name, C} || C <- cmds()],
@@ -818,8 +820,7 @@ longest2([], Longest) ->
 
 cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
     {ok, Cwd} =  file:get_cwd(),
-    io:format("Log files at ~s:\n\n",
-              [lux_utils:drop_prefix(Cwd, LogDir)]),
+    io:format("Log files at ~s:\n\n", [lux_utils:drop_prefix(Cwd, LogDir)]),
     Logs = all_logs(I),
     Print = fun(Abs, Index) ->
                     Rel = lux_utils:drop_prefix(LogDir, Abs),
@@ -872,13 +873,17 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             tail(I, LogFile, CmdState, Format, UserN)
     end.
 
-all_logs(#istate{orig_file=Script, log_dir=LogDir, logs=StdLogs}) ->
+all_logs(#istate{orig_file=Script, log_dir=LogDir, logs=StdLogs} = I) ->
+    lux_interpret:flush_logs(I),
     Split = fun({_Name, Stdin, Stdout}, Acc) -> [Stdout, Stdin | Acc] end,
     Logs = lists:reverse(lists:foldl(Split, [], StdLogs)),
     Base = filename:basename(Script),
     EventLog = filename:join([LogDir, Base ++ ".event.log"]),
     ConfigLog = filename:join([LogDir, Base ++ ".config.log"]),
-    [ConfigLog, EventLog | Logs].
+    SuiteConfigLog = filename:join([LogDir, "lux_config.log"]),
+    SummaryLog = filename:join([LogDir, "lux_summary.log.tmp"]),
+    ResultLog = filename:join([LogDir, "lux_result.log"]),
+    [SuiteConfigLog, SummaryLog, ResultLog, ConfigLog, EventLog | Logs].
 
 tail(#istate{log_dir=LogDir} = I, AbsFile, CmdState, Format, UserN) ->
     RelFile = lux_utils:drop_prefix(LogDir, AbsFile),

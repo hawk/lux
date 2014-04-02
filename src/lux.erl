@@ -59,7 +59,7 @@ interpret_commands(File, Commands, Opts) ->
              ok | error()).
 
 annotate_log(LogFile) ->
-    lux_html:annotate_log(LogFile).
+    lux_html:annotate_log(true, LogFile).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Assemble result history

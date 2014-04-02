@@ -14,44 +14,37 @@
          parse_iopts/2,
          parse_iopt/3
         ]).
--export([opt_dispatch_cmd/1]).
+-export([opt_dispatch_cmd/1,
+         flush_logs/1]).
 
-interpret_commands(File, Commands, Opts) ->
-    I = default_istate(File),
+interpret_commands(Script, Commands, Opts) ->
+    I = default_istate(Script),
     I2 = I#istate{commands = Commands, orig_commands = Commands},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
                 LogDir = I3#istate.log_dir,
-                Base = filename:basename(File),
-                EventLog = filename:join([LogDir, Base ++ ".event.log"]),
-                ok = filelib:ensure_dir(EventLog),
-                ConfigFd = log_config(LogDir, Base, I3),
-                case file:open(EventLog, [write]) of
-                    {ok, EventFd} ->
-                        Flag = process_flag(trap_exit, true),
-                        I4 = I3#istate{event_log_fd = {true, EventFd},
-                                       config_log_fd = {true, ConfigFd}},
+                Config = config_data(I3),
+                ConfigFd = lux_log:open_config_log(LogDir, Script, Config),
+                Flag = process_flag(trap_exit, true),
+                Progress = I3#istate.progress,
+                LogFun = I3#istate.log_fun,
+                Verbose = true,
+                case lux_log:open_event_log(LogDir, Script, Progress,
+                                            LogFun, Verbose) of
+                    {ok, EventLog, EventFd} ->
                         try
-                            log(I4, "~s~s\n", [?TAG("event log"),
-                                               ?EVENT_LOG_VERSION]),
-                            log(I4, "\n~s\n\n", [File]),
-                            Progress = I4#istate.progress,
-                            LogFun = I4#istate.log_fun,
-                            lux_utils:safe_format(Progress,
-                                                       LogFun,
-                                                       undefined,
-                                                       "~s~s\n",
-                                                       [?TAG("script"),
-                                                        I4#istate.file]),
-                            lux_utils:safe_format(Progress,
-                                                       LogFun,
-                                                       undefined,
-                                                       "~s~s\n",
-                                                       [?TAG("event log"),
-                                                        EventLog]),
+                            I4 = I3#istate{event_log_fd = {Verbose, EventFd},
+                                           config_log_fd = {Verbose, ConfigFd}},
+                            lux_log:safe_format(Progress, LogFun, undefined,
+                                                "~s~s\n",
+                                                [?TAG("script"),
+                                                 I4#istate.file]),
+                            lux_log:safe_format(Progress, LogFun, undefined,
+                                                "~s~s\n",
+                                                [?TAG("event log"), EventLog]),
                             lux_utils:progress_write(Progress,
-                                                          ?TAG("progress")),
+                                                     ?TAG("progress")),
                             ReplyTo = self(),
                             Interpret =
                                 fun() ->
@@ -65,11 +58,11 @@ interpret_commands(File, Commands, Opts) ->
                             wait_for_done(I4, Pid)
                         after
                             process_flag(trap_exit, Flag),
-                            file:close(EventFd),
-                            file:close(ConfigFd)
+                            lux_log:close_event_log(EventFd),
+                            lux_log:close_config_log(ConfigFd, I3#istate.logs)
                         end;
                     {error, FileReason} ->
-                        internal_error(I2, file:format_error(FileReason))
+                        internal_error(I3, file:format_error(FileReason))
                 end;
             {error, ParseReason} ->
                 internal_error(I2, ParseReason)
@@ -88,9 +81,9 @@ internal_error(I, ReasonTerm) ->
 
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     FullLineNo = full_lineno(I, I#istate.latest_lineno, I#istate.incl_stack),
-    double_log(I, "~sERROR ~s\n",
-               [?TAG("result"),
-                binary_to_list(ReasonBin)]),
+    double_ilog(I, "~sERROR ~s\n",
+                [?TAG("result"),
+                 binary_to_list(ReasonBin)]),
     {error, I#istate.file, FullLineNo, ReasonBin}.
 
 parse_iopts(I, [{Name, Val} | T]) when is_atom(Name) ->
@@ -141,6 +134,8 @@ config_type(Name) ->
             {ok, #istate.log_dir, [string]};
         log_fun->
             {ok, #istate.log_fun, [{function, 1}]};
+        log_fd->
+            {ok, #istate.summary_log_fd, [io_device]};
         multiplier ->
             {ok, #istate.multiplier, [{integer, 0, infinity}]};
         suite_timeout ->
@@ -206,7 +201,9 @@ config_val([Type | Types], Name, Val, Pos, I) ->
             {integer, _Min, _Max} when is_list(Val) ->
                 config_val([Type], Name, list_to_integer(Val), Pos, I);
             {list, SubTypes} when is_list(SubTypes) ->
-                config_val(SubTypes, Name, Val, Pos, I)
+                config_val(SubTypes, Name, Val, Pos, I);
+            io_device ->
+                {ok, setelement(Pos, I, Val)}
         end
     catch
         throw:{no_such_var, BadName} ->
@@ -230,16 +227,16 @@ expand_vars(#istate{macro_dict   = MacroDict,
 wait_for_done(I, Pid) ->
     receive
         {suite_timeout, SuiteTimeout} ->
-            %% double_log(I, "\n~s~p\n",
-            %%            [?TAG("suite timeout"),
-            %%             SuiteTimeout]),
+            %% double_ilog(I, "\n~s~p\n",
+            %%             [?TAG("suite timeout"),
+            %%              SuiteTimeout]),
             Pid ! {suite_timeout, SuiteTimeout},
             wait_for_done(I, Pid);
         {done, Pid, Res} ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
                 {ok, I2} ->
-                    I3 = post_log(I2),
+                    I3 = post_ilog(I2),
                     File = I3#istate.file,
                     Results = I3#istate.results,
                     case lists:keyfind('EXIT', 1, Results) of
@@ -251,12 +248,7 @@ wait_for_done(I, Pid) ->
                                     if
                                         Reason =:= normal;
                                         Reason =:= success ->
-                                            double_log(I3, "~sSUCCESS\n",
-                                                       [?TAG("result")]),
-                                            L = length(I3#istate.commands),
-                                            FullLineNo = integer_to_list(L),
-                                            {ok, File, success,
-                                             FullLineNo, Results};
+                                            print_success(I3, File, Results);
                                         true ->
                                             Latest = I3#istate.latest_lineno,
                                             Stack = I3#istate.incl_stack,
@@ -273,17 +265,23 @@ wait_for_done(I, Pid) ->
                                     print_fail(I, File, Results, Fail)
                             end;
                         {'EXIT', Reason} ->
-                            I3 = post_log(I2),
+                            I3 = post_ilog(I2),
                             internal_error(I3, {'EXIT', Reason})
                     end;
                 {error, ReasonBin, I2} ->
-                    I3 = post_log(I2),
+                    I3 = post_ilog(I2),
                     fatal_error(I3, ReasonBin)
             end;
         {'EXIT', _Pid, Reason} ->
-            I2 = post_log(I),
+            I2 = post_ilog(I),
             internal_error(I2, {'EXIT', Reason})
     end.
+
+print_success(I, File, Results) ->
+    double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
+    L = length(I#istate.commands),
+    FullLineNo = integer_to_list(L),
+    {ok, File, success, FullLineNo, Results}.
 
 print_fail(I, File, Results,
            #result{outcome    = fail,
@@ -294,23 +292,23 @@ print_fail(I, File, Results,
                    actual     = Actual,
                    rest       = Rest}) ->
     FullLineNo = full_lineno(I, LineNo, InclStack),
-    double_log(I, "~sFAIL at ~s:~s\n",
-               [?TAG("result"), File, FullLineNo]),
+    double_ilog(I, "~sFAIL at ~s:~s\n",
+                [?TAG("result"), File, FullLineNo]),
     io:format("expected\n\t~s\n",
               [simple_to_string(Expected)]),
-    double_log(I, "expected\n\"~s\"\n",
-               [lux_utils:to_string(Expected)]),
+    double_ilog(I, "expected\n\"~s\"\n",
+                [lux_utils:to_string(Expected)]),
     if
         is_atom(Actual) ->
             io:format("actual ~p\n\t~s\n",
                       [Actual, simple_to_string(Rest)]),
-            double_log(I, "actual ~p\n\"~s\"\n",
-                       [Actual, lux_utils:to_string(Rest)]);
+            double_ilog(I, "actual ~p\n\"~s\"\n",
+                        [Actual, lux_utils:to_string(Rest)]);
         is_binary(Actual) ->
             io:format("actual error\n\t~s\n",
                       [simple_to_string(Actual)]),
-            double_log(I, "actual error\n\"~s\"\n",
-                       [lux_utils:to_string(Actual)])
+            double_ilog(I, "actual error\n\"~s\"\n",
+                        [lux_utils:to_string(Actual)])
     end,
     {ok, File, fail, FullLineNo, Results}.
 
@@ -319,30 +317,25 @@ full_lineno(I, LineNo, InclStack) ->
     FullStack = [{RevFile, LineNo} | InclStack],
     lux_utils:full_lineno(FullStack).
 
-post_log(I) ->
-    post_log_config(I),
+flush_logs(I) ->
+    flush_summary_log(I),
+    multi_ping(I, flush).
+
+flush_summary_log(#istate{summary_log_fd=undefined}) ->
+    ok;
+flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
+    file:sync(SummaryFd).
+
+post_ilog(#istate{logs = Logs, config_log_fd = {_, ConfigFd}}=I) ->
+    lux_log:close_config_log(ConfigFd, Logs),
     log_doc(I),
-    log(I, "\n", []),
+    ilog(I, "\n", []),
     I#istate{progress = silent,
              log_fun = fun(Bin) ->
                                console_write(binary_to_list(Bin)),
                                (I#istate.log_fun)(Bin),
                                Bin
                        end}.
-
-post_log_config(#istate{logs = Logs, config_log_fd = {_, Fd}}) ->
-    ShowLog =
-        fun({Name, Stdin, Stdout}) ->
-                Data =
-                    [
-                     io_lib:format("~s~s: ~s\n",
-                                   [?TAG("stdin  log file"), Name, Stdin]),
-                     io_lib:format("~s~s: ~s\n",
-                                   [?TAG("stdout log file"), Name, Stdout])
-                    ],
-                ok = file:write(Fd, Data)
-        end,
-    lists:foreach(ShowLog, Logs).
 
 log_doc(#istate{log_fun = LogFun, orig_file = File, orig_commands = Cmds}) ->
     Prefix = list_to_binary(?TAG("doc")),
@@ -374,48 +367,30 @@ simple_to_string([H | T]) ->
 simple_to_string([]) ->
     [].
 
-log_config(LogDir, Base, I) ->
-    ConfigFile = filename:join([LogDir, Base ++ ".config.log"]),
-    case file:open(ConfigFile, [write]) of
-        {ok, ConfigFd} ->
-            Data = config_data(I),
-            ok = file:write(ConfigFd, Data),
-            ConfigFd;
-        {error, FileReason} ->
-            ReasonStr = ConfigFile ++ ": " ++file:format_error(FileReason),
-            erlang:error(ReasonStr)
-    end.
-
 config_data(I) ->
     [
-     io_lib:format("~s~s\n", [?TAG("config log"),      ?CONFIG_LOG_VERSION]),
-     io_lib:format("~s~s\n", [?TAG("script"),          I#istate.file]),
-     io_lib:format("~s~p\n", [?TAG("debug"),           I#istate.debug]),
-     io_lib:format("~s~p\n", [?TAG("debug_file"),      I#istate.debug_file]),
-     io_lib:format("~s~p\n", [?TAG("progress"),        I#istate.progress]),
-     io_lib:format("~s~p\n", [?TAG("skip"),            I#istate.skip]),
-     io_lib:format("~s~p\n", [?TAG("skip_unless"),     I#istate.skip_unless]),
-     io_lib:format("~s~p\n", [?TAG("require"),         I#istate.require]),
-     io_lib:format("~s~s\n", [?TAG("log_dir"),         I#istate.log_dir]),
-     io_lib:format("~s~p\n", [?TAG("multiplier"),      I#istate.multiplier]),
-     io_lib:format("~s~p\n", [?TAG("suite_timeout"),   I#istate.suite_timeout]),
-     io_lib:format("~s~p\n", [?TAG("case_timeout"),    I#istate.case_timeout]),
-     io_lib:format("~s~p\n", [?TAG("flush_timeout"),   I#istate.flush_timeout]),
-     io_lib:format("~s~p\n", [?TAG("poll_timeout"),    I#istate.poll_timeout]),
-     io_lib:format("~s~p\n", [?TAG("timeout"),         I#istate.timeout]),
-     io_lib:format("~s~p\n", [?TAG("cleanup_timeout"), I#istate.cleanup_timeout]),
-     io_lib:format("~s~p\n", [?TAG("shell_wrapper"),   I#istate.shell_wrapper]),
-     io_lib:format("~s~p\n", [?TAG("shell_cmd"),       I#istate.shell_cmd]),
-     io_lib:format("~s~p\n", [?TAG("shell_args"),      I#istate.shell_args]),
-     io_lib:format("~s~p\n",
-                   [?TAG("var"), [lux_utils:to_string(E) ||
-                                     E <- I#istate.dict]]),
-     io_lib:format("~s~p\n",
-                   [?TAG("builtin"), [lux_utils:to_string(E) ||
-                                         E <- I#istate.builtin_dict]]),
-     io_lib:format("~s~p\n\n",
-                   [?TAG("system_env"), [lux_utils:to_string(E) ||
-                                            E <- I#istate.system_dict]])
+     {'config log',    string, ?CONFIG_LOG_VERSION},
+     {script,          string, I#istate.file},
+     {debug,           term,   I#istate.debug},
+     {debug_file,      term,   I#istate.debug_file},
+     {progress,        term,   I#istate.progress},
+     {skip,            term,   I#istate.skip},
+     {skip_unless,     term,   I#istate.skip_unless},
+     {require,         term,   I#istate.require},
+     {log_dir,         string, I#istate.log_dir},
+     {multiplier,      term,   I#istate.multiplier},
+     {suite_timeout,   term,   I#istate.suite_timeout},
+     {case_timeout,    term,   I#istate.case_timeout},
+     {flush_timeout,   term,   I#istate.flush_timeout},
+     {poll_timeout,    term,   I#istate.poll_timeout},
+     {timeout,         term,   I#istate.timeout},
+     {cleanup_timeout, term,   I#istate.cleanup_timeout},
+     {shell_wrapper,   term,   I#istate.shell_wrapper},
+     {shell_cmd,       term,   I#istate.shell_cmd},
+     {shell_args,      term,   I#istate.shell_args},
+     {var,             dict,   I#istate.dict},
+     {builtin,         dict,   I#istate.builtin_dict},
+     {system_env,      dict,   I#istate.system_dict}
     ].
 
 interpret_init(I) ->
@@ -483,13 +458,12 @@ interpret_loop(I) ->
                 infinity
         end,
     receive
-        {debug_call, Pid, CmdStr, CmdState} ->
-            I2 = lux_debug:eval_cmd(I, Pid, CmdStr, CmdState),
+        {debug_call, Pid, Cmd, CmdState} ->
+            I2 = lux_debug:eval_cmd(I, Pid, Cmd, CmdState),
             interpret_loop(I2);
         stopped_by_user ->
             %% Ordered to stop by user
-            log(I, "lux(~p): stopped_by_user\n",
-                [I#istate.latest_lineno]),
+            ilog(I, "lux(~p): stopped_by_user\n", [I#istate.latest_lineno]),
             I2 = prepare_stop(I, dummy_pid, {fail, stopped_by_user}),
             interpret_loop(I2);
         {stop, Pid, Res} ->
@@ -499,8 +473,8 @@ interpret_loop(I) ->
         {more, Pid, _Name} ->
             if
                 Pid =/= I#istate.active ->
-                    %% log(I, "lux(~p): ignore_more \"~s\"\n",
-                    %%     [I#istate.latest_lineno, Name]),
+                    %% ilog(I, "lux(~p): ignore_more \"~s\"\n",
+                    %%      [I#istate.latest_lineno, Name]),
                     interpret_loop(I);
                 I#istate.blocked, not I#istate.want_more ->
                     I2 = I#istate{old_want_more = true},
@@ -535,8 +509,8 @@ interpret_loop(I) ->
                                           TimeoutType =:= case_timeout ->
             Seconds = TimeoutMillis div timer:seconds(1),
             Multiplier = I#istate.multiplier / 1000,
-            log(I, "lux(~p): ~p (~p seconds * ~.3f)\n",
-                [I#istate.latest_lineno, TimeoutType, Seconds, Multiplier]),
+            ilog(I, "lux(~p): ~p (~p seconds * ~.3f)\n",
+                 [I#istate.latest_lineno, TimeoutType, Seconds, Multiplier]),
             case I#istate.mode of
                 running ->
                     %% The test case (or suite) has timed out.
@@ -612,7 +586,7 @@ dispatch_cmd(#istate{want_more = true} = I,
         doc ->
             {Level, Doc} = Arg,
             Indent = lists:duplicate((Level-1)*4, $\ ),
-            log(I, "lux(~p): doc \"~s~s\"\n", [LineNo, Indent, Doc]),
+            ilog(I, "lux(~p): doc \"~s~s\"\n", [LineNo, Indent, Doc]),
             case I#istate.progress of
                 doc -> io:format("\n~s~s\n", [Indent, Doc]);
                 _   -> ok
@@ -620,12 +594,11 @@ dispatch_cmd(#istate{want_more = true} = I,
             I;
         config ->
             {config, Var, Val} = Arg,
-            log(I, "lux(~p): config \"~s=~s\"\n",
-                [LineNo, Var, Val]),
+            ilog(I, "lux(~p): config \"~s=~s\"\n", [LineNo, Var, Val]),
             I;
         cleanup ->
             lux_utils:progress_write(I#istate.progress, "c"),
-            log(I, "lux(~p): cleanup\n", [LineNo]),
+            ilog(I, "lux(~p): cleanup\n", [LineNo]),
             multi_cast(I, {sync_eval, self(), Cmd}),
             multi_ping(I, immediate),
             Shells = [S#shell{health = zombie} || S <- I#istate.shells],
@@ -644,7 +617,7 @@ dispatch_cmd(#istate{want_more = true} = I,
             safe_shell_switch(I, Cmd);
         include ->
             {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
-            log(I, "lux(~p): include_file \"~s\"\n", [LineNo, InclFile]),
+            ilog(I, "lux(~p): include_file \"~s\"\n", [LineNo, InclFile]),
             eval_include(I, LineNo, FirstLineNo, LastLineNo,
                          InclFile, InclCmds, Cmd);
         macro ->
@@ -661,7 +634,7 @@ dispatch_cmd(#istate{want_more = true} = I,
                                  Macros);
                 {no_such_var, BadName} ->
                     E = list_to_binary(["Variable $", BadName, " is not set"]),
-                    log(I2, "lux(~p): ~s\n", [LineNo, E]),
+                    ilog(I2, "lux(~p): ~s\n", [LineNo, E]),
                     Raw = Cmd#cmd.raw,
                     throw({error, <<Raw/binary, " ", E/binary>>, I2})
             end;
@@ -676,13 +649,13 @@ dispatch_cmd(#istate{want_more = true} = I,
             try
                 Val2 = lux_utils:expand_vars(Dicts, Val, error),
                 VarVal = lists:flatten([Var, $=, Val2]),
-                log(I2, "lux(~p): ~p \"~s\"\n", [LineNo, Scope, VarVal]),
+                ilog(I2, "lux(~p): ~p \"~s\"\n", [LineNo, Scope, VarVal]),
                 I2#istate{dict = [VarVal | I2#istate.dict]}
             catch
                 throw:{no_such_var, BadName} ->
                     Err = list_to_binary(["Variable $",
                                           BadName, " is not set"]),
-                    log(I2, "lux(~p): ~s\n", [LineNo, Err]),
+                    ilog(I2, "lux(~p): ~s\n", [LineNo, Err]),
                     throw({error, Err, I2})
             end;
         _ ->
@@ -694,8 +667,8 @@ dispatch_cmd(#istate{want_more = true} = I,
 eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo, InclFile, InclCmds,
              #cmd{} = _Include) ->
     lux_utils:progress_write(OldI#istate.progress, "("),
-    log(OldI, "include_begin ~p ~p ~p ~p\n",
-        [InclLineNo, FirstLineNo, LastLineNo, InclFile]),
+    ilog(OldI, "include_begin ~p ~p ~p ~p\n",
+         [InclLineNo, FirstLineNo, LastLineNo, InclFile]),
     InclFile2 = lux_utils:filename_split(InclFile),
     NewStack = [{InclFile2, InclLineNo} | OldI#istate.incl_stack],
     BeforeI = OldI#istate{file_level = OldI#istate.file_level + 1,
@@ -711,8 +684,8 @@ eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo, InclFile, InclCmds,
                 erlang:raise(Class, Reason, erlang:get_stacktrace())
         after
             lux_utils:progress_write(OldI#istate.progress, ")"),
-            log(OldI, "include_end ~p ~p ~p ~p\n",
-                [InclLineNo, FirstLineNo, LastLineNo, InclFile])
+            ilog(OldI, "include_end ~p ~p ~p ~p\n",
+                 [InclLineNo, FirstLineNo, LastLineNo, InclFile])
         end,
     NewI = AfterI#istate{file_level = OldI#istate.file_level,
                          file = OldI#istate.file,
@@ -752,8 +725,8 @@ invoke_macro(I,
     OldMacroDict = I#istate.macro_dict,
     I2 = I#istate{latest_lineno = LineNo},
     MacroDict = macro_dict(I2, ArgNames, ArgVals, Invoke),
-    log(I2, "lux(~p): invoke_~s \"~s\"\n",
-        [LineNo, Name, lists:flatten([[M, " "] || M <- MacroDict])]),
+    ilog(I2, "lux(~p): invoke_~s \"~s\"\n",
+         [LineNo, Name, lists:flatten([[M, " "] || M <- MacroDict])]),
 
     multi_cast(I2, {macro_dict, self(), MacroDict}),
     BeforeI = I2#istate{macro_dict = MacroDict, latest_lineno = LineNo},
@@ -778,7 +751,7 @@ macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
              macro_dict(I, Names, Vals, Invoke)];
         {no_such_var, BadName} ->
             Err = list_to_binary(["Variable $", BadName, " is not set"]),
-            log(I, "lux(~p): ~s\n", [Invoke#cmd.lineno, Err]),
+            ilog(I, "lux(~p): ~s\n", [Invoke#cmd.lineno, Err]),
             Raw = Invoke#cmd.raw,
             throw({error, <<Raw/binary, " ", Err/binary>>, I})
     end;
@@ -873,10 +846,10 @@ goto_cleanup(I, CleanupReason) ->
     case Cleanup of
         [_|_] when Mode =:= running;
                    Mode =:= cleanup ->
-            log(I, "lux(~s): goto cleanup\n", [LineNo]),
+            ilog(I, "lux(~s): goto cleanup\n", [LineNo]),
             NewI#istate{mode = cleanup};
         _ when I#istate.file_level > 1 ->
-            log(I, "lux(~s): no cleanup\n", [LineNo]),
+            ilog(I, "lux(~s): no cleanup\n", [LineNo]),
             NewI#istate{mode = cleanup};
         _  ->
             %% Initiate stop by sending shutdown to the remaining shells.
@@ -927,7 +900,7 @@ safe_shell_switch(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
             end;
         {no_such_var, BadName} ->
             Err = list_to_binary(["Variable $", BadName, " is not set"]),
-            log(I2, "~s(~p): ~s\n", [Name, LineNo, Err]),
+            ilog(I2, "~s(~p): ~s\n", [Name, LineNo, Err]),
             BinName = list_to_binary(Name),
             throw({error, <<"[shell ", BinName/binary, "] ", Err/binary>>, I2})
     end.
@@ -957,8 +930,8 @@ shell_switch(OldI, Cmd, #shell{pid = Pid, health = alive}) ->
     NewI = OldI#istate{active = Pid},
     change_shell_mode(NewI, Cmd, resume);
 shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
-    log(OldI, "~s(~p): zombie shell at cleanup\n",
-        [Name, OldI#istate.latest_lineno]),
+    ilog(OldI, "~s(~p): zombie shell at cleanup\n",
+         [Name, OldI#istate.latest_lineno]),
     throw({error, list_to_binary(Name ++ " is a zombie shell"), OldI}).
 
 ping(I, When) when When =:= immediate; When =:= wait_for_expect ->
@@ -978,7 +951,9 @@ ping(I, When) when When =:= immediate; When =:= wait_for_expect ->
             I
     end.
 
-multi_ping(I, When) when When =:= immediate; When =:= wait_for_expect ->
+multi_ping(I, When) when  When =:= flush;
+                          When =:= immediate;
+                          When =:= wait_for_expect ->
     Pids = multi_cast(I, {ping, self(), When}),
     wait_for_pong(I, Pids).
 
@@ -1033,16 +1008,16 @@ shell_expand_vars(I, Bin, MissingVar) when I#istate.active =:= undefined ->
             {no_such_var, BadName}
     end.
 
-double_log(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
-           Format,
-           Args) ->
-    Bin = lux_utils:safe_format(silent, LogFun, undefined, Format, Args),
-    lux_utils:safe_write(Progress, LogFun, Fd, Bin).
+double_ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
+            Format,
+            Args) ->
+    Bin = lux_log:safe_format(silent, LogFun, undefined, Format, Args),
+    lux_log:safe_write(Progress, LogFun, Fd, Bin).
 
-log(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
-    Format,
-    Args)->
-    lux_utils:safe_format(Progress, LogFun, Fd, Format, Args).
+ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
+     Format,
+     Args)->
+    lux_log:safe_format(Progress, LogFun, Fd, Format, Args).
 
 console_write(String) ->
     io:format("~s", [String]).

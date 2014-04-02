@@ -11,7 +11,7 @@
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
-         to_string/1, safe_format/5, safe_write/4, tag_prefix/1,
+         to_string/1, tag_prefix/1,
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
@@ -204,74 +204,6 @@ to_string([H | T]) ->
     to_string(H) ++ to_string(T);
 to_string([]) ->
     [].
-
-safe_format(Progress, LogFun, Fd, Format, Args) ->
-    IoList = io_lib:format(Format, Args),
-    safe_write(Progress, LogFun, Fd, IoList).
-
-safe_write(Progress, LogFun, Fd, IoList) when is_list(IoList) ->
-    safe_write(Progress, LogFun, Fd, list_to_binary(IoList));
-safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
-    case Fd0 of
-        undefined  ->
-            Fd = Fd0,
-            Verbose = false;
-        {Verbose, Fd} ->
-            ok
-    end,
-    case Progress of
-        silent ->
-            ok;
-        brief ->
-            ok;
-        doc ->
-            ok;
-        compact when Verbose ->
-            try
-                io:format("~s", [binary_to_list(Bin)])
-            catch
-                _:CReason ->
-                    exit({safe_write, verbose, Bin, CReason})
-            end;
-        compact ->
-            ok;
-        verbose when Verbose ->
-            try
-                io:format("~s", [dequote(binary_to_list(Bin))])
-            catch
-                _:VReason ->
-                    exit({safe_write, verbose, Bin, VReason})
-            end;
-        verbose ->
-            ok
-    end,
-    case Fd of
-        undefined ->
-            try
-                case LogFun(Bin) of
-                    <<_/binary>> ->
-                        ok;
-                    BadRes ->
-                        exit({safe_write, log_fun, Bin, BadRes})
-                end
-            catch
-                _:LReason ->
-                    exit({safe_write, log_fun, Bin, LReason})
-            end;
-        _ ->
-            try file:write(Fd, Bin) of
-                ok ->
-                    ok;
-                {error, FReason} ->
-                    Str = file:format_error(FReason),
-                    io:format("\nfile write failed: ~s\n", [Str]),
-                    exit({safe_write, file, Fd, Bin, {error, FReason}})
-            catch
-                _:WReason ->
-                    exit({safe_write, file, Bin, WReason})
-            end
-    end,
-    Bin.
 
 dequote(" expect " ++ _ = L) ->
     L;
