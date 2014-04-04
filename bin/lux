@@ -104,6 +104,7 @@ specs() ->
      {"--config_name",        undefined,   string,                 mandatory},
      {"--suite",              undefined,   string,                 mandatory},
      {"--run",                undefined,   string,                 mandatory},
+     {"--extend_run",         false,       boolean,                none},
      {"--revision",           undefined,   string,                 mandatory},
      {"--mode",               execute,     fun mode_arg/1,         mandatory},
      {"--progress",           brief,       fun progress_arg/1,     mandatory},
@@ -501,6 +502,7 @@ run([
      {"--config_name",        ConfigName},
      {"--suite",              Suite},
      {"--run",                Run},
+     {"--extend_run",         ExtendRun},
      {"--revision",           Revision},
      {"--mode",               Mode},
      {"--progress",           Progress},
@@ -546,6 +548,7 @@ run([
          {config_name,        ConfigName},
          {suite,              Suite},
          {run,                Run},
+         {extend_run,         ExtendRun},
          {revision,           Revision},
          {file_pattern,       FilePattern}
         ],

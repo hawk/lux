@@ -8,7 +8,7 @@
 -module(lux_log).
 
 -export([is_temporary/1, parse_summary_log/1, parse_run_summary/3,
-         open_summary_log/1, close_summary_tmp_log/1, close_summary_log/2,
+         open_summary_log/2, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2,
          write_results/4, print_results/4, parse_result/1,
          safe_format/3, safe_write/2, double_write/2,
@@ -29,21 +29,42 @@ is_temporary(SummaryLog) ->
         _         -> false
     end.
 
-open_summary_log(SummaryLog) ->
+open_summary_log(SummaryLog, ExtendRun) ->
     TmpSummaryLog = SummaryLog ++ ".tmp",
-    case file:open(TmpSummaryLog, [write]) of
-        {ok, SummaryFd} ->
-            IoList =
-                io_lib:format("~s~s\n",
-                              [?TAG("summary log"), ?SUMMARY_LOG_VERSION]),
-            safe_write(SummaryFd, IoList),
-            IoList2 =
-                io_lib:format("~s~s\n",
-                              [?TAG("summary log"), SummaryLog]),
-            safe_write(undefined, IoList2),
-            {ok, SummaryFd};
-        {error, Reason} ->
-            {error, Reason}
+    {WriteMode, Exists} =
+        case ExtendRun of
+            true ->
+                case file:rename(SummaryLog, TmpSummaryLog) of
+                    ok ->
+                        %% Extend old run
+                        {append, true};
+                    {error, enoent} ->
+                        %% New run
+                        {append, false}
+                end;
+            false ->
+                %% New run
+                {write, filelib:is_regular(SummaryLog)}
+        end,
+    if
+        WriteMode =:= write, Exists =:= true ->
+            {error, eexist};
+        true ->
+            case file:open(TmpSummaryLog, [WriteMode]) of
+                {ok, SummaryFd} ->
+                    IoList =
+                        io_lib:format("~s~s\n",
+                                      [?TAG("summary log"),
+                                       ?SUMMARY_LOG_VERSION]),
+                    safe_write(SummaryFd, IoList),
+                    IoList2 =
+                        io_lib:format("~s~s\n",
+                                      [?TAG("summary log"), SummaryLog]),
+                    safe_write(undefined, IoList2),
+                    {ok, Exists, SummaryFd};
+                {error, Reason} ->
+                    {error, Reason}
+            end
     end.
 
 close_summary_log(SummaryFd, SummaryLog) ->
@@ -149,15 +170,20 @@ split_cases([Case | Cases], Acc, EventLogs) ->
                         {result_case, Name, <<"ERROR">>, Reason2}
                 end,
             split_cases(Cases, [Res | Acc], EventLogs);
-        [_ScriptRow, LogRow | DocAndResult] ->
-            [<<"event log", _/binary>>, RawEventLog] =
-                binary:split(LogRow,  <<": ">>),
-            {Doc, ResultCase} = split_doc(DocAndResult, []),
-            Result = parse_result(ResultCase),
-            EventLog = binary_to_list(RawEventLog),
-            HtmlLog = EventLog ++ ".html",
-            Res = {test_case, Name, EventLog, Doc, HtmlLog, Result},
-            split_cases(Cases, [Res | Acc], [EventLog|EventLogs])
+        [ScriptRow, LogRow | DocAndResult] ->
+            case {binary:split(LogRow,  <<": ">>), ScriptRow} of
+                {[<<"event log", _/binary>>, RawEventLog], _} ->
+                    {Doc, ResultCase} = split_doc(DocAndResult, []),
+                    Result = parse_result(ResultCase),
+                    EventLog = binary_to_list(RawEventLog),
+                    HtmlLog = EventLog ++ ".html",
+                    Res = {test_case, Name, EventLog, Doc, HtmlLog, Result},
+                    split_cases(Cases, [Res | Acc], [EventLog|EventLogs]);
+                {_, R = <<"result", _/binary>>} ->
+                    Result = parse_result([R]),
+                    Res = {test_case, Name, "", [], "", Result},
+                    split_cases(Cases, [Res | Acc], EventLogs)
+            end
     end;
 split_cases([], Acc, EventLogs) ->
     {lists:reverse(Acc), EventLogs}.

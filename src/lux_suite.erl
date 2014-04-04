@@ -28,6 +28,7 @@
                                         non_neg_integer(),
                                         non_neg_integer()},
          run                        :: string(),
+         extend_run = false         :: boolean(),
          revision = ""              :: string(),
          html = enable              :: enable | success | skip | warning |
                                        fail | error | disable,
@@ -81,28 +82,43 @@ run(Files, Opts) when is_list(Files) ->
     end.
 
 do_run(R, SummaryLog) ->
-    case lux_log:open_summary_log(SummaryLog) of
-        {ok, SummaryFd} ->
+    case lux_log:open_summary_log(SummaryLog, R#rstate.extend_run) of
+        {ok, Exists, SummaryFd} ->
             TimerRef = start_timer(R),
             try
                 R2 = R#rstate{log_fd = SummaryFd, summary_log = SummaryLog},
                 {ConfigData, R3} = parse_config(R2),
-                LogDir = filename:dirname(SummaryLog),
-                ConfigLog = filename:join([LogDir, "lux_config.log"]),
-                lux_log:write_config_log(ConfigLog, ConfigData),
-                lux_log:write_results(SummaryLog, skip, [], []),
+                HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
                 InitialSummary = success,
-                HtmlPrio = lux_utils:summary_prio(R3#rstate.html),
-                %% Generate initial html log
                 SummaryPrio0 = lux_utils:summary_prio(InitialSummary),
-                if
-                    SummaryPrio0 >= HtmlPrio, R3#rstate.mode =/= list ->
-                        annotate_summary_log(R3, skip, []);
-                    true ->
-                        ok
-                end,
+                InitialRes =
+                    case Exists of
+                        true ->
+                            TmpLog = SummaryLog++".tmp",
+                            case lux_log:parse_summary_log(TmpLog) of
+                                {ok, _, Groups, _, _, _} ->
+                                    initial_results(Groups);
+                                {error, _} ->
+                                    []
+                            end;
+                        false ->
+                            LogDir = filename:dirname(SummaryLog),
+                            ConfigLog = filename:join([LogDir,
+                                                       "lux_config.log"]),
+                            lux_log:write_config_log(ConfigLog, ConfigData),
+                            lux_log:write_results(SummaryLog, skip, [], []),
+                            %% Generate initial html log
+                            if
+                                SummaryPrio0 >= HtmlPrio,
+                                R3#rstate.mode =/= list ->
+                                    annotate_summary_log(R3, skip, []);
+                                true ->
+                                    ok
+                            end,
+                            []
+                    end,
                 {R5, Summary, Results} =
-                    run_suites(R3, R3#rstate.files, InitialSummary, []),
+                    run_suites(R3, R3#rstate.files, InitialSummary, InitialRes),
                 _ = print_results(R5, Summary, Results),
                 lux_log:close_summary_log(SummaryFd, SummaryLog),
                 SummaryPrio = lux_utils:summary_prio(Summary),
@@ -144,6 +160,33 @@ do_run(R, SummaryLog) ->
             {error, SummaryLog, FileErr}
     end.
 
+initial_results(Groups) ->
+    Fun =
+        fun(Script, {result, Res}) ->
+                case Res of
+                    success ->
+                        {ok, Script, Res, "0", []};
+                    skip ->
+                        {ok, Script, Res, "0", []};
+                    {error_line, RawLineNo, Reason} ->
+                        {error, Script, RawLineNo, Reason};
+                    {error, [Reason]} ->
+                        case binary:split(Reason, <<": ">>, [global]) of
+                            [_, <<"Syntax error at line ", N/binary>>, _] ->
+                                {error, Script, binary_to_list(N), Reason};
+                            _ ->
+                                {error, Script, "0", Reason}
+                        end;
+                  {error, Reason} ->
+                        {error, Script, "0", Reason};
+                    {fail, _Script, RawLineNo, _Expected, _Actual, _Details} ->
+                        {ok, Script, fail, binary_to_list(RawLineNo), []}
+                end
+        end,
+    [Fun(Script, Res) ||
+        {test_group, _Group, Cases} <- Groups,
+        {test_case, Script, _Log, _Doc, _HtmlLog, Res} <- Cases].
+
 run_suites(R, [SuiteFile | SuiteFiles], Summary, Results) ->
     Mode = R#rstate.mode,
     case list_files(R, SuiteFile) of
@@ -183,6 +226,8 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{suite = Val});
         run when is_list(Val) ->
             parse_ropts(T, R#rstate{run = Val});
+        extend_run when Val =:= true; Val =:= false ->
+            parse_ropts(T, R#rstate{extend_run = Val});
         revision when is_list(Val) ->
             parse_ropts(T, R#rstate{revision = Val});
         skip_skip when Val =:= true; Val =:= false ->
@@ -196,7 +241,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
                   Val =:= disable ->
             parse_ropts(T, R#rstate{html = Val});
 
-        %% lux options
+        %% case options
         _ ->
             UserOpts = [NameVal | R#rstate.user_opts],
             parse_ropts(T, R#rstate{user_opts = UserOpts})
@@ -210,19 +255,36 @@ parse_ropts([], R) ->
             undefined -> UniqRun;
             UserRun   -> UserRun
         end,
+    UserLogDir = pick_val(log_dir, R, undefined),
     RelLogDir =
-        case pick_val(log_dir, R, undefined) of
-            undefined -> filename:join(["lux_logs", UniqRun]);
-            LogDir    -> LogDir
+        case UserLogDir of
+            undefined ->
+                filename:join(["lux_logs", UniqRun]);
+            LogDir ->
+                LogDir
         end,
-    AbsLogDir = filename:absname(RelLogDir),
+    AbsLogDir0 = filename:absname(RelLogDir),
+    ParentDir0 = filename:dirname(AbsLogDir0),
+    Link0 = filename:join([ParentDir0, "latest_run"]),
+    AbsLogDir =
+        if
+            UserLogDir =:= undefined, R#rstate.extend_run ->
+                case file:read_link(Link0) of
+                    {ok, LinkTo} ->
+                        %% Reuse old log dir
+                        filename:absname(filename:join([ParentDir0, LinkTo]));
+                    {error, _} ->
+                        AbsLogDir0
+                end;
+            true ->
+                AbsLogDir0
+        end,
+    ParentDir = filename:dirname(AbsLogDir),
+    Link = filename:join([ParentDir, "latest_run"]),
     case filelib:ensure_dir(AbsLogDir) of
         ok ->
-            ParentDir = filename:dirname(AbsLogDir),
             Base = filename:basename(AbsLogDir),
-            Link = filename:join([ParentDir, "latest_run"]),
             _ = file:delete(Link),
-            _ = file:make_dir(ParentDir),
             _ = file:make_symlink(Base, Link),
             RelFiles = R#rstate.files,
             AbsFiles = [filename:absname(F) || F <- RelFiles],
