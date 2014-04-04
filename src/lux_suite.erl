@@ -212,34 +212,38 @@ parse_ropts([], R) ->
         end,
     RelLogDir =
         case pick_val(log_dir, R, undefined) of
-            undefined ->
-                Dir = "lux_logs",
-                Link = filename:join([Dir, "latest_run"]),
-                _ = file:delete(Link),
-                _ = file:make_dir(Dir),
-                _ = file:make_symlink(UniqRun, Link),
-                filename:join([Dir, UniqRun]);
-            LogDir ->
-                LogDir
+            undefined -> filename:join(["lux_logs", UniqRun]);
+            LogDir    -> LogDir
         end,
-    RelFiles = R#rstate.files,
-    AbsFiles = [filename:absname(F) || F <- RelFiles],
     AbsLogDir = filename:absname(RelLogDir),
-    UserOpts = lists:reverse(R#rstate.user_opts),
-    UserOpts2 = merge_opts([{log_dir, AbsLogDir}], UserOpts),
-    R2 = R#rstate{start_time = Now,
-                  run = Run,
-                  log_dir = AbsLogDir,
-                  files = AbsFiles,
-                  user_opts = UserOpts2},
-    TagFiles = [{config_dir, R2#rstate.config_dir} |
-                [{file, F} || F <- RelFiles]],
-    try
-        lists:foreach(fun check_file/1, TagFiles),
-        {ok, R2}
-    catch
-        throw:{error, File, Reason} ->
-            {error, File, Reason}
+    case filelib:ensure_dir(AbsLogDir) of
+        ok ->
+            ParentDir = filename:dirname(AbsLogDir),
+            Base = filename:basename(AbsLogDir),
+            Link = filename:join([ParentDir, "latest_run"]),
+            _ = file:delete(Link),
+            _ = file:make_dir(ParentDir),
+            _ = file:make_symlink(Base, Link),
+            RelFiles = R#rstate.files,
+            AbsFiles = [filename:absname(F) || F <- RelFiles],
+            UserOpts = lists:reverse(R#rstate.user_opts),
+            UserOpts2 = merge_opts([{log_dir, AbsLogDir}], UserOpts),
+            R2 = R#rstate{start_time = Now,
+                          run = Run,
+                          log_dir = AbsLogDir,
+                          files = AbsFiles,
+                          user_opts = UserOpts2},
+            TagFiles = [{config_dir, R2#rstate.config_dir} |
+                        [{file, F} || F <- RelFiles]],
+            try
+                lists:foreach(fun check_file/1, TagFiles),
+                {ok, R2}
+            catch
+                throw:{error, File, Reason} ->
+                    {error, File, Reason}
+            end;
+        {error, FileReason} ->
+            {error, AbsLogDir, file:format_error(FileReason)}
     end.
 
 check_file({Tag, File}) ->
