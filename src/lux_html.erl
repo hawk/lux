@@ -417,28 +417,31 @@ html_part([Del], [Ins]) ->
 html_part(Del, Ins) ->
     {clean, Del, Ins}.
 
-html_part_diff([H|T], Old, New) ->
+html_part_diff([H|T], DelAcc, InsAcc) ->
     Underline = "u",
     case H of
         {common, Com} ->
-            html_part_diff(T, [html_cleanup(Com)|Old], [Com|New]);
+            CleanCom = html_cleanup(Com),
+            html_part_diff(T,
+                           [CleanCom|DelAcc],
+                           [CleanCom|InsAcc]);
         {insert, Ins} ->
             html_part_diff(T,
-                           [tag(Underline,html_cleanup(Ins))|Old],
-                           [tag(Underline,html_cleanup(New))|New]);
+                           DelAcc,
+                           [tag(Underline,html_cleanup(Ins))|InsAcc]);
         {delete, Del} ->
             html_part_diff(T,
-                           [tag(Underline,html_cleanup(Del))|Old],
-                           [tag(Underline,html_cleanup(Del))|New]);
+                           [tag(Underline,html_cleanup(Del))|DelAcc],
+                           InsAcc);
         {replace, Ins, Del} ->
             html_part_diff(T,
-                           [tag(Underline,html_cleanup(Del))|Old],
-                           [tag(Underline,html_cleanup(Ins))|New])
+                           [tag(Underline,html_cleanup(Del))|DelAcc],
+                           [tag(Underline,html_cleanup(Ins))|InsAcc])
     end;
-html_part_diff([], Old, New) ->
+html_part_diff([], DelAcc, InsAcc) ->
     {noclean,
-     [list_to_binary(lists:reverse(Old))],
-     [list_to_binary(lists:reverse(New))]}.
+     [list_to_binary(lists:reverse(DelAcc))],
+     [list_to_binary(lists:reverse(InsAcc))]}.
 
 html_color([{Prefix,Color,Style,Clean,Lines}|LineSpec]) ->
     html_color2(Prefix, Color, Style, Clean, Lines) ++ html_color(LineSpec);

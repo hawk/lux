@@ -6,7 +6,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_utils).
-
+-compile(export_all).
 -export([builtin_dict/0, system_dict/0, expand_vars/3,
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
@@ -473,13 +473,42 @@ extend_match([{_,NewElem}|NewT]=New, [{To,OldElem}|OldT], From, PrevTo) ->
 extend_match(New, _, From, To) ->
     {yes, From, To, New}.
 
-equal(Line, Line) ->
+equal(Expected, Expected) ->
     match;
-equal(Expected, Actual) ->
+equal(<<"">>, _Actual) ->
+    nomatch;
+equal("", _Actual) ->
+    nomatch;
+equal(Expected0, Actual) when is_binary(Expected0); is_list(Expected0) ->
+    Expected = normalize_regexp(Expected0),
     try
         re:run(Actual, Expected,[{capture, none}, notempty])
     catch _:_ ->
             nomatch
+    end;
+equal(_Expected, _Actual) ->
+    nomatch.
+
+normalize_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
+  when Prefix =/= <<"^">> ->
+    normalize_regexp(<<"^", RegExp/binary>>);
+normalize_regexp(RegExp) when is_binary(RegExp) ->
+    Size = byte_size(RegExp)-1,
+    case RegExp of
+        <<_:Size/binary, "$">> ->
+            RegExp;
+        _ ->
+            normalize_regexp(<<RegExp/binary, "$">>)
+    end;
+normalize_regexp([Prefix|RegExp])
+  when Prefix =/= $^ ->
+    normalize_regexp([$^|RegExp]);
+normalize_regexp(RegExp) when is_list(RegExp) ->
+    case lists:last(RegExp) of
+        $\$ ->
+            RegExp;
+        _ ->
+            normalize_regexp(RegExp++"$")
     end.
 
 -spec merge([patch()], Old  :: [{non_neg_integer(),binary()}]) ->
@@ -510,7 +539,7 @@ merge([], Old, Next, Acc) ->
     Acc2 =
         case lists:foldl(Fun, [], Old) of
             []     -> Acc;
-            Delete -> add({delete,Delete}, Acc)
+            Delete -> add({delete,lists:reverse(Delete)}, Acc)
         end,
     lists:reverse(Acc2).
 
