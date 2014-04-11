@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.2 - 2013-12-03
+Version 1.3 - 2014-04-11
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -704,6 +704,13 @@ printing out the history of test runs. See the
 The `RunId` is used for bookkeeping a name which later is used for
 printing out the history of test runs. See the
  [command line option](#cmd_line_opts) `--history`.
+
+**--extend\_run**  
+**--extend\_run=true**  
+Combines two runs into one. The summary log of an earlier run is
+extended with the outcome of the new run. `--log_dir` can be given
+explicitly. If not, the symbolic `latest_run` link is used to find
+a suitable log directory.
 
 **--revision Revision**  
 The `Revision` is used for bookkeeping a repository revision

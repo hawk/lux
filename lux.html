@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.2 - 2013-12-03</p>
+<p>Version 1.3 - 2014-04-11</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -718,6 +718,13 @@ printing out the history of test runs. See the
 The <code>RunId</code> is used for bookkeeping a name which later is used for
 printing out the history of test runs. See the
  <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
+
+<p><strong>--extend_run</strong> <br />
+<strong>--extend_run=true</strong> <br />
+Combines two runs into one. The summary log of an earlier run is
+extended with the outcome of the new run. <code>--log_dir</code> can be given
+explicitly. If not, the symbolic <code>latest_run</code> link is used to find
+a suitable log directory.</p>
 
 <p><strong>--revision Revision</strong> <br />
 The <code>Revision</code> is used for bookkeeping a repository revision
