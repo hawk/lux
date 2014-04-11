@@ -699,8 +699,10 @@ format_config(Config) ->
                     term ->
                         io_lib:format("~s~p\n", [?TAG(Tag), Val])
                 end;
-           ({Tag, Val}) -> % string
-                io_lib:format("~s~s\n", [?TAG(Tag), Val])
+           ({Tag, Val}) when is_list(Val) ->
+                io_lib:format("~s~s\n", [?TAG(Tag), Val]);
+           ({Tag, Val}) ->
+                io_lib:format("~s~p\n", [?TAG(Tag), Val])
         end,
     lists:map(Fun, Config).
 
