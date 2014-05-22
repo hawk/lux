@@ -34,6 +34,7 @@
                                        fail | error | disable,
          warnings = []              :: [{warning, string(),
                                          string(), string()}],
+         internal_opts = []         :: [{atom(), term()}], % Internal opts
          user_opts = []             :: [{atom(), term()}], % Command line opts
          file_opts = []             :: [{atom(), term()}], % Script opts
          config_opts = []             :: [{atom(), term()}], % Arch spec opts
@@ -461,11 +462,11 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                                 [?TAG("test case"), Script]),
                     Res = lux:interpret_commands(Script2, Commands, Opts),
                     case Res of
-                        {ok, _, Summary, FullLineNo, Events} ->
+                        {ok, _, CaseLogDir, Summary, FullLineNo, Events} ->
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             Res2 = {ok, Script, Summary, FullLineNo, Events},
                             NewResults = [Res2 | Results];
-                        {error, _, _, _} ->
+                        {error, _, CaseLogDir, _, _} ->
                             Summary = error,
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results]
@@ -475,10 +476,9 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     R3 = R2#rstate{warnings = AllWarnings},
                     if
                         SummaryPrio >= HtmlPrio ->
-                            LogDir = R2#rstate.log_dir,
                             Base = filename:basename(Script),
-                            EventLog =
-                                filename:join([LogDir, Base ++ ".event.log"]),
+                            EventLog = filename:join([CaseLogDir,
+                                                      Base ++ ".event.log"]),
                             lux_html:annotate_log(false, EventLog),
                             annotate_summary_log(R3, NewSummary, NewResults);
                         true ->
@@ -487,22 +487,27 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     run_cases(Mode, R3,
                               SuiteFile, Scripts, NewSummary, NewResults)
             end;
-        {error, _R2, _File2, _FullLineNo, _Error2} when Mode =:= list ->
+        {error, _R2, _ErrorStack, _ErrorBin} when Mode =:= list ->
             io:format("~s\n", [Script]),
             run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
-        {error, _R2, File2, _FullLineNo, Error2} when Mode =:= doc ->
-            io:format("~s:\n\tERROR: ~s: ~s\n", [Script, File2, Error2]),
+        {error, _R2, ErrorStack, ErrorBin} when Mode =:= doc ->
+            {MainFile, _FullLineNo, ErrorBin2} =
+                parse_error(ErrorStack, ErrorBin),
+            io:format("~s:\n\tERROR: ~s: ~s\n",
+                      [Script, MainFile, ErrorBin2]),
             run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
-        {error, R2, File2, FullLineNo, Error2} ->
+        {error, R2, ErrorStack, ErrorBin} ->
+            {MainFile, FullLineNo, ErrorBin2} =
+                parse_error(ErrorStack, ErrorBin),
             double_rlog(R2, "\n~s~s\n",
                         [?TAG("test case"), Script]),
             double_rlog(R2, "~sERROR ~s: ~s\n",
-                        [?TAG("result"), File2, Error2]),
+                        [?TAG("result"), MainFile, ErrorBin2]),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             Summary = error,
             NewSummary = lux_utils:summary(OldSummary, Summary),
-            Results2 = [{error, File2, FullLineNo, Error2} | Results],
+            Results2 = [{error, MainFile, FullLineNo, ErrorBin2} | Results],
             run_cases(Mode, R#rstate{warnings = AllWarnings},
                       SuiteFile, Scripts, NewSummary, Results2)
     end;
@@ -526,7 +531,7 @@ list_matching_variables(R, Tag, DoNegate) ->
                     false -> Bool
                 end
         end,
-    NameVals = pick_vals(Tag, R, []),
+    NameVals = pick_vals(Tag, R),
     lists:filter(Fun, NameVals).
 
 test_variable(R, NameVal) ->
@@ -576,25 +581,30 @@ parse_script(R, SuiteFile, Script) ->
     case lux:parse_file(Script, []) of
         {ok, Script2, Commands, FileOpts} ->
             FileOpts2 = merge_opts(FileOpts, R#rstate.file_opts),
-            FileR = R#rstate{file_opts = FileOpts2},
-            LogDir = log_dir(R, SuiteFile, Script),
+            R2 = R#rstate{internal_opts=[],
+                          file_opts = FileOpts2},
+            LogDir = log_dir(R2, SuiteFile, Script2),
             LogFd = R#rstate.log_fd,
             LogFun = fun(Bin) -> lux_log:safe_write(LogFd, Bin) end,
-            Mandatory = [{log_dir, LogDir}, {log_fun, LogFun}, {log_fd, LogFd}],
-            UserOpts = merge_opts(Mandatory, FileR#rstate.user_opts),
+            InternalOpts = [{log_dir, LogDir},
+                            {log_fun, LogFun},
+                            {log_fd,  LogFd}],
+            UserOpts = R2#rstate.user_opts,
             Opts = lists:foldl(fun(New, Acc) -> merge_opts(New, Acc) end,
                                [],
                                [
-                                FileR#rstate.default_opts,
-                                FileR#rstate.config_opts,
+                                R2#rstate.default_opts,
+                                R2#rstate.config_opts,
                                 FileOpts2,
-                                UserOpts
+                                UserOpts,
+                                InternalOpts
                                ]),
-            R3 = FileR#rstate{user_opts = UserOpts,
-                              file_opts = FileOpts2},
+            R3 = R2#rstate{user_opts = UserOpts,
+                           file_opts = FileOpts2,
+                           internal_opts = InternalOpts},
             {ok, R3, Script2, Commands, Opts};
-        {error, Script2, FullLineNo, Bin} ->
-            {error, R, Script2, FullLineNo, Bin}
+        {error, ErrorStack, ErrorBin} ->
+            {error, R, ErrorStack, ErrorBin}
     end.
 
 parse_config(R) ->
@@ -664,16 +674,32 @@ parse_config_file(R, ConfigFile) ->
                         lists:keystore(Key, 1, Opts, {Key, Dir2})
                 end,
             lists:keydelete(log_dir, 1, Opts2);
-        {error, Script, _FullLineNo, Bin} ->
-            Enoent =  list_to_binary(file:format_error(enoent)),
+        {error, ErrorStack, ErrorBin} ->
+            Enoent = list_to_binary(file:format_error(enoent)),
             if
-                Bin =:= Enoent ->
+                ErrorBin =:= Enoent ->
                     ok;
                 true ->
-                    double_rlog(R, "~s~s: ~s\n",
-                                [?TAG("error"), Script, Bin])
+                    {MainFile, FullLineNo, ErrorBin2} =
+                        parse_error(ErrorStack, ErrorBin),
+                    double_rlog(R, "~s~s: ~s: ~s\n",
+                                [?TAG("error"), MainFile,
+                                 ErrorBin2, FullLineNo])
             end,
             []
+    end.
+
+parse_error(ErrorStack, ErrorBin) ->
+    {MainFile,_} = hd(ErrorStack),
+    {ErrorFile, _} = lists:last(ErrorStack),
+    FullLineNo = lux_utils:full_lineno(ErrorStack),
+    if
+        ErrorFile =:= MainFile ->
+            {MainFile, FullLineNo, ErrorBin};
+        true ->
+            FileBin = list_to_binary(ErrorFile),
+            ErrorBin2 = <<FileBin/binary, ": ", ErrorBin/binary>>,
+            {MainFile, FullLineNo, ErrorBin2}
     end.
 
 config_file(ConfigDir, UserConfigName, ActualConfigName) ->
@@ -777,61 +803,40 @@ cancel_timer({Ref, Msg}) ->
     end.
 
 expand_vars(R, String, MissingVar) ->
-    Dict = pick_vals(var, R, []),
+    Dict = pick_vals(var, R),
     Dicts = [Dict, R#rstate.builtin_dict, R#rstate.system_dict],
     lux_utils:expand_vars(Dicts, String, MissingVar).
 
-pick_val(Tag,
-         #rstate{user_opts = U,
-                 file_opts = F,
-                 config_opts = C,
-                 default_opts = D},
-         Builtin) ->
-    case lists:keyfind(Tag, 1, U) of
-        false ->
-            case lists:keyfind(Tag, 1, F) of
-                false ->
-                    case lists:keyfind(Tag, 1, C) of
-                        false ->
-                            case lists:keyfind(Tag, 1, D) of
-                                false ->
-                                    Builtin;
-                                {_, Default} ->
-                                    Default
-                            end;
-                        {_, Config} ->
-                            Config
-                    end;
-                {_, File} ->
-                    File
-            end;
-        {_, User} ->
-            User
-    end.
+pick_val(Tag, R, Default) ->
+    Dicts = opts_dicts(R),
+    multi_key_find(Tag, 1, Dicts, Default).
 
-pick_vals(Tag,
-          #rstate{user_opts = U,
-                  file_opts = F,
-                  config_opts = C,
-                  default_opts = D},
-          Builtin) ->
-    case lists:keyfind(Tag, 1, U) of
-        false     -> User = [];
-        {_, User} -> ok
-    end,
-    case lists:keyfind(Tag, 1, F) of
-        false     -> File = [];
-        {_, File} -> ok
-    end,
-    case lists:keyfind(Tag, 1, C) of
-        false -> Config = [];
-        {_, Config} -> ok
-    end,
-    case lists:keyfind(Tag, 1, D) of
-        false -> Default = [];
-        {_, Default} -> ok
-    end,
-    User ++ File ++ Config ++ Default ++ Builtin.
+multi_key_find(Tag, Pos, [Dict|Dicts], Default) ->
+    case lists:keyfind(Tag, 1, Dict) of
+        false ->
+            multi_key_find(Tag, Pos, Dicts, Default);
+        {_, Val} ->
+            Val
+    end;
+multi_key_find(_Tag, _Pos, [], Default) ->
+    Default.
+
+pick_vals(Tag, R) ->
+    Fun = fun(Dict) ->
+                  case lists:keyfind(Tag, 1, Dict) of
+                      false     -> [];
+                      {_, Vals} -> Vals
+                  end
+          end,
+    Dicts = opts_dicts(R),
+    lists:flatmap(Fun, Dicts).
+
+opts_dicts(#rstate{internal_opts = I,
+                   user_opts = U,
+                   file_opts = F,
+                   config_opts = C,
+                   default_opts = D}) ->
+    [I, U, F, C, D].
 
 merge_opts([{Key, Val} | KeyVals], Acc) ->
     case lists:keyfind(Key, 1, Acc) of

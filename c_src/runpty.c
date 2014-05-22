@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
 
     for (;;) {
         fd_set fdset;
-        char buf[BUFSIZ];
+        char buf[BUFSIZ*4]; /* *4 appears to fix bug on mac os x */
 
         FD_ZERO(&fdset);
         FD_SET(in, &fdset);

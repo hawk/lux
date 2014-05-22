@@ -42,10 +42,26 @@
     ("\\$\\([[:alnum:]_-]+\\)" 1 font-lock-variable-name-face)
     ("\\${\\([[:alnum:]_-]+\\)}" 1 font-lock-variable-name-face)))
 
+
+
+(defconst lux-regexp-special-characters "[][^{}()$+*.]")
+
+(defun lux-quote-region (start end)
+  "Qoute special characters by insert a preceding '\' character."
+  (interactive "r")
+  (save-excursion
+    (save-match-data
+      (goto-char start)
+      (let ((end-mark (make-marker))) ; Markers grow as we insert.
+        (set-marker end-mark end)
+        (while (re-search-forward lux-regexp-special-characters end-mark t)
+          (replace-match "\\\\\\&" t )
+          ())))))
+
+
 (defun lux-indent-line ()
   "Indent current line in a lux"
   (interactive)
-
   ;; Set the point to beginning of line.
   (beginning-of-line)
 

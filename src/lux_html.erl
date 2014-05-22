@@ -93,10 +93,14 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
 html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
     Dir = filename:basename(filename:dirname(SummaryLog)),
     RelSummaryLog = drop_prefix(A, SummaryLog),
+    RelResultLog = drop_prefix(A, "lux_result.log"),
+    RelConfigLog = drop_prefix(A, "lux_config.log"),
     IsTmp = lux_log:is_temporary(SummaryLog),
     [
      html_header(["Lux summary log (", Dir, ")"]),
      html_href("h2", "Raw summary log: ", "", RelSummaryLog, RelSummaryLog),
+     html_href("h2", "Raw result log: ", "", RelResultLog, RelResultLog),
+     html_href("h2", "Raw config log: ", "", RelConfigLog, RelConfigLog),
      html_href("h3", "", "", "#suite_config", "Suite configuration"),
      html_summary_result(A, Result, Groups, IsTmp),
      html_groups2(A, Groups),
@@ -356,6 +360,8 @@ html_result(Tag, {result, Result}, HtmlLog) ->
             ["\n<", Tag, ">Result: <strong>SUCCESS</strong></", Tag, ">\n"];
         skip ->
             ["\n<", Tag, ">Result: <strong>SKIP</strong></", Tag, ">\n"];
+        {skip, _} ->
+            ["\n<", Tag, ">Result: <strong>SKIP</strong></", Tag, ">\n"];
         {error_line, RawLineNo, Reason} ->
             Anchor = RawLineNo,
             [
@@ -373,7 +379,7 @@ html_result(Tag, {result, Result}, HtmlLog) ->
         {fail, _Script, RawLineNo, Expected, Actual, Details} ->
             Anchor = RawLineNo,
             Diff = lux_utils:diff(Expected, Details),
-            HtmlDiff = html_diff(Diff, [], first),
+            HtmlDiff = html_diff(Diff),
             [
              "\n<", Tag, ">Result: <strong>",
              html_href("", [HtmlLog, "#failed"], "FAILED"),
@@ -391,25 +397,34 @@ html_result(Tag, {result, Result}, HtmlLog) ->
             ]
     end.
 
-html_diff([H|T], Acc, Where) ->
+html_diff(Diff) ->
+    html_diff(Diff, [], first, false).
+
+html_diff([H|T], Acc, Where, Rep) ->
     Plain = "",
     Bold = "b",
     case H of
         {common, Com} ->
-            html_diff(T, [{<<"  ">>, "black",Bold,clean,Com}|Acc], middle);
-        {insert, Ins} when element(1,hd(T)) =:= common, Where =/= first ->
-            html_diff(T, [{<<"+ ">>,"blue",Bold,clean,Ins}|Acc], middle);
+            html_diff(T, [{<<"  ">>, "black",Bold,clean,Com}|Acc], middle, Rep);
+        {insert, Ins} when Where =/= first, element(1,hd(T)) =:= common ->
+            html_diff(T, [{<<"+ ">>,"blue",Bold,clean,Ins}|Acc], middle, Rep);
         {insert, Ins} ->
-            html_diff(T, [{<<"  ">>,"black",Plain,clean,Ins}|Acc], middle);
+            html_diff(T, [{<<"  ">>,"black",Plain,clean,Ins}|Acc], middle, Rep);
         {delete, Del} ->
-            html_diff(T, [{<<"- ">>,"red",Bold,clean,Del}|Acc], middle);
+            html_diff(T, [{<<"- ">>,"red",Bold,clean,Del}|Acc], middle, Rep);
+        {replace, Ins, Del} when Where =:= first, T =:= [] ->
+            %% Display single replace as insert
+            {Clean, _Del2, Ins2} = html_part(Del, Ins),
+%%          html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
+%%                        {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle, true)
+            html_diff(T, [{<<"  ">>,"black",Bold,Clean,Ins2}|Acc],middle, true);
         {replace, Ins, Del} ->
             {Clean, Del2, Ins2} = html_part(Del, Ins),
             html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
-                          {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle)
+                          {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle, true)
     end;
-html_diff([], Acc, _Where) ->
-    html_color(lists:reverse(Acc)).
+html_diff([], Acc, _Where, Rep) ->
+    html_color(lists:reverse(Acc), Rep).
 
 html_part([Del], [Ins]) ->
     Diff = lux_utils:diff(binary_to_list(Del), binary_to_list(Ins)),
@@ -443,24 +458,22 @@ html_part_diff([], DelAcc, InsAcc) ->
      [list_to_binary(lists:reverse(DelAcc))],
      [list_to_binary(lists:reverse(InsAcc))]}.
 
-html_color([{Prefix,Color,Style,Clean,Lines}|LineSpec]) ->
-    html_color2(Prefix, Color, Style, Clean, Lines) ++ html_color(LineSpec);
-html_color([]) ->
-    [].
-
-html_color2(Prefix, Color, Style, Clean, [Line|Lines]) ->
+html_color([{Prefix, Color, Style, Clean, [Line|Lines]} | LineSpec], Delay) ->
     [
-     list_to_binary([case Color of
-                         "black" -> "";
-                         _       -> html_anchor("failed", "")
+     list_to_binary([if
+                         Delay =:= true    -> "";
+                         Color =:= "black" -> "";
+                         true              -> html_anchor("failed", "")
                      end,
                      "<font color=\"",Color,"\">",
                      opt_tag(Style, opt_clean(Prefix, Clean, Line)),
                      "</font>"])
-     | html_color2(Prefix, Color, Style, Clean, Lines)
+     | html_color([{Prefix, Color, Style, Clean, Lines} | LineSpec], Delay)
     ];
-html_color2(_Prefix, _Color, _Style, _Clean, []) ->
-    [].
+html_color([{_Prefix, _Color, _Style, _Clean, []} | LineSpec], _Delay) ->
+    html_color(LineSpec, false);
+html_color([], _Delay) ->
+    [html_anchor("failed", "")].
 
 opt_clean(Prefix, Clean, Line) ->
     [
@@ -1059,9 +1072,14 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
                             %% A summary log
                             File = filename:join([Dir, Base]),
                             io:format(".", []),
-                            {Res, _EventLogs} = lux_log:parse_summary_log(File),
-                            R = lux_log:parse_run_summary(HtmlFile, File, Res),
-                            [R | Acc];
+                            case lux_log:parse_summary_log(File) of
+                                {ok, Res, _, _, _, _} ->
+                                    R = lux_log:parse_run_summary(HtmlFile,
+                                                                  File, Res),
+                                    [R | Acc];
+                                {error, _Reason} ->
+                                    Acc
+                            end;
                         false ->
                             io:format("s", []),
                             %% Skip

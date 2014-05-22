@@ -25,41 +25,22 @@ interpret_commands(Script, Commands, Opts) ->
             {ok, I3} ->
                 LogDir = I3#istate.log_dir,
                 Config = config_data(I3),
-                ConfigFd = lux_log:open_config_log(LogDir, Script, Config),
-                Flag = process_flag(trap_exit, true),
-                Progress = I3#istate.progress,
-                LogFun = I3#istate.log_fun,
-                Verbose = true,
-                case lux_log:open_event_log(LogDir, Script, Progress,
-                                            LogFun, Verbose) of
-                    {ok, EventLog, EventFd} ->
-                        try
-                            I4 = I3#istate{event_log_fd = {Verbose, EventFd},
-                                           config_log_fd = {Verbose, ConfigFd}},
-                            lux_log:safe_format(Progress, LogFun, undefined,
-                                                "~s~s\n",
-                                                [?TAG("script"),
-                                                 I4#istate.file]),
-                            lux_log:safe_format(Progress, LogFun, undefined,
-                                                "~s~s\n",
-                                                [?TAG("event log"), EventLog]),
-                            lux_utils:progress_write(Progress,
-                                                     ?TAG("progress")),
-                            ReplyTo = self(),
-                            Interpret =
-                                fun() ->
-                                        lux_debug:start_link(I3),
-                                        Res = interpret_init(I4),
-                                        unlink(ReplyTo),
-                                        ReplyTo ! {done, self(), Res},
-                                        exit(shutdown)
-                                end,
-                            Pid = spawn_link(Interpret),
-                            wait_for_done(I4, Pid)
-                        after
-                            process_flag(trap_exit, Flag),
-                            lux_log:close_event_log(EventFd),
-                            lux_log:close_config_log(ConfigFd, I3#istate.logs)
+                case filelib:ensure_dir(LogDir) of
+                    ok ->
+                        ConfigFd = lux_log:open_config_log(LogDir,
+                                                           Script,
+                                                           Config),
+                        Progress = I3#istate.progress,
+                        LogFun = I3#istate.log_fun,
+                        Verbose = true,
+                        case lux_log:open_event_log(LogDir, Script, Progress,
+                                                    LogFun, Verbose) of
+                            {ok, EventLog, EventFd} ->
+                                eval(I3, Progress, Verbose, LogFun,
+                                     EventLog, EventFd, ConfigFd);
+                            {error, FileReason} ->
+                                internal_error(I3,
+                                               file:format_error(FileReason))
                         end;
                     {error, FileReason} ->
                         internal_error(I3, file:format_error(FileReason))
@@ -74,6 +55,36 @@ interpret_commands(Script, Commands, Opts) ->
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason}})
     end.
 
+eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd) ->
+    NewI = OldI#istate{event_log_fd =  {Verbose, EventFd},
+                       config_log_fd = {Verbose, ConfigFd}},
+    Flag = process_flag(trap_exit, true),
+    try
+        lux_log:safe_format(Progress, LogFun, undefined,
+                            "~s~s\n",
+                            [?TAG("script"),
+                             NewI#istate.file]),
+        lux_log:safe_format(Progress, LogFun, undefined,
+                            "~s~s\n",
+                            [?TAG("event log"), EventLog]),
+        lux_utils:progress_write(Progress, ?TAG("progress")),
+        ReplyTo = self(),
+        Interpret =
+            fun() ->
+                    lux_debug:start_link(OldI),
+                    Res = interpret_init(NewI),
+                    unlink(ReplyTo),
+                    ReplyTo ! {done, self(), Res},
+                    exit(shutdown)
+            end,
+        Pid = spawn_link(Interpret),
+        wait_for_done(NewI, Pid)
+    after
+        process_flag(trap_exit, Flag),
+        lux_log:close_event_log(EventFd),
+        lux_log:close_config_log(ConfigFd, OldI#istate.logs)
+    end.
+
 internal_error(I, ReasonTerm) ->
     ReasonBin = list_to_binary(io_lib:format("Internal error: ~p",
                                              [ReasonTerm])),
@@ -84,7 +95,7 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     double_ilog(I, "~sERROR ~s\n",
                 [?TAG("result"),
                  binary_to_list(ReasonBin)]),
-    {error, I#istate.file, FullLineNo, ReasonBin}.
+    {error, I#istate.file, I#istate.log_dir, FullLineNo, ReasonBin}.
 
 parse_iopts(I, [{Name, Val} | T]) when is_atom(Name) ->
     case parse_iopt(I, Name, Val) of
@@ -281,7 +292,7 @@ print_success(I, File, Results) ->
     double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
     L = length(I#istate.commands),
     FullLineNo = integer_to_list(L),
-    {ok, File, success, FullLineNo, Results}.
+    {ok, File, I#istate.log_dir, success, FullLineNo, Results}.
 
 print_fail(I, File, Results,
            #result{outcome    = fail,
@@ -310,7 +321,7 @@ print_fail(I, File, Results,
             double_ilog(I, "actual error\n\"~s\"\n",
                         [lux_utils:to_string(Actual)])
     end,
-    {ok, File, fail, FullLineNo, Results}.
+    {ok, File, I#istate.log_dir, fail, FullLineNo, Results}.
 
 full_lineno(I, LineNo, InclStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),

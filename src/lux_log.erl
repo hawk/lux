@@ -167,7 +167,9 @@ split_cases([Case | Cases], Acc, EventLogs) ->
                     [<<"result", _/binary>>, Reason2] ->
                         {result_case, Name, Reason2, Reason};
                     [<<"error", _/binary>>, Reason2] ->
-                        {result_case, Name, <<"ERROR">>, Reason2}
+                        {result_case, Name, <<"ERROR">>, Reason2};
+                    [<<>>] ->
+                        {result_case, Name, <<"ERROR">>, <<"unknown">>}
                 end,
             split_cases(Cases, [Res | Acc], EventLogs);
         [ScriptRow, LogRow | DocAndResult] ->
@@ -301,6 +303,7 @@ run_result({result, Res}) ->
 run_result(Res) ->
     case Res of
         success                                                -> success;
+        {skip, _}                                              -> skip;
         {fail, _Script, _LineNo, _Expected, _Actual, _Details} -> fail;
         {error, _Reason}                                       -> fail;
         <<"SUCCESS">>                                          -> success;
@@ -345,7 +348,7 @@ parse_summary_result(LogDir) ->
             %% Latest version
             {ok, split_result(RawResult)};
         {error, FileReason} ->
-            {error, file:format_error(FileReason)}
+            {error, ResultLog, file:format_error(FileReason)}
     end.
 
 write_results(SummaryLog, Summary, Results, Warnings) ->
@@ -627,6 +630,8 @@ parse_result(RawResult) ->
         case Result of
             <<"SUCCESS">> ->
                 success;
+            <<"SKIP as ",Skip/binary>> ->
+                {skip, [Skip | Rest]};
             <<"ERROR at ", Error/binary>> ->
                 [RawLineNo, Reason] = binary:split(Error, <<":">>),
                 {error_line, RawLineNo, [Reason | Rest]};
@@ -661,14 +666,22 @@ unquote(Bin) ->
 open_config_log(LogDir, Script, Config) ->
     Base = filename:basename(Script),
     ConfigFile = filename:join([LogDir, Base ++ ".config.log"]),
-    case file:open(ConfigFile, [write]) of
-        {ok, ConfigFd} ->
-            Data = format_config(Config),
-            ok = file:write(ConfigFd, Data),
-            ok = file:write(ConfigFd, "\n"),
-            ConfigFd;
+    case filelib:ensure_dir(ConfigFile) of
+        ok ->
+            case file:open(ConfigFile, [write]) of
+                {ok, ConfigFd} ->
+                    Data = format_config(Config),
+                    ok = file:write(ConfigFd, Data),
+                    ok = file:write(ConfigFd, "\n"),
+                    ConfigFd;
+                {error, FileReason} ->
+                    ReasonStr = ConfigFile ++ ": " ++
+                        file:format_error(FileReason),
+                    erlang:error(ReasonStr)
+            end;
         {error, FileReason} ->
-            ReasonStr = ConfigFile ++ ": " ++file:format_error(FileReason),
+            ReasonStr = LogDir ++ ": " ++
+                file:format_error(FileReason),
             erlang:error(ReasonStr)
     end.
 

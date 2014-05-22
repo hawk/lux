@@ -310,9 +310,9 @@ do_foldl_cmds(_Fun, Acc, _RevFile, _InclStack, []) ->
     Acc.
 
 full_lineno([{_FileComps, LineNo} | InclStack]) ->
-    LineNoPrefix = [[integer_to_list(No), ":"] ||
+    LineNoSuffix = [[":", integer_to_list(No)] ||
                        {_F, No} <- lists:reverse(InclStack)],
-    lists:flatten([LineNoPrefix, integer_to_list(LineNo)]).
+    lists:flatten([integer_to_list(LineNo), LineNoSuffix]).
 
 filename_split(FileName) ->
     FileName2 = drop_prefix(FileName),
