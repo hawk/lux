@@ -1073,7 +1073,7 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
                             File = filename:join([Dir, Base]),
                             io:format(".", []),
                             case lux_log:parse_summary_log(File) of
-                                {ok, Res, _, _, _, _} ->
+                                {ok,_,_,_,_,_} = Res->
                                     R = lux_log:parse_run_summary(HtmlFile,
                                                                   File, Res),
                                     [R | Acc];

@@ -213,7 +213,7 @@ parse_run_summary(HtmlFile, SummaryLog, Res) ->
              repos_rev = ?DEFAULT_REV,
              details = []},
     case Res of
-        {ok, Result, Groups, ArchConfig, FI} ->
+        {ok, Result, Groups, ArchConfig, FI, _EventLogs} ->
             Split =
                 fun(Config) ->
                         case binary:split(Config, <<": ">>, []) of
