@@ -57,7 +57,8 @@ run(Files, Opts) when is_list(Files) ->
             {_ConfigData, R3} = parse_config(R2),
             {R4, Summary, Results} =
                 run_suites(R3, R3#rstate.files, success, []),
-            print_results(R4, Summary, Results);
+            print_results(R4, Summary, Results),
+            write_results(R4, Summary, Results);
         {ok, R} ->
             LogDir = R#rstate.log_dir,
             SummaryLog = filename:join([LogDir, "lux_summary.log"]),
@@ -120,7 +121,8 @@ do_run(R, SummaryLog) ->
                     end,
                 {R5, Summary, Results} =
                     run_suites(R3, R3#rstate.files, InitialSummary, InitialRes),
-                _ = print_results(R5, Summary, Results),
+                print_results(R5, Summary, Results),
+                _ = write_results(R5, Summary, Results),
                 lux_log:close_summary_log(SummaryFd, SummaryLog),
                 SummaryPrio = lux_utils:summary_prio(Summary),
                 if
@@ -516,7 +518,7 @@ run_cases(_Mode, R, _SuiteFile, [], Summary, Results) ->
 
 annotate_summary_log(R, NewSummary, NewResults) ->
     file:sync(R#rstate.log_fd), % Flush summary log
-    print_results(R, NewSummary, NewResults),
+    _ = write_results(R, NewSummary, NewResults),
     SummaryLog = R#rstate.summary_log,
     TmpLog = SummaryLog ++ ".tmp",
     lux_html:annotate_log(false, TmpLog),
@@ -568,14 +570,17 @@ extract_doc(File, Cmds) ->
           end,
     lists:reverse(lux_utils:foldl_cmds(Fun, [], File, [], Cmds)).
 
-print_results(#rstate{mode=Mode, summary_log=SummaryLog},
+write_results(#rstate{mode=Mode, summary_log=SummaryLog},
               Summary, Results)
   when Mode =:= list; Mode =:= doc ->
     {ok, Summary, SummaryLog, Results};
-print_results(#rstate{summary_log=SummaryLog, warnings=Warnings},
-              Summary, Results) ->
+write_results(#rstate{summary_log=SummaryLog, warnings=Warnings},
+              Summary, Results) when is_list(SummaryLog) ->
     lux_log:write_results(SummaryLog, Summary, Results, Warnings),
     {ok, Summary, SummaryLog, Results}.
+
+print_results(#rstate{warnings=Warnings}, Summary, Results) ->
+    lux_log:print_results({false,standard_io}, Summary, Results, Warnings).
 
 parse_script(R, SuiteFile, Script) ->
     case lux:parse_file(Script, []) of
