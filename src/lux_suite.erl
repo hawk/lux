@@ -57,7 +57,6 @@ run(Files, Opts) when is_list(Files) ->
             {_ConfigData, R3} = parse_config(R2),
             {R4, Summary, Results} =
                 run_suites(R3, R3#rstate.files, success, []),
-            print_results(R4, Summary, Results),
             write_results(R4, Summary, Results);
         {ok, R} ->
             LogDir = R#rstate.log_dir,
