@@ -1,3 +1,8 @@
+# Copyright 2012-2014 Tail-f Systems AB
+#
+# See the file "LICENSE" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+
 include ./include.mk
 
 SUBDIRS = src $(C_SRC_TARGET)

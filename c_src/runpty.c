@@ -1,9 +1,11 @@
 /*
- * Copyright 2012 Sebastian Strollo
+ * Copyright 2012-2014 Tail-f Systems AB
+ *
+ * See the file "LICENSE" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
  * Run a program in the slave end of a pseudo tty. Used to run our
  * interactive tests with.
- *
  */
 
 #ifdef __linux__

@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.3 - 2014-04-11
+Version 1.4 - 2014-05-28
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -11,7 +11,7 @@ Version 1.3 - 2014-04-11
 * [Debugger for Lux scripts](#debug_cmds)
 * [Examples](#examples)
 * [Installation](#../INSTALL)
-* [Authors](#../AUTHORS)
+* [Original author:](#../AUTHORS)
 * [References](#references)
 
 <a name="../README"/>
@@ -1129,9 +1129,6 @@ Simply do
 >     make
 >     firefox ../lux.html
 <a name="../AUTHORS"/>
-
-Authors
-=======
 
 Original author:
 

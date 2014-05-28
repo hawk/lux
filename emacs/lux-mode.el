@@ -1,5 +1,8 @@
-;; Copyright (c) 2012 Martin Bjorklund
-
+;; Copyright 2012-2014 Tail-f Systems AB
+;;
+;; See the file "LICENSE" for information on usage and redistribution
+;; of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Major mode for editing lux files
 ;; Make sure lux-mode.el is found in your elisp path, and
 ;; add to your .emacs:
