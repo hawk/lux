@@ -645,7 +645,9 @@ parse_result(RawResult) ->
                 Expected3 = split_lines(Expected2),
                 {quote, Details2} = unquote(Details),
                 Details3 = split_lines(Details2),
-                {fail, Script, RawLineNo, Expected3, Actual, Details3}
+                {fail, Script, RawLineNo, Expected3, Actual, Details3};
+            <<"FAIL as ", _/binary>> = Fail->
+                {error, [Fail]}
         end,
     %% io:format("Result: ~p\n", [R]),
     {result, R}.
