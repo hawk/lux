@@ -12,7 +12,8 @@
 -export([interpret_commands/3,
          default_istate/1,
          parse_iopts/2,
-         parse_iopt/3
+         config_type/1,
+         config_val/5
         ]).
 -export([opt_dispatch_cmd/1,
          flush_logs/1]).
@@ -131,13 +132,13 @@ config_type(Name) ->
         debug_file  ->
             {ok, #istate.debug_file, [string, {atom, [undefined]}]};
         skip ->
-            {ok, #istate.skip, [{list, [string]}]};
+            {ok, #istate.skip, [{env_list, [string]}]};
         skip_unless ->
-            {ok, #istate.skip_unless, [{list, [string]}]};
+            {ok, #istate.skip_unless, [{env_list, [string]}]};
         require ->
-            {ok, #istate.require, [{list, [string]}]};
+            {ok, #istate.require, [{env_list, [string]}]};
         config_dir ->
-            {ok, #istate.config_dir, [{list, [string]}]};
+            {ok, #istate.config_dir, [string]};
         progress ->
             {ok, #istate.progress,
              [{atom, [silent, brief, doc, compact, verbose]}]};
@@ -171,9 +172,9 @@ config_type(Name) ->
         shell_cmd ->
             {ok, #istate.shell_cmd, [string]};
         shell_args ->
-            {ok, #istate.shell_args, [{list, [string]}]};
+            {ok, #istate.shell_args, [{reset_list, [string]}]};
         var ->
-            {ok, #istate.dict, [{list, [string]}]};
+            {ok, #istate.dict, [{env_list, [string]}]};
         _ ->
             {error, Name}
     end.
@@ -211,7 +212,9 @@ config_val([Type | Types], Name, Val, Pos, I) ->
                 {ok, setelement(Pos, I, Val)};
             {integer, _Min, _Max} when is_list(Val) ->
                 config_val([Type], Name, list_to_integer(Val), Pos, I);
-            {list, SubTypes} when is_list(SubTypes) ->
+            {env_list, SubTypes} when is_list(SubTypes) ->
+                config_val(SubTypes, Name, Val, Pos, I);
+            {reset_list, SubTypes} when is_list(SubTypes) ->
                 config_val(SubTypes, Name, Val, Pos, I);
             io_device ->
                 {ok, setelement(Pos, I, Val)}

@@ -37,7 +37,7 @@
          internal_opts = []         :: [{atom(), term()}], % Internal opts
          user_opts = []             :: [{atom(), term()}], % Command line opts
          file_opts = []             :: [{atom(), term()}], % Script opts
-         config_opts = []             :: [{atom(), term()}], % Arch spec opts
+         config_opts = []           :: [{atom(), term()}], % Arch spec opts
          default_opts = []          :: [{atom(), term()}], % Default opts
          builtin_dict = lux_utils:builtin_dict()
                                     :: [string()], % ["name=val"]
@@ -290,13 +290,12 @@ parse_ropts([], R) ->
             _ = file:make_symlink(Base, Link),
             RelFiles = R#rstate.files,
             AbsFiles = [filename:absname(F) || F <- RelFiles],
-            UserOpts = lists:reverse(R#rstate.user_opts),
-            UserOpts2 = merge_opts([{log_dir, AbsLogDir}], UserOpts),
+            UserOpts = merge_opts([{log_dir, AbsLogDir}], R#rstate.user_opts),
             R2 = R#rstate{start_time = Now,
                           run = Run,
                           log_dir = AbsLogDir,
                           files = AbsFiles,
-                          user_opts = UserOpts2},
+                          user_opts = UserOpts},
             TagFiles = [{config_dir, R2#rstate.config_dir} |
                         [{file, F} || F <- RelFiles]],
             try
@@ -842,23 +841,57 @@ opts_dicts(#rstate{internal_opts = I,
                    default_opts = D}) ->
     [I, U, F, C, D].
 
-merge_opts([{Key, Val} | KeyVals], Acc) ->
+merge_opts(KeyVals, Acc) ->
+    merge_opts(KeyVals, Acc, []).
+
+merge_opts([{Key, Val} | KeyVals] = AllKeyVals, Acc, Updated) ->
     case lists:keyfind(Key, 1, Acc) of
-        false ->
-            %% Insert new val
-            merge_opts(KeyVals, [{Key, Val} | Acc]);
-        {_, _AccVal} when Key =/= var,
-                          Key =/= skip,
-                          Key =/= require,
-                          Key =/= shell_args ->
-            %% Replace old val
-            Acc2 = lists:keystore(Key, 1, Acc, {Key, Val}),
-            merge_opts(KeyVals, Acc2);
-        {_, AccVal} ->
-            %% Prepend new val to old val
-            Val2 = Val ++ AccVal,
+        false -> OldVal = [];
+        {_, OldVal} -> ok
+    end,
+    Updated2 = [Key | Updated],
+    case merge_oper(Key, Updated) of
+        reset ->
+            %% Multi - Clear old settings in order to override unwanted defaults
+            Stripped = [{K,V} || {K,V} <- Acc, K =/= Key],
+            merge_opts(AllKeyVals, Stripped, Updated2);
+        append ->
+            %% Multi - Append new val
+            Val2 = OldVal ++ Val,
             Acc2 = lists:keystore(Key, 1, Acc, {Key, Val2}),
-            merge_opts(KeyVals, Acc2)
-     end;
-merge_opts([], Acc) ->
-    lists:reverse(Acc).
+            merge_opts(KeyVals, Acc2, Updated2);
+        env ->
+            %% Multi - handle settings with KEY=VAL syntax
+            Val2 = merge_env_opt(Val, OldVal),
+            Acc2 = lists:keystore(Key, 1, Acc, {Key, Val2}),
+            merge_opts(KeyVals, Acc2, Updated2);
+        replace ->
+            %% Single - replace old val
+            Acc2 = lists:keystore(Key, 1, Acc, {Key, Val}),
+            merge_opts(KeyVals, Acc2, Updated2)
+    end;
+merge_opts([], Acc, _) ->
+    Acc.
+
+merge_oper(Key, Updated) ->
+    case lux_interpret:config_type(Key) of
+        {ok, _Pos, [{env_list, _}]} ->
+            env;
+        {ok, _Pos, [{reset_list, _}]} ->
+            case lists:member(Key, Updated) of
+                true  -> append;
+                false -> reset
+            end;
+        {ok, _Pos, _} ->
+            replace
+    end.
+
+merge_env_opt(Val, OldVal) ->
+    New = [list_to_tuple(string:tokens(V, "=")) || V <- lists:reverse(Val)],
+    Old = [list_to_tuple(string:tokens(V, "=")) || V <- OldVal],
+    Insert = fun(Tuple, Acc) ->
+                     SubKey = element(1, Tuple),
+                     lists:keystore(SubKey, 1, Acc, Tuple)
+             end,
+    Merged = lists:foldl(Insert, Old, New),
+    [string:join(tuple_to_list(T), "=") || T <- lists:keysort(1, Merged)].

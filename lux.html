@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.4 - 2014-05-28</p>
+<p>Version 1.4 - 2014-06-30</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -780,12 +780,13 @@ commands to add to such a file.</p>
 <h2>Miscellaneous</h2>
 
 <p><strong>--shell_cmd Cmd</strong> <br />
-<strong>--shell_arg Arg</strong>  </p>
+<strong>--shell_args Arg</strong>  </p>
 
 <p>These parameters controls which program that will be started when a
 script starts a shell. By default <strong><code>/bin/sh -i</code></strong> is started as
-<code>--shell_cmd</code> and <code>--shell_arg</code> defaults to <code>/bin/sh</code> and <code>-i</code>
-respectively.</p>
+<code>--shell_cmd</code> and <code>--shell_args</code> defaults to <code>/bin/sh</code> and <code>-i</code>
+respectively. <code>--shell_args</code> is a bit special in how this parameter
+is treated by Lux.</p>
 
 <p><strong>--shell_wrapper [Executable]</strong>  </p>
 

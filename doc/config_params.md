@@ -257,12 +257,13 @@ Miscellaneous
 -------------
 
 **--shell\_cmd Cmd**  
-**--shell\_arg Arg**  
+**--shell\_args Arg**  
 
 These parameters controls which program that will be started when a
 script starts a shell. By default **`/bin/sh -i`** is started as
-`--shell_cmd` and `--shell_arg` defaults to `/bin/sh` and `-i`
-respectively.
+`--shell_cmd` and `--shell_args` defaults to `/bin/sh` and `-i`
+respectively. `--shell_args` is a bit special in how this parameter
+is treated by Lux.
 
 **--shell\_wrapper \[Executable\]**  
 

@@ -20,20 +20,24 @@
 -include("lux.hrl").
 
 builtin_dict() ->
+    %% Alphabetic order
     [
-     "_BS_="  ++ [8],   % backspace
-     "_TAB_=" ++ [9],   % tab
+     "_BS_="  ++ [8],  % backspace
+     "_CR_="  ++ [13]  % carriage return
+    ] ++  ctrl_dict() ++
+    [
+     "_DEL_=" ++ [127], % delete
      "_LF_="  ++ [10],  % line feed
-     "_CR_="  ++ [13],  % carriage return
-     "_DEL_=" ++ [127]| % delete
-     ctrl_dict()
+     "_TAB_=" ++ [9]   % tab
     ].
 
 ctrl_dict() -> % From a-z
+    %% Alphabetic order
     ["_CTRL_" ++ [Ctrl+64] ++ "_=" ++ [Ctrl] ||  Ctrl <- lists:seq(1,26)].
 
 system_dict() ->
-    os:getenv().
+    %% Alphabetic order
+    lists:sort(os:getenv()).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Expand varibles

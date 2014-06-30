@@ -56,27 +56,29 @@ extract_config(Cmd, _RevFile, _InclStack, Acc) ->
                 false ->
                     [{Name, [Val]} | Acc];
                 {_, OldVals} ->
-                    [{Name, [Val | OldVals]} | Acc]
+                    [{Name, OldVals ++ [Val]} | Acc]
             end;
         #cmd{} ->
             Acc
     end.
 
-parse_config(I, [{Name, Vals} | T]) ->
-    Keywords = [skip, skip_unless, require, var, shell_args],
-    Val =
-        case lists:member(Name, Keywords) of
-            true  -> Vals;
-            false -> lists:last(Vals)
-        end,
-    case lux_interpret:parse_iopt(I, Name, Val) of
-        {ok, I2} ->
-            parse_config(I2, T);
-        {error, Reason} ->
-            {error, Reason}
-    end;
-parse_config(I, []) ->
-    {ok, I}.
+parse_config(I0, Config) ->
+    Fun = fun({Name, Vals}, {ok, I}) ->
+                  case lux_interpret:config_type(Name) of
+                      {ok, Pos, Types = [{env_list, _}]} ->
+                          lux_interpret:config_val(Types, Name, Vals, Pos, I);
+                      {ok, Pos, Types = [{reset_list, _}]} ->
+                          lux_interpret:config_val(Types, Name, Vals, Pos, I);
+                      {ok, Pos, Types} ->
+                          Val = lists:last(Vals),
+                          lux_interpret:config_val(Types, Name, Val, Pos, I);
+                      {error, Reason} ->
+                          {error, Reason}
+                  end;
+             (_, {error, Reason}) ->
+                  {error, Reason}
+          end,
+    lists:foldl(Fun, {ok, I0}, Config).
 
 updated_opts(I, DefaultI) ->
     Candidates =
