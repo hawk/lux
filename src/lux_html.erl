@@ -1077,7 +1077,7 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
                                     R = lux_log:parse_run_summary(HtmlFile,
                                                                   File, Res),
                                     [R | Acc];
-                                {error, _Reason} ->
+                                {error, _, _Reason} ->
                                     Acc
                             end;
                         false ->

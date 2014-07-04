@@ -63,21 +63,22 @@ extract_config(Cmd, _RevFile, _InclStack, Acc) ->
     end.
 
 parse_config(I0, Config) ->
-    Fun = fun({Name, Vals}, {ok, I}) ->
-                  case lux_interpret:config_type(Name) of
-                      {ok, Pos, Types = [{env_list, _}]} ->
-                          lux_interpret:config_val(Types, Name, Vals, Pos, I);
-                      {ok, Pos, Types = [{reset_list, _}]} ->
-                          lux_interpret:config_val(Types, Name, Vals, Pos, I);
-                      {ok, Pos, Types} ->
-                          Val = lists:last(Vals),
-                          lux_interpret:config_val(Types, Name, Val, Pos, I);
-                      {error, Reason} ->
-                          {error, Reason}
-                  end;
-             (_, {error, Reason}) ->
-                  {error, Reason}
-          end,
+    Fun =
+        fun({Name, Vals}, {ok, I}) ->
+                case lux_interpret:config_type(Name) of
+                    {ok, Pos, Types = [{env_list, _}]} ->
+                        lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
+                    {ok, Pos, Types = [{reset_list, _}]} ->
+                        lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
+                    {ok, Pos, Types} ->
+                        Val = lists:last(Vals),
+                        lux_interpret:set_config_val(Name, Val, Types, Pos, I);
+                    {error, Reason} ->
+                        {error, Reason}
+                end;
+           (_, {error, Reason}) ->
+                {error, Reason}
+        end,
     lists:foldl(Fun, {ok, I0}, Config).
 
 updated_opts(I, DefaultI) ->

@@ -20,6 +20,16 @@
 -include_lib("kernel/include/file.hrl").
 -include("lux.hrl").
 
+-define(SUMMARY_LOG_VERSION, <<"0.2">>).
+-define(EVENT_LOG_VERSION,   <<"0.1">>).
+-define(CONFIG_LOG_VERSION,  <<"0.1">>).
+-define(RESULT_LOG_VERSION,  <<"0.1">>).
+
+-define(SUMMARY_TAG, <<"summary log">>).
+-define(EVENT_TAG,   <<"event log">>).
+-define(CONFIG_TAG,  <<"config log">>).
+-define(RESULT_TAG,  <<"result log">>).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Summary log
 
@@ -52,15 +62,13 @@ open_summary_log(SummaryLog, ExtendRun) ->
         true ->
             case file:open(TmpSummaryLog, [WriteMode]) of
                 {ok, SummaryFd} ->
-                    IoList =
-                        io_lib:format("~s~s\n",
-                                      [?TAG("summary log"),
-                                       ?SUMMARY_LOG_VERSION]),
-                    safe_write(SummaryFd, IoList),
-                    IoList2 =
-                        io_lib:format("~s~s\n",
-                                      [?TAG("summary log"), SummaryLog]),
-                    safe_write(undefined, IoList2),
+                    LogIoList = io_lib:format("~s~s\n",
+                                              [?TAG(?SUMMARY_TAG),
+                                               ?SUMMARY_LOG_VERSION]),
+                    safe_write(SummaryFd, LogIoList),
+                    StdoutIoList = io_lib:format("~s~s\n",
+                                            ["summary log", SummaryLog]),
+                    safe_write(undefined, StdoutIoList),
                     {ok, Exists, SummaryFd};
                 {error, Reason} ->
                     {error, Reason}
@@ -76,17 +84,9 @@ close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
 parse_summary_log(SummaryLog) ->
-    case file:read_file(SummaryLog) of
-        {ok, <<"summary log       : ", ?SUMMARY_LOG_VERSION, "\n",
-               LogBin/binary>>} ->
+    case read_log(SummaryLog, ?SUMMARY_TAG) of
+        {ok, ?SUMMARY_LOG_VERSION, Sections} ->
             %% Latest version
-            Sections =
-                case LogBin of
-                    <<"">> ->
-                        []; % No test cases yet
-                    <<"\n", LogBin2/binary>> ->
-                        binary:split(LogBin2, <<"\n\n">>, [global])
-                end,
             LogDir = filename:dirname(SummaryLog),
             ConfigLog = filename:join([LogDir, "lux_config.log"]),
             {ok, RawConfig} = scan_config(ConfigLog),
@@ -95,20 +95,57 @@ parse_summary_log(SummaryLog) ->
             {Cases, EventLogs} = split_cases(Sections, [], []),
             {ok, FI} = file:read_file_info(SummaryLog),
             {ok, Result, [{test_group, "", Cases}], ArchConfig, FI, EventLogs};
-        {ok, LogBin} ->
-            %% 0.1
-            Sections = binary:split(LogBin, <<"\n\n">>, [global]),
-            [_AbsSummaryLog, ArchConfig | Rest] = Sections,
-            [RawResult | Rest2] = lists:reverse(Rest),
-            Result = split_result(RawResult),
-            {Groups, EventLogs} = split_groups(Rest2, [], []),
-            {ok, FI} = file:read_file_info(SummaryLog),
-            {ok, Result, Groups, ArchConfig, FI, EventLogs};
-        {error, FileReason} ->
-            {error, file:format_error(FileReason)}
+        {ok, Version, _Sections} ->
+            {error, SummaryLog,
+             "Illegal summary log version: " ++ binary_to_list(Version)};
+        {error, FileReason, _} ->
+            {error, SummaryLog, file:format_error(FileReason)}
     end.
 
-split_result(Result) ->
+read_log(Log, ExpectedTag) ->
+  case file:read_file(Log) of
+      {ok, Bin} ->
+          [Head|Sections] = binary:split(Bin, <<"\n\n">>, [global]),
+          case binary:split(Head, <<": ">>) of
+              [PaddedTag, Version] ->
+                  Tag = lux_utils:strip_trailing_whitespaces(PaddedTag),
+                  if
+                      Tag =:= ExpectedTag ->
+                          case lists:reverse(Sections) of
+                              [] ->
+                                  Sections2 = [],
+                                  [Version2|_] = % Chop potential newline
+                                      binary:split(Version, <<"\n">>);
+                              [<<>> | Rev] ->
+                                  Sections2 = lists:reverse(Rev),
+                                  Version2 = Version;
+                              _ ->
+                                  Sections2 = Sections,
+                                  Version2 = Version
+                          end,
+                          {ok, Version2, Sections2};
+                      true ->
+                          Reason =
+                              "Illegal log type: " ++
+                              binary_to_list(ExpectedTag) ++
+                              " expected",
+                          {error, Reason, Bin}
+                  end;
+              _ ->
+                  Reason =
+                      "Illegal log type: " ++
+                      binary_to_list(ExpectedTag) ++
+                      " expected",
+                  {error, Reason, Bin}
+          end;
+      {error, Reason} ->
+          {error, file:format_error(Reason), <<"">>}
+  end.
+
+write_log(File, Tag, Version, Sections) ->
+    file:write_file(File, [?TAG(Tag), Version, [["\n\n",S] || S <- Sections]]).
+
+split_result([Result]) ->
     Lines = binary:split(Result, <<"\n">>, [global]),
     [_, Summary | Rest] = lists:reverse(Lines),
     [_, Summary2] = binary:split(Summary, <<": ">>),
@@ -134,25 +171,6 @@ split_result2([Heading | Lines], Acc) ->
     split_result2(Lines2, [{section, Slogan2, Count, Files2} | Acc]);
 split_result2([], Acc) ->
     Acc. % Return in reverse order (most important first)
-
-split_groups([GroupEnd | Groups], Acc, EventLogs) ->
-    Pred = fun(Case) ->
-                   case binary:split(Case, <<": ">>) of
-                       %% BUGBUG: Kept for backwards compatibility a while
-                       [<<"test suite begin", _/binary>> |_] -> false;
-                       [<<"test group begin", _/binary>> |_] -> false;
-                       _ -> true
-                   end
-           end,
-    Split = lists:splitwith(Pred, Groups),
-    {Cases, [GroupBegin | Groups2]} = Split,
-    [_, Group] = binary:split(GroupBegin, <<": ">>),
-    [_, Group] = binary:split(GroupEnd, <<": ">>),
-    {Cases2, EventLogs2} =
-        split_cases(lists:reverse(Cases), [], EventLogs),
-    split_groups(Groups2, [{test_group, Group, Cases2} | Acc], EventLogs2);
-split_groups([], Acc, EventLogs) ->
-    {Acc, EventLogs}.
 
 split_cases([Case | Cases], Acc, EventLogs) ->
     [NameRow | Sections] = binary:split(Case, <<"\n">>, [global]),
@@ -328,27 +346,22 @@ find_config(Key, Tuples, Default) ->
 
 write_config_log(ConfigLog, ConfigData) ->
     PrettyConfig = format_config(ConfigData),
-    file:write_file(ConfigLog,
-                    [
-                     format_config([{'config log', ?CONFIG_LOG_VERSION}]),
-                     "\n",
-                     PrettyConfig
-                    ]).
+    write_log(ConfigLog, ?CONFIG_TAG, ?CONFIG_LOG_VERSION, [PrettyConfig]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Results
 
 parse_summary_result(LogDir) ->
     ResultLog = filename:join([LogDir, "lux_result.log"]),
-    case file:read_file(ResultLog) of
-        {ok, <<"result log        : ",
-               ?RESULT_LOG_VERSION,
-               "\n\n",
-               RawResult/binary>>} ->
+    case read_log(ResultLog, ?RESULT_TAG) of
+        {ok, ?RESULT_LOG_VERSION, Sections} ->
             %% Latest version
-            {ok, split_result(RawResult)};
-        {error, FileReason} ->
-            {error, ResultLog, file:format_error(FileReason)}
+            {ok, split_result(Sections)};
+        {ok, Version, _Sections} ->
+            {error, ResultLog,
+             "Illegal result log version: " ++ binary_to_list(Version)};
+        {error, Reason, _} ->
+            {error, ResultLog, Reason}
     end.
 
 write_results(SummaryLog, Summary, Results, Warnings) ->
@@ -359,7 +372,7 @@ write_results(SummaryLog, Summary, Results, Warnings) ->
         {ok, Fd} ->
             try
                 safe_format(Fd, "~s~s\n",
-                            [?TAG("result log"), ?RESULT_LOG_VERSION]),
+                            [?TAG(?RESULT_TAG), ?RESULT_LOG_VERSION]),
                 IsTmp = is_temporary(SummaryLog),
                 print_results({IsTmp, Fd}, Summary, Results, Warnings),
                 file:close(Fd),
@@ -455,7 +468,7 @@ open_event_log(LogDir, Script, Progress, LogFun, Verbose) ->
     case file:open(EventLog, [write]) of
         {ok, EventFd} ->
             safe_format(Progress, LogFun, {Verbose, EventFd},
-                        "~s~s\n", [?TAG("event log"), ?EVENT_LOG_VERSION]),
+                        "~s~s\n", [?TAG(?EVENT_TAG), ?EVENT_LOG_VERSION]),
             safe_format(Progress, LogFun, {Verbose, EventFd},
                         "\n~s\n\n", [filename:absname(Script)]),
             {ok, EventLog, EventFd};
@@ -475,20 +488,17 @@ write_event(Progress, LogFun, Fd, {event, LineNo, Shell, Op, Format, Args}) ->
     safe_write(Progress, LogFun, Fd, Data).
 
 scan_events(EventLog) ->
-    case file:read_file(EventLog) of
-        {ok, <<"event log         : ",
-               ?EVENT_LOG_VERSION,
-               "\n\n",
-               LogBin/binary>>} ->
-            scan_events_0_1(EventLog, LogBin);
-        {ok, LogBin} ->
-            scan_events_old(EventLog, LogBin);
-        {error, FileReason} ->
+    case read_log(EventLog, ?EVENT_TAG) of
+        {ok, ?EVENT_LOG_VERSION, Sections} ->
+            do_scan_events(EventLog, Sections);
+        {ok, Version, _Sections} ->
+            {error, EventLog,
+             "Illegal event log version: " ++ binary_to_list(Version)};
+        {error, FileReason, _} ->
             {error, EventLog, file:format_error(FileReason)}
     end.
 
-scan_events_0_1(EventLog, LogBin) ->
-    EventSections = binary:split(LogBin, <<"\n\n">>, [global]),
+do_scan_events(EventLog, EventSections) ->
     EventSections2 = [binary:split(S, <<"\n">>, [global]) ||
                          S <- EventSections],
     case EventSections2 of
@@ -498,36 +508,23 @@ scan_events_0_1(EventLog, LogBin) ->
     Dir = filename:dirname(EventLog),
     Base = filename:basename(EventLog, ".event.log"),
     ConfigLog = filename:join([Dir, Base ++ ".config.log"]),
-    case file:read_file(ConfigLog) of
-        {ok, <<"config log        : ",
-               ?CONFIG_LOG_VERSION,
-               "\n",
-               ConfigBin/binary>>} ->
-            ConfigSections = binary:split(ConfigBin, <<"\n\n">>, [global]),
-            ConfigSections2 = [binary:split(S, <<"\n">>, [global])
-                               || S <- ConfigSections],
-            [ConfigBins, LogBins] = ConfigSections2,
+    case scan_config(ConfigLog) of
+        {ok, [ConfigSection]} ->
+            LogBins = [],
+            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
             {ok, EventLog, ConfigLog,
              Script, EventBins, ConfigBins, LogBins, ResultBins};
+        {ok, [ConfigSection,LogSection]} ->
+            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
+            LogBins = binary:split(LogSection, <<"\n">>, [global]),
+            {ok, EventLog, ConfigLog,
+             Script, EventBins, ConfigBins, LogBins, ResultBins};
+        {ok, Version, _Sections} ->
+            {error, ConfigLog,
+             "Illegal config log version: " ++ binary_to_list(Version)};
         {error, FileReason} ->
             {error, ConfigLog, file:format_error(FileReason)}
     end.
-
-scan_events_old(EventLog, LogBin) ->
-    Sections = binary:split(LogBin, <<"\n\n">>, [global]),
-    Sections2 = [binary:split(S, <<"\n">>, [global]) ||
-                    S <- Sections],
-    case Sections2 of
-        [ScriptBins, EventBins, ConfigBins, LogBins, ResultBins] ->
-            ok;
-        [ScriptBins, EventBins, ConfigBins, [<<>>|ResultBins]] ->
-            LogBins = [];
-        [ScriptBins, [<<>>|ConfigBins], [<<>>|ResultBins]] ->
-            LogBins = [],
-            EventBins = []
-    end,
-    [Script] = ScriptBins,
-    {ok, EventLog, <<"">>, Script, EventBins, ConfigBins, LogBins, ResultBins}.
 
 parse_events([<<>>], Acc) ->
     %% Error case
@@ -595,13 +592,13 @@ split_lines(Bin) ->
     binary:split(Normalized, <<"\n">>, Opts).
 
 scan_config(ConfigLog) ->
-    case file:read_file(ConfigLog) of
-        {ok, <<"config log        : ",
-               ?CONFIG_LOG_VERSION,
-               "\n\n",
-               LogBin/binary>>} ->
-            {ok, LogBin};
-        {error, FileReason} ->
+    case read_log(ConfigLog, ?CONFIG_TAG) of
+        {ok, ?CONFIG_LOG_VERSION, Sections} ->
+            {ok, Sections};
+        {ok, Version, _Sections} ->
+            {error, ConfigLog,
+             "Illegal config log version: " ++ binary_to_list(Version)};
+        {error, FileReason, _} ->
             {error, ConfigLog, file:format_error(FileReason)}
     end.
 
@@ -665,19 +662,23 @@ unquote(Bin) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Config log
 
-open_config_log(LogDir, Script, Config) ->
+open_config_log(LogDir, Script, ConfigData) ->
     Base = filename:basename(Script),
     ConfigFile = filename:join([LogDir, Base ++ ".config.log"]),
     case filelib:ensure_dir(ConfigFile) of
         ok ->
-            case file:open(ConfigFile, [write]) of
-                {ok, ConfigFd} ->
-                    Data = format_config(Config),
-                    ok = file:write(ConfigFd, Data),
-                    ok = file:write(ConfigFd, "\n"),
-                    ConfigFd;
+            case write_config_log(ConfigFile, ConfigData) of
+                ok ->
+                    case file:open(ConfigFile, [append]) of
+                        {ok, ConfigFd} ->
+                            ConfigFd;
+                        {error, FileReason} ->
+                            ReasonStr = ConfigFile ++ ": " ++
+                                file:format_error(FileReason),
+                            erlang:error(ReasonStr)
+                    end;
                 {error, FileReason} ->
-                    ReasonStr = ConfigFile ++ ": " ++
+                    ReasonStr = LogDir ++ ": " ++
                         file:format_error(FileReason),
                     erlang:error(ReasonStr)
             end;
@@ -688,6 +689,7 @@ open_config_log(LogDir, Script, Config) ->
     end.
 
 close_config_log(ConfigFd, Logs) ->
+    ok = file:write(ConfigFd, "\n"),
     ShowLog =
         fun({Name, Stdin, Stdout}) ->
                 Data =
@@ -704,22 +706,49 @@ close_config_log(ConfigFd, Logs) ->
 
 format_config(Config) ->
     Fun =
-        fun({Tag, Type, Val}) ->
-                case Type of
-                    string ->
-                        io_lib:format("~s~s\n", [?TAG(Tag), Val]);
-                    dict ->
-                        Val2 = [lux_utils:to_string(E) || E <- Val],
-                        io_lib:format("~s~p\n", [?TAG(Tag), Val2]);
-                    term ->
-                        io_lib:format("~s~p\n", [?TAG(Tag), Val])
-                end;
-           ({Tag, Val}) when is_list(Val) ->
-                io_lib:format("~s~s\n", [?TAG(Tag), Val]);
+        fun({Tag, Types, Val}) ->
+                lists:flatten(format_config(Tag, Val, Types));
            ({Tag, Val}) ->
-                io_lib:format("~s~p\n", [?TAG(Tag), Val])
+                {ok, _Pos, Types} = lux_interpret:config_type(Tag),
+                lists:flatten(format_config(Tag, Val, Types))
         end,
     lists:map(Fun, Config).
+
+
+format_config(Tag, Val, [Type | Types]) ->
+    try try_format_config(Tag, Val, Type) of
+        [] ->
+            io_lib:format("~s\n", [?TAG(Tag)]);
+        [String] ->
+            io_lib:format("~s~s\n", [?TAG(Tag), String]);
+        [String|Strings] ->
+            [io_lib:format("~s~s\n", [?TAG(Tag), String]),
+             [[lists:duplicate(?TAG_WIDTH, ""),S,"\n"] || S <- Strings]
+            ]
+    catch
+        _Class:_Reason ->
+            format_config(Tag, Val, Types)
+    end;
+format_config(Tag, Val, []) ->
+    io_lib:format("~s~p\n", [?TAG(Tag), Val]).
+
+try_format_config(Tag, Val, Type) ->
+    case Type of
+        string when is_list(Val) ->
+            [Val];
+        binary when is_binary(Val) ->
+            [binary_to_list(Val)];
+        {atom, _Atoms} when is_atom(Val) ->
+            [atom_to_list(Val)];
+        {integer, _Min, _Max} when is_integer(Val) ->
+            [integer_to_list(Val)];
+        {integer, _Min, _Max} when Val =:= infinity ->
+            [atom_to_list(Val)];
+        {env_list, SubTypes} ->
+            [try_format_config(Tag, V, SubTypes) || V <- Val];
+        {reset_list, SubTypes} when is_list(SubTypes) ->
+            [try_format_config(Tag, V, SubTypes) || V <- Val]
+    end.
 
 safe_format(Fd, Format, Args) ->
     IoList = io_lib:format(Format, Args),

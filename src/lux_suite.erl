@@ -99,14 +99,14 @@ do_run(R, SummaryLog) ->
                             case lux_log:parse_summary_log(TmpLog) of
                                 {ok, _, Groups, _, _, _} ->
                                     initial_results(Groups);
-                                {error, _} ->
+                                {error, _, _} ->
                                     []
                             end;
                         false ->
                             LogDir = filename:dirname(SummaryLog),
                             ConfigLog = filename:join([LogDir,
                                                        "lux_config.log"]),
-                            lux_log:write_config_log(ConfigLog, ConfigData),
+                            ok = lux_log:write_config_log(ConfigLog,ConfigData),
                             lux_log:write_results(SummaryLog, skip, [], []),
                             %% Generate initial html log
                             if
@@ -636,23 +636,23 @@ parse_config(R) ->
                    config_opts = ConfigOpts},
     ConfigData =
         builtins(R, ActualConfigName) ++
-        [{'default file', DefaultFile}] ++ DefaultOpts ++
-        [{'config file', ConfigFile}] ++ ConfigOpts,
+        [{'default file', [string], DefaultFile}] ++ DefaultOpts ++
+        [{'config file', [string], ConfigFile}] ++ ConfigOpts,
     {ConfigData, R3}.
 
 builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
     [
-     {'start time', lux_utils:now_to_string(R#rstate.start_time)},
-     {hostname, hostname()},
-     {architecture, ActualConfigName},
-     {'system info', sys_info()},
-     {suite, R#rstate.suite},
-     {run, R#rstate.run},
-     {revision, R#rstate.revision},
-     {workdir, Cwd},
-     {'config name', R#rstate.config_name},
-     {config_dir, R#rstate.config_dir}
+     {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
+     {hostname, [string], hostname()},
+     {architecture, [string], ActualConfigName},
+     {'system info', [string], sys_info()},
+     {suite, [string], R#rstate.suite},
+     {run, [string], R#rstate.run},
+     {revision, [string], R#rstate.revision},
+     {workdir, [string], Cwd},
+     {'config name', [string], R#rstate.config_name},
+     {config_dir, [string], R#rstate.config_dir}
     ].
 
 config_name() ->

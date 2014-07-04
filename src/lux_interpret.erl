@@ -13,7 +13,7 @@
          default_istate/1,
          parse_iopts/2,
          config_type/1,
-         config_val/5
+         set_config_val/5
         ]).
 -export([opt_dispatch_cmd/1,
          flush_logs/1]).
@@ -83,11 +83,11 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd) ->
     after
         process_flag(trap_exit, Flag),
         lux_log:close_event_log(EventFd),
-        lux_log:close_config_log(ConfigFd, OldI#istate.logs)
+        file:write(ConfigFd, "\n"), file:close(ConfigFd) % Don't care of failure
     end.
 
 internal_error(I, ReasonTerm) ->
-    ReasonBin = list_to_binary(io_lib:format("Internal error: ~p",
+    ReasonBin = list_to_binary(io_lib:format("Internal error: ~p\n",
                                              [ReasonTerm])),
     fatal_error(I, ReasonBin).
 
@@ -120,7 +120,7 @@ parse_iopts(I, []) ->
 parse_iopt(I, Name, Val) when is_atom(Name) ->
     case config_type(Name) of
         {ok, Pos, Types} ->
-            config_val(Types, Name, Val, Pos, I);
+            set_config_val(Name, Val, Types, Pos, I);
         {error, Reason} ->
             {error, Reason}
     end.
@@ -176,10 +176,10 @@ config_type(Name) ->
         var ->
             {ok, #istate.dict, [{env_list, [string]}]};
         _ ->
-            {error, Name}
+            {error, lists:concat(["Bad argument: ", Name])}
     end.
 
-config_val([Type | Types], Name, Val, Pos, I) ->
+set_config_val(Name, Val, [Type | Types], Pos, I) ->
     try
         case Type of
             string when is_list(Val) ->
@@ -190,12 +190,12 @@ config_val([Type | Types], Name, Val, Pos, I) ->
                 {ok, setelement(Pos, I, Val2)};
             binary when is_list(Val) ->
                 Val2 = expand_vars(I, Val, error),
-                config_val([Type], Name, list_to_binary(Val2), Pos, I);
+                set_config_val(Name, list_to_binary(Val2), [Type], Pos, I);
             {atom, Atoms} when is_atom(Val) ->
                 true = lists:member(Val, Atoms),
                 {ok, setelement(Pos, I, Val)};
             {atom, _Atoms} when is_list(Val) ->
-                config_val([Type], Name, list_to_atom(Val), Pos, I);
+                set_config_val(Name, list_to_atom(Val), [Type], Pos, I);
             {function, Arity} when is_function(Val, Arity) ->
                 {ok, setelement(Pos, I, Val)};
             {integer, infinity, infinity} when is_integer(Val) ->
@@ -211,11 +211,11 @@ config_val([Type | Types], Name, Val, Pos, I) ->
                    Val >= Min, Val =< Max ->
                 {ok, setelement(Pos, I, Val)};
             {integer, _Min, _Max} when is_list(Val) ->
-                config_val([Type], Name, list_to_integer(Val), Pos, I);
+                set_config_val(Name, list_to_integer(Val), [Type], Pos, I);
             {env_list, SubTypes} when is_list(SubTypes) ->
-                config_val(SubTypes, Name, Val, Pos, I);
+                set_config_val(Name, Val, SubTypes, Pos, I);
             {reset_list, SubTypes} when is_list(SubTypes) ->
-                config_val(SubTypes, Name, Val, Pos, I);
+                set_config_val(Name, Val, SubTypes, Pos, I);
             io_device ->
                 {ok, setelement(Pos, I, Val)}
         end
@@ -224,9 +224,9 @@ config_val([Type | Types], Name, Val, Pos, I) ->
             {error, lists:concat(["Bad argument: ", Name, "=", Val,
                                   "; $", BadName, " is not set"])};
         _:_ ->
-            config_val(Types, Name, Val, Pos, I)
+            set_config_val(Name, Val, Types, Pos, I)
     end;
-config_val([], Name, Val, _Pos, _I) ->
+set_config_val(Name, Val, [], _Pos, _I) ->
     {error, lists:concat(["Bad argument: ", Name, "=", Val])}.
 
 expand_vars(#istate{macro_dict   = MacroDict,
@@ -306,8 +306,9 @@ print_fail(I, File, Results,
                    actual     = Actual,
                    rest       = Rest}) ->
     FullLineNo = full_lineno(I, LineNo, InclStack),
-    double_ilog(I, "~sFAIL at ~s:~s\n",
-                [?TAG("result"), File, FullLineNo]),
+    ResStr = double_ilog(I, "~sFAIL at ~s:~s\n",
+                         [?TAG("result"), File, FullLineNo]),
+    io:format("~s", [ResStr]),
     io:format("expected\n\t~s\n",
               [simple_to_string(Expected)]),
     double_ilog(I, "expected\n\"~s\"\n",
@@ -383,28 +384,27 @@ simple_to_string([]) ->
 
 config_data(I) ->
     [
-     {'config log',    string, ?CONFIG_LOG_VERSION},
-     {script,          string, I#istate.file},
-     {debug,           term,   I#istate.debug},
-     {debug_file,      term,   I#istate.debug_file},
-     {progress,        term,   I#istate.progress},
-     {skip,            term,   I#istate.skip},
-     {skip_unless,     term,   I#istate.skip_unless},
-     {require,         term,   I#istate.require},
-     {log_dir,         string, I#istate.log_dir},
-     {multiplier,      term,   I#istate.multiplier},
-     {suite_timeout,   term,   I#istate.suite_timeout},
-     {case_timeout,    term,   I#istate.case_timeout},
-     {flush_timeout,   term,   I#istate.flush_timeout},
-     {poll_timeout,    term,   I#istate.poll_timeout},
-     {timeout,         term,   I#istate.timeout},
-     {cleanup_timeout, term,   I#istate.cleanup_timeout},
-     {shell_wrapper,   term,   I#istate.shell_wrapper},
-     {shell_cmd,       term,   I#istate.shell_cmd},
-     {shell_args,      term,   I#istate.shell_args},
-     {var,             dict,   I#istate.dict},
-     {builtin,         dict,   I#istate.builtin_dict},
-     {system_env,      dict,   I#istate.system_dict}
+     {script,          [string],               I#istate.file},
+     {debug,                                   I#istate.debug},
+     {debug_file,                              I#istate.debug_file},
+     {skip,                                    I#istate.skip},
+     {skip_unless,                             I#istate.skip_unless},
+     {require,                                 I#istate.require},
+     {progress,                                I#istate.progress},
+     {log_dir,                                 I#istate.log_dir},
+     {multiplier,                              I#istate.multiplier},
+     {suite_timeout,                           I#istate.suite_timeout},
+     {case_timeout,                            I#istate.case_timeout},
+     {flush_timeout,                           I#istate.flush_timeout},
+     {poll_timeout,                            I#istate.poll_timeout},
+     {timeout,                                 I#istate.timeout},
+     {cleanup_timeout,                         I#istate.cleanup_timeout},
+     {shell_wrapper,                           I#istate.shell_wrapper},
+     {shell_cmd,                               I#istate.shell_cmd},
+     {shell_args,                              I#istate.shell_args},
+     {var,                                     I#istate.dict},
+     {builtin,         [{env_list, [string]}], I#istate.builtin_dict},
+     {system_env,      [{env_list, [string]}], I#istate.system_dict}
     ].
 
 interpret_init(I) ->

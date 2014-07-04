@@ -8,13 +8,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Defines
 
--define(EVENT_LOG_VERSION, "0.1").
--define(CONFIG_LOG_VERSION, "0.1").
--define(SUMMARY_LOG_VERSION, "0.2").
--define(RESULT_LOG_VERSION, "0.1").
 -define(stack(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
 -define(APPLICATION, lux).
--define(TAG(Tag), lux_utils:tag_prefix(Tag)).
+-define(TAG_WIDTH, 20).
+-define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
 
 -record(cmd,
         {lineno :: non_neg_integer(),

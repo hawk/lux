@@ -11,7 +11,7 @@
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
-         to_string/1, tag_prefix/1,
+         to_string/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
@@ -238,10 +238,12 @@ progress_write(Progress, String) ->
         verbose -> ok
     end.
 
-tag_prefix(Tag) when is_atom(Tag) ->
-    tag_prefix(atom_to_list(Tag));
-tag_prefix(Tag) ->
-    string:left(Tag, 18) ++ ": ".
+tag_prefix(Tag, Width) when is_atom(Tag) ->
+    tag_prefix(atom_to_list(Tag), Width);
+tag_prefix(Tag, Width) when is_binary(Tag) ->
+    tag_prefix(binary_to_list(Tag), Width);
+tag_prefix(Tag, Width) ->
+    string:left(Tag, Width-2) ++ ": ".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Fold files - same as filelib:fold_files/5 but it does not follow symlinks
