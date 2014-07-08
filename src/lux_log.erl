@@ -714,25 +714,49 @@ format_config(Config) ->
         end,
     lists:map(Fun, Config).
 
-
-format_config(Tag, Val, [Type | Types]) ->
-    try try_format_config(Tag, Val, Type) of
+format_config(Tag, Val, Types) ->
+    if
+        Tag =:= builtin ->
+            ok;
+        Tag =:= system_env ->
+            ok;
+        true ->
+            ok
+    end,
+    case format_val_choice(Tag, Val, Types) of
         [] ->
             io_lib:format("~s\n", [?TAG(Tag)]);
         [String] ->
-            io_lib:format("~s~s\n", [?TAG(Tag), String]);
+            io_lib:format("~s~s\n", [?TAG(Tag), to_printable(String)]);
         [String|Strings] ->
-            [io_lib:format("~s~s\n", [?TAG(Tag), String]),
-             [[lists:duplicate(?TAG_WIDTH, ""),S,"\n"] || S <- Strings]
+            [io_lib:format("~s~s\n", [?TAG(Tag), to_printable(String)]),
+             [[lists:duplicate(?TAG_WIDTH, $\ ),to_printable(S),"\n"] ||
+                 S <- Strings]
             ]
+    end.
+
+to_printable(Chars) ->
+    Fun = fun(Char) ->
+                  case Char >= $\ andalso io_lib:printable_list([Char]) of
+                      true  -> Char;
+                      false -> [$\\, string:right(integer_to_list(Char),3, $0)]
+                  end
+          end,
+    lists:flatten(lists:map(Fun, Chars)).
+
+format_val_choice(Tag, Val, [Type | Types]) ->
+    try
+        try_format_val(Tag, Val, Type)
     catch
         _Class:_Reason ->
-            format_config(Tag, Val, Types)
+            format_val_choice(Tag, Val, Types)
     end;
-format_config(Tag, Val, []) ->
+format_val_choice(Tag, Val, []) ->
     io_lib:format("~s~p\n", [?TAG(Tag), Val]).
 
-try_format_config(Tag, Val, Type) ->
+try_format_val(_Tag, Val = undefined, _Type) ->
+    [atom_to_list(Val)];
+try_format_val(Tag, Val, Type) ->
     case Type of
         string when is_list(Val) ->
             [Val];
@@ -745,9 +769,9 @@ try_format_config(Tag, Val, Type) ->
         {integer, _Min, _Max} when Val =:= infinity ->
             [atom_to_list(Val)];
         {env_list, SubTypes} ->
-            [try_format_config(Tag, V, SubTypes) || V <- Val];
+            [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];
         {reset_list, SubTypes} when is_list(SubTypes) ->
-            [try_format_config(Tag, V, SubTypes) || V <- Val]
+            [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val]
     end.
 
 safe_format(Fd, Format, Args) ->
