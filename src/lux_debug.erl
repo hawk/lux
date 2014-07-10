@@ -103,11 +103,11 @@ do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
                     %% io:format("Eval: ~s ~p\n", [_Name, Args2]),
                     Fun(I, Args2, CmdState);
                 {error, ReasonStr} ->
-                    io:format("\nERROR: ~s: ~s", [CmdName, ReasonStr]),
+                    io:format("\nERROR: ~s: ~s\n", [CmdName, ReasonStr]),
                     {CmdState, I}
             end;
-                {error, ReasonStr} ->
-            io:format("\nERROR: ~s", [ReasonStr]),
+        {error, ReasonStr} ->
+            io:format("\nERROR: ~s\n", [ReasonStr]),
             {CmdState, I}
     end;
 do_eval_cmd(I, Cmd, CmdState) when is_function(Cmd, 2) ->
@@ -321,7 +321,7 @@ cmds() ->
                 "Each one is preceeded by its index number and optionally a\n"
                 "star. Star means that the log has been updated since the\n"
                 "previous status check. Use the index to display a particular\n"
-                "log. Such as \"t 2\" for the event log. Press enter to\n"
+                "log. Such as \"t 5\" for the event log. Press enter to\n"
                 "display more lines. n_lines can be used to override that\n"
                 "behavior andonly display a fixed number of lines regardless\n"
                 "of the command is repeated or not.",
@@ -746,7 +746,7 @@ cmd_help(I, [{_, CmdName}], CmdState) ->
             io:format("\n~s\n", [Pretty]),
             {CmdState, I};
         {error, ReasonStr} ->
-            io:format("\nERROR: ~s", [ReasonStr]),
+            io:format("\nERROR: ~s\n", [ReasonStr]),
             {CmdState, I}
     end.
 
@@ -846,9 +846,9 @@ cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
             end,
     {Status2, _} = lists:mapfoldl(Print, 1, Logs),
     io:format("\n", []),
-    TailOpts = [{"index", 2}, {"format", "compact"}, {"n_lines", 10}],
-    _ = cmd_tail(I, TailOpts, CmdState),
-    {undefined, I#istate{tail_status=Status2}};
+    TailOpts = [{"index", 5}, {"format", "compact"}, {"n_lines", 10}],
+    {CmdState2, I2} = cmd_tail(I, TailOpts, CmdState),
+    {CmdState2, I2#istate{tail_status=Status2}};
 cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
     case Rest of
         [{"format", Format} | Rest2] ->
@@ -893,12 +893,12 @@ tail(#istate{log_dir=LogDir} = I, AbsFile, CmdState, Format, UserN) ->
             Max = length(AllRows),
             N =
                 case CmdState of
-                    _ when is_integer(UserN) ->
-                        %% User specified N
-                        UserN;
                     {debug_tail, AbsFile, PrevMin} ->
                         %% Add 10
                         PrevMin + 10;
+                    _ when is_integer(UserN) ->
+                        %% User specified N
+                        UserN;
                     _ ->
                         %% Last 10
                         10
