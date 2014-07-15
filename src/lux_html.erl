@@ -219,14 +219,13 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
             {ok, EventLog2, ConfigLog,
              Script, RawEvents, RawConfig, RawLogs, RawResult} ->
                 Events = lux_log:parse_events(RawEvents, []),
-                Config = lux_log:parse_config(RawConfig),
                 Logs = lux_log:parse_io_logs(RawLogs, []),
                 Result = lux_log:parse_result(RawResult),
                 {Annotated, Files} =
                     interleave_code(A, Events, Script, 1, 999999, [], []),
                 Html = html_events(A, EventLog2, ConfigLog, Script, Result,
                                    lists:reverse(Files),
-                                   Logs, Annotated, Config),
+                                   Logs, Annotated, RawConfig),
                 {ok, Html};
             {error, _File, _ReasonStr} = Error ->
                 Error
@@ -330,7 +329,7 @@ pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _InclStack) ->
 %% Return event log as HTML
 
 html_events(A, EventLog, ConfigLog, Script, Result, Files,
-            Logs, Annotated, Config) ->
+            Logs, Annotated, RawConfig) ->
     Dir = filename:basename(filename:dirname(EventLog)),
     [
      html_header(["Lux event log (", Dir, ")"]),
@@ -350,7 +349,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      "<div class=code><pre><a name=\"cleanup\"></a></pre></div>\n",
 
      html_anchor("h2", "", "config", "Script configuration:"),
-     html_config(Config),
+     html_config(RawConfig),
      html_footer()
     ].
 
@@ -493,8 +492,10 @@ opt_tag(Tag, Text) ->
 tag(Tag, Text) ->
     ["<", Tag, ">", Text, "</", Tag, ">"].
 
-html_config(Config) ->
-    html_div(<<"annotate">>, expand_lines(Config)).
+html_config(Config) when is_list(Config) ->
+    html_div(<<"annotate">>, expand_lines(Config));
+html_config(Config) when is_binary(Config) ->
+    html_div(<<"annotate">>, Config).
 
 html_logs(A, [{log, Shell, Stdin, Stdout} | Logs]) ->
     [

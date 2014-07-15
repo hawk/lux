@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.4 - 2014-06-30
+Version 1.4 - 2014-07-15
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -950,7 +950,7 @@ With no argument, the names of the log files will be listed.
 Each one is preceeded by its index number and optionally a
 star. Star means that the log has been updated since the
 previous status check. Use the index to display a particular
-log. Such as "t 2" for the event log. Press enter to
+log. Such as "t 5" for the event log. Press enter to
 display more lines. n_lines can be used to override that
 behavior andonly display a fixed number of lines regardless
 of the command is repeated or not.

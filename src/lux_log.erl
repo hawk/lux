@@ -13,7 +13,7 @@
          write_results/4, print_results/4, parse_result/1,
          safe_format/3, safe_write/2, double_write/2,
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
-         parse_events/2, parse_config/1, parse_io_logs/2,
+         parse_events/2, parse_io_logs/2,
          open_config_log/3, close_config_log/2,
          safe_format/5, safe_write/4]).
 
@@ -602,9 +602,10 @@ scan_config(ConfigLog) ->
             {error, ConfigLog, file:format_error(FileReason)}
     end.
 
-parse_config(RawConfig) ->
-    %% io:format("Config: ~p\n", [RawConfig]),
-    RawConfig.
+parse_config([ConfigSection|_]) when is_binary(ConfigSection) ->
+    ConfigSection;
+parse_config(ConfigSection) when is_binary(ConfigSection) ->
+    ConfigSection.
 
 parse_io_logs([StdinLog, StdoutLog | Logs], Acc) ->
     [_, Shell, Stdin] = binary:split(StdinLog, <<": ">>, [global]),
