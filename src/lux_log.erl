@@ -179,18 +179,7 @@ split_cases([Case | Cases], Acc, EventLogs) ->
         [] ->
             Res = {result_case, Name, <<"ERROR">>, <<"unknown">>},
             split_cases(Cases, [Res | Acc], EventLogs);
-        [Reason] ->
-            Res =
-                case binary:split(Reason,    <<": ">>) of
-                    [<<"result", _/binary>>, Reason2] ->
-                        {result_case, Name, Reason2, Reason};
-                    [<<"error", _/binary>>, Reason2] ->
-                        {result_case, Name, <<"ERROR">>, Reason2};
-                    [<<>>] ->
-                        {result_case, Name, <<"ERROR">>, <<"unknown">>}
-                end,
-            split_cases(Cases, [Res | Acc], EventLogs);
-        [ScriptRow, LogRow | DocAndResult] ->
+        [ScriptRow, LogRow | DocAndResult] when LogRow =/= <<>> ->
             case {binary:split(LogRow,  <<": ">>), ScriptRow} of
                 {[<<"event log", _/binary>>, RawEventLog], _} ->
                     {Doc, ResultCase} = split_doc(DocAndResult, []),
@@ -203,7 +192,18 @@ split_cases([Case | Cases], Acc, EventLogs) ->
                     Result = parse_result([R]),
                     Res = {test_case, Name, "", [], "", Result},
                     split_cases(Cases, [Res | Acc], EventLogs)
-            end
+            end;
+        [Reason|_] ->
+            Res =
+                case binary:split(Reason, <<": ">>) of
+                    [<<"result", _/binary>>, Reason2] ->
+                        {result_case, Name, Reason2, Reason};
+                    [<<"error", _/binary>>, Reason2] ->
+                        {result_case, Name, <<"ERROR">>, Reason2};
+                    [<<>>] ->
+                        {result_case, Name, <<"ERROR">>, <<"unknown">>}
+                end,
+            split_cases(Cases, [Res | Acc], EventLogs)
     end;
 split_cases([], Acc, EventLogs) ->
     {lists:reverse(Acc), EventLogs}.
