@@ -1,0 +1,8 @@
+[doc Demonstrate a skipped test]
+
+[doc2 Show examples of config settings]
+
+[config skip=HOME]
+
+[shell foo]
+    ?bar

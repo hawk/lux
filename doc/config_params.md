@@ -130,6 +130,12 @@ values are as follows:
 The logs can be converted to HTML manually by using the command line
 option `--annotate`.
 
+**--tap LogFile**  
+A file where [TAP][TAP] events should be written. The file names
+`stdout` and `stdin` are specially handled. They causes the log events
+to be written to standard output respective standard error. Multiple
+"files" can be given.
+
 Timeouts
 --------
 

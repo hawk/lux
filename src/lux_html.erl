@@ -95,12 +95,23 @@ html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
     RelSummaryLog = drop_prefix(A, SummaryLog),
     RelResultLog = drop_prefix(A, "lux_result.log"),
     RelConfigLog = drop_prefix(A, "lux_config.log"),
+    RelTapLog = drop_prefix(A, "lux.tap"),
     IsTmp = lux_log:is_temporary(SummaryLog),
+    LogFun =
+        fun(L, S) ->
+                ["    <td><strong>", html_href("", L, S), "</strong></td>\n"]
+        end,
     [
      html_header(["Lux summary log (", Dir, ")"]),
-     html_href("h2", "Raw summary log: ", "", RelSummaryLog, RelSummaryLog),
-     html_href("h2", "Raw result log: ", "", RelResultLog, RelResultLog),
-     html_href("h2", "Raw config log: ", "", RelConfigLog, RelConfigLog),
+     "<table border=1>\n",
+     "  <tr>\n",
+     "    <td><strong>Raw log files:</strong></td>",
+     LogFun(RelSummaryLog, "Summary"),
+     LogFun(RelResultLog, "Result"),
+     LogFun(RelConfigLog, "Config"),
+     LogFun(RelTapLog, "TAP"),
+     "  </tr>\n",
+     "</table>\n\n",
      html_href("h3", "", "", "#suite_config", "Suite configuration"),
      html_summary_result(A, Result, Groups, IsTmp),
      html_groups2(A, Groups),

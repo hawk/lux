@@ -10,7 +10,7 @@
 -export([is_temporary/1, parse_summary_log/1, parse_run_summary/3,
          open_summary_log/2, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2,
-         write_results/4, print_results/4, parse_result/1,
+         write_results/4, print_results/4, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/2,
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
          parse_events/2, parse_io_logs/2,
@@ -196,7 +196,7 @@ split_cases([Case | Cases], Acc, EventLogs) ->
         [Reason|_] ->
             Res =
                 case binary:split(Reason, <<": ">>) of
-                    [<<"result", _/binary>>, Reason2] ->
+                    [<<"result", _/binary>>, Reason2] when Reason2 =/= <<>> ->
                         {result_case, Name, Reason2, Reason};
                     [<<"error", _/binary>>, Reason2] ->
                         {result_case, Name, <<"ERROR">>, Reason2};
@@ -391,8 +391,7 @@ write_results(SummaryLog, Summary, Results, Warnings) ->
 print_results(Fd, Summary, Results, Warnings) ->
     %% Display most important results last
     result_format(Fd, "\n", []),
-    SuccessScripts =
-        [Script || {ok, Script, success, _FullLineNo, _Events} <- Results],
+    SuccessScripts = pick_result(Results, success),
     result_format(Fd, "~s~p\n",
                   [?TAG("successful"),
                    length(SuccessScripts)]),
@@ -406,8 +405,7 @@ print_results(Fd, Summary, Results, Warnings) ->
                        Char <- atom_to_list(Summary)]]).
 
 print_skip(Fd, Results) ->
-    case [{Script, FullLineNo} ||
-             {ok, Script, skip, FullLineNo, _Events} <- Results] of
+    case pick_result(Results, skip) of
         [] ->
             ok;
         SkipScripts ->
@@ -418,8 +416,7 @@ print_skip(Fd, Results) ->
 
 
 print_warning(Fd, Warnings) ->
-    case [{Script, FullLineNo} ||
-             {warning, Script, FullLineNo, _String} <- Warnings] of
+    case pick_result(Warnings, warning) of
         [] ->
             ok;
         WarnScripts ->
@@ -429,8 +426,7 @@ print_warning(Fd, Warnings) ->
     end.
 
 print_fail(Fd, Results) ->
-    case [{Script, FullLineNo} ||
-             {ok, Script, fail, FullLineNo, _Events} <- Results] of
+    case pick_result(Results, fail) of
         [] ->
             ok;
         FailScripts ->
@@ -440,8 +436,7 @@ print_fail(Fd, Results) ->
     end.
 
 print_error(Fd, Results) ->
-    case [{Script, FullLineNo} ||
-             {error, Script, FullLineNo, _String} <- Results] of
+    case pick_result(Results, error) of
         [] ->
             ok;
         ErrorScripts ->
@@ -450,6 +445,17 @@ print_error(Fd, Results) ->
             [result_format(Fd, "\t~s:~s\n", [F, L]) ||
                 {F, L} <- ErrorScripts]
     end.
+
+pick_result(Results, Outcome) when Outcome =:= error ->
+    [{Script, FullLineNo} ||
+        {error, Script, FullLineNo, _String} <- Results];
+pick_result(Warnings, Outcome) when Outcome =:= warning ->
+    [{Script, FullLineNo} ||
+        {warning, Script, FullLineNo, _String} <- Warnings];
+pick_result(Results, Outcome) ->
+    [{Script, FullLineNo} ||
+        {ok, Script, O, FullLineNo, _Events} <- Results,
+        O =:= Outcome].
 
 result_format({IsTmp, Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),

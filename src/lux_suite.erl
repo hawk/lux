@@ -12,6 +12,8 @@
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
 
+-define(FF(Format, Args), lists:flatten(io_lib:format(Format, Args))).
+
 -record(rstate,
         {files                      :: [string()],
          mode = execute             :: list | doc | validate | execute | doc,
@@ -42,21 +44,24 @@
          builtin_dict = lux_utils:builtin_dict()
                                     :: [string()], % ["name=val"]
          system_dict = lux_utils:system_dict()
-                                    :: [string()] % ["name=val"]
+                                    :: [string()], % ["name=val"]
+         tap_opts = []              :: [string()],
+         tap                        :: term() % #tap{}
         }).
 
-run([], _Opts) ->
-    FileErr = lux_log:safe_format(undefined,
-                                  "ERROR: Mandatory script files are missing\n",
-                                  []),
-    {error, "", FileErr};
 run(Files, Opts) when is_list(Files) ->
     case parse_ropts(Opts, #rstate{files = Files}) of
+        {ok, _R} when Files =:= [] ->
+            FileErr = lux_log:safe_format(undefined,
+                                          "ERROR: Mandatory script files "
+                                          "are missing\n",
+                                          []),
+            {error, "", FileErr};
         {ok, R} when R#rstate.mode =:= list; R#rstate.mode =:= doc ->
             R2 = R#rstate{log_fd = undefined, summary_log = undefined},
             {_ConfigData, R3} = parse_config(R2),
             {R4, Summary, Results} =
-                run_suites(R3, R3#rstate.files, success, []),
+                run_suite(R3, R3#rstate.files, success, []),
             write_results(R4, Summary, Results);
         {ok, R} ->
             LogDir = R#rstate.log_dir,
@@ -80,6 +85,43 @@ run(Files, Opts) when is_list(Files) ->
             {error, hd(Files), ArgErr};
         {error, File, ArgErr} ->
             {error, File, ArgErr}
+    end.
+
+run_suite(R0, SuiteFiles, Summary, Results) ->
+    Scripts = expand_suite(R0,  SuiteFiles, []),
+    {ok, R} = tap_suite_begin(R0, Scripts, ""),
+    try
+        Res = {NewR, NewSummary, NewResults} =
+            run_cases(R, Scripts, Summary, Results, 1),
+        tap_suite_end(NewR, NewSummary, NewResults),
+        Res
+    catch Class:Reason ->
+            lux_tap:bail_out(R#rstate.tap, "Internal error"),
+            erlang:raise(Class, Reason, erlang:get_stacktrace())
+    end.
+
+expand_suite(R, [SuiteFile | SuiteFiles], Acc) ->
+    case list_files(R, SuiteFile) of
+        {ok, CaseFiles} ->
+            Expanded = [{SuiteFile, {ok, CF}} || CF <- CaseFiles],
+            expand_suite(R, SuiteFiles, [Expanded | Acc]);
+        {error, Reason} ->
+            expand_suite(R, SuiteFiles, [{SuiteFile, {error, Reason}} | Acc])
+    end;
+expand_suite(_R, [], Acc) ->
+    lists:append(lists:reverse(Acc)).
+
+list_files(R, File) ->
+    case file:read_file_info(File) of
+        {ok, #file_info{type = directory}} ->
+            Fun = fun(F, Acc) -> [F | Acc] end,
+            RegExp = R#rstate.file_pattern,
+            Files = lux_utils:fold_files(File, RegExp, true, Fun, []),
+            {ok, lists:sort(Files)};
+        {ok, _} ->
+            {ok, [File]};
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 do_run(R, SummaryLog) ->
@@ -119,7 +161,7 @@ do_run(R, SummaryLog) ->
                             []
                     end,
                 {R5, Summary, Results} =
-                    run_suites(R3, R3#rstate.files, InitialSummary, InitialRes),
+                    run_suite(R3, R3#rstate.files, InitialSummary, InitialRes),
                 print_results(R5, Summary, Results),
                 _ = write_results(R5, Summary, Results),
                 lux_log:close_summary_log(SummaryFd, SummaryLog),
@@ -189,32 +231,6 @@ initial_results(Groups) ->
         {test_group, _Group, Cases} <- Groups,
         {test_case, Script, _Log, _Doc, _HtmlLog, Res} <- Cases].
 
-run_suites(R, [SuiteFile | SuiteFiles], Summary, Results) ->
-    Mode = R#rstate.mode,
-    case list_files(R, SuiteFile) of
-        {ok, CaseFiles} when Mode =:= list; Mode =:= doc ->
-            %% [io:format("~s\n", [C]) || C <- CaseFiles],
-            {R2, Summary2, Results2} =
-                run_cases(Mode, R, SuiteFile, CaseFiles, Summary, Results),
-            run_suites(R2, SuiteFiles, Summary2, Results2);
-        {ok, CaseFiles} ->
-            {R2, Summary2, Results2} =
-                run_cases(Mode, R, SuiteFile, CaseFiles, Summary, Results),
-            run_suites(R2, SuiteFiles, Summary2, Results2);
-        {error, _Reason} when Mode =:= list ->
-            run_suites(R, SuiteFiles, Summary, Results);
-        {error, Reason} ->
-            double_rlog(R, "\n~s~s\n",
-                        [?TAG("test case"), SuiteFile]),
-            ListErr = double_rlog(R, "~s~s: ~s\n",
-                                  [?TAG("error"),
-                                   SuiteFile, file:format_error(Reason)]),
-            Results2 = [{error, SuiteFile, ListErr} | Results],
-            run_suites(R, SuiteFiles, error, Results2)
-    end;
-run_suites(R, [], Summary, Results) ->
-    {R, Summary, lists:reverse(Results)}.
-
 parse_ropts([{Name, Val} = NameVal | T], R) ->
     case Name of
         %% suite options
@@ -242,6 +258,9 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
                   Val =:= fail; Val =:= error;
                   Val =:= disable ->
             parse_ropts(T, R#rstate{html = Val});
+
+        tap when Val =:= stdout; Val =:= stderr; is_list(Val) ->
+            parse_ropts(T, R#rstate{tap_opts = [Val|R#rstate.tap_opts]});
 
         %% case options
         _ ->
@@ -351,29 +370,39 @@ r2(Int) when is_integer(Int) ->
 r2(String) when is_list(String) ->
     string:right(String, 2, $0).
 
-list_files(R, File) ->
-    case file:read_file_info(File) of
-        {ok, #file_info{type = directory}} ->
-            Fun = fun(F, Acc) -> [F | Acc] end,
-            RegExp = R#rstate.file_pattern,
-            Files = lux_utils:fold_files(File, RegExp, true, Fun, []),
-            {ok, lists:sort(Files)};
-        {ok, _} ->
-            {ok, [File]};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
-run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
+run_cases(R, [{_SuiteFile,{error,_Reason}}|Scripts], OldSummary, Results, CC)
+  when R#rstate.mode =:= list ->
+    run_cases(R, Scripts, OldSummary, Results, CC+1);
+run_cases(R, [{SuiteFile, {error,Reason}}|Scripts], OldSummary, Results, CC) ->
+    double_rlog(R, "\n~s~s\n", [?TAG("test case"), SuiteFile]),
+    ListErr =
+        double_rlog(R, "~s~s: ~s\n",
+                    [?TAG("error"), SuiteFile, file:format_error(Reason)]),
+    Results2 = [{error, SuiteFile, ListErr} | Results],
+    tap_case_begin(R, SuiteFile),
+    tap_case_end(R, CC, SuiteFile, error, "0", Reason),
+    run_cases(R, Scripts, OldSummary, Results2, CC+1);
+run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
+    Mode = R#rstate.mode,
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
         {ok, R2, Script2, Commands, Opts} ->
+            SkipNames0 = list_matching_variables(R2, skip, false),
+            SkipUnlessNames0 = list_matching_variables(R2, skip_unless, true),
             {SkipNames, SkipUnlessNames} =
                 case R2#rstate.skip_skip of
-                    true ->
-                        {[], []};
-                    false ->
-                        {list_matching_variables(R2, skip, false),
-                         list_matching_variables(R2, skip_unless, true)}
+                    true  -> {[], []};
+                    false -> {SkipNames0, SkipUnlessNames0}
+                end,
+            SkipReason0 =
+                case {SkipNames0, SkipUnlessNames0} of
+                    {[SkipName0 | _], _} ->
+                        ?FF("SKIP as variable ~s is set",
+                            [SkipName0]);
+                    {_, [SkipUnlessName0 | _]} ->
+                        ?FF("SKIP as variable ~s is not set",
+                            [SkipUnlessName0]);
+                    _ ->
+                        ""
                 end,
             RequireNames =
                 case Mode of
@@ -384,46 +413,43 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             case Mode of
                 list when SkipNames =/= []; SkipUnlessNames =/= [] ->
-                    run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
+                    run_cases(R, Scripts, OldSummary, Results, CC+1);
                 list ->
                     io:format("~s\n", [Script]),
-                    run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
+                    run_cases(R, Scripts, OldSummary, Results, CC+1);
                 _ when SkipNames =/= []; SkipUnlessNames =/= [] ->
                     double_rlog(R2, "\n~s~s\n",
                                 [?TAG("test case"), Script]),
-                    case SkipNames of
-                        [SkipName | _] ->
-                            double_rlog(R2, "~sSKIP as variable ~s is set\n",
-                                        [?TAG("result"), SkipName]);
-                        [] ->
-                            double_rlog(R2,
-                                        "~sSKIP as variable ~s is not set\n",
-                                        [?TAG("result"), hd(SkipUnlessNames)])
-                    end,
+                    double_rlog(R2, "~s~s\n",
+                                [?TAG("result"), SkipReason0]),
                     Summary = skip,
+                    tap_case_end(R, CC, Script, Summary,
+                                 "0", SkipReason0),
                     NewSummary = lux_utils:summary(OldSummary, Summary),
                     Res = {ok, Script2, Summary, "0", []},
                     Results2 = [Res | Results],
-                    run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, NewSummary, Results2);
+                    run_cases(R#rstate{warnings = AllWarnings},
+                              Scripts, NewSummary, Results2, CC+1);
                 _ when RequireNames =/= [] ->
                     double_rlog(R2, "\n~s~s\n",
                                 [?TAG("test case"), Script]),
+                    FailReason = ?FF("FAIL as required variable ~s is not set",
+                                     [hd(RequireNames)]),
                     double_rlog(R2,
-                                "~sFAIL as required variable ~s is not set\n",
-                                [?TAG("result"),
-                                 hd(RequireNames)]),
+                                "~s~s\n",
+                                [?TAG("result"), FailReason]),
                     Summary = fail,
+                    tap_case_end(R, CC, Script, Summary,
+                                 "0", FailReason),
                     NewSummary = lux_utils:summary(OldSummary, Summary),
                     Res = {ok, Script2, Summary, "0", []},
                     Results2 = [Res | Results],
-                    run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, NewSummary, Results2);
+                    run_cases(R#rstate{warnings = AllWarnings},
+                              Scripts, NewSummary, Results2, CC+1);
                 doc ->
                     Docs = extract_doc(Script2, Commands),
-                    {ok, Cwd} = file:get_cwd(),
                     io:format("~s:\n",
-                              [lux_utils:drop_prefix(Cwd, Script)]),
+                              [lux_utils:drop_prefix(Script)]),
                     [io:format("~s~s\n", [lists:duplicate(Level, $\t), Str]) ||
                         #cmd{arg = {Level, Str}} <- Docs],
                     case NewWarnings of
@@ -436,8 +462,8 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                             Results2 = [{Summary, Script2, NewWarnings} |
                                         Results]
                     end,
-                    run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, NewSummary, Results2);
+                    run_cases(R#rstate{warnings = AllWarnings},
+                              Scripts, NewSummary, Results2, CC+1);
                 validate ->
                     double_rlog(R2, "\n~s~s\n",
                                 [?TAG("test case"), Script]),
@@ -455,19 +481,23 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                     double_rlog(R2, "~s~s\n",
                                 [?TAG("result"),
                                  string:to_upper(atom_to_list(Summary))]),
-                    run_cases(Mode, R#rstate{warnings = AllWarnings},
-                              SuiteFile, Scripts, NewSummary, Results2);
+                    run_cases(R#rstate{warnings = AllWarnings},
+                              Scripts, NewSummary, Results2, CC+1);
                 execute ->
                     double_rlog(R2, "\n~s~s\n",
                                 [?TAG("test case"), Script]),
                     Res = lux:interpret_commands(Script2, Commands, Opts),
                     case Res of
                         {ok, _, CaseLogDir, Summary, FullLineNo, Events} ->
+                            tap_case_end(R2, CC, Script, Summary,
+                                         FullLineNo, SkipReason0),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             Res2 = {ok, Script, Summary, FullLineNo, Events},
                             NewResults = [Res2 | Results];
-                        {error, _, CaseLogDir, _, _} ->
+                        {error, _, CaseLogDir, FullLineNo, _} ->
                             Summary = error,
+                            tap_case_end(R2, CC, Script, Summary,
+                                         FullLineNo, SkipReason0),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results]
                     end,
@@ -484,18 +514,17 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
                         true ->
                             ignore
                     end,
-                    run_cases(Mode, R3,
-                              SuiteFile, Scripts, NewSummary, NewResults)
+                    run_cases(R3, Scripts, NewSummary, NewResults, CC+1)
             end;
         {error, _R2, _ErrorStack, _ErrorBin} when Mode =:= list ->
             io:format("~s\n", [Script]),
-            run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
+            run_cases(R, Scripts, OldSummary, Results, CC+1);
         {error, _R2, ErrorStack, ErrorBin} when Mode =:= doc ->
             {MainFile, _FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
             io:format("~s:\n\tERROR: ~s: ~s\n",
                       [Script, MainFile, ErrorBin2]),
-            run_cases(Mode, R, SuiteFile, Scripts, OldSummary, Results);
+            run_cases(R, Scripts, OldSummary, Results, CC+1);
         {error, R2, ErrorStack, ErrorBin} ->
             {MainFile, FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
@@ -508,11 +537,11 @@ run_cases(Mode, R, SuiteFile, [Script | Scripts], OldSummary, Results) ->
             Summary = error,
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Results2 = [{error, MainFile, FullLineNo, ErrorBin2} | Results],
-            run_cases(Mode, R#rstate{warnings = AllWarnings},
-                      SuiteFile, Scripts, NewSummary, Results2)
+            run_cases(R#rstate{warnings = AllWarnings},
+                      Scripts, NewSummary, Results2, CC+1)
     end;
-run_cases(_Mode, R, _SuiteFile, [], Summary, Results) ->
-    {R, Summary, Results}.
+run_cases(R, [], Summary, Results, _CC) ->
+    {R, Summary, lists:reverse(Results)}.
 
 annotate_summary_log(R, NewSummary, NewResults) ->
     file:sync(R#rstate.log_fd), % Flush summary log
@@ -895,3 +924,78 @@ merge_env_opt(Val, OldVal) ->
              end,
     Merged = lists:foldl(Insert, Old, New),
     [string:join(tuple_to_list(T), "=") || T <- lists:keysort(1, Merged)].
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+tap_suite_begin(R, Scripts, Directive)
+  when R#rstate.mode =/= list, R#rstate.mode =/= doc ->
+    TapLog = filename:join([R#rstate.log_dir, "lux.tap"]),
+    TapOpts = [TapLog | R#rstate.tap_opts],
+    case lux_tap:open(TapOpts) of
+        {ok, TAP} ->
+            ok = lux_tap:plan(TAP, length(Scripts), Directive),
+            ok = lux_tap:diag(TAP, "\n"),
+            %% ok = lux_tap:diag(TAP, "LUX - LUcid eXpect scripting"),
+            Host = hostname(),
+            ok = lux_tap:diag(TAP, "ssh " ++ Host),
+            {ok, Cwd} = file:get_cwd(),
+            ok = lux_tap:diag(TAP, "cd " ++ Cwd),
+            RelFiles = [lux_utils:drop_prefix(F) || F <- R#rstate.files],
+            ok = lux_tap:diag(TAP, "lux " ++ string:join(RelFiles, " ")),
+            SummaryLog = lux_utils:drop_prefix(R#rstate.summary_log),
+            ok = lux_tap:diag(TAP, "$BROWSER " ++ SummaryLog ++ ".html"),
+            ok = lux_tap:diag(TAP, "\n"),
+            {ok, R#rstate{tap = TAP, tap_opts = TapOpts}};
+        {error, Reason} ->
+            {error, Reason}
+    end;
+tap_suite_begin(R, _Scripts, _Directive) ->
+    {ok, R#rstate{tap = undefined}}.
+
+tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results)
+  when TAP =/= undefined ->
+    Len = fun(Res, Tag) ->
+                  integer_to_list(length(lux_log:pick_result(Res, Tag)))
+          end,
+    ok = lux_tap:diag(TAP, "\n"),
+    lux_tap:diag(TAP, ["Successful: ", Len(Results, success)]),
+    lux_tap:diag(TAP, ["Skipped:    ", Len(Results, skip)]),
+    lux_tap:diag(TAP, ["Failed:     ", Len(Results, fail)]),
+    lux_tap:diag(TAP, ["Errors:     ", Len(Results, error)]),
+    lux_tap:diag(TAP, ["Warnings:   ", Len(Warnings, warning)]),
+    lux_tap:diag(TAP, ["Summary:    ", atom_to_list(Summary)]),
+    lux_tap:close(TAP);
+tap_suite_end(_R, _Summary, _Results) ->
+    ok.
+
+
+tap_case_begin(#rstate{tap = TAP}, Script)
+  when TAP =/= undefined ->
+    ok = lux_tap:diag(TAP, "lux " ++ Script);
+tap_case_begin(_R, _Script) ->
+    ok.
+
+tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip},
+             CaseCount, AbsScript, Result, FullLineNo, Reason)
+  when TAP =/= undefined ->
+    RelScript = lux_utils:drop_prefix(AbsScript),
+    Descr0 = lists:concat([CaseCount, " ", RelScript]),
+    LineDescr = Descr0 ++ ":" ++ FullLineNo,
+    TodoReason =
+        case Reason of
+            "" -> "";
+            _  -> "TODO - " ++ Reason
+        end,
+    {Outcome, Directive, Descr} =
+        case Result of
+            error                 -> {not_ok, "",         LineDescr};
+            fail when SkipSkip    -> {not_ok, TodoReason, LineDescr};
+            fail                  -> {not_ok, "",         LineDescr};
+            skip                  -> {ok,     Reason,     "    " ++ Descr0};
+            success when SkipSkip -> {ok,     TodoReason, "    " ++ Descr0};
+            success               -> {ok,     "",         "    " ++ Descr0}
+        end,
+    lux_tap:test(TAP, Outcome, Descr, Directive);
+tap_case_end(_R, _CaseCount, _Script, _Result, _FullLineNo, _Reason) ->
+    ok.

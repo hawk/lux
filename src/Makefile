@@ -9,6 +9,7 @@ ERL_MODULES = \
 	lux_interpret \
 	lux_log \
 	lux_suite \
+	lux_tap \
 	lux_parse \
 	lux_shell \
 	lux_utils

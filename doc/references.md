@@ -9,6 +9,7 @@ References
 6. [PCRE - Perl Compatible Regular Expressions][PCRE]  
 7. [Erlang release management tool][Reltool]  
 8. [Markdown][Markdown]  
+9. [TAP - Test Anything Protocol][TAP]  
 
 [Expect]:             http://www.nist.gov/el/msid/expect.cfm
                       "Expect homepage"
@@ -29,3 +30,5 @@ References
                       "Markdown"
 [Reltool]:            http://www.erlang.org/doc/apps/reltool/index.html
                       "Erlang release management tool"
+[TAP]:                http://testanything.org/
+                      "Test Anything Protocol"

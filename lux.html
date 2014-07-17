@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.4 - 2014-07-15</p>
+<p>Version 1.5 - 2014-07-18</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -656,6 +656,12 @@ values are as follows:</p>
 <p>The logs can be converted to HTML manually by using the command line
 option <code>--annotate</code>.</p>
 
+<p><strong>--tap LogFile</strong> <br />
+A file where <a href="http://testanything.org/" title="Test Anything Protocol">TAP</a> events should be written. The file names
+<code>stdout</code> and <code>stdin</code> are specially handled. They causes the log events
+to be written to standard output respective standard error. Multiple
+"files" can be given.</p>
+
 <h2>Timeouts</h2>
 
 <p><strong>--timeout Timeout</strong> <br />
@@ -813,28 +819,46 @@ a shell. It defaults to <code>\n</code>.
 
 <h1>Logs</h1>
 
-<p>Each test run will result in a <strong>summary log</strong> which contains
-information about the outcome of each test case and paths to test case
-logs. By default the log files are generated under <code>./lux_logs</code>.
-See the <a href="#config_params">configuration parameter</a> <code>--log_dir LogDir</code>.</p>
+<p>Lux will create a new directory for each test run. By default the log
+files are generated under <code>./lux_logs/run_yyyy_mm_dd_hh_mm_ss</code> where
+<code>run_yyyy_mm_dd_hh_mm_ss</code> is a unique directory name generated from
+the current time. A symbolic link called <code>./lux_logs/latest_run</code> will
+also be created. It refers to the newly created log directory for the
+latest run. If the <a href="#config_params">configuration parameter</a>
+<code>--log_dir LogDir</code> is set, the given path will be used instead and no
+symbolic link will be created.</p>
+
+<p>Each test run will result in the following log files:</p>
+
+<ul>
+<li><strong>lux_summary.log</strong> which contains information about the outcome of
+each test case and paths to test case logs.</li>
+<li><strong>lux_config.log</strong> which contains all configuration settings common
+for the test suite.</li>
+<li><strong>lux_result.log</strong> which contains a condensed summary of the outcome.</li>
+<li><strong>lux.tap</strong> is a <a href="http://testanything.org/" title="Test Anything Protocol">TAP</a> compliant log file.</li>
+</ul>
 
 <p>For each test case several logs are written:</p>
 
 <ul>
-<li><strong>event log</strong> contains every internal event. Such as which
+<li><strong>$CASE.event.log</strong> contains every internal event. Such as which
 statements that has been executed, output from shells etc.  This is
-the main source for information about detailed information about the
+the main source for information for detailed information about the
 outcome of a test case.</li>
-<li><strong>config log</strong> contains all configuration settings.</li>
-<li><strong>stdin log(s)</strong> contains the raw input to the shells. There is one
-such log per shell.</li>
-<li><strong>stdout log(s)</strong> contains the raw output from the shells. There is
-one such log per shell.</li>
+<li><strong>$CASE.config.log</strong> contains configuration settings for the test case.</li>
+<li><strong>$CASE.$SHELL.stdin.log</strong> contains the raw input to the
+shells. There is one such log per shell.</li>
+<li><strong>$CASE.$SHELL.stdout.log</strong> contains the raw output from the
+shells. There is one such log per shell.</li>
+<li><strong>$CASE.orig</strong> is a copy of the test script.</li>
 </ul>
 
-<p>The summary log, event logs and config logs are by default processed
-and converted to HTML in order to make them easier to read. This can
-be controlled with the <code>--html</code> <a href="#config_params">configuration parameter</a>.</p>
+<p>The summary log, result log, event logs and config logs are by default
+processed and converted to HTML in order to make them easier to
+read. This can be controlled with the <code>--html</code> <a href="#config_params">configuration
+parameter</a>. The html logs are called
+<code>lux_summary.log.html</code> and <code>$CASE.event.log.html</code> respectively.</p>
 
 <p>The outcome of multiple test runs can be assembled in a <strong>history
 log</strong>. This log is very useful when Lux is used in a daily build
@@ -843,7 +867,8 @@ time line in the history log it can be possible to determine which
 checkin to the repository that introduced the first failure. See the
 <code>--history</code> <a href="#cmd_line_opts">command line option</a>. Its behavior can be
 customized by using the <code>--suite</code>, <code>--run</code> and <code>--revision</code>
-<a href="#config_params">configuration parameters</a>.<a name="debug_cmds"/></p>
+<a href="#config_params">configuration parameters</a>.
+<a name="debug_cmds"/></p>
 
 <h1>Debugger for Lux scripts</h1>
 
@@ -1210,6 +1235,7 @@ firefox ../lux.html
 <li><a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE - Perl Compatible Regular Expressions</a>  </li>
 <li><a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Erlang release management tool</a>  </li>
 <li><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a>  </li>
+<li><a href="http://testanything.org/" title="Test Anything Protocol">TAP - Test Anything Protocol</a>  </li>
 </ol>
 
 </body>

@@ -120,7 +120,8 @@ specs() ->
      {"--shell_args",         ["-i"],      string,                 mandatory},
      {"--file_pattern", ".*\.lux" ++ [$$], string,                 mandatory},
      {"--root_dir",           undefined,   string,                 mandatory},
-     {"--var",                undefined,   string,                 mandatory}
+     {"--var",                undefined,   string,                 mandatory},
+     {"--tap",                undefined,   string,                 mandatory}
     ].
 
 mode_arg(usage) ->
@@ -518,7 +519,8 @@ run([
      {"--shell_args",         ShellArgs},
      {"--file_pattern",       FilePattern},
      {"--root_dir",           _RootDir},
-     {"--var",                Var}
+     {"--var",                Var},
+     {"--tap",                Tap}
     ]) ->
     ensure_lux_app_dir(true),
     Opts =
@@ -550,15 +552,15 @@ run([
          {run,                Run},
          {extend_run,         ExtendRun},
          {revision,           Revision},
-         {file_pattern,       FilePattern}
+         {file_pattern,       FilePattern},
+         {tap,                Tap}
         ],
     Opts2 = lists:zf(fun filter_arg/1, Opts),
-    Res = lux:run(Files, Opts2),
-    case Res of
+    case lux:run(Files, Opts2) of
         {ok, Summary, _SummaryLog, _Results} ->
             ok;
-        {error, File, ReasonStr} ->
-            io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonStr]),
+        {error, File, ReasonBin} ->
+            io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
             Summary = error
     end,
     run_halt(Summary).
@@ -753,12 +755,9 @@ find_spec(Opt, Specs) ->
                 {Opt, undefined}
         end,
     %% io:format("Option ~p: ~p -> ~p\n~p\n", [Opt, Name, Val, Specs]),
-    case lists:keysearch(Name, 1, Specs) of
-        {value, Spec} ->
-            {Val, Spec};
-        false ->
-            badarg(Opt)
-
+    case lists:keyfind(Name, 1, Specs) of
+        false -> badarg(Opt);
+        Spec  -> {Val, Spec}
     end.
 
 badarg(Opt) ->
