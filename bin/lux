@@ -201,6 +201,7 @@ help(MainOp, Specs) ->
     io:format("\nTrying to automatically launch the"
               " default browser with file...\n\n\t~s\n",
               [Url]),
+    _ = application:load(wx),
     WxOpts =
         case app_has_feature(wx, "1.0") of
             true  -> [{silent_start, true}]; % Avoid spurious printouts
@@ -213,9 +214,17 @@ help(MainOp, Specs) ->
         wx:destroy()
     catch
         error:{load_driver,"No driver found"} ->
-            io:format("\n...failed since wxWidgets is not properly installed."
-                      " Browser needs to be manually started in order to read"
-                      " the full documentation.\n", []);
+            case os:getenv("BROWSER") of
+                false ->
+                    io:format("\n...failed since wxWidgets is"
+                              " not properly installed."
+                              " Browser needs to be manually"
+                              " started in order to read"
+                              " the full documentation.\n",
+                              []);
+                Browser ->
+                    lux_utils:cmd(Browser ++ " " ++ Url, "")
+            end;
         _Class:_Reason ->
             do_usage(Specs)
     end,

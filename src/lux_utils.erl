@@ -15,7 +15,8 @@
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
-         diff_files/2, diff/2]).
+         diff_files/2, diff/2,
+         cmd/2, chop_newline/1]).
 
 -include("lux.hrl").
 
@@ -562,3 +563,25 @@ add({delete,Delete}, [{insert,Insert}|Merge]) ->
     [{replace,Insert,Delete}|Merge];
 add(Curr, Merge) ->
     [Curr|Merge].
+
+cmd(Cmd, Default) ->
+    Output = os:cmd(Cmd++"; echo $?"),
+    rsplit(Output, "\n", Default).
+
+rsplit(Line, Seps, Default) ->
+    {After, Sep, Before} = split(lists:reverse(Line), Seps, Default),
+    {lists:reverse(Before), Sep, lists:reverse(After)}.
+
+split(Line, Seps, Default) ->
+    Pred = fun(C) -> not lists:member(C, Seps) end,
+    case lists:splitwith(Pred, Line) of
+        {Before, ""}          -> {Before, "", Default};
+        {Before, [Sep|After]} -> {Before, Sep, After}
+    end.
+
+chop_newline(Line) ->
+    {Before, _Sep, After} = rsplit(Line, "\n", ""),
+    case After of
+        "" -> Before;
+        _  -> Line
+    end.

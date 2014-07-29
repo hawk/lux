@@ -759,13 +759,7 @@ config_file2(ConfigDir, ConfigName, Ext) ->
     end.
 
 sys_info() ->
-    chop_newline(os:cmd("uname -a")).
-
-chop_newline(Line) ->
-    case lists:reverse(Line) of
-        [$\n | RevLine] -> lists:reverse(RevLine);
-        _            -> Line
-    end.
+    lux_utils:chop_newline(os:cmd("uname -a")).
 
 hostname() ->
     case inet:gethostname() of
