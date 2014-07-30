@@ -201,9 +201,8 @@ help(MainOp, Specs) ->
     io:format("\nTrying to automatically launch the"
               " default browser with file...\n\n\t~s\n",
               [Url]),
-    _ = application:load(wx),
     WxOpts =
-        case app_has_feature(wx, "1.0") of
+        case app_has_feature(MainOp, wx, "1.0") of
             true  -> [{silent_start, true}]; % Avoid spurious printouts
             false -> []
         end,
@@ -382,7 +381,7 @@ reltool_opts(MainOp, Opts) ->
                                  "^priv", "^examples.*", "^emacs.*"]},
          {excl_app_filters, [".*empty$"]}],
     LuxApps =
-        case app_has_feature(reltool, "0.6") of
+        case app_has_feature(MainOp, reltool, "0.6") of
             true ->
                 %% New reltool can handle lib_dir in app
                 [{app, ?APPLICATION, [{lib_dir, LuxAppDir} | AppFilters]}];
@@ -391,7 +390,7 @@ reltool_opts(MainOp, Opts) ->
                 [{app, ?APPLICATION, AppFilters},
                  {lib_dirs, [filename:dirname(LuxAppDir)]}]
         end,
-    RelaxedExclusion = app_has_feature(reltool, "0.6.4"),
+    RelaxedExclusion = app_has_feature(MainOp, reltool, "0.6.4"),
     {AppCondsWx, AppCondsCross} =
         case {IsCross, RelaxedExclusion} of
             {true, false} ->
@@ -425,13 +424,16 @@ reltool_opts(MainOp, Opts) ->
              {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
                     "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}]}]}.
 
-app_has_feature(AppName, LowestVersion) ->
+app_has_feature(MainOp, AppName, LowestVersion) ->
     LoadedApps = application:loaded_applications(),
     case lists:keyfind(AppName, 1, LoadedApps) of
         {_Name, _Slogan, Version} when Version >= LowestVersion ->
             true;
-        _Version ->
-            false
+        {_Name, _Slogan, _Version} ->
+            false;
+        false ->
+            require_app(MainOp, AppName), % Halt upon failure
+            app_has_feature(MainOp, AppName, LowestVersion)
     end.
 
 filter_apps(_MainOp, AppConds, _IsCross, true) ->
