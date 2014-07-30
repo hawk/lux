@@ -16,31 +16,33 @@
 
 -spec(main([string()]) -> no_return()).
 main(OrigArgs) ->
+    ensure_lux_app_dir(true),
     OpModes = ["--help", "--markdown",
                "--internal_debug", "--internal_trace",
-               "--make", "--install", "--install_debug",
-                "--install_trace", "--reltool",
+               "--make", "--install", "--reltool",
                "--annotate", "--history"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
     Opts  = getopts(Args, Specs),
     %% io:format("Args: ~p\n", [Opts]),
-    case select_op(Opts, OpModes) of
-        {"--help"=Op, [_]}                   -> help(Op, Specs);
-        {"--markdown", [_]}                  -> markdown();
-        {"--internal_debug"=Op, [_]}         -> internal_debug(Op, OrigArgs);
-        {"--internal_trace"=Op, [_]}         -> internal_trace(Op, Opts);
-        {"--make"=Op, [_]}                   -> make(Op);
-        {"--install"=Op, [InstallDir]}       -> install(Op, InstallDir, Opts);
-        {"--install_debug"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
-        {"--install_trace"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
-        {"--reltool"=Op, [_]}                -> reltool(Op, Opts);
-        {"--annotate", [LogFile]}            -> annotate(LogFile);
-        {"--history", [LogDir]}              -> history(LogDir);
-        undefined                            -> run(Opts);
-        _                                    -> usage(Specs)
-    end,
+    run(Opts, OpModes, Specs, OrigArgs),
     safe_halt(0).
+
+run(Opts, OpModes, Specs, OrigArgs) ->
+    case select_op(Opts, OpModes) of
+        {"--help"=Op, [_]}             -> help(Op, Specs);
+        {"--markdown", [_]}            -> markdown();
+        {"--internal_debug"=Op, [_]}   -> internal_debug(Op, OrigArgs);
+        {"--internal_trace"=Op, [_]}   -> internal_trace(Op, Opts, OpModes,
+                                                         Specs, OrigArgs);
+        {"--make"=Op, [_]}             -> make(Op);
+        {"--install"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
+        {"--reltool"=Op, [_]}          -> reltool(Op, Opts);
+        {"--annotate", [LogFile]}      -> annotate(LogFile);
+        {"--history", [LogDir]}        -> history(LogDir);
+        undefined                      -> test(Opts);
+        _                              -> usage(Specs)
+    end.
 
 expand_flags(Args, OpModes) ->
     case Args of
@@ -87,8 +89,7 @@ specs() ->
      {"--internal_trace",     false,       boolean,                none},
      {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
-     {"--install_debug",      "",          string,                 optional},
-     {"--install_trace",      "",          string,                 optional},
+     {"--install_app",        undefined,   string,                 mandatory},
      {"--reltool",            false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
@@ -189,13 +190,11 @@ do_usage(Specs) ->
     info_doc().
 
 info_doc() ->
-    ensure_lux_app_dir(true),
     LuxAppDir = require_app(undefined, ?APPLICATION),
     Url = doc_url(LuxAppDir),
     io:format("\nRead the full documentation in the browser:\n\n\t~s\n", [Url]).
 
 help(MainOp, Specs) ->
-    ensure_lux_app_dir(true),
     AppDir = require_app(MainOp, ?APPLICATION),
     Url = doc_url(AppDir),
     io:format("\nTrying to automatically launch the"
@@ -234,7 +233,6 @@ doc_url(AppDir) ->
     "file://" ++ filename:absname(UsersGuide).
 
 markdown() ->
-    ensure_lux_app_dir(true),
     lux_debug:markdown(),
     safe_halt(0).
 
@@ -256,14 +254,45 @@ internal_debug(MainOp, Args) ->
     spawn_link(fun() -> forward_stdin(Port, 1) end),
     forward_stdout(Port).
 
-internal_trace(MainOp, Args) ->
+internal_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
+    LuxAppDir = require_app(undefined, ?APPLICATION),
+    AppFile = filename:join([LuxAppDir, "ebin", "lux.app"]),
+    Mods =
+        case file:consult(AppFile) of
+            {ok, [{application, lux, Spec}]} ->
+                {_, AppMods} = lists:keyfind(modules, 1, Spec),
+                [?MODULE | AppMods];
+            {ok, _} ->
+                io:format("WARNING: ~s: Bad file format\n", [AppFile]),
+                ['_'];
+            {error, Reason} ->
+                io:format("WARNING: ~s: ~s\n",
+                          [AppFile, file:format_error(Reason)]),
+                ['_']
+        end,
+    stop_after(timer:seconds(30)),
     dbg:start(),
     dbg:tracer(),
-    dbg:p(new, [c, m, p]),
-    dbg:tpl({'_', '_', '_'}, [{'_', [], [{return_trace}]}]),
-    %%dbg:tpl({lux_shell, '_', '_'}, [{'_', [], [{return_trace}]}]),
-    run(Args).
+    dbg:p(self(), [c, p, sos]),
+    %% dbg:p(self(), [c, m, p, sos]),
+    [dbg:tpl({M, '_', '_'}, [{'_', [], [{return_trace}]}]) || M <- Mods],
+    Key = "--internal_trace",
+    NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
+    run(NewOpts, OpModes, Specs, OrigArgs).
+
+stop_after(Timeout) ->
+    spawn(fun() ->
+                  receive
+                  after Timeout ->
+                          dbg:stop_clear(),
+                          io:format("\n\nlux watchdog -"
+                                    " Tracing interrupted and node"
+                                    " killed after ~p seconds\n\n",
+                                    [Timeout div 1000]),
+                          safe_halt(11)
+                  end
+          end).
 
 forward_stdin(Port, N) ->
     case io:get_line("") of
@@ -298,7 +327,7 @@ forward_stdout(Port) ->
 make(MainOp) ->
     io:format("Making ~p...\n", [?APPLICATION]),
     require_app(MainOp, tools),
-    LuxAppDir = ensure_lux_app_dir(true),
+    LuxAppDir = require_app(undefined, ?APPLICATION),
     SrcDir = filename:join([LuxAppDir, "src"]),
     EbinDir = filename:join([LuxAppDir, "ebin"]),
     {ok, SrcDir} = {file:set_cwd(SrcDir), SrcDir},
@@ -331,6 +360,7 @@ install(MainOp, InstallDir, Opts) ->
                     case InstallDir of
                         "" ->
                             io:format("Spec: ~p.\n", [Spec]),
+                            timer:sleep(timer:seconds(1)),
                             safe_halt(0);
                         _ ->
                             case reltool:eval_target_spec(Spec,
@@ -371,7 +401,7 @@ reltool(MainOp, Opts) ->
 reltool_opts(MainOp, Opts) ->
     require_app(MainOp, reltool),
     {IsCross, RootDir} = root_dir(Opts),
-    LuxAppDir = ensure_lux_app_dir(true),
+    LuxAppDir = require_app(undefined, ?APPLICATION),
     ThisEscript = escript:script_name(),
     %% Include some extra files beside the default files
     AppFilters =
@@ -380,8 +410,9 @@ reltool_opts(MainOp, Opts) ->
          {excl_archive_filters, ["^LICENSE", "^lux.html",
                                  "^priv", "^examples.*", "^emacs.*"]},
          {excl_app_filters, [".*empty$"]}],
+    HasAppLibDir = app_has_feature(MainOp, reltool, "0.6"),
     LuxApps =
-        case app_has_feature(MainOp, reltool, "0.6") of
+        case HasAppLibDir of
             true ->
                 %% New reltool can handle lib_dir in app
                 [{app, ?APPLICATION, [{lib_dir, LuxAppDir} | AppFilters]}];
@@ -390,9 +421,9 @@ reltool_opts(MainOp, Opts) ->
                 [{app, ?APPLICATION, AppFilters},
                  {lib_dirs, [filename:dirname(LuxAppDir)]}]
         end,
-    RelaxedExclusion = app_has_feature(MainOp, reltool, "0.6.4"),
+    HasRelaxedExclusion = app_has_feature(MainOp, reltool, "0.6.4"),
     {AppCondsWx, AppCondsCross} =
-        case {IsCross, RelaxedExclusion} of
+        case {IsCross, HasRelaxedExclusion} of
             {true, false} ->
                 {[],
                  []};
@@ -406,13 +437,16 @@ reltool_opts(MainOp, Opts) ->
         case MainOp of
             "--install" ->
                 AppCondsWx ++ [{runtime_tools, exclude}];
-            "--install_trace" ->
-                AppCondsWx ++ [{runtime_tools, include}];
-            "--install_debug" ->
-                [{debugger, include}, {runtime_tools, include}]
+            "--reltool" ->
+                AppCondsWx
         end,
     AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsMain,
-    Apps = filter_apps(MainOp, AppConds, IsCross, RelaxedExclusion),
+    {_, InstallApps} = lists:keyfind("--install_app", 1, Opts),
+    InstallApps2 = [{list_to_atom(A), include} || A <- InstallApps],
+    AppConds2 = [{A, C} || {A, C} <- AppConds,
+                           not lists:keymember(A, 1, InstallApps2)],
+    AppConds3 = AppConds2 ++ InstallApps2,
+    Apps = filter_apps(MainOp, AppConds3, IsCross, HasRelaxedExclusion),
     {RootDir,
      [{sys,
        [{root_dir, RootDir},
@@ -463,7 +497,6 @@ root_dir(Opts) ->
 annotate(LogFile0) ->
     LogFile = filename:absname(LogFile0),
     io:format("Annotating logs ~s...", [LogFile]),
-    ensure_lux_app_dir(true),
     Res = lux:annotate_log(LogFile),
     case Res of
         ok ->
@@ -477,7 +510,6 @@ annotate(LogFile0) ->
 history(LogDir0) ->
     LogDir = filename:absname(LogDir0),
     io:format("Assembling history of logs in ~s...", [LogDir]),
-    ensure_lux_app_dir(true),
     HtmlFile = filename:join([LogDir, "lux_history.html"]),
     Res = lux:history(LogDir, HtmlFile),
     case Res of
@@ -489,7 +521,7 @@ history(LogDir0) ->
     end,
     Res.
 
-run([
+test([
      {?FILES,                 Files},
      {"--help",               _Help},
      {"--markdown",           _Markdown},
@@ -497,8 +529,7 @@ run([
      {"--internal_trace",     _InternalTrace},
      {"--make",               _Make},
      {"--install",            _InstallDir},
-     {"--install_debug",      _InstallDir},
-     {"--install_trace",      _InstallDir},
+     {"--install_app",        _InstallApp},
      {"--reltool",            _Reltool},
      {"--annotate",           _LogFile},
      {"--history",            _LogDir},
@@ -533,7 +564,6 @@ run([
      {"--var",                Var},
      {"--tap",                Tap}
     ]) ->
-    ensure_lux_app_dir(true),
     Opts =
         [
          {debug,              Debug},
