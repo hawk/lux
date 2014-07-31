@@ -206,7 +206,10 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                                        C#cstate.flush_timeout,
                                        C#cstate.actual),
                     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-                    close_logs_and_exit(C, Reason);
+                    close_and_exit(C,
+                                   {error, internal},
+                                   {internal_error, interpreter_died,
+                                    C#cstate.latest_cmd, Reason});
                 {'EXIT', Port, _PosixCode} ->
                     C2 = C#cstate{state_changed = true,
                                   no_more_output = true,
@@ -290,7 +293,10 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                                        C#cstate.flush_timeout,
                                        C#cstate.actual),
                     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-                    close_logs_and_exit(C, Reason);
+                    close_and_exit(C,
+                                   {error, internal},
+                                   {internal_error, interpreter_died,
+                                    C#cstate.latest_cmd, Reason});
                 true ->
                     %% Ignore
                     C
@@ -329,11 +335,13 @@ ping_reply(C, From) ->
     C#cstate{wait_for_expect = undefined}.
 
 assert_msg(C, Cmd, From) when From =/= C#cstate.parent ->
-    %% Assert - invalid sender
+    %% Assert - sender must be parent
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-    close_logs_and_exit(C, {internal_error, unexpected_sender,
-                       From, C#cstate.parent, Cmd});
+    close_and_exit(C,
+                   {error, internal},
+                   {internal_error, invalid_sender,
+                    Cmd, process_info(From)});
 assert_msg(C, Cmd, _From) ->
     %% Assert - no send nor expect while expect is set
     if
@@ -347,8 +355,10 @@ assert_msg(C, Cmd, _From) ->
         true ->
             Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
             clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-            close_logs_and_exit(C, {internal_error, unexpected_msg,
-                               Cmd, C#cstate.expected})
+            close_and_exit(C,
+                           {error, internal},
+                           {internal_error, invalid_type,
+                            Cmd, C#cstate.expected, Cmd#cmd.type})
     end.
 
 shell_eval(#cstate{name = Name} = C0,
@@ -773,7 +783,6 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
     clog(C, stop, "~p", [Outcome]),
-    Events = lists:reverse(C#cstate.events),
     {Outcome2, Extra} =
         if
             Outcome =:= fail, Actual =:= fail_pattern_matched ->
@@ -787,6 +796,28 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
             true ->
                 {Outcome, undefined}
         end,
+    Expected = cmd_expected(Cmd),
+    Res = #result{outcome = Outcome2,
+                  name = C#cstate.name,
+                  lineno = Cmd#cmd.lineno,
+                  expected = Expected,
+                  extra = Extra,
+                  actual = Actual,
+                  rest = C#cstate.actual,
+                  events = lists:reverse(C#cstate.events)},
+    C#cstate.parent ! {stop, self(), Res},
+    if
+        Outcome =:= shutdown ->
+            close_and_exit(C, Outcome, Res);
+        Outcome =:= error ->
+            close_and_exit(C, {error, Actual}, Res);
+        true ->
+            %% Wait for potential cleanup to be run
+            %% before we close the port
+            ping_and_wait(C, Res)
+    end.
+
+cmd_expected(Cmd) ->
     case Cmd of
         #cmd{type = expect, arg = {verbatim, Expected}} ->
             ok;
@@ -795,38 +826,28 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
         #cmd{} ->
             Expected = <<"">>
     end,
-    Res =  #result{outcome = Outcome2,
-                   name = C#cstate.name,
-                   lineno = Cmd#cmd.lineno,
-                   expected = Expected,
-                   extra = Extra,
-                   actual = Actual,
-                   rest = C#cstate.actual,
-                   events = Events},
-    C2 = close_logs(C),
-    C2#cstate.parent ! {stop, self(), Res},
-    if
-        Outcome =:= shutdown ->
-            close_port_and_exit(C2, Outcome);
-        Outcome =:= error ->
-            close_port_and_exit(C2, {error, Actual});
-        true ->
-            %% Wait for potential cleanup to be run
-            %% before we close the port
-            ping_and_wait(C2)
-    end.
+    Expected.
 
-close_logs_and_exit(C, Reason) ->
-    C2 = close_logs(C),
-    close_port_and_exit(C2, Reason).
-
-close_port_and_exit(C, Reason) ->
+close_and_exit(C, Reason, #result{}) ->
     catch port_close(C#cstate.port),
-    exit(Reason).
+    _C2 = close_logs(C),
+    exit(Reason);
+close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
+    Cmd = element(3, Error),
+    Res = #result{outcome = error,
+                  name = C#cstate.name,
+                  lineno = Cmd#cmd.lineno,
+                  expected = cmd_expected(Cmd),
+                  extra = undefined,
+                  actual = internal_error,
+                  rest = C#cstate.actual,
+                  events = lists:reverse(C#cstate.events)},
+    C#cstate.parent ! {stop, self(), Res},
+    close_and_exit(C, Reason, Res).
 
-ping_and_wait(C) ->
+ping_and_wait(C, Res) ->
     C2 = opt_late_ping_reply(C),
-    wait_for_down(C2).
+    wait_for_down(C2, Res).
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
@@ -850,18 +871,18 @@ flush_logs(#cstate{event_log_fd = closed,
                    stdout_log_fd = closed}) ->
     ok.
 
-wait_for_down(C) ->
+wait_for_down(C, Res) ->
     receive
         {ping, From, When} ->
             C2 = opt_ping_reply(C, From, When),
-            wait_for_down(C2);
+            wait_for_down(C2, Res);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
-            close_port_and_exit(C, Reason);
+            close_and_exit(C, Reason, Res);
         {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
             C2 = C#cstate{state_changed = true,
                           no_more_output = true,
                           events = save_event(C, recv, shell_exit)},
-            wait_for_down(C2)
+            wait_for_down(C2, Res)
     end.
 
 save_event(#cstate{latest_cmd = Cmd, events = Events} = C, Op, Data) ->
