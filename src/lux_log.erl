@@ -84,6 +84,20 @@ close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
 parse_summary_log(SummaryLog) ->
+    try
+        do_parse_summary_log(SummaryLog)
+    catch
+        error:Reason ->
+            ReasonStr =
+                lists:flatten(io_lib:format("\nERROR in ~s\n~p\n\~p\n",
+                                            [SummaryLog,
+                                             Reason,
+                                             erlang:get_stacktrace()])),
+            io:format("~s\n", [ReasonStr]),
+            {error, SummaryLog, ReasonStr}
+    end.
+
+do_parse_summary_log(SummaryLog) ->
     case read_log(SummaryLog, ?SUMMARY_TAG) of
         {ok, ?SUMMARY_LOG_VERSION, Sections} ->
             %% Latest version
@@ -217,6 +231,20 @@ split_doc([H|T] = Rest, AccDoc) ->
     end.
 
 parse_run_summary(HtmlFile, SummaryLog, Res) ->
+    try
+        do_parse_run_summary(HtmlFile, SummaryLog, Res)
+    catch
+        error:Reason ->
+            ReasonStr =
+                lists:flatten(io_lib:format("\nERROR in ~s\n~p\n\~p\n",
+                                            [SummaryLog,
+                                             Reason,
+                                             erlang:get_stacktrace()])),
+            io:format("~s\n", [ReasonStr]),
+            {error, SummaryLog, ReasonStr}
+    end.
+
+do_parse_run_summary(HtmlFile, SummaryLog, Res) ->
     HtmlDir = filename:dirname(HtmlFile),
     {ok, Cwd} = file:get_cwd(),
     CN0 = ?DEFAULT_CONFIG_NAME,

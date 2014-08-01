@@ -54,7 +54,7 @@ safe_write_file(File, IoList) ->
 %% Annotate a summary log and all its event logs
 
 annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
-    try lux_log:parse_summary_log(AbsSummaryLog) of
+    case lux_log:parse_summary_log(AbsSummaryLog) of
         {ok, Result, Groups, ArchConfig, _FileInfo, EventLogs} ->
             Html = html_groups(A, AbsSummaryLog, Result, Groups, ArchConfig),
             case IsRecursive of
@@ -76,15 +76,6 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
             {ok, Html};
         {error, _File, _Reason} = Error ->
             Error
-    catch
-        error:Reason2 ->
-            ReasonStr =
-                lists:flatten(io_lib:format("ERROR in ~s\n~p\n\~p\n",
-                                            [AbsSummaryLog,
-                                             Reason2,
-                                             erlang:get_stacktrace()])),
-            io:format("~s\n", [ReasonStr]),
-            {error, AbsSummaryLog, ReasonStr}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
