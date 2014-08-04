@@ -805,16 +805,17 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
                   actual = Actual,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
-    C#cstate.parent ! {stop, self(), Res},
+    C2 = close_logs(C),
+    C2#cstate.parent ! {stop, self(), Res},
     if
         Outcome =:= shutdown ->
-            close_and_exit(C, Outcome, Res);
+            close_and_exit(C2, Outcome, Res);
         Outcome =:= error ->
-            close_and_exit(C, {error, Actual}, Res);
+            close_and_exit(C2, {error, Actual}, Res);
         true ->
             %% Wait for potential cleanup to be run
             %% before we close the port
-            ping_and_wait(C, Res)
+            ping_and_wait(C2, Res)
     end.
 
 cmd_expected(Cmd) ->
@@ -830,7 +831,6 @@ cmd_expected(Cmd) ->
 
 close_and_exit(C, Reason, #result{}) ->
     catch port_close(C#cstate.port),
-    _C2 = close_logs(C),
     exit(Reason);
 close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
     Cmd = element(3, Error),
@@ -842,8 +842,9 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   actual = internal_error,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
-    C#cstate.parent ! {stop, self(), Res},
-    close_and_exit(C, Reason, Res).
+    C2 = close_logs(C),
+    C2#cstate.parent ! {stop, self(), Res},
+    close_and_exit(C2, Reason, Res).
 
 ping_and_wait(C, Res) ->
     C2 = opt_late_ping_reply(C),
@@ -855,7 +856,7 @@ close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     catch file:close(element(2, InFd)),
     catch file:close(element(2, OutFd)),
     C#cstate{log_fun = closed,
-             event_log_fd = closed,
+             event_log_fd = closed, % Leave the log open for other processes
              stdin_log_fd = closed,
              stdout_log_fd = closed}.
 
@@ -903,8 +904,17 @@ multiply(#cstate{multiplier = Factor}, Timeout) ->
             lux_utils:multiply(Timeout, Factor)
     end.
 
-clog(#cstate{progress = Progress, log_fun = LogFun, event_log_fd = Fd,
-             name = Shell, latest_cmd = Cmd}, Op, Format, Args) ->
+clog(#cstate{event_log_fd = closed,
+             stdin_log_fd = closed,
+             stdout_log_fd = closed},
+     _Op, _Format, _Args) ->
+    ok;
+clog(#cstate{progress = Progress,
+             log_fun = LogFun,
+             event_log_fd = Fd,
+             name = Shell,
+             latest_cmd = Cmd},
+     Op, Format, Args) ->
     E = {event, Cmd#cmd.lineno, Shell, Op, Format, Args},
     lux_log:write_event(Progress, LogFun, Fd, E).
 
