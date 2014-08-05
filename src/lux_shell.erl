@@ -490,8 +490,10 @@ shell_eval(#cstate{name = Name} = C0,
 send_to_port(C, RawData) ->
     try
         Data = expand_vars(C, RawData, error),
-        lux_log:safe_write(C#cstate.progress, C#cstate.log_fun,
-                           C#cstate.stdin_log_fd, Data),
+        lux_log:safe_write(C#cstate.progress,
+                           C#cstate.log_fun,
+                           C#cstate.stdin_log_fd,
+                           Data),
         C2 = C#cstate{events = save_event(C, send, Data)},
         try
             true = port_command(C2#cstate.port, Data),
@@ -639,7 +641,7 @@ match(Actual, Cmd) ->
                             %%           [Actual, Expected, []]),
                             lux_utils:verbatim_match(Actual, Expected);
                         {mp, _RegExp, MP} ->
-                            Opts = [{capture, all, index}, notempty],
+                            Opts = [{newline,any},notempty,{capture,all,index}],
                             %% io:format("\nre:run(~p,\n"
                             %%           "       ~p,\n"
                             %%           "       ~p).\n",
@@ -775,8 +777,9 @@ patch_latest(C, NewArg, Expect) ->
     Cmd2 = Cmd#cmd{arg = NewArg},
     {C#cstate{latest_cmd = Cmd2}, Cmd2, Expect}.
 
-normalize_newlines(Bin) ->
-    re:replace(Bin, <<"\n">>, <<"[\r\n]+">>, [global, {return, binary}]).
+normalize_newlines(IoList) ->
+    re:replace(IoList, <<"(\r\n|\r|\n)">>, <<"\\\\R">>,
+               [global, {return, binary}]).
 
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     Cmd = C#cstate.latest_cmd,

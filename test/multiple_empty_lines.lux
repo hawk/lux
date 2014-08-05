@@ -1,0 +1,36 @@
+[doc Test multiple empty lines in regexp]
+
+[shell empty]
+    """!
+    cat > multiple_empty_lines.txt
+    abc
+    def
+    
+    
+    
+    gih
+    ${_CTRL_D_}
+    """
+
+    ?SH-PROMPT:
+    !cat multiple_empty_lines.txt
+    """?
+    abc
+    def
+    
+    
+    
+    gih
+    SH-PROMPT:
+    """
+
+    !myvar="
+    !line1
+    !line2
+    !line3
+    !"
+    ?SH-PROMPT:
+
+    !echo "$$myvar"
+    ?==((?s:.)+)==
+    [global result=$1]

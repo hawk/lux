@@ -316,9 +316,9 @@ do_foldl_cmds(Fun, Acc, RevFile, InclStack, [Cmd | Cmds]) ->
 do_foldl_cmds(_Fun, Acc, _RevFile, _InclStack, []) ->
     Acc.
 
-full_lineno([{_FileComps, LineNo} | InclStack]) ->
-    LineNoSuffix = [[":", integer_to_list(No)] ||
-                       {_F, No} <- lists:reverse(InclStack)],
+full_lineno(FullStack) ->
+    [{_FileComps, LineNo} | Incl] = lists:reverse(FullStack),
+    LineNoSuffix = [[":", integer_to_list(No)] || {_F, No} <- Incl],
     lists:flatten([integer_to_list(LineNo), LineNoSuffix]).
 
 filename_split(FileName) ->

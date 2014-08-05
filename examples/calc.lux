@@ -4,7 +4,7 @@
 
 # Setup a shell dedicated for calculations
 [shell calc]
-    # Setup a failure pattern
+    # Setup a (local) failure pattern
     -$fail_pattern|SH-PROMPT:
     !bc
     # Skip the welcome banner
@@ -50,11 +50,13 @@
     # Use a temporary variable that only is alive in one macro invocation
     [my myshell=$LUX_SHELLNAME]
     [shell calc]
+        !help
         !$expr
-        !
         !help
         # Use multi-line expr to sync output
         """?
+        help
+        0
         .*
         (.*)
         help
@@ -62,7 +64,7 @@
         """
         # Retrieve the value from the sub-expression
         [global result=$1]
-    [shell $myshell]
+[shell $myshell]
     # [progress $expr=$result]
 [endmacro]
 

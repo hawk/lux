@@ -1,0 +1,18 @@
+[doc Test log close race condition]
+
+[shell xxx]
+    !exit
+    !exit
+
+[cleanup]
+    !exit
+    !exit
+[doc Test log close race condition]
+
+[shell xxx]
+    !exit
+    !exit
+
+[cleanup]
+    !exit
+    !exit
