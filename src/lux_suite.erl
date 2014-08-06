@@ -953,11 +953,11 @@ tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results)
                   integer_to_list(length(lux_log:pick_result(Res, Tag)))
           end,
     ok = lux_tap:diag(TAP, "\n"),
-    lux_tap:diag(TAP, ["Successful: ", Len(Results, success)]),
-    lux_tap:diag(TAP, ["Skipped:    ", Len(Results, skip)]),
-    lux_tap:diag(TAP, ["Failed:     ", Len(Results, fail)]),
     lux_tap:diag(TAP, ["Errors:     ", Len(Results, error)]),
+    lux_tap:diag(TAP, ["Failed:     ", Len(Results, fail)]),
     lux_tap:diag(TAP, ["Warnings:   ", Len(Warnings, warning)]),
+    lux_tap:diag(TAP, ["Skipped:    ", Len(Results, skip)]),
+    lux_tap:diag(TAP, ["Successful: ", Len(Results, success)]),
     lux_tap:diag(TAP, ["Summary:    ", atom_to_list(Summary)]),
     lux_tap:close(TAP);
 tap_suite_end(_R, _Summary, _Results) ->
