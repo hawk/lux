@@ -5,9 +5,9 @@
     cat > multiple_empty_lines.txt
     abc
     def
-    
-    
-    
+
+
+
     gih
     ${_CTRL_D_}
     """
@@ -17,9 +17,9 @@
     """?
     abc
     def
-    
-    
-    
+
+
+
     gih
     SH-PROMPT:
     """
@@ -32,5 +32,40 @@
     ?SH-PROMPT:
 
     !echo "$$myvar"
-    ?==((?s:.)+)==
+    ?\R\R(line1\Rline2\Rline3\R)\R
     [global result=$1]
+
+    !echo "abc" > foo
+    !echo >> foo
+    !echo >> foo
+    !echo >> foo
+    !echo "def" >> foo
+    ?SH-PROMPT:
+
+    !cat foo
+    """???
+    abc
+
+
+
+    def
+    """
+
+    !cat foo
+    """?
+    abc
+
+
+
+    def
+    """
+
+    !cat foo
+    """?
+    abc
+    \R{2}
+    def
+    """
+
+    !cat foo
+    ?abc\R{4}def
