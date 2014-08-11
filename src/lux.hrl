@@ -28,8 +28,8 @@
 -record(result,
         {outcome       :: fail | success | shutdown,
          name          :: string(),
-         lineno        :: non_neg_integer(),
-         incl_stack    :: [{string(), non_neg_integer()}],
+         lineno        :: string(), % Full lineno
+         cmd_stack     :: [{string(), non_neg_integer()}],
          expected      :: binary() | atom(),
          extra         :: undefined | atom() | binary(),
          actual        :: binary() | atom(),
@@ -42,8 +42,14 @@
         {pos  :: [non_neg_integer() | string() | {string(), non_neg_integer()}],
          type :: temporary | next | enabled | disabled}).
 
+-record(macro,
+        {name :: string(),
+         file :: string(),
+         cmd  :: #cmd{}}).
+
 -record(istate,
-        {file                       :: string(),
+        {
+         file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
          cleanup_reason = normal    :: fail | success | normal,
@@ -73,7 +79,8 @@
          shell_args = ["-i"]        :: [string()],
          file_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
-         active                     :: undefined | pid(),
+         active_pid                 :: undefined | pid(),
+         active_name = "lux"        :: undefined | string(),
          blocked                    :: boolean(),
          has_been_blocked           :: boolean(),
          want_more                  :: boolean(),
@@ -82,18 +89,13 @@
          shells = []                :: [#shell{}],
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
-         macros = []                :: [],
+         macros = []                :: [#macro{}],
          latest_lineno = 0          :: non_neg_integer(),
-         incl_stack = []            :: [non_neg_integer()],
+         cmd_stack = []             :: [{string(), non_neg_integer()}],
          macro_dict = []            :: [string()],   % ["name=val"]
          dict = []                  :: [string()],   % ["name=val"]
          builtin_dict               :: [string()],   % ["name=val"]
          system_dict                :: [string()]}). % ["name=val"]
-
--record(macro,
-        {name :: string(),
-         file :: string(),
-         cmd  :: #cmd{}}).
 
 -record(run,
         {id,

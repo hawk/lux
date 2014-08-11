@@ -48,7 +48,7 @@ parse_file(RelFile, Opts) ->
             {error, ErrorStack, ErrorBin}
     end.
 
-extract_config(Cmd, _RevFile, _InclStack, Acc) ->
+extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
     case Cmd of
         #cmd{type = config, arg = {config, Var, Val}} ->
             Name = list_to_atom(Var),
@@ -121,6 +121,7 @@ parse_file2(P) ->
             Bins = re:split(Bin, <<"\n">>),
             FirstLineNo = 1,
             Commands = parse(P, Bins, FirstLineNo, []),
+            %% io:format("Cmds: ~p\n", [Commands]),
             case Commands of
                 [#cmd{lineno = LastLineNo} | _] -> ok;
                 [] -> LastLineNo = 1
@@ -230,7 +231,11 @@ parse_meta(P, Bin, #cmd{lineno = LineNo} = Cmd, Lines, Tokens) ->
             {LineNo2, Token2, Lines2} =
                 case parse_meta_token(P, Cmd, Meta, LineNo) of
                     #cmd{type = macro} = Macro ->
-                        parse_macro(P, Macro, LineNo, MultiLine, Lines);
+                        parse_body(P, Macro, "endmacro",
+                                   LineNo, MultiLine, Lines);
+                    #cmd{type = loop} = Loop ->
+                        parse_body(P, Loop, "endloop",
+                                   LineNo, MultiLine, Lines);
                     Token ->
                         {LineNo, Token, Lines}
                 end,
@@ -242,14 +247,15 @@ parse_meta(P, Bin, #cmd{lineno = LineNo} = Cmd, Lines, Tokens) ->
                          ": ']' is expected to be at end of line"])
     end.
 
-parse_macro(P,
-            #cmd{arg = {pre_macro, Name, ArgNames}} = Cmd,
-            LineNo,
-            MultiLine,
-            Lines) ->
+parse_body(P,
+           #cmd{arg = {body, Tag, Name, Items}} = Cmd,
+           EndKeyword,
+           LineNo,
+           MultiLine,
+           Lines) ->
     case MultiLine of
         [] ->
-            {ok, MP} = re:compile(<<"^[\s\t]*\\[endmacro\\]">>),
+            {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
             Pred = fun(L) -> re:run(L, MP, [{capture, none}]) =:= nomatch end,
             {RawBody, After} = lists:splitwith(Pred, Lines),
             BodyLen = length(RawBody),
@@ -259,12 +265,12 @@ parse_macro(P,
                                 LineNo,
                                 ["Syntax error after line ",
                                  integer_to_list(LineNo),
-                                 ": [endmacro] expected"]);
+                                 ": [" ++ EndKeyword ++ "] expected"]);
                 [_EndMacro | Lines2] ->
                     Body = lists:reverse(parse(P, RawBody, LineNo+1, [])),
                     LastLineNo = LineNo+BodyLen+1,
                     {LineNo+BodyLen+1,
-                     Cmd#cmd{arg = {macro, Name, ArgNames, LineNo,
+                     Cmd#cmd{arg = {Tag, Name, Items, LineNo,
                                     LastLineNo, Body}},
                      Lines2}
             end;
@@ -272,7 +278,7 @@ parse_macro(P,
             Body = lists:reverse(parse(P, MultiLine, LineNo+1, [])),
             LastLineNo = LineNo,
             {LineNo,
-             Cmd#cmd{arg = {macro, Name, ArgNames, LineNo, LastLineNo, Body}},
+             Cmd#cmd{arg = {Tag, Name, Items, LineNo, LastLineNo, Body}},
              Lines}
     end.
 
@@ -390,7 +396,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
         "macro" ++ Head ->
             case string:tokens(string:strip(Head), " ") of
                 [Name | ArgNames] ->
-                    Cmd#cmd{type = macro, arg = {pre_macro, Name, ArgNames}};
+                    Cmd#cmd{type = macro, arg = {body, macro, Name, ArgNames}};
                 [] ->
                     parse_error(P,
                                 LineNo,
@@ -408,6 +414,19 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
                                  ": missing macro name"])
+            end;
+        "loop" ++ Head ->
+            Pred = fun(Char) -> Char =/= $\ end,
+            case lists:splitwith(Pred, string:strip(Head)) of
+                {Var, Items0} when Var =/= "" ->
+                    Items = string:strip(Items0, left),
+                    Cmd#cmd{type = loop, arg = {body, loop, Var, Items}};
+                _ ->
+                    parse_error(P,
+                                LineNo,
+                                ["Syntax error at line ",
+                                 integer_to_list(LineNo),
+                                 ": missing loop variable"])
             end;
         Bad ->
             parse_error(P,

@@ -587,7 +587,7 @@ test_variable(R, NameVal) ->
 
 
 extract_doc(File, Cmds) ->
-    Fun = fun(Cmd, _RevFile, _InclStack, Acc) ->
+    Fun = fun(Cmd, _RevFile, _CmdStack, Acc) ->
                   case Cmd of
                       #cmd{type = doc} ->
                           [Cmd | Acc];

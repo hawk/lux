@@ -476,10 +476,10 @@ print_error(Fd, Results) ->
 
 pick_result(Results, Outcome) when Outcome =:= error ->
     [{Script, FullLineNo} ||
-        {error, Script, FullLineNo, _String} <- Results];
+        {error, Script, _LogDir, FullLineNo, _Reason} <- Results];
 pick_result(Warnings, Outcome) when Outcome =:= warning ->
     [{Script, FullLineNo} ||
-        {warning, Script, FullLineNo, _String} <- Warnings];
+        {warning, Script, FullLineNo, _Reason} <- Warnings];
 pick_result(Results, Outcome) ->
     [{Script, FullLineNo} ||
         {ok, Script, O, FullLineNo, _Events} <- Results,
@@ -571,29 +571,15 @@ parse_events([<<>>], Acc) ->
 parse_events(Events, Acc) ->
     do_parse_events(Events, Acc).
 
+do_parse_events([<<"file_enter ", SubFile/binary>> | Events], Acc) ->
+    %% file_enter 11 47 53 demo/test.lux
+    %% file_exit 11 47 53 demo/test.lux
+    parse_other_file(<<"file_exit ">>, SubFile, Events, Acc);
 do_parse_events([<<"include_begin ", SubFile/binary>> | Events], Acc) ->
-    %% include_begin 11 47 53 demo/test.include
-    %% include_end 11 47 53 demo/test.include
-    Pred = fun(E) ->
-                   case E of
-                       <<"include_end ", SubFile/binary>> ->
-                           false;
-                       _ ->
-                           true
-                   end
-           end,
-    {SubEvents, [_| Events2]} = lists:splitwith(Pred, Events),
-    [RawLineNoRange, SubFile2] = binary:split(SubFile, <<" \"">>),
-    [RawLineNo, RawFirstLineNo, RawLastLineNo] =
-        binary:split(RawLineNoRange, <<" ">>, [global]),
-    Len = byte_size(SubFile2) - 1 ,
-    <<SubFile3:Len/binary, _/binary>> = SubFile2,
-    LineNo = list_to_integer(binary_to_list(RawLineNo)),
-    FirstLineNo = list_to_integer(binary_to_list(RawFirstLineNo)),
-    LastLineNo = list_to_integer(binary_to_list(RawLastLineNo)),
-    SubEvents2 = parse_events(SubEvents, []),
-    E = {include, LineNo, FirstLineNo, LastLineNo, SubFile3, SubEvents2},
-    do_parse_events(Events2, [E | Acc]);
+    %% Old style
+    %% include_begin 11 47 53 demo/test.luxinc
+    %% include_end 11 47 53 demo/test.luxinc
+    parse_other_file(<<"include_end ">>, SubFile, Events, Acc);
 do_parse_events([Event | Events], Acc) ->
     [Prefix, Details] = binary:split(Event, <<"): ">>),
     [Shell, RawLineNo] = binary:split(Prefix, <<"(">>),
@@ -618,6 +604,29 @@ do_parse_events([Event | Events], Acc) ->
     do_parse_events(Events, [E | Acc]);
 do_parse_events([], Acc) ->
     lists:reverse(Acc).
+
+parse_other_file(EndTag, SubFile, Events, Acc) ->
+    Pred = fun(E) ->
+                   EndSz = byte_size(EndTag),
+                   case E of
+                       <<EndTag:EndSz/binary, SubFile/binary>> ->
+                           false;
+                       _ ->
+                           true
+                   end
+           end,
+    {SubEvents, [_| Events2]} = lists:splitwith(Pred, Events),
+    [RawLineNoRange, SubFile2] = binary:split(SubFile, <<" \"">>),
+    [RawLineNo, RawFirstLineNo, RawLastLineNo] =
+        binary:split(RawLineNoRange, <<" ">>, [global]),
+    Len = byte_size(SubFile2) - 1 ,
+    <<SubFile3:Len/binary, _/binary>> = SubFile2,
+    LineNo = list_to_integer(binary_to_list(RawLineNo)),
+    FirstLineNo = list_to_integer(binary_to_list(RawFirstLineNo)),
+    LastLineNo = list_to_integer(binary_to_list(RawLastLineNo)),
+    SubEvents2 = parse_events(SubEvents, []),
+    E = {body, LineNo, FirstLineNo, LastLineNo, SubFile3, SubEvents2},
+    do_parse_events(Events2, [E | Acc]).
 
 split_lines(<<"">>) ->
     [];

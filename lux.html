@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.5 - 2014-07-18</p>
+<p>Version 1.6 - 2014-08-11</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -333,6 +333,8 @@ file contains a <code>[cleanup]</code> marker, the statements after that will be
 evaluated in order to clean up unwanted side effects.</p>
 
 <p><strong>[macro MacroName ArgName1 ArgName2 ...]</strong> <br />
+  ... <br />
+<strong>[endmacro]</strong> <br />
 Declare a macro. The body of the macro consists of all lines up to
 the next <code>[endmacro]</code> line. The scope of the arguments are local
 within the macro. The arguments can be accessed via their names as
@@ -350,6 +352,20 @@ to clean up unwanted side effects.</p>
 Invoke a macro. The arguments are separated with spaces. Arguments
 can be quoted with the double quote (<code>"</code>) character. Double quotes
 and backslashes (<code>\</code>) must be escaped with a backslash.</p>
+
+<p><strong>[loop Var Item1 Item2 ...]</strong> <br />
+  ... <br />
+<strong>[endloop]</strong> <br />
+Declare a loop. The body of the loop consists of all lines up to the
+next <code>[endloop]</code> line. The commands within the loop are repeated for
+each item. For each iteration the loop variable <code>Var</code> is set to the
+value of the current <code>Item</code>. The scope of the loop variable is the
+same as a macro variable (defined with my). The <code>Item list</code> may
+contain variables and these are expanded before the first
+iteration. Items in the expanded list are separated with spaces. For
+example <code>[loop colors blue red green]</code>.  When iterating over a set of
+consecutive integers, such as <code>[loop iter 4 5 6 7]</code>, this can be
+written as a range expression, like <code>[loop iter 4..7]</code>.</p>
 
 <h3>Variables</h3>
 

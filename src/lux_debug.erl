@@ -459,7 +459,7 @@ cmd_attach(I, _, CmdState) ->
             _ ->
                 io:format("\nBreak at ~s\n",
                           [pretty_break_pos(CurrentFullLineNo)]),
-                [{RevFile, LineNo} | InclStack] = CurrentFullLineNo,
+                [{RevFile, LineNo} | CmdStack] = CurrentFullLineNo,
                 LineNo2 =
                     if
                         LineNo > 3 ->
@@ -471,7 +471,7 @@ cmd_attach(I, _, CmdState) ->
                         true->
                             LineNo
                     end,
-                FullLineNo = [{RevFile, LineNo2} | InclStack],
+                FullLineNo = [{RevFile, LineNo2} | CmdStack],
                 BreakPos2 = full_lineno_to_break_pos(FullLineNo),
                 [{"n_lines", 10}, {"lineno", BreakPos2}]
         end,
@@ -499,7 +499,7 @@ opt_block(I) ->
 is_valid_lineno(File,
                 LineNo,
                 #istate{orig_file = OrigFile, orig_commands = OrigCmds}) ->
-    Fun = fun(#cmd{lineno = L}, F, _InclStack, Acc) ->
+    Fun = fun(#cmd{lineno = L}, F, _CmdStack, Acc) ->
                   if
                       F =:= File, L =:= LineNo -> true;
                       true                     -> Acc
@@ -640,7 +640,7 @@ check_break(I, LineNo) ->
 
 lookup_break(I, LineNo, Breaks) when is_integer(LineNo) ->
     RevFile = lux_utils:filename_split(I#istate.file), %  optimize later
-    FullLineNo = [{RevFile, LineNo} | I#istate.incl_stack],
+    FullLineNo = [{RevFile, LineNo} | I#istate.cmd_stack],
     lookup_break(I, FullLineNo, Breaks);
 lookup_break(I, FullLineNo, [Break | Breaks]) when is_list(FullLineNo) ->
     case match_break(FullLineNo, Break#break.pos) of
@@ -1148,14 +1148,14 @@ current_full_lineno(I) ->
             [#cmd{lineno = CurrentLineNo} | _] -> CurrentLineNo
         end,
     RevFile = lux_utils:filename_split(I#istate.file),
-    [{RevFile, LineNo} | I#istate.incl_stack].
+    [{RevFile, LineNo} | I#istate.cmd_stack].
 
 full_lineno_to_break_pos(FullLineNo) ->
     [LineNo || {_File, LineNo} <- FullLineNo].
 
 break_to_full_lineno(I, BreakPos) ->
-    Collect = fun(#cmd{lineno = LineNo}, RevFile, InclStack, Acc) ->
-                      FullLineNo = [{RevFile, LineNo} | InclStack],
+    Collect = fun(#cmd{lineno = LineNo}, RevFile, CmdStack, Acc) ->
+                      FullLineNo = [{RevFile, LineNo} | CmdStack],
                       case match_break(FullLineNo, BreakPos) of
                           true  -> [FullLineNo | Acc];
                           false -> Acc

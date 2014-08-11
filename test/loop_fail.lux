@@ -1,0 +1,15 @@
+[doc Test loop failure]
+
+[shell bar]
+
+[shell foo]
+   -second
+    [loop iter first second third fourth]
+      !echo $iter
+      [sleep 1]
+    [endloop]
+
+    ?first
+    ?second
+    ?third
+    ?fourth

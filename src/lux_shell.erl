@@ -16,6 +16,7 @@
          parent                  :: pid(),
          name                    :: string(),
          latest_cmd              :: #cmd{},
+         cmd_stack = []         :: [{string(), non_neg_integer()}],
          wait_for_expect         :: undefined | pid(),
          mode = resume           :: resume | suspend,
          start_reason            :: fail | success | normal,
@@ -84,7 +85,9 @@ start_monitor(I, Cmd, Name) ->
                 system_dict = I#istate.system_dict},
     {Pid, Ref} = spawn_monitor(fun() -> init(C) end),
     Shell = #shell{name = Name, pid = Pid, ref = Ref, health = alive},
-    I2 = I#istate{active = Pid, shells = [Shell | I#istate.shells]},
+    I2 = I#istate{active_pid = Pid,
+                  active_name = Name,
+                  shells = [Shell | I#istate.shells]},
     receive
         {started, Pid, Logs} ->
             {ok, I2#istate{logs = I2#istate.logs ++ [Logs]}};
@@ -240,6 +243,10 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                 end,
             From ! {expand_vars, self(), Res},
             C;
+        {switch_cmd, From, NewCmd, CmdStack, Fun} ->
+            Fun(),
+            From ! {switch_cmd_ack, self()},
+            C#cstate{latest_cmd = NewCmd, cmd_stack = CmdStack};
         {sync_eval, From, Cmd} ->
             assert_msg(C, Cmd, From),
             C2 =
@@ -306,7 +313,7 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                       [C#cstate.name, Unexpected]),
             C
     after multiply(C, Timeout) ->
-        C#cstate{idle_count = C#cstate.idle_count + 1}
+            C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
 
 opt_ping_reply(C, From, When) when C#cstate.wait_for_expect =:= undefined ->
@@ -803,6 +810,7 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     Res = #result{outcome = Outcome2,
                   name = C#cstate.name,
                   lineno = Cmd#cmd.lineno,
+                  cmd_stack = C#cstate.cmd_stack,
                   expected = Expected,
                   extra = Extra,
                   actual = Actual,
@@ -840,11 +848,13 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
     Res = #result{outcome = error,
                   name = C#cstate.name,
                   lineno = Cmd#cmd.lineno,
+                  cmd_stack = C#cstate.cmd_stack,
                   expected = cmd_expected(Cmd),
                   extra = undefined,
                   actual = internal_error,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
+    io:format("\nRES2: ~p\n", [Res]),
     C2 = close_logs(C),
     C2#cstate.parent ! {stop, self(), Res},
     close_and_exit(C2, Reason, Res).
@@ -907,9 +917,7 @@ multiply(#cstate{multiplier = Factor}, Timeout) ->
             lux_utils:multiply(Timeout, Factor)
     end.
 
-clog(#cstate{event_log_fd = closed,
-             stdin_log_fd = closed,
-             stdout_log_fd = closed},
+clog(#cstate{event_log_fd = closed},
      _Op, _Format, _Args) ->
     ok;
 clog(#cstate{progress = Progress,

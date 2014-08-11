@@ -1,0 +1,66 @@
+[doc Test loops]
+
+[shell simple]
+    [local foo=bar baz 20..30]
+    -19|31|34|41
+    [loop iter fum $foo 40..35]
+      !echo $iter
+    [endloop]
+
+    ?fum
+    ?bar
+    ?baz
+    ?20
+    ?23
+    ?28
+    ?30
+    ?40
+    ?37
+    ?35
+
+[shell complex]
+    !mkdir xxx
+    !touch xxx/yyy
+    !touch xxx/zzz
+    !cd xxx
+    !echo ===$?===
+    ?===0===
+
+    !ls -A
+    """?
+    ls.*
+    (.*)
+    SH-PROMPT:
+    """
+
+    -nada
+    [my mmm=nada]
+    [local lll=nada]
+    [global ggg=nada]
+    [loop file $1]
+      !echo $file
+      [my mmm=$file]
+      [local lll=$file]
+      [global ggg=$file]
+    [endloop]
+
+    ?yyy
+    ?zzz
+    !echo my $mmm
+    ?echo
+    ?zzz
+    !echo local $lll
+    ?echo
+    ?zzz
+    !echo global $ggg
+    ?echo
+    ?zzz
+    !echo loop $file
+    ?echo
+    ?zzz
+
+[cleanup]
+
+    !rm -rf xxx
+    !echo ===$?===
+    ?===0===

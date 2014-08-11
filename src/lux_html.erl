@@ -12,7 +12,7 @@
 
  -include("lux.hrl").
 
--record(astate, {log_dir, log_file}).
+-record(astate, {log_dir, log_file, source_file}).
 
 annotate_log(IsRecursive, LogFile) ->
     AbsLogFile = filename:absname(LogFile),
@@ -32,8 +32,9 @@ annotate_log(IsRecursive, LogFile) ->
     end.
 
 safe_write_file(File, IoList) ->
-    case filelib:ensure_dir(File) of
-        ok ->
+    Res = filelib:ensure_dir(File),
+    if
+        Res =:= ok; Res =:= {error, eexist} ->
             TmpFile = File ++ ".tmp",
             case file:write_file(TmpFile, IoList) of
                 ok ->
@@ -46,7 +47,8 @@ safe_write_file(File, IoList) ->
                 {error, FileReason} ->
                     {error, TmpFile, file:format_error(FileReason)}
             end;
-        {error, FileReason} ->
+        true ->
+            {error, FileReason} = Res,
             {error, filename:dirname(File), file:format_error(FileReason)}
     end.
 
@@ -220,12 +222,14 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
         case lux_log:scan_events(EventLog) of
             {ok, EventLog2, ConfigLog,
              Script, RawEvents, RawConfig, RawLogs, RawResult} ->
+                A2 = A#astate{source_file = Script},
                 Events = lux_log:parse_events(RawEvents, []),
+                %% io:format("Events: ~p\n", [Events]),
                 Logs = lux_log:parse_io_logs(RawLogs, []),
                 Result = lux_log:parse_result(RawResult),
                 {Annotated, Files} =
-                    interleave_code(A, Events, Script, 1, 999999, [], []),
-                Html = html_events(A, EventLog2, ConfigLog, Script, Result,
+                    interleave_code(A2, Events, Script, 1, 999999, [], []),
+                Html = html_events(A2, EventLog2, ConfigLog, Script, Result,
                                    lists:reverse(Files),
                                    Logs, Annotated, RawConfig),
                 {ok, Html};
@@ -243,12 +247,21 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
             {error, EventLog, ReasonStr}
     end.
 
-interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, InclStack, Files) ->
+%% interleave_code(A, Events, Script, FirstLineNo, MaxLineNo,
+%%                 [{_F,SyntheticLineNo}|_] = CmdStack, Files)
+%%   when is_integer(SyntheticLineNo), SyntheticLineNo < 0 ->
+%%     %% A synthetic command stack level
+%%     ScriptComps = lux_utils:filename_split(Script),
+%%     CodeLines = [],
+%%     Acc = [],
+%%     do_interleave_code(A, Events, ScriptComps, CodeLines,
+%%                        FirstLineNo, MaxLineNo, Acc, CmdStack, Files);
+interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files) ->
     ScriptComps = lux_utils:filename_split(Script),
     case file:read_file(Script) of
         {ok, ScriptBin} ->
-            NewScript = orig_script(A, Script),
-            case file:write_file(NewScript, ScriptBin) of
+            OrigScript = orig_script(A, Script),
+            case file:write_file(OrigScript, ScriptBin) of
                 ok ->
                     ok;
                 {error, FileReason} ->
@@ -264,37 +277,25 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, InclStack, Files) ->
                     _X:_Y ->
                         CodeLines
                 end,
-            Files2 =
-                case lists:keymember(Script, 2, Files) of
-                    false -> [{file, Script, NewScript} | Files];
-                    true  -> Files
-                end,
+            Files2 = lists:keystore(Script, 2, Files,
+                                    {file, Script, OrigScript}),
+            Acc = [],
             do_interleave_code(A, Events, ScriptComps, CodeLines2,
-                               FirstLineNo, MaxLineNo, [], InclStack, Files2);
+                               FirstLineNo, MaxLineNo, Acc, CmdStack, Files2);
         {error, FileReason} ->
             ReasonStr = binary_to_list(Script) ++ ": " ++
                 file:format_error(FileReason),
             io:format("ERROR(lux): ~s\n", [ReasonStr]),
-            do_interleave_code(A, Events, ScriptComps, [],
-                               FirstLineNo, MaxLineNo, [], InclStack, Files)
+            CodeLines = [],
+            Acc = [],
+            do_interleave_code(A, Events, ScriptComps, CodeLines,
+                               FirstLineNo, MaxLineNo, Acc, CmdStack, Files)
     end.
 
-do_interleave_code(A, [{include, LineNo, FirstLineNo, LastLineNo,
-                        SubScript, SubEvents} |
-                       Events],
-                   ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
-                   Acc, InclStack, Files) ->
-    InclStack2 = [{ScriptComps, LineNo} | InclStack],
-    {SubAnnotated, Files2} =
-        interleave_code(A, SubEvents, SubScript, FirstLineNo, LastLineNo,
-                        InclStack2, Files),
-    Event = {include_html, InclStack2, FirstLineNo, SubScript, SubAnnotated},
-    do_interleave_code(A, Events, ScriptComps, CodeLines, CodeLineNo,
-                       MaxLineNo, [Event | Acc], InclStack, Files2);
 do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
                        {event, SingleLineNo, Shell, Op, Data2} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
-                   Acc, InclStack, Files) when Op =:= <<"recv">>,
+                   Acc, CmdStack, Files) when Op =:= <<"recv">>,
                                                Data2 =/= [<<"timeout">>]->
     %% Combine two chunks of recv data into one in order to improve readability
     [Last | Rev] = lists:reverse(Data),
@@ -302,29 +303,41 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
     Data3 = lists:reverse(Rev, [<<Last/binary, First/binary>> | Rest]),
     do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data3} | Events],
                        ScriptComps, CodeLines, CodeLineNo,
-                       MaxLineNo, Acc, InclStack, Files);
+                       MaxLineNo, Acc, CmdStack, Files);
 do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
-                   Acc, InclStack, Files) ->
+                   Acc, CmdStack, Files) ->
     {CodeLines2, CodeLineNo2, Code} =
         pick_code(ScriptComps, CodeLines, CodeLineNo, SingleLineNo,
-                  [], InclStack),
-    InclStack2 = [{ScriptComps, SingleLineNo} | InclStack],
-    Acc2 = [{event_html, InclStack2, _Op, Shell, Data}] ++ Code ++ Acc,
+                  [], CmdStack),
+    CmdStack2 = [{ScriptComps, SingleLineNo} | CmdStack],
+    Acc2 = [{event_html, CmdStack2, _Op, Shell, Data}] ++ Code ++ Acc,
     do_interleave_code(A, Events, ScriptComps, CodeLines2, CodeLineNo2,
-                       MaxLineNo, Acc2, InclStack, Files);
+                       MaxLineNo, Acc2, CmdStack, Files);
+do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
+                        SubScript, SubEvents} | Events],
+                   ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
+                   Acc, CmdStack, Files) ->
+    CmdStack2 = [{ScriptComps, InvokeLineNo} | CmdStack],
+    SubA = A#astate{source_file = SubScript},
+    {SubAnnotated, Files2} =
+        interleave_code(SubA, SubEvents, SubScript, FirstLineNo, LastLineNo,
+                        CmdStack2, Files),
+    Event = {body_html, CmdStack2, FirstLineNo, SubScript, SubAnnotated},
+    do_interleave_code(A, Events, ScriptComps, CodeLines, CodeLineNo,
+                       MaxLineNo, [Event | Acc], CmdStack, Files2);
 do_interleave_code(_A, [], ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
-                   Acc, InclStack, Files) ->
-    X = pick_code(ScriptComps, CodeLines, CodeLineNo, MaxLineNo, [], InclStack),
+                   Acc, CmdStack, Files) ->
+    X = pick_code(ScriptComps, CodeLines, CodeLineNo, MaxLineNo, [], CmdStack),
     {_Skipped, _CodeLineNo, Code} = X,
     {lists:reverse(Code ++ Acc), Files}.
 
-pick_code(ScriptComps, [Line | Lines], CodeLineNo, LineNo, Acc, InclStack)
+pick_code(ScriptComps, [Line | Lines], CodeLineNo, LineNo, Acc, CmdStack)
   when LineNo >= CodeLineNo ->
-    InclStack2 = [{ScriptComps, CodeLineNo} | InclStack],
+    CmdStack2 = [{ScriptComps, CodeLineNo} | CmdStack],
     pick_code(ScriptComps, Lines, CodeLineNo+1, LineNo,
-              [{code_html, InclStack2, Line} | Acc], InclStack);
-pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _InclStack) ->
+              [{code_html, CmdStack2, Line} | Acc], CmdStack);
+pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _CmdStack) ->
     {Lines, CodeLineNo, Acc}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -544,24 +557,37 @@ html_code2(A, [Ann | Annotated], Prev) ->
              html_opt_div(Op, Data),
              html_code2(A, Annotated, Curr)
             ];
-        {include_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
+        {body_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
             FullLineNo = lux_utils:full_lineno(LineNoStack),
             RelSubScript = drop_prefix(A, SubScript),
-            [
-             html_toggle_div(code, Prev),
-             html_toggle_div(event, code),
-             html_opt_div(<<"include">>,
-                          [<<"entering file: ", RelSubScript/binary>>]),
-             "</pre></div>",
-             html_code(A, SubAnnotated),
-             html_toggle_div(code, event),
-             html_anchor(FullLineNo, FullLineNo), ": ",
-             html_toggle_div(event, code),
-             html_opt_div(<<"include">>,
-                          [<<"exiting file: ", RelSubScript/binary>>]),
-             "</pre></div>",
-             html_code(A, Annotated)
-            ]
+            if
+                SubScript =/= A#astate.source_file ->
+                    [
+                     html_toggle_div(code, Prev),
+                     html_toggle_div(event, code),
+                     html_opt_div(<<"file">>,
+                                  [<<"entering file: ",
+                                     RelSubScript/binary>>]),
+                     "</pre></div>",
+                     html_code(A, SubAnnotated),
+                     html_toggle_div(code, event),
+                     html_anchor(FullLineNo, FullLineNo), ": ",
+                     html_toggle_div(event, code),
+                     html_opt_div(<<"file">>,
+                                  [<<"exiting file: ",
+                                     RelSubScript/binary>>]),
+                     "</pre></div>",
+                     html_code(A, Annotated)
+                    ];
+                true ->
+                    [
+                     html_toggle_div(code, Prev),
+                     html_code(A, SubAnnotated),
+                     html_toggle_div(code, event),
+                     html_anchor(FullLineNo, FullLineNo), ": ",
+                     html_code(A, Annotated)
+                    ]
+            end
     end;
 html_code2(_A, [], _Prev) ->
     [].

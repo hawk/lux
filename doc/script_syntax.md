@@ -127,6 +127,8 @@ file contains a `[cleanup]` marker, the statements after that will be
 evaluated in order to clean up unwanted side effects.
 
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
+  ...  
+**\[endmacro\]**  
 Declare a macro. The body of the macro consists of all lines up to
 the next `[endmacro]` line. The scope of the arguments are local
 within the macro. The arguments can be accessed via their names as
@@ -144,6 +146,20 @@ to clean up unwanted side effects.
 Invoke a macro. The arguments are separated with spaces. Arguments
 can be quoted with the double quote (`"`) character. Double quotes
 and backslashes (`\`) must be escaped with a backslash.
+
+**\[loop Var Item1 Item2 ...\]**  
+  ...  
+**\[endloop\]**  
+Declare a loop. The body of the loop consists of all lines up to the
+next `[endloop]` line. The commands within the loop are repeated for
+each item. For each iteration the loop variable `Var` is set to the
+value of the current `Item`. The scope of the loop variable is the
+same as a macro variable (defined with my). The `Item list` may
+contain variables and these are expanded before the first
+iteration. Items in the expanded list are separated with spaces. For
+example `[loop colors blue red green]`.  When iterating over a set of
+consecutive integers, such as `[loop iter 4 5 6 7]`, this can be
+written as a range expression, like `[loop iter 4..7]`.
 
 ###Variables###
 

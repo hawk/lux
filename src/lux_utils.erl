@@ -291,34 +291,39 @@ do_fold_files(File, RegExp, Recursive, Fun, Acc, IsTopLevel) ->
             Acc
     end.
 
-foldl_cmds(Fun, Acc, File, InclStack, Cmds) ->
+foldl_cmds(Fun, Acc, File, CmdStack, Cmds) ->
     File2 = lux_utils:drop_prefix(File),
     RevFile = lux_utils:filename_split(File2),
-    do_foldl_cmds(Fun, Acc, RevFile, InclStack, Cmds).
+    do_foldl_cmds(Fun, Acc, RevFile, CmdStack, Cmds).
 
-do_foldl_cmds(Fun, Acc, RevFile, InclStack, [Cmd | Cmds]) ->
+do_foldl_cmds(Fun, Acc, RevFile, CmdStack, [Cmd | Cmds]) ->
     Acc2 =
         case Cmd of
             #cmd{type = include,
                  lineno = LineNo,
                  arg = {include, SubFile, _FirstLineNo,
                         _LastFileNo, SubCmds}} ->
-                SubAcc = Fun(Cmd, RevFile, InclStack, Acc),
+                SubAcc = Fun(Cmd, RevFile, CmdStack, Acc),
                 foldl_cmds(Fun,
                            SubAcc,
                            SubFile,
-                           [{RevFile, LineNo} | InclStack],
+                           [{RevFile, LineNo} | CmdStack],
                            SubCmds);
             #cmd{} ->
-                Fun(Cmd, RevFile, InclStack, Acc)
+                Fun(Cmd, RevFile, CmdStack, Acc)
         end,
-    do_foldl_cmds(Fun, Acc2, RevFile, InclStack, Cmds);
-do_foldl_cmds(_Fun, Acc, _RevFile, _InclStack, []) ->
+    do_foldl_cmds(Fun, Acc2, RevFile, CmdStack, Cmds);
+do_foldl_cmds(_Fun, Acc, _RevFile, _CmdStack, []) ->
     Acc.
 
 full_lineno(FullStack) ->
-    [{_FileComps, LineNo} | Incl] = lists:reverse(FullStack),
-    LineNoSuffix = [[":", integer_to_list(No)] || {_F, No} <- Incl],
+    Pick = fun({_F,L}) when is_integer(L) -> L;
+              (L)      when is_integer(L) -> L
+           end,
+    FullStack2 = lists:dropwhile(fun(FL) -> Pick(FL) < 0 end, FullStack),
+    [FileLine | Incl] = lists:reverse(FullStack2),
+    LineNo = Pick(FileLine),
+    LineNoSuffix = [[":", integer_to_list(Pick(FL))] || FL <- Incl],
     lists:flatten([integer_to_list(LineNo), LineNoSuffix]).
 
 filename_split(FileName) ->
