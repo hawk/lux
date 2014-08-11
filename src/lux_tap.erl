@@ -68,8 +68,10 @@ plan(TAP, N, Dir) when is_integer(N), N >= 0 ->
                   write(TAP, ["1..", N, dir(Dir)])
                  ]).
 
+test(TAP, not_ok, Descr, Dir) ->
+    test(TAP, 'not ok', Descr, Dir);
 test(TAP, Outcome, Descr, Dir)
-  when Outcome =:= ok; Outcome == not_ok ->
+  when Outcome =:= ok; Outcome == 'not ok' ->
     write(TAP, [Outcome, descr(Descr), dir(Dir)]).
 
 diag(TAP, Descr) when Descr =:= "\n" ->
