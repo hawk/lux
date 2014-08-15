@@ -25,3 +25,6 @@
 [endmacro]
 
 [cleanup]
+    !echo clean
+    !echo ===$?===
+    ?===0===

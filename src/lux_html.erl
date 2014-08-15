@@ -260,6 +260,7 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files) ->
     ScriptComps = lux_utils:filename_split(Script),
     case file:read_file(Script) of
         {ok, ScriptBin} ->
+            %% Save original script file
             OrigScript = orig_script(A, Script),
             case file:write_file(OrigScript, ScriptBin) of
                 ok ->
@@ -534,10 +535,9 @@ html_code(A, Annotated) ->
 html_code2(A, [Ann | Annotated], Prev) ->
     case Ann of
         {code_html, LineNoStack, Code} ->
-            Curr = code,
             FullLineNo = lux_utils:full_lineno(LineNoStack),
             [
-             html_toggle_div(Curr, Prev),
+             html_toggle_div(code, Prev),
              case Code of
                  <<"[cleanup]">> -> "<a name=\"cleanup\"></a>";
                  _               -> ""
@@ -545,17 +545,16 @@ html_code2(A, [Ann | Annotated], Prev) ->
              html_anchor(FullLineNo, FullLineNo), ": ",
              html_cleanup(Code),
              "\n",
-             html_code2(A, Annotated, Curr)
+             html_code2(A, Annotated, code)
             ];
         {event_html, LineNoStack, Op, Shell, Data} ->
-            Curr = event,
             FullLineNo = lux_utils:full_lineno(LineNoStack),
             Html = [Shell, "(", FullLineNo, "): ", Op, " "],
             [
-             html_toggle_div(Curr, Prev),
+             html_toggle_div(event, Prev),
              html_cleanup(Html),
              html_opt_div(Op, Data),
-             html_code2(A, Annotated, Curr)
+             html_code2(A, Annotated, event)
             ];
         {body_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
             FullLineNo = lux_utils:full_lineno(LineNoStack),
@@ -582,10 +581,9 @@ html_code2(A, [Ann | Annotated], Prev) ->
                 true ->
                     [
                      html_toggle_div(code, Prev),
-                     html_code(A, SubAnnotated),
-                     html_toggle_div(code, event),
-                     html_anchor(FullLineNo, FullLineNo), ": ",
-                     html_code(A, Annotated)
+                     html_code2(A, SubAnnotated, code),
+                     %% html_anchor(FullLineNo, FullLineNo), ": \n",
+                     html_code2(A, Annotated, code)
                     ]
             end
     end;

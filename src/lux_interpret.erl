@@ -775,21 +775,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
             erlang:raise(Class, Reason, erlang:get_stacktrace())
     end.
 
-file_level(#istate{file_level = FileLevel,
-                   file = File,
-                   latest_lineno = Latest,
-                   cmd_stack = [{Rel,L}|CmdStack]} = I) ->
-    Abs = filename:absname(filename:join(lists:reverse(Rel))),
-    if
-        Abs =:= File; Latest < 0 ->
-            file_level(I#istate{file_level = FileLevel-1,
-                                file = Abs,
-                                latest_lineno = L,
-                                cmd_stack = CmdStack});
-        true ->
-            FileLevel
-    end;
-file_level(#istate{file_level = FileLevel, cmd_stack = []}) ->
+file_level(#istate{file_level = FileLevel}) ->
     FileLevel.
 
 invoke_macro(I,
