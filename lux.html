@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.6 - 2014-08-11</p>
+<p>Version 1.6 - 2014-08-15</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -365,7 +365,10 @@ contain variables and these are expanded before the first
 iteration. Items in the expanded list are separated with spaces. For
 example <code>[loop colors blue red green]</code>.  When iterating over a set of
 consecutive integers, such as <code>[loop iter 4 5 6 7]</code>, this can be
-written as a range expression, like <code>[loop iter 4..7]</code>.</p>
+written as a range expression, like <code>[loop iter 4..7]</code>. In the logs
+the iteration counter is represented as a negative line number. For
+example "8:-2:10" would mean line 10 in the second loop iteration
+where the loop starts at line 8.</p>
 
 <h3>Variables</h3>
 

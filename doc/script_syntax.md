@@ -159,7 +159,10 @@ contain variables and these are expanded before the first
 iteration. Items in the expanded list are separated with spaces. For
 example `[loop colors blue red green]`.  When iterating over a set of
 consecutive integers, such as `[loop iter 4 5 6 7]`, this can be
-written as a range expression, like `[loop iter 4..7]`.
+written as a range expression, like `[loop iter 4..7]`. In the logs
+the iteration counter is represented as a negative line number. For
+example "8:-2:10" would mean line 10 in the second loop iteration
+where the loop starts at line 8.
 
 ###Variables###
 

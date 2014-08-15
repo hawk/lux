@@ -674,6 +674,8 @@ dispatch_cmd(#istate{want_more = true} = I,
             I2 = I#istate{latest_lineno = LineNo},
             case shell_expand_vars(I2, ItemStr, error) of
                 {ok, NewItemStr} ->
+                    ilog(I2, "~s(~p): loop items \"~s\"\n",
+                         [I2#istate.active_name, LastLineNo, NewItemStr]),
                     Items = string:tokens(NewItemStr, " "),
                     NewArgs = {loop, Name, Items, LineNo, LastLineNo, Body},
                     eval_loop(I2, Cmd#cmd{arg = NewArgs});
