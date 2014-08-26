@@ -393,7 +393,9 @@ html_result(Tag, {result, Result}, HtmlLog) ->
             ];
         {fail, _Script, RawLineNo, Expected, Actual, Details} ->
             Anchor = RawLineNo,
-            Diff = lux_utils:diff(Expected, Details),
+            Expected2 = lux_utils:normalize_newlines(Expected),
+            Expected3 = binary:split(Expected2, <<"\\\\R">>, [global]),
+            Diff = lux_utils:diff(Expected3, Details),
             HtmlDiff = html_diff(Diff),
             [
              "\n<", Tag, ">Result: <strong>",
@@ -402,7 +404,7 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              html_href("", [HtmlLog, "#", Anchor], Anchor),
              "</strong></", Tag, ">\n",
              "<h3>Expected</h3>",
-              html_div(<<"annotate">>, expand_lines(Expected)),
+              html_div(<<"annotate">>, expand_lines(Expected3)),
              "<h3>Actual: ", html_cleanup(Actual), "</h3>",
              [
               "\n<div class=annotate><pre>",

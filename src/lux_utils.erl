@@ -11,11 +11,12 @@
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
+         normalize_newlines/1,
          to_string/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
-         diff_files/2, diff/2,
+         diff/2,
          cmd/2, chop_newline/1]).
 
 -include("lux.hrl").
@@ -415,18 +416,17 @@ verbatim_collect2(_Actual, _Expected, _Orig, _Base, _Pos, _Len) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Diff
 
-diff_files(OldFile, NewFile) ->
-    {OldFile, {ok, OldBin}} = {OldFile, file:read_file(OldFile)},
-    {NewFile, {ok, NewBin}} = {NewFile, file:read_file(NewFile)},
-    diff(split_lines(OldBin), split_lines(NewBin)).
-
-split_lines(<<"">>) ->
-    [];
-split_lines(Bin) when is_binary(Bin) ->
-    Opts = [global],
-    Bin2 = binary:replace(Bin, <<"\r\n">>, <<"\n">>, Opts),
-    Bin3 = binary:replace(Bin2, <<"\n\r">>, <<"\n">>, Opts),
-    binary:split(Bin3, <<"\n">>, Opts).
+%% diff_files(OldFile, NewFile) ->
+%%     {OldFile, {ok, OldBin}} = {OldFile, file:read_file(OldFile)},
+%%     {NewFile, {ok, NewBin}} = {NewFile, file:read_file(NewFile)},
+%%     diff(split_lines(OldBin), split_lines(NewBin)).
+%%
+%% split_lines(<<"">>) ->
+%%     [];
+%% split_lines(Bin) when is_binary(Bin) ->
+%%     Opts = [global],
+%%     Bin2 = normalize_regexp(Bin),
+%%     binary:split(Bin2, <<"\\\\R">>, Opts).
 
 diff(OldBins, NewBins) ->
     Old = numerate_lines(OldBins),
@@ -522,6 +522,10 @@ normalize_regexp(RegExp) when is_list(RegExp) ->
         _ ->
             normalize_regexp(RegExp++"$")
     end.
+
+normalize_newlines(IoList) ->
+    re:replace(IoList, <<"(\r\n|\r|\n)">>, <<"\\\\R">>,
+               [global, {return, binary}]).
 
 -spec merge([patch()], Old  :: [{non_neg_integer(),binary()}]) ->
           [diff()].

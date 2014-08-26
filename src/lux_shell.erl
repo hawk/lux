@@ -760,7 +760,7 @@ compile_regexp(C, {template, Template}) ->
 compile_regexp(C, {regexp, RegExp}) ->
     try
         RegExp2 = expand_vars(C, RegExp, error),
-        RegExp3 = normalize_newlines(RegExp2),
+        RegExp3 = lux_utils:normalize_newlines(RegExp2),
         %% io:format("REGEXP: ~p ~p\n", [RegExp, RegExp3]),
         Opts = [multiline, {newline, anycrlf}],
         case re:compile(RegExp3, Opts) of
@@ -783,10 +783,6 @@ patch_latest(C, NewArg, Expect) ->
     Cmd = C#cstate.latest_cmd,
     Cmd2 = Cmd#cmd{arg = NewArg},
     {C#cstate{latest_cmd = Cmd2}, Cmd2, Expect}.
-
-normalize_newlines(IoList) ->
-    re:replace(IoList, <<"(\r\n|\r|\n)">>, <<"\\\\R">>,
-               [global, {return, binary}]).
 
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     Cmd = C#cstate.latest_cmd,

@@ -1,0 +1,19 @@
+[doc Demonstrate a multi-line failure]
+
+[shell dc]
+    # Multi-line send
+    """!
+    dc
+    2
+    3
+    p
+    +
+    p
+    """
+
+    # Multi-line failure
+    """?
+    p
+    3
+    8
+    """
