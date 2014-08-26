@@ -212,7 +212,7 @@ to_string([]) ->
     [].
 
 dequote(" expect " ++ _ = L) ->
-    L;
+    re:replace(L, <<"\\\\\\\\R">>, <<"\n    ">>, [global, {return, list}]);
 dequote([$\"|T]) ->
     [$\"|dequote1(T)];
 dequote([H|T]) ->
@@ -222,8 +222,8 @@ dequote([]) ->
 
 dequote1([$\\,$\\|T]) ->
     [$\\|dequote1(T)];
-dequote1([$\\,$r|T]) ->
-    dequote1(T);
+dequote1([$\\,$r,$\\,$n|T]) ->
+    "\n    " ++ dequote1(T);
 dequote1([$\\,$n|T]) ->
     "\n    " ++ dequote1(T);
 dequote1([H|T]) ->
