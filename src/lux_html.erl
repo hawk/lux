@@ -549,7 +549,15 @@ html_code2(A, [Ann | Annotated], Prev) ->
              "\n",
              html_code2(A, Annotated, code)
             ];
-        {event_html, LineNoStack, Op, Shell, Data} ->
+        {event_html, LineNoStack, Op, Shell, Data0} ->
+            Data =
+                case Op of
+                    <<"expect">> ->
+                        lists:append([binary:split(D, <<"\\\\R">>, [global]) ||
+                                         D <- Data0]);
+                    _ ->
+                        Data0
+                end,
             FullLineNo = lux_utils:full_lineno(LineNoStack),
             Html = [Shell, "(", FullLineNo, "): ", Op, " "],
             [
