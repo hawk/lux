@@ -1,0 +1,26 @@
+[doc Test loop in cleanup]
+
+[macro cleanup_loop]
+    [progress macro]
+    [loop i 1..4]
+        [progress loop $i]
+        !echo loop $i
+        !echo ==$$?==
+        ?==0==
+    [endloop]
+[endmacro]
+
+[shell shell]
+    [timeout 1]
+    [loop s foo bar]
+        ?fail
+    [endloop]
+
+[cleanup]
+    [progress cleanup]
+    [invoke cleanup_loop]
+    [timeout 1]
+    [loop i 1..2]
+        [progress fail in cleanup]
+        ?fail
+    [endloop]
