@@ -48,10 +48,10 @@
          cmd  :: #cmd{}}).
 
 -record(istate,
-        {
-         file                       :: string(),
+        {file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
+         loop_stack = []            :: [continue|break],
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),
          debug_file                 :: string(),

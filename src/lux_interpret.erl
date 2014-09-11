@@ -835,17 +835,21 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
 
 eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = Loop) ->
     DefaultFun = get_eval_fun(),
-    eval_body(OldI, First, First, First,
-              OldI#istate.file, Body, Loop,
-              fun(I) ->
-                      do_eval_loop(I, Name, Items, First, Last, Body,
-                                   Loop, DefaultFun, 1)
-              end).
+    LoopStack = [continue | OldI#istate.loop_stack],
+    NewI = eval_body(OldI#istate{loop_stack = LoopStack}, First, First, First,
+                     OldI#istate.file, Body, Loop,
+                     fun(I) ->
+                             do_eval_loop(I, Name, Items, First, Last, Body,
+                                          Loop, DefaultFun, 1)
+                     end),
+    NewI#istate{loop_stack = tl(NewI#istate.loop_stack)}.
 
 do_eval_loop(OldI, _Name, _Items, _First, _Last, _Body, _Loop, _LoopFun, _N)
-  when OldI#istate.mode =/= running ->
+  when hd(OldI#istate.loop_stack) =:= break ->
+    %% Exit the loop
     OldI;
-do_eval_loop(OldI, Name, Items, First, Last, Body, Loop, LoopFun, N) ->
+do_eval_loop(OldI, Name, Items, First, Last, Body, Loop, LoopFun, N)
+  when hd(OldI#istate.loop_stack) =:= continue ->
     case pick_item(Items) of
         {item, Item, Rest} ->
             LoopVar = lists:flatten([Name, $=, Item]),
@@ -946,42 +950,46 @@ prepare_stop(#istate{results = Acc,
             I3
     end.
 
-goto_cleanup(I, CleanupReason) ->
+goto_cleanup(OldI, CleanupReason) ->
     LineNoPrefix =
-        case I#istate.results of
+        case OldI#istate.results of
             [#result{actual=fail_pattern_matched}|_]    -> "-";
             [#result{actual=success_pattern_matched}|_] -> "+";
             _                                           -> ""
         end,
-    LineNo = integer_to_list(I#istate.latest_lineno),
-    lux_utils:progress_write(I#istate.progress, LineNoPrefix ++ LineNo),
+    LineNo = integer_to_list(OldI#istate.latest_lineno),
+    lux_utils:progress_write(OldI#istate.progress, LineNoPrefix ++ LineNo),
 
     %% Ensure that the cleanup does not take too long time
-    safe_send_after(I, I#istate.case_timeout, self(),
-                    {case_timeout, I#istate.case_timeout}),
+    safe_send_after(OldI, OldI#istate.case_timeout, self(),
+                    {case_timeout, OldI#istate.case_timeout}),
 
     %% Fast forward to (optional) cleanup command
-    Cmds = I#istate.commands,
-    {_, Cleanup} =
-        lists:splitwith(fun(#cmd{type = Type}) -> Type =/= cleanup end, Cmds),
-    NewI = I#istate{cleanup_reason = CleanupReason,
-                    want_more = true,
-                    commands = Cleanup},
-    Mode = I#istate.mode,
-    FileLevel = file_level(I),
-    case Cleanup of
-        [_|_] when Mode =:= running;
-                   Mode =:= cleanup ->
-            ilog(I, "~s(~s): goto cleanup\n", [I#istate.active_name, LineNo]),
-            NewI#istate{mode = cleanup};
-        _ when FileLevel > 1 ->
-            ilog(I, "~s(~s): no cleanup\n", [I#istate.active_name, LineNo]),
-            NewI#istate{mode = cleanup};
-        _  ->
-            %% Initiate stop by sending shutdown to the remaining shells.
-            multi_cast(I, {shutdown, self()}),
-            NewI#istate{mode = stopping}
-    end.
+    Cmds = OldI#istate.commands,
+    Cleanup =
+        lists:dropwhile(fun(#cmd{type = Type}) -> Type =/= cleanup end, Cmds),
+    NewI = OldI#istate{cleanup_reason = CleanupReason,
+                       want_more = true,
+                       commands = Cleanup},
+    FileLevel = file_level(NewI),
+    Mode =
+        case Cleanup of
+            [_|_] when NewI#istate.mode =:= running;
+                       NewI#istate.mode =:= cleanup ->
+                ilog(NewI, "~s(~s): goto cleanup\n",
+                     [NewI#istate.active_name, LineNo]),
+                cleanup;
+            _ when FileLevel > 1 ->
+                ilog(NewI, "~s(~s): no cleanup\n",
+                     [NewI#istate.active_name, LineNo]),
+                cleanup;
+            _  ->
+                %% Initiate stop by sending shutdown to the remaining shells.
+                multi_cast(NewI, {shutdown, self()}),
+                stopping
+        end,
+    LoopStack = [break || _ <- NewI#istate.loop_stack], % Break active loops
+    NewI#istate{mode = Mode, loop_stack = LoopStack}.
 
 delete_shell(I, Pid) ->
     Shells = I#istate.shells,

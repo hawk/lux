@@ -148,8 +148,8 @@ select_first(_Char, [], Acc) ->
 ambiguous(Orig, NamedCmds) ->
     Longest = longest(NamedCmds),
     Fun = fun({_, #debug_cmd{name = Name, help = Help}}) ->
-                  {Slogan, _} =
-                      lists:splitwith(fun(Char) -> Char =/= $\n end, Help),
+                  Slogan =
+                      lists:takewhile(fun(Char) -> Char =/= $\n end, Help),
                   ["* ", string:left(Name, Longest, $\ ), " - ", Slogan, "\n"]
           end,
     DeepList = lists:map(Fun, NamedCmds),
