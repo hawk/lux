@@ -258,7 +258,6 @@ parse_body(P,
             {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
             Pred = fun(L) -> re:run(L, MP, [{capture, none}]) =:= nomatch end,
             {RawBody, After} = lists:splitwith(Pred, Lines),
-            BodyLen = length(RawBody),
             case After of
                 [] ->
                     parse_error(P,
@@ -267,19 +266,17 @@ parse_body(P,
                                  integer_to_list(LineNo),
                                  ": [" ++ EndKeyword ++ "] expected"]);
                 [_EndMacro | Lines2] ->
+                    BodyLen = length(RawBody),
                     Body = lists:reverse(parse(P, RawBody, LineNo+1, [])),
                     LastLineNo = LineNo+BodyLen+1,
-                    {LineNo+BodyLen+1,
-                     Cmd#cmd{arg = {Tag, Name, Items, LineNo,
-                                    LastLineNo, Body}},
-                     Lines2}
+                    Arg = {Tag, Name, Items, LineNo, LastLineNo, Body},
+                    {LineNo+BodyLen+1, Cmd#cmd{arg = Arg}, Lines2}
             end;
         _ ->
             Body = lists:reverse(parse(P, MultiLine, LineNo+1, [])),
             LastLineNo = LineNo,
-            {LineNo,
-             Cmd#cmd{arg = {Tag, Name, Items, LineNo, LastLineNo, Body}},
-             Lines}
+            Arg = {Tag, Name, Items, LineNo, LastLineNo, Body},
+            {LineNo, Cmd#cmd{arg = Arg}, Lines}
     end.
 
 parse_meta_token(P, Cmd, Meta, LineNo) ->
