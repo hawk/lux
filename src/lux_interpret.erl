@@ -368,15 +368,14 @@ simple_to_string(Atom) when is_atom(Atom) ->
     simple_to_string(atom_to_list(Atom));
 simple_to_string(Bin) when is_binary(Bin) ->
     simple_to_string(binary_to_list(Bin));
-simple_to_string([H | T]) when is_integer(H) ->
-    case H of
-        $\r ->
-            simple_to_string(T);
-        $\n ->
-            [$\n, $\t | simple_to_string(T)];
-        Char ->
-            [Char | simple_to_string(T)]
-    end;
+simple_to_string([$\r | T]) ->
+    simple_to_string(T);
+simple_to_string([$\n | T]) ->
+    [$\n, $\t | simple_to_string(T)];
+simple_to_string([$\\, $\R | T]) ->
+    [$\n, $\t | simple_to_string(T)];
+simple_to_string([Char | T]) when is_integer(Char) ->
+    [Char | simple_to_string(T)];
 simple_to_string([H | T]) ->
     simple_to_string(H) ++ simple_to_string(T);
 simple_to_string([]) ->
