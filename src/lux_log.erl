@@ -518,13 +518,9 @@ write_event(Progress, LogFun, Fd, {event, LineNo, Shell, Op, "", []}) ->
     safe_write(Progress, LogFun, Fd, Data);
 write_event(Progress, LogFun, Fd, {event, LineNo, Shell, Op, Format, Args}) ->
     Data = io_lib:format(Format, Args),
-    Data2 = normalize_newlines(Data),
+    Data2 = lux_utils:normalize_newlines(Data),
     Data3 = io_lib:format("~s(~p): ~p ~s\n", [Shell, LineNo, Op, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
-
-normalize_newlines(IoList) ->
-    re:replace(IoList, <<"(\r\n|\r|\n)">>, <<"\\\\R">>,
-               [global, {return, binary}]).
 
 scan_events(EventLog) ->
     case read_log(EventLog, ?EVENT_TAG) of

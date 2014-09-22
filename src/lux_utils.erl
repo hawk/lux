@@ -11,7 +11,7 @@
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
-         normalize_newlines/1,
+         normalize_newlines/1, expand_lines/1,
          to_string/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5,
          full_lineno/1, filename_split/1, dequote/1,
@@ -526,6 +526,13 @@ normalize_regexp(RegExp) when is_list(RegExp) ->
 normalize_newlines(IoList) ->
     re:replace(IoList, <<"(\r\n|\r|\n)">>, <<"\\\\R">>,
                [global, {return, binary}]).
+
+expand_lines([]) ->
+    [];
+expand_lines([Line]) ->
+    Line;
+expand_lines([Line | Lines]) ->
+    [Line, "\n", expand_lines(Lines)].
 
 -spec merge([patch()], Old  :: [{non_neg_integer(),binary()}]) ->
           [diff()].

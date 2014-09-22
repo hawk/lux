@@ -210,7 +210,7 @@ html_doc(Tag, [Slogan | Desc]) ->
          [] ->
              [];
          _ ->
-             html_div(<<"annotate">>, expand_lines(Desc))
+             html_div(<<"annotate">>, lux_utils:expand_lines(Desc))
      end
     ].
 
@@ -383,18 +383,19 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              "\n<", Tag, ">Result: <strong>ERROR at line ",
              html_href("", [HtmlLog, "#", Anchor], Anchor),
              "<h3>Reason</h3>",
-             html_div(<<"annotate">>, expand_lines(Reason))
+             html_div(<<"annotate">>, lux_utils:expand_lines(Reason))
             ];
         {error, Reason} ->
             [
              "\n<", Tag, ">Result: <strong>ERROR</strong></", Tag, ">\n",
              "<h3>Reason</h3>",
-             html_div(<<"annotate">>, expand_lines(Reason))
+             html_div(<<"annotate">>, lux_utils:expand_lines(Reason))
             ];
-        {fail, _Script, RawLineNo, Expected, Actual, Details} ->
+        {fail, _Script, RawLineNo, Expected0, Actual, Details} ->
             Anchor = RawLineNo,
+            Expected = lux_utils:expand_lines(Expected0),
             Expected2 = lux_utils:normalize_newlines(Expected),
-            Expected3 = binary:split(Expected2, <<"\\\\R">>, [global]),
+            Expected3 = binary:split(Expected2, <<"\\R">>, [global]),
             Diff = lux_utils:diff(Expected3, Details),
             HtmlDiff = html_diff(Diff),
             [
@@ -404,11 +405,11 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              html_href("", [HtmlLog, "#", Anchor], Anchor),
              "</strong></", Tag, ">\n",
              "<h3>Expected</h3>",
-              html_div(<<"annotate">>, expand_lines(Expected3)),
+              html_div(<<"annotate">>, lux_utils:expand_lines(Expected3)),
              "<h3>Actual: ", html_cleanup(Actual), "</h3>",
              [
               "\n<div class=annotate><pre>",
-              expand_lines(HtmlDiff),
+              lux_utils:expand_lines(HtmlDiff),
               "</pre></div>"
              ]
             ]
@@ -511,7 +512,7 @@ tag(Tag, Text) ->
     ["<", Tag, ">", Text, "</", Tag, ">"].
 
 html_config(Config) when is_list(Config) ->
-    html_div(<<"annotate">>, expand_lines(Config));
+    html_div(<<"annotate">>, lux_utils:expand_lines(Config));
 html_config(Config) when is_binary(Config) ->
     html_div(<<"annotate">>, Config).
 
@@ -609,7 +610,7 @@ html_toggle_div(Curr, Prev) ->
     end.
 
 html_opt_div(Op, Data) ->
-    Html = expand_lines(Data),
+    Html = lux_utils:expand_lines(Data),
     case Op of
         <<"send">>   -> html_div(Op, Html);
         <<"recv">>   -> html_div(Op, Html);
@@ -1173,11 +1174,6 @@ do_keysplit(_Pos, [], _Fun, [], Acc) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
-
-expand_lines([Line | Lines]) ->
-    [Line, "\n", expand_lines(Lines)];
-expand_lines([]) ->
-    [].
 
 html_div(Class, Html) ->
     [
