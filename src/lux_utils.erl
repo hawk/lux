@@ -368,21 +368,21 @@ verbatim_search(Actual, Expected, Orig, Pos) ->
     verbatim_search2(Actual2, Expected2, Orig, Pos+Add).
 
 verbatim_search2(<<Match:1/binary, Actual/binary>>,
-                <<Match:1/binary, Expected/binary>>,
-                Orig,
-                Pos) ->
+                 <<Match:1/binary, Expected/binary>>,
+                 Orig,
+                 Pos) ->
     %% First match
     verbatim_collect(Actual, Expected, Orig, Pos, Pos, 1);
 verbatim_search2(<<_A:1/binary, Actual/binary>>,
-                Expected,
-                Orig,
-                Pos) ->
+                 Expected,
+                 Orig,
+                 Pos) ->
     %% No match while searching - reset expr
     verbatim_search(Actual, Expected, Orig, Pos+1);
 verbatim_search2(_Actual,
-                _Expected,
-                _Orig,
-                _Pos) ->
+                 _Expected,
+                 _Orig,
+                 _Pos) ->
     nomatch.
 
 verbatim_collect(Actual, Expected, Orig, Base, Pos, Len) ->
