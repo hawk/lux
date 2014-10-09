@@ -90,6 +90,7 @@ specs() ->
      {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
      {"--install_app",        undefined,   string,                 mandatory},
+     {"--install_profile",    standalone,  fun profile_arg/1,      mandatory},
      {"--reltool",            false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
@@ -124,6 +125,15 @@ specs() ->
      {"--var",                undefined,   string,                 mandatory},
      {"--tap",                undefined,   string,                 mandatory}
     ].
+
+profile_arg(usage) ->
+    "enum(standalone|development|embedded)";
+profile_arg(Prof) ->
+    case Prof of
+        "standalone"  -> standalone;
+        "development" -> development;
+        "embedded"    -> embedded
+    end.
 
 mode_arg(usage) ->
     "enum(list|doc|validate|execute)";
@@ -238,6 +248,7 @@ markdown() ->
 
 internal_debug(MainOp, Args) ->
     require_app(MainOp, debugger),
+    require_app(MainOp, wx),
     Escript = escript:script_name(),
     {ok, [{shebang, Shebang0} | _Rest]} = escript:extract(Escript, []),
     case Shebang0 of
@@ -341,8 +352,9 @@ make(MainOp) ->
     safe_halt(0).
 
 install(MainOp, InstallDir, Opts) ->
-    io:format("Installing ~p as standalone... ~s\n",
-              [?APPLICATION, InstallDir]),
+    InstallProf = reltool_profile(Opts),
+    io:format("Installing ~p as a ~p system... ~s\n",
+              [?APPLICATION, InstallProf, InstallDir]),
     {RootDir, ReltoolOpts} = reltool_opts(MainOp, Opts),
     case reltool:start_server(ReltoolOpts) of
         {ok, ServerPid} ->
@@ -446,17 +458,29 @@ reltool_opts(MainOp, Opts) ->
     AppConds2 = [{A, C} || {A, C} <- AppConds,
                            not lists:keymember(A, 1, InstallApps2)],
     AppConds3 = AppConds2 ++ InstallApps2,
-    Apps = filter_apps(MainOp, AppConds3, IsCross, HasRelaxedExclusion),
-    {RootDir,
-     [{sys,
-       [{root_dir, RootDir},
-        {debug_info, strip},
-        {escript, ThisEscript, [{incl_cond, include}]}] ++
-           LuxApps ++ Apps ++
-           [{profile, standalone},
-            {excl_sys_filters,
-             {add, ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
-                    "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}]}]}.
+    ExtraApps = filter_apps(MainOp, AppConds3, IsCross, HasRelaxedExclusion),
+    Common =
+        [{root_dir, RootDir},
+         {debug_info, strip},
+         {escript, ThisEscript, [{incl_cond, include}]}],
+    Profile =
+        case reltool_profile(Opts) of
+            standalone ->
+                [{profile, standalone},
+                 {excl_sys_filters,
+                  {add,
+                   ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
+                    "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}];
+            InstallProf ->
+                [{profile, InstallProf}]
+        end,
+    {RootDir, [{sys, Common ++ LuxApps ++ ExtraApps ++ Profile}]}.
+
+reltool_profile(Opts) ->
+    case lists:keyfind("--install_profile", 1, Opts) of
+        {_, []}      -> standalone;
+        {_, Profile} -> lists:last(Profile)
+    end.
 
 app_has_feature(MainOp, AppName, LowestVersion) ->
     LoadedApps = application:loaded_applications(),
@@ -530,6 +554,7 @@ test([
      {"--make",               _Make},
      {"--install",            _InstallDir},
      {"--install_app",        _InstallApp},
+     {"--install_profile",    _InstallProfile},
      {"--reltool",            _Reltool},
      {"--annotate",           _LogFile},
      {"--history",            _LogDir},
@@ -801,12 +826,16 @@ find_spec(Opt, Specs) ->
         Spec  -> {Val, Spec}
     end.
 
-badarg(Opt) ->
-    do_throw({badarg, Opt}).
+badarg(Val) ->
+    do_throw({badarg, Val}).
 
+badarg(Val, TypeFun) when is_function(TypeFun, 1) ->
+    do_throw({badarg, Val, TypeFun(usage)});
 badarg(Val, Type) ->
     do_throw({badarg, Val, Type}).
 
+badarg(Name, Val, TypeFun) when is_function(TypeFun, 1) ->
+    do_throw({badarg, Name, Val, TypeFun(usage)});
 badarg(Name, Val, Type) ->
     do_throw({badarg, Name, Val, Type}).
 
