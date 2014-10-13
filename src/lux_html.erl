@@ -565,6 +565,7 @@ html_code2(A, [Ann | Annotated], Prev) ->
              html_toggle_div(event, Prev),
              html_cleanup(Html),
              html_opt_div(Op, Data),
+             "</br>",
              html_code2(A, Annotated, event)
             ];
         {body_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
