@@ -1,4 +1,4 @@
-[shell test]
+[shell fail]
    !echo foo
    ?foo
    ?foo
@@ -6,11 +6,11 @@
    !echo foo
    ?foo
    ?foo
-   # Fail at 5:21:14
 
 [macro inner]
     [shell test2]
     [timeout 1]
+    [progress Fail at lineno 5:21:14]
     ?fum
 [endmacro]
 
