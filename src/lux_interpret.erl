@@ -1121,7 +1121,7 @@ wait_for_pong(I, []) ->
     I.
 
 change_shell_mode(I, Cmd, NewMode) when is_pid(I#istate.active_pid) ->
-    cast(I, {change_mode, self(), NewMode, Cmd}),
+    cast(I, {change_mode, self(), NewMode, Cmd, I#istate.cmd_stack}),
     ping(I, immediate);
 change_shell_mode(I, _Cmd, _NewMode) when I#istate.active_pid =:= undefined ->
     I.

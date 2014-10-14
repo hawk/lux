@@ -1,0 +1,14 @@
+[shell fail]
+   !sleep 2; echo foo
+   ?foo
+   -foo
+
+[shell test]
+    [invoke fun]
+
+[macro fun]
+    [sleep 4]
+[endmacro]
+
+
+[cleanup]

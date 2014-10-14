@@ -68,6 +68,7 @@ start_monitor(I, Cmd, Name) ->
                 name = Name,
                 start_reason = I#istate.cleanup_reason,
                 latest_cmd = Cmd,
+                cmd_stack = I#istate.cmd_stack,
                 progress = I#istate.progress,
                 log_fun = I#istate.log_fun,
                 event_log_fd = I#istate.event_log_fd,
@@ -223,16 +224,22 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
             end;
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
-        {change_mode, _From, Mode, Cmd}
+        {change_mode, _From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->
-            C2 = C#cstate{latest_cmd = Cmd},
-            case Mode of
-                suspend ->
-                    clog(C2, Mode, "", []);
-                resume ->
-                    clog(C2, Mode, "(idle since line ~p)", [Cmd#cmd.lineno])
-            end,
-            expect_more(C2#cstate{mode = Mode, waiting = false});
+            C2 = C#cstate{latest_cmd = Cmd}, % Use the cmd lineno in logging
+            CmdStack2 =
+                case Mode of
+                    suspend ->
+                        clog(C2, Mode, "", []),
+                        C#cstate.cmd_stack; % Keep old stack
+                    resume ->
+                        clog(C2, Mode, "(idle since line ~p)",
+                             [Cmd#cmd.lineno]),
+                        CmdStack
+                end,
+            expect_more(C2#cstate{mode = Mode,
+                                  waiting = false,
+                                  cmd_stack = CmdStack2});
         {expand_vars, From, Bin, MissingVar} ->
             Res =
                 try

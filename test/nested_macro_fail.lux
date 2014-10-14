@@ -1,0 +1,27 @@
+[shell test]
+   !echo foo
+   ?foo
+   ?foo
+   [invoke outer]
+   !echo foo
+   ?foo
+   ?foo
+   # Fail at 5:21:14
+
+[macro inner]
+    [shell test2]
+    [timeout 1]
+    ?fum
+[endmacro]
+
+[macro outer]
+    !echo foo
+    ?foo
+    ?foo
+    [invoke inner]
+    !echo foo
+    ?foo
+    ?foo
+[endmacro]
+
+[cleanup]
