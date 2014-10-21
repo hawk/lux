@@ -102,6 +102,8 @@ updated_opts(I, DefaultI) ->
          {shell_wrapper, #istate.shell_wrapper},
          {shell_cmd, #istate.shell_cmd},
          {shell_args, #istate.shell_args},
+         {shell_prompt_cmd, #istate.shell_prompt_cmd},
+         {shell_prompt_regexp, #istate.shell_prompt_regexp},
          {var, #istate.dict},
          {system_env, #istate.system_dict}
         ],

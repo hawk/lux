@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.6 - 2014-08-15</p>
+<p>Version 1.6 - 2014-10-21</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -812,6 +812,17 @@ script starts a shell. By default <strong><code>/bin/sh -i</code></strong> is st
 <code>--shell_cmd</code> and <code>--shell_args</code> defaults to <code>/bin/sh</code> and <code>-i</code>
 respectively. <code>--shell_args</code> is a bit special in how this parameter
 is treated by Lux.</p>
+
+<p><strong>--shell_prompt_cmd PromptCmd</strong> <br />
+<strong>--shell_prompt_regexp PromptRegExp</strong>  </p>
+
+<p>When Lux starts a shell the prompt is set to <strong><code>SH-PROMPT:</code></strong> by
+default. In Bourne shell, which is the default shell, the variable
+<code>PS1</code> is used to set the prompt. This is obtained by using the command
+<code>export PS1=SH-PROMPT:</code> followed by an explicit match of the prompt
+using the regexp <code>^SH-PROMPT:</code>. This behavior can be overridden by
+using <code>--shell_prompt_cmd</code> and <code>--shell_prompt_regex</code> respectively
+when using more exotic shells.</p>
 
 <p><strong>--shell_wrapper [Executable]</strong>  </p>
 

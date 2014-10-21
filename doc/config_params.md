@@ -271,6 +271,17 @@ script starts a shell. By default **`/bin/sh -i`** is started as
 respectively. `--shell_args` is a bit special in how this parameter
 is treated by Lux.
 
+**--shell\_prompt\_cmd PromptCmd**  
+**--shell\_prompt\_regexp PromptRegExp**  
+
+When Lux starts a shell the prompt is set to **`SH-PROMPT:`** by
+default. In Bourne shell, which is the default shell, the variable
+`PS1` is used to set the prompt. This is obtained by using the command
+`export PS1=SH-PROMPT:` followed by an explicit match of the prompt
+using the regexp `^SH-PROMPT:`. This behavior can be overridden by
+using `--shell_prompt_cmd` and `--shell_prompt_regex` respectively
+when using more exotic shells.
+
 **--shell\_wrapper \[Executable\]**  
 
 In order to get the terminal settings to work properly in advanced

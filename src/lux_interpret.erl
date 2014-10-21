@@ -173,6 +173,10 @@ config_type(Name) ->
             {ok, #istate.shell_cmd, [string]};
         shell_args ->
             {ok, #istate.shell_args, [{reset_list, [string]}]};
+        shell_prompt_cmd ->
+            {ok, #istate.shell_prompt_cmd, [string]};
+        shell_prompt_regexp ->
+            {ok, #istate.shell_prompt_regexp, [string]};
         var ->
             {ok, #istate.dict, [{env_list, [string]}]};
         _ ->
@@ -401,6 +405,8 @@ config_data(I) ->
      {shell_wrapper,                           I#istate.shell_wrapper},
      {shell_cmd,                               I#istate.shell_cmd},
      {shell_args,                              I#istate.shell_args},
+     {shell_prompt_cmd,                        I#istate.shell_prompt_cmd},
+     {shell_prompt_regexp,                     I#istate.shell_prompt_regexp},
      {var,                                     I#istate.dict},
      {builtin,         [{env_list, [string]}], I#istate.builtin_dict},
      {system_env,      [{env_list, [string]}], I#istate.system_dict}
@@ -1063,11 +1069,13 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
             Wait = Cmd#cmd{type = expect,
                            arg = {regexp, <<".+">>}},
             %% Set the prompt (after the rc files has ben run)
+            CmdStr = list_to_binary(I#istate.shell_prompt_cmd),
             Prompt = Cmd#cmd{type = send_lf,
-                             arg = <<"export PS1=SH-PROMPT:">>},
+                             arg = CmdStr},
             %% Wait for the prompt
+            CmdRegExp = list_to_binary(I#istate.shell_prompt_regexp),
             Sync = Cmd#cmd{type = expect,
-                           arg = {regexp, <<"^SH-PROMPT:">>}},
+                           arg = {regexp, CmdRegExp}},
             Cmds = [Wait, Prompt, Sync | I3#istate.commands],
             I3#istate{commands = Cmds, want_more = false};
         {error, I3, Pid, Reason} ->

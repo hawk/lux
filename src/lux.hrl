@@ -77,6 +77,8 @@
          shell_wrapper              :: undefined | string(),
          shell_cmd = "/bin/sh"      :: string(),
          shell_args = ["-i"]        :: [string()],
+         shell_prompt_cmd = "export PS1=SH-PROMPT:" :: string(),
+         shell_prompt_regexp = "^SH-PROMPT:" :: string(),
          file_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
          active_pid                 :: undefined | pid(),
