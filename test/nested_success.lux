@@ -1,15 +1,12 @@
 [shell success]
    !sleep 2; echo foo
-   ?foo
+   ?echo foo
    +foo
-   [progress Success at lineno 4 after 2 sec]
+   [progress Success at lineno 8:11 after 2 sec]
 
 [shell other]
     [invoke fun]
-    ?fail
 
 [macro fun]
-    [sleep 4]
+    ?success on this line
 [endmacro]
-
-[cleanup]

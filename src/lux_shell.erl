@@ -805,44 +805,38 @@ patch_latest(C, NewArg, Expect) ->
     {C#cstate{latest_cmd = Cmd2}, Cmd2, Expect}.
 
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
-    LatestCmd = C#cstate.latest_cmd,
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-    clog(C, stop, "~p", [Outcome]),
+    Cmd = C#cstate.latest_cmd,
     if
         Outcome =:= fail, Actual =:= fail_pattern_matched ->
             NewOutcome = Outcome,
             Fail = C#cstate.fail,
-            Cmd = Fail#pattern.cmd,
-            CmdStack = Fail#pattern.cmd_stack,
-            Extra = element(1, Cmd#cmd.arg);
+            FailCmd = Fail#pattern.cmd,
+            Extra = element(2, FailCmd#cmd.arg),
+            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
         Outcome =:= success, Actual =:= success_pattern_matched ->
             NewOutcome = Outcome,
             Success = C#cstate.success,
-            Cmd = Success#pattern.cmd,
-            CmdStack = Success#pattern.cmd_stack,
-            Extra = element(1, Cmd#cmd.arg);
+            SuccessCmd = Success#pattern.cmd,
+            Extra = element(2, SuccessCmd#cmd.arg),
+            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
         Outcome =:= error ->
             NewOutcome = fail,
-            Cmd = LatestCmd,
-            CmdStack = C#cstate.cmd_stack,
             Extra = Actual;
         Outcome =:= shutdown ->
             NewOutcome = Outcome,
-            Cmd = LatestCmd,
-            CmdStack = C#cstate.cmd_stack,
             Extra = undefined;
         true ->
             NewOutcome = Outcome,
-            Cmd = LatestCmd,
-            CmdStack = C#cstate.cmd_stack,
             Extra = undefined
     end,
+    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
+    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    clog(C, stop, "~p", [Outcome]),
     Expected = cmd_expected(Cmd),
     Res = #result{outcome = NewOutcome,
                   name = C#cstate.name,
                   lineno = Cmd#cmd.lineno,
-                  cmd_stack = CmdStack,
+                  cmd_stack = C#cstate.cmd_stack,
                   expected = Expected,
                   extra = Extra,
                   actual = Actual,
@@ -886,7 +880,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   actual = internal_error,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
-    io:format("\nRES2: ~p\n", [Res]),
+    io:format("\nINTERNAL ERROR: ~p\n", [Res]),
     C2 = close_logs(C),
     C2#cstate.parent ! {stop, self(), Res},
     close_and_exit(C2, Reason, Res).

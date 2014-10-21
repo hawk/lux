@@ -932,7 +932,18 @@ prepare_stop(#istate{results = Acc,
                          actual     = FailReason,
                          rest       = fail}}
         end,
-    I3 = I2#istate{results = [Res2 | Acc]},
+    Res3 =
+        case Res2 of
+            #result{actual=fail_pattern_matched} ->
+                Res2#result{lineno = Latest,
+                            cmd_stack = CmdStack};
+            #result{actual=success_pattern_matched} ->
+                Res2#result{lineno = Latest,
+                            cmd_stack = CmdStack};
+            _ ->
+                Res2
+        end,
+    I3 = I2#istate{results = [Res3 | Acc]},
     case I3#istate.mode of
         running when Res2#result.outcome =:= shutdown,
                      Res2#result.actual =:= shell_exit ->
@@ -1118,6 +1129,9 @@ multi_ping(I, When) when  When =:= flush;
 wait_for_pong(I, [Pid | Pids]) ->
     receive
         {pong, Pid} ->
+            wait_for_pong(I, Pids);
+        {stop, Pid, Reason} ->
+            self() ! {stop, Pid, Reason},
             wait_for_pong(I, Pids);
         {'DOWN', _, process, Pid, shutdown} = ShutdownMsg ->
             self() ! ShutdownMsg,
