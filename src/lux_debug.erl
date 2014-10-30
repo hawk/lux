@@ -862,19 +862,19 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             Format = "compact",
             UserN = undefined
     end,
-    Logs = all_logs(I),
+    {I2, Logs} = all_logs(I),
     case catch lists:nth(Index, Logs) of
         {'EXIT', _} ->
             io:format("ERROR: ~p is not a valid log index."
                       " Must be within ~p..~p.\n",
                       [Index, 1, length(Logs)]),
-            {CmdState, I};
+            {CmdState, I2};
         LogFile ->
-            tail(I, LogFile, CmdState, Format, UserN)
+            tail(I2, LogFile, CmdState, Format, UserN)
     end.
 
 all_logs(#istate{orig_file=Script, log_dir=LogDir, logs=StdLogs} = I) ->
-    lux_interpret:flush_logs(I),
+    I2 = lux_interpret:flush_logs(I),
     Split = fun({_Name, Stdin, Stdout}, Acc) -> [Stdout, Stdin | Acc] end,
     Logs = lists:reverse(lists:foldl(Split, [], StdLogs)),
     Base = filename:basename(Script),
@@ -883,7 +883,7 @@ all_logs(#istate{orig_file=Script, log_dir=LogDir, logs=StdLogs} = I) ->
     SuiteConfigLog = filename:join([LogDir, "lux_config.log"]),
     SummaryLog = filename:join([LogDir, "lux_summary.log.tmp"]),
     ResultLog = filename:join([LogDir, "lux_result.log"]),
-    [SuiteConfigLog, SummaryLog, ResultLog, ConfigLog, EventLog | Logs].
+    {I2, [SuiteConfigLog, SummaryLog, ResultLog, ConfigLog, EventLog | Logs]}.
 
 tail(#istate{log_dir=LogDir} = I, AbsFile, CmdState, Format, UserN) ->
     RelFile = lux_utils:drop_prefix(LogDir, AbsFile),

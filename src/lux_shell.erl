@@ -107,10 +107,21 @@ start_monitor(I, Cmd, Name) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Server
 
+reply(C, To, Msg) ->
+    TraceFrom = C#cstate.name,
+    TraceTo =
+        if
+            To =:= C#cstate.parent -> 'case';
+            true                   -> To
+        end,
+    lux:trace_me(50, TraceFrom, TraceTo, element(1, Msg), [Msg]),
+    To ! Msg.
+
 init(C) when is_record(C, cstate) ->
     erlang:monitor(process, C#cstate.parent),
     process_flag(trap_exit, true),
     Name = C#cstate.name,
+    lux:trace_me(50, 'case', Name, 'spawn', []),
     {InFile, InFd} = open_logfile(C, "stdin"),
     {OutFile, OutFd} = open_logfile(C, "stdout"),
     C2 = C#cstate{stdin_log_fd = {false, InFd},
@@ -134,7 +145,7 @@ init(C) when is_record(C, cstate) ->
 
         Parent = C3#cstate.parent,
         erlang:monitor(process, Parent),
-        Parent ! {started, self(), {Name, InFile, OutFile}},
+        reply(C3, Parent, {started, self(), {Name, InFile, OutFile}}),
         try
             shell_loop(C3, C3)
         catch
@@ -187,7 +198,7 @@ shell_loop(#cstate{idle_count = IdleCount} = C, OrigC) ->
     C4 = shell_wait_for_event(C3, OrigC),
     shell_loop(C4, OrigC).
 
-shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
+shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
     IdleThreshold = 3*1000,
     Timeout =
         if
@@ -199,54 +210,21 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                 IdleThreshold
         end,
     receive
-        {ping, From, When} ->
-            C2 = opt_ping_reply(C, From, When),
-            shell_wait_for_event(C2, OrigC);
         {block, From} ->
             %% io:format("\nBLOCK ~s\n", [C#cstate.name]),
-            receive
-                {unblock, From} ->
-                    %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
-                    shell_wait_for_event(C, OrigC);
-                {ping, From, When} ->
-                    C2 = opt_ping_reply(C, From, When),
-                    shell_wait_for_event(C2, OrigC);
-                {'DOWN', _, process, Pid, Reason}
-                  when Pid =:= C#cstate.parent ->
-                    Waste = flush_port(C,
-                                       C#cstate.flush_timeout,
-                                       C#cstate.actual),
-                    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-                    close_and_exit(C,
-                                   {error, internal},
-                                   {internal_error, interpreter_died,
-                                    C#cstate.latest_cmd, Reason});
-                {'EXIT', Port, _PosixCode} ->
-                    C2 = C#cstate{state_changed = true,
-                                  no_more_output = true,
-                                  events = save_event(C, recv, shell_exit)},
-                    shell_wait_for_event(C2, OrigC);
-                {shutdown = Data, _From} ->
-                    stop(C, shutdown, Data)
-            end;
+            block(C, From, OrigC);
+        {sync, From, When} ->
+            C2 = opt_sync_reply(C, From, When),
+            shell_wait_for_event(C2, OrigC);
+        {switch_cmd, From, _When, NewCmd, CmdStack, Fun} ->
+            C2 = switch_cmd(C, From, NewCmd, CmdStack, Fun),
+            shell_wait_for_event(C2, OrigC);
+        {change_mode, From, Mode, Cmd, CmdStack}
+          when Mode =:= resume; Mode =:= suspend ->
+            C2 = change_mode(C, From, Mode, Cmd, CmdStack),
+            expect_more(C2);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
-        {change_mode, _From, Mode, Cmd, CmdStack}
-          when Mode =:= resume; Mode =:= suspend ->
-            C2 = C#cstate{latest_cmd = Cmd}, % Use the cmd lineno in logging
-            CmdStack2 =
-                case Mode of
-                    suspend ->
-                        clog(C2, Mode, "", []),
-                        C#cstate.cmd_stack; % Keep old stack
-                    resume ->
-                        clog(C2, Mode, "(idle since line ~p)",
-                             [Cmd#cmd.lineno]),
-                        CmdStack
-                end,
-            expect_more(C2#cstate{mode = Mode,
-                                  waiting = false,
-                                  cmd_stack = CmdStack2});
         {expand_vars, From, Bin, MissingVar} ->
             Res =
                 try
@@ -255,13 +233,9 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                     throw:{no_such_var, BadName} ->
                         {no_such_var, BadName}
                 end,
-            From ! {expand_vars, self(), Res},
+            reply(C, From, {expand_vars, self(), Res}),
             C;
-        {switch_cmd, From, NewCmd, CmdStack, Fun} ->
-            Fun(),
-            From ! {switch_cmd_ack, self()},
-            C#cstate{latest_cmd = NewCmd, cmd_stack = CmdStack};
-        {sync_eval, From, Cmd} ->
+        {eval, From, Cmd} ->
             assert_msg(C, Cmd, From),
             C2 =
                 case C#cstate.no_more_input of
@@ -277,10 +251,12 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
             C#cstate{macro_dict = MacroDict};
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
+        {cleanup = Data, _From} ->
+            stop(C, cleanup, Data);
         {end_of_script, _From} ->
             clog(C, 'end', "of script", []),
             C#cstate{no_more_input = true, mode = resume};
-        {Port, {data, Data}} ->
+        {Port, {data, Data}} when Port =:= C#cstate.port ->
             Progress = C#cstate.progress,
             lux_utils:progress_write(Progress, ":"),
             %% Read all available data
@@ -303,7 +279,7 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
         {wake_up, Secs} ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             C#cstate{mode = resume};
-        {'EXIT', Port, _PosixCode} ->
+        {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
             C#cstate{state_changed = true,
                      no_more_output = true,
                      events = save_event(C, recv, shell_exit)};
@@ -323,36 +299,91 @@ shell_wait_for_event(#cstate{name = _Name, port = Port} = C, OrigC) ->
                     C
             end;
         Unexpected ->
-            io:format("[shell ~s] got ~p\n",
-                      [C#cstate.name, Unexpected]),
-            C
+            lux:trace_me(70, C#cstate.name, internal_error,
+                         [{shell_got, Unexpected}]),
+            exit({shell_got, Unexpected})
     after multiply(C, Timeout) ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
 
-opt_ping_reply(C, From, When) when C#cstate.wait_for_expect =:= undefined ->
+switch_cmd(C, From, NewCmd, CmdStack, Fun) ->
+    Fun(),
+    reply(C, From, {switch_cmd_ack, self()}),
+    C#cstate{latest_cmd = NewCmd, cmd_stack = CmdStack}.
+
+change_mode(C, From, Mode, Cmd, CmdStack) ->
+    TmpC = C#cstate{latest_cmd = Cmd}, % Use the cmd lineno in logging
+    CmdStack2 =
+        case Mode of
+            suspend ->
+                clog(TmpC, Mode, "", []),
+                C#cstate.cmd_stack; % Keep old stack
+            resume ->
+                clog(TmpC, Mode, "(idle since line ~p)",
+                     [Cmd#cmd.lineno]),
+                CmdStack
+        end,
+    reply(TmpC, From, {change_mode_ack, self()}),
+    C#cstate{mode = Mode,
+             waiting = false,
+             cmd_stack = CmdStack2}.
+
+block(C, From, OrigC) ->
+    lux:trace_me(40, C#cstate.name, block, []),
+    receive
+        {unblock, From} ->
+            lux:trace_me(40, C#cstate.name, unblock, []),
+            %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
+            shell_wait_for_event(C, OrigC);
+        {sync, From, When} ->
+            C2 = opt_sync_reply(C, From, When),
+            block(C2, From, OrigC);
+        {switch_cmd, From, _When, NewCmd, CmdStack, Fun} ->
+            C2 = switch_cmd(C, From, NewCmd, CmdStack, Fun),
+            block(C2, From, OrigC);
+        {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
+            Waste = flush_port(C,
+                               C#cstate.flush_timeout,
+                               C#cstate.actual),
+            clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+            close_and_exit(C,
+                           {error, internal},
+                           {internal_error, interpreter_died,
+                            C#cstate.latest_cmd, Reason});
+        {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
+            C2 = C#cstate{state_changed = true,
+                          no_more_output = true,
+                          events = save_event(C, recv, shell_exit)},
+            shell_wait_for_event(C2, OrigC);
+        {shutdown = Data, _From} ->
+            stop(C, shutdown, Data);
+        {cleanup = Data, _From} ->
+            stop(C, cleanup, Data)
+    end.
+
+opt_sync_reply(C, From, When) when C#cstate.wait_for_expect =:= undefined ->
     case When of
         flush ->
             flush_logs(C),
-            ping_reply(C, From);
+            sync_reply(C, From);
         immediate ->
-            ping_reply(C, From);
+            sync_reply(C, From);
         wait_for_expect when C#cstate.expected =:= undefined ->
-            ping_reply(C, From);
+            sync_reply(C, From);
         wait_for_expect ->
             C#cstate{wait_for_expect = From}
     end.
 
-opt_late_ping_reply(#cstate{wait_for_expect = From} = C) ->
+opt_late_sync_reply(#cstate{wait_for_expect = From} = C) ->
     if
         is_pid(From) ->
-            ping_reply(C, From);
+            sync_reply(C, From);
         From =:= undefined ->
             C
     end.
 
-ping_reply(C, From) ->
-    From ! {pong, self()},
+sync_reply(C, From) ->
+    reply(C, From, {sync_ack, self()}),
     C#cstate{wait_for_expect = undefined}.
 
 assert_msg(C, Cmd, From) when From =/= C#cstate.parent ->
@@ -394,12 +425,12 @@ shell_eval(#cstate{name = Name} = C0,
                 clog(C, Scope, "\"~s\"", [ VarVal]),
                 case Scope of
                     my ->
-                        C#cstate.parent ! {my, self(), Name, VarVal},
+                        reply(C, C#cstate.parent, {my,self(),Name,VarVal}),
                         C#cstate{macro_dict = [VarVal | C#cstate.macro_dict]};
                     local ->
                         C#cstate{dict = [VarVal | C#cstate.dict]};
                     global ->
-                        C#cstate.parent ! {global, self(), Name, VarVal},
+                        reply(C, C#cstate.parent, {global,self(),Name,VarVal}),
                         C#cstate{dict = [VarVal | C#cstate.dict]}
                 end
             catch
@@ -505,7 +536,7 @@ shell_eval(#cstate{name = Name} = C0,
             C3 = C2#cstate{expected = undefined,
                            fail = undefined,
                            success = undefined},
-            opt_late_ping_reply(C3);
+            opt_late_sync_reply(C3);
         Unexpected ->
             Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
                                 [Name, Unexpected, Arg]),
@@ -572,7 +603,7 @@ expect_more(C) ->
     C2 = expect(C),
     case want_more(C2) of
         true ->
-            C2#cstate.parent ! {more, self(), C2#cstate.name},
+            reply(C2, C2#cstate.parent, {more, self(), C2#cstate.name}),
             C2#cstate{waiting = true};
         false ->
             C2
@@ -641,7 +672,7 @@ expect(#cstate{state_changed = true,
                                     C3 = C2#cstate{expected = undefined,
                                                    actual = Actual2,
                                                    submatches = SubMatches},
-                                    opt_late_ping_reply(C3)
+                                    opt_late_sync_reply(C3)
                             end;
                         nomatch ->
                             %% Main pattern does not match
@@ -721,7 +752,7 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     C2 = C#cstate{expected = undefined,
                   actual = Match,
                   submatches = []},
-    opt_late_ping_reply(C2).
+    opt_late_sync_reply(C2).
 
 flush_port(#cstate{port = Port} = C, Timeout, Acc) ->
     case do_flush_port(Port, 0, 0, Acc) of
@@ -825,6 +856,9 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
         Outcome =:= shutdown ->
             NewOutcome = Outcome,
             Extra = undefined;
+        Outcome =:= cleanup ->
+            NewOutcome = shutdown,
+            Extra = undefined;
         true ->
             NewOutcome = Outcome,
             Extra = undefined
@@ -842,17 +876,19 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
                   actual = Actual,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
-    C2 = close_logs(C),
-    C2#cstate.parent ! {stop, self(), Res},
+    lux:trace_me(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
+    C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+    C3 = close_logs(C2),
+    reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
-            close_and_exit(C2, Outcome, Res);
+            close_and_exit(C3, Outcome, Res);
         Outcome =:= error ->
-            close_and_exit(C2, {error, Actual}, Res);
+            close_and_exit(C3, {error, Actual}, Res);
         true ->
             %% Wait for potential cleanup to be run
             %% before we close the port
-            ping_and_wait(C2, Res)
+            wait_for_down(C3, Res)
     end.
 
 cmd_expected(Cmd) ->
@@ -867,6 +903,7 @@ cmd_expected(Cmd) ->
     Expected.
 
 close_and_exit(C, Reason, #result{}) ->
+    lux:trace_me(40, C#cstate.name, close_and_exit, []),
     catch port_close(C#cstate.port),
     exit(Reason);
 close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
@@ -881,13 +918,10 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
     io:format("\nINTERNAL ERROR: ~p\n", [Res]),
-    C2 = close_logs(C),
-    C2#cstate.parent ! {stop, self(), Res},
-    close_and_exit(C2, Reason, Res).
-
-ping_and_wait(C, Res) ->
-    C2 = opt_late_ping_reply(C),
-    wait_for_down(C2, Res).
+    C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+    C3 = close_logs(C2),
+    reply(C3, C3#cstate.parent, {stop, self(), Res}),
+    close_and_exit(C3, Reason, Res).
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
@@ -912,9 +946,17 @@ flush_logs(#cstate{event_log_fd = closed,
     ok.
 
 wait_for_down(C, Res) ->
+    lux:trace_me(40, C#cstate.name, wait_for_down, []),
     receive
-        {ping, From, When} ->
-            C2 = opt_ping_reply(C, From, When),
+        {sync, From, When} ->
+            C2 = opt_sync_reply(C, From, When),
+            wait_for_down(C2, Res);
+        {switch_cmd, From, _When, NewCmd, CmdStack, Fun} ->
+            C2 = switch_cmd(C, From, NewCmd, CmdStack, Fun),
+            wait_for_down(C2, Res);
+        {change_mode, From, Mode, Cmd, CmdStack}
+          when Mode =:= resume; Mode =:= suspend ->
+            C2 = change_mode(C, From, Mode, Cmd, CmdStack),
             wait_for_down(C2, Res);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
             close_and_exit(C, Reason, Res);

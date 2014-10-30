@@ -89,7 +89,6 @@ run(Files, Opts) when is_list(Files) ->
 
 run_suite(R0, SuiteFiles, Summary, Results) ->
     Scripts = expand_suite(R0,  SuiteFiles, []),
-
     lux:trace_me(80, suite, string:join(SuiteFiles, " "), []),
     {ok, R} = tap_suite_begin(R0, Scripts, ""),
     try
