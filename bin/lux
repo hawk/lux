@@ -18,21 +18,23 @@
 main(OrigArgs) ->
     ensure_lux_app_dir(true),
     OpModes = ["--help", "--markdown",
-               "--internal_debug", "--internal_trace",
+               "--internal_debug", "--event_trace", "--internal_trace",
                "--make", "--install", "--reltool",
                "--annotate", "--history"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
     Opts  = getopts(Args, Specs),
     %% io:format("Args: ~p\n", [Opts]),
-    run(Opts, OpModes, Specs, OrigArgs),
-    safe_halt(0).
+    ExitCode = run(Opts, OpModes, Specs, OrigArgs),
+    safe_halt(ExitCode).
 
 run(Opts, OpModes, Specs, OrigArgs) ->
     case select_op(Opts, OpModes) of
         {"--help"=Op, [_]}             -> help(Op, Specs);
         {"--markdown", [_]}            -> markdown();
         {"--internal_debug"=Op, [_]}   -> internal_debug(Op, OrigArgs);
+        {"--event_trace"=Op, [_]}      -> event_trace(Op, Opts, OpModes,
+                                                      Specs, OrigArgs);
         {"--internal_trace"=Op, [_]}   -> internal_trace(Op, Opts, OpModes,
                                                          Specs, OrigArgs);
         {"--make"=Op, [_]}             -> make(Op);
@@ -81,11 +83,13 @@ specs() ->
      {"-v",                   ["--progress=verbose"]},
      {"-d",                   ["--debug"]},
      {"-D",                   ["--internal_debug"]},
+     {"-t",                   ["--event_trace"]},
      {"-T",                   ["--internal_trace"]},
      {?FILES,                 "",          string,                 mandatory},
      {"--help",               false,       boolean,                none},
      {"--markdown",           false,       boolean,                none},
      {"--internal_debug",     false,       boolean,                none},
+     {"--event_trace",        false,       boolean,                none},
      {"--internal_trace",     false,       boolean,                none},
      {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
@@ -175,7 +179,7 @@ progress_arg(Level) ->
 
 usage(Specs) ->
     do_usage(Specs),
-    safe_halt(1).
+    1.
 
 do_usage(Specs) ->
     io:format("usage: ~s [OPTION]... [FILE]...\n", [script_base_name()]),
@@ -222,7 +226,7 @@ help(MainOp, Specs) ->
     try
         wx:new(WxOpts),
         true = wx_misc:launchDefaultBrowser(Url),
-        timer:sleep(1000),
+        timer:sleep(timer:seconds(1)),
         wx:destroy()
     catch
         error:{load_driver,"No driver found"} ->
@@ -240,7 +244,7 @@ help(MainOp, Specs) ->
         _Class:_Reason ->
             do_usage(Specs)
     end,
-    safe_halt(0).
+    0.
 
 doc_url(AppDir) ->
     UsersGuide = filename:join([AppDir, "lux.html"]),
@@ -248,7 +252,7 @@ doc_url(AppDir) ->
 
 markdown() ->
     lux_debug:markdown(),
-    safe_halt(0).
+    0.
 
 internal_debug(MainOp, Args) ->
     require_app(MainOp, debugger),
@@ -296,6 +300,35 @@ internal_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
     NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
     run(NewOpts, OpModes, Specs, OrigArgs).
 
+event_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
+    require_app(MainOp, runtime_tools),
+    require_app(MainOp, et),
+    EtOpts =
+        [
+         {title,"LUX"},
+         {trace_global,true},
+         {trace_pattern,{lux,max}},
+         {hide_unknown, true},
+         {max_actors,10}
+        ],
+    case et_viewer:start(EtOpts) of
+        {ok, ViewerPid} ->
+            ViewerRef = erlang:monitor(process, ViewerPid),
+            Key = "--event_trace",
+            NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
+            run(NewOpts, OpModes, Specs, OrigArgs),
+            receive
+                {'DOWN', ViewerRef, _Type, _Object, shutdown} ->
+                    ok;
+                {'DOWN', ViewerRef, _Type, _Object, Reason} ->
+                    io:format("Event tracer exit: ~p\n", [Reason])
+            end,
+            0;
+        {error, Reason} ->
+            io:format("Event tracer error: ~p\n", [Reason]),
+            1
+    end.
+
 stop_after(Timeout) ->
     spawn(fun() ->
                   receive
@@ -332,7 +365,7 @@ forward_stdout(Port) ->
             forward_stdout(Port);
         {Port, eof} ->
             port_close(Port),
-            safe_halt(0);
+            0;
         Unexpected ->
             io:format("Got something unexpected from port: ~p\n",
                       [Unexpected]),
@@ -353,7 +386,7 @@ make(MainOp) ->
     io:format("Copy: ~s\n", [filename:basename(DestAppFile)]),
     {{ok, _}, SrcAppFile, DestAppFile} =
         {file:copy(SrcAppFile, DestAppFile), SrcAppFile, DestAppFile},
-    safe_halt(0).
+    0.
 
 install(MainOp, InstallDir, Opts) ->
     InstallProf = reltool_profile(Opts),
@@ -364,38 +397,41 @@ install(MainOp, InstallDir, Opts) ->
         {ok, ServerPid} ->
             case reltool:get_status(ServerPid) of
                 {ok, Warnings} ->
-                    [io:format("WARNING: ~s\n", [W]) || W <- Warnings];
+                    [io:format("WARNING: ~s\n", [W]) || W <- Warnings],
+                    do_install(ServerPid, InstallDir, RootDir);
                 {error, StatusReasonStr} ->
                     io:format("ERROR: ~s\n", [StatusReasonStr]),
-                    safe_halt(1)
-            end,
-            GetSpecRes = reltool:get_target_spec(ServerPid),
-            _StopRes = reltool:stop(ServerPid),
-            case GetSpecRes of
-                {ok, Spec} ->
-                    case InstallDir of
-                        "" ->
-                            io:format("Spec: ~p.\n", [Spec]),
-                            timer:sleep(timer:seconds(1)),
-                            safe_halt(0);
-                        _ ->
-                            case reltool:eval_target_spec(Spec,
-                                                          RootDir,
-                                                          InstallDir) of
-                                ok ->
-                                    ok;
-                                {error, EvalReasonStr} ->
-                                    io:format("ERROR: ~s\n", [EvalReasonStr]),
-                                    safe_halt(1)
-                            end
-                    end;
-                {error, SpecReasonStr} ->
-                    io:format("ERROR: ~s\n", [SpecReasonStr]),
-                    safe_halt(1)
+                    1
             end;
         {error, StartReasonStr} ->
             io:format("ERROR: ~s\n", [StartReasonStr]),
-            safe_halt(1)
+            1
+    end.
+
+do_install(ServerPid, InstallDir, RootDir) ->
+    GetSpecRes = reltool:get_target_spec(ServerPid),
+    _StopRes = reltool:stop(ServerPid),
+    case GetSpecRes of
+        {ok, Spec} ->
+            case InstallDir of
+                "" ->
+                    io:format("Spec: ~p.\n", [Spec]),
+                    timer:sleep(timer:seconds(1)),
+                    0;
+                _ ->
+                    case reltool:eval_target_spec(Spec,
+                                                  RootDir,
+                                                  InstallDir) of
+                        ok ->
+                            ok;
+                        {error, EvalReasonStr} ->
+                            io:format("ERROR: ~s\n", [EvalReasonStr]),
+                            1
+                    end
+            end;
+        {error, SpecReasonStr} ->
+            io:format("ERROR: ~s\n", [SpecReasonStr]),
+            1
     end.
 
 reltool(MainOp, Opts) ->
@@ -408,10 +444,11 @@ reltool(MainOp, Opts) ->
             receive
                 {'EXIT', Pid, Reason} ->
                     io:format("reltool exit: ~p\n", [Reason])
-            end;
+            end,
+            0;
         {error, ReasonStr} ->
             io:format("ERROR: ~s\n", [ReasonStr]),
-            safe_halt(1)
+            1
     end.
 
 reltool_opts(MainOp, Opts) ->
@@ -525,35 +562,36 @@ root_dir(Opts) ->
 annotate(LogFile0) ->
     LogFile = filename:absname(LogFile0),
     io:format("Annotating logs ~s...", [LogFile]),
-    Res = lux:annotate_log(LogFile),
-    case Res of
+    case lux:annotate_log(LogFile) of
         ok ->
             io:format("...ok\n", []),
-            io:format("\nfile://~s\n", [LogFile ++ ".html"]);
+            io:format("\nfile://~s\n", [LogFile ++ ".html"]),
+            0;
         {error, File, ReasonStr} ->
-            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr])
-    end,
-    Res.
+            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr]),
+            1
+    end.
 
 history(LogDir0) ->
     LogDir = filename:absname(LogDir0),
     io:format("Assembling history of logs in ~s...", [LogDir]),
     HtmlFile = filename:join([LogDir, "lux_history.html"]),
-    Res = lux:history(LogDir, HtmlFile),
-    case Res of
+    case lux:history(LogDir, HtmlFile) of
         ok ->
             io:format("...ok\n", []),
-            io:format("\nfile://~s\n", [HtmlFile]);
+            io:format("\nfile://~s\n", [HtmlFile]),
+            0;
         {error, File, ReasonStr} ->
-            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr])
-    end,
-    Res.
+            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr]),
+            1
+    end.
 
 test([
      {?FILES,                 Files},
      {"--help",               _Help},
      {"--markdown",           _Markdown},
      {"--internal_debug",     _InternalDebug},
+     {"--event_trace",        _EventTrace},
      {"--internal_trace",     _InternalTrace},
      {"--make",               _Make},
      {"--install",            _InstallDir},
@@ -637,14 +675,14 @@ test([
             io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
             Summary = error
     end,
-    run_halt(Summary).
+    exit_code(Summary).
 
-run_halt(Summary) ->
+exit_code(Summary) ->
     case Summary of
-        success -> safe_halt(0);
-        skip    -> safe_halt(0);
-        fail    -> safe_halt(1);
-        error   -> safe_halt(1)
+        success -> 0;
+        skip    -> 0;
+        fail    -> 1;
+        error   -> 1
     end.
 
 filter_arg(KeyVal) ->
@@ -689,16 +727,16 @@ getopts(Args, Specs) ->
         throw:{badarg, Bad} ->
             io:format("~s: ~p is an illegal argument.\n\n",
                       [script_base_name(), Bad]),
-            usage(Specs);
+            safe_halt(usage(Specs));
         throw:{badarg, Bad, Type} ->
             io:format("~s: ~p is an illegal argument. ~p expected.\n\n",
                       [script_base_name(), Bad, Type]),
-            usage(Specs);
+            safe_halt(usage(Specs));
         throw:{badarg, Name, Bad, Type} ->
             io:format("~s: ~p is an illegal value of argument ~s."
                       " ~p expected.\n\n",
                       [script_base_name(), Bad, Name, Type]),
-            usage(Specs)
+            safe_halt(usage(Specs))
     end.
 
 do_getopts([], _Specs, Acc) ->

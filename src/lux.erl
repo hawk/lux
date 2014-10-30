@@ -8,7 +8,7 @@
 -module(lux).
 
 -export([run/2, parse_file/2, interpret_commands/3, annotate_log/1, history/2]).
--export([test/1]).
+-export([trace_me/4, trace_me/5]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Types
@@ -71,11 +71,12 @@ history(LogDir, HtmlFile) ->
     lux_html:history(LogDir, HtmlFile).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Simple test which parses all .lux files
+%% Enable simplified tracing and viewing it as a sequence chart
+%% See et:trace_me/5
 
--spec(test(dirname()) ->
-             [{ok, filename(), cmds(), opts()} | error()]).
+trace_me(DetailLevel, FromTo, Label, Contents) ->
+    %% N.B External call
+    ?MODULE:trace_me(DetailLevel, FromTo, FromTo, Label, Contents).
 
-test(Dir) ->
-    Fun = fun(File, Acc) -> [lux_parse:parse_file(File, []) | Acc] end,
-    filelib:fold_files(Dir, ".*\\" ++ ".lux" ++ [$$], true, Fun, []).
+trace_me(_DetailLevel, _From, _To, _Label, _Contents) ->
+    hopefully_traced.
