@@ -251,8 +251,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{macro_dict = MacroDict};
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
-        {cleanup = Data, _From} ->
-            stop(C, cleanup, Data);
+        {relax = Data, _From} ->
+            stop(C, relax, Data);
         {end_of_script, _From} ->
             clog(C, 'end', "of script", []),
             C#cstate{no_more_input = true, mode = resume};
@@ -357,8 +357,8 @@ block(C, From, OrigC) ->
             shell_wait_for_event(C2, OrigC);
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
-        {cleanup = Data, _From} ->
-            stop(C, cleanup, Data)
+        {relax = Data, _From} ->
+            stop(C, relax, Data)
     end.
 
 opt_sync_reply(C, From, When) when C#cstate.wait_for_expect =:= undefined ->
@@ -856,7 +856,7 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
         Outcome =:= shutdown ->
             NewOutcome = Outcome,
             Extra = undefined;
-        Outcome =:= cleanup ->
+        Outcome =:= relax ->
             NewOutcome = shutdown,
             Extra = undefined;
         true ->

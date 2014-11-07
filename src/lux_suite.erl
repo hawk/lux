@@ -130,7 +130,7 @@ list_files(R, File) ->
 do_run(R, SummaryLog) ->
     case lux_log:open_summary_log(SummaryLog, R#rstate.extend_run) of
         {ok, Exists, SummaryFd} ->
-            TimerRef = start_timer(R),
+            TimerRef = start_suite_timer(R),
             try
                 R2 = R#rstate{log_fd = SummaryFd, summary_log = SummaryLog},
                 {ConfigData, R3} = parse_config(R2),
@@ -140,7 +140,7 @@ do_run(R, SummaryLog) ->
                 InitialRes =
                     case Exists of
                         true ->
-                            TmpLog = SummaryLog++".tmp",
+                            TmpLog = SummaryLog ++ ".tmp",
                             case lux_log:parse_summary_log(TmpLog) of
                                 {ok, _, Groups, _, _, _} ->
                                     initial_results(Groups);
@@ -507,7 +507,18 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                                          FullLineNo, SkipReason0),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             Res2 = {ok, Script, Summary, FullLineNo, Events},
-                            NewResults = [Res2 | Results];
+                            NewResults = [Res2 | Results],
+                            NewScripts = Scripts;
+                        {error, _, CaseLogDir, FullLineNo, ErrorMsg}
+                          when ErrorMsg =:= <<"suite_timeout" >> ->
+                            Summary = error,
+                            lux:trace_me(70, 'case', suite, Summary,
+                                         [FullLineNo]),
+                            tap_case_end(R2, CC, Script, Summary,
+                                         FullLineNo, SkipReason0),
+                            NewSummary = lux_utils:summary(OldSummary, Summary),
+                            NewResults = [Res | Results],
+                            NewScripts = [];
                         {error, _, CaseLogDir, FullLineNo, _} ->
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
@@ -515,7 +526,8 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                             tap_case_end(R2, CC, Script, Summary,
                                          FullLineNo, SkipReason0),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
-                            NewResults = [Res | Results]
+                            NewResults = [Res | Results],
+                            NewScripts = Scripts
                     end,
                     HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
                     SummaryPrio = lux_utils:summary_prio(NewSummary),
@@ -530,7 +542,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                         true ->
                             ignore
                     end,
-                    run_cases(R3, Scripts, NewSummary, NewResults, CC+1)
+                    run_cases(R3, NewScripts, NewSummary, NewResults, CC+1)
             end;
         {error, _R2, _ErrorStack, _ErrorBin} when Mode =:= list ->
             io:format("~s\n", [Script]),
@@ -796,14 +808,6 @@ log_dir(R, SuiteFile, Script) ->
             end
     end.
 
-%% warning(R, false, _File, _FullLineNo, _Format, _Args) ->
-%%     R;
-%% warning(R, true, File, FullLineNo, Format, Args) ->
-%%     Warning = lists:flatten(io_lib:format(Format, Args)),
-%%     rlog(R, "~s~s", [?TAG("warning"), Warning]),
-%%     R#rstate{warnings = [{warning, File, FullLineNo, Warning} |
-%%     R#rstate.warnings]}.
-
 double_rlog(#rstate{log_fd = Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),
     case Fd of
@@ -811,14 +815,7 @@ double_rlog(#rstate{log_fd = Fd}, Format, Args) ->
         _         -> lux_log:double_write(Fd, IoList)
     end.
 
-%% rlog(#rstate{log_fd = Fd}, Format, Args) ->
-%%     IoList = io_lib:format(Format, Args),
-%%     case Fd of
-%%        undefined -> list_to_binary(IoList);
-%%        _         -> lux_log:safe_write(Fd, IoList)
-%%    end.
-
-start_timer(R) ->
+start_suite_timer(R) ->
     SuiteTimeout = pick_val(suite_timeout, R, infinity),
     Msg = {suite_timeout, SuiteTimeout},
     Multiplier = pick_val(multiplier, R, 1000),

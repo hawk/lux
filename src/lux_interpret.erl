@@ -250,7 +250,13 @@ wait_for_done(I, Pid) ->
             %%             [?TAG("suite timeout"),
             %%              SuiteTimeout]),
             Pid ! {suite_timeout, SuiteTimeout},
-            wait_for_done(I, Pid);
+            case wait_for_done(I, Pid) of
+                {ok, File, CaseLogDir, _Summary, FullLineNo, _Events} ->
+                    ok;
+                {error, File, CaseLogDir, FullLineNo, _} ->
+                    ok
+            end,
+            {error, File, CaseLogDir, FullLineNo, <<"suite_timeout">>};
         {done, Pid, Res} ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
@@ -522,40 +528,10 @@ interpret_loop(I) ->
         {'DOWN', _, process, Pid, Reason} ->
             I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
             interpret_loop(I2);
-        {TimeoutType, _TimeoutMillis} when TimeoutType =:= suite_timeout;
-                                           TimeoutType =:= case_timeout,
-                                           I#istate.has_been_blocked ->
-            io:format("WARNING: Ignoring ~p"
-                      " as the script has been attached by the debugger.\n",
-                      [TimeoutType]),
-            interpret_loop(I);
         {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
                                           TimeoutType =:= case_timeout ->
-            Seconds = TimeoutMillis div timer:seconds(1),
-            Multiplier = I#istate.multiplier / 1000,
-            ilog(I, "~s(~p): ~p (~p seconds * ~.3f)\n",
-                 [I#istate.active_name,
-                  I#istate.latest_lineno,
-                  TimeoutType,
-                  Seconds,
-                  Multiplier]),
-            case I#istate.mode of
-                running ->
-                    %% The test case (or suite) has timed out.
-                    I2 = prepare_stop(I, dummy_pid, {fail, TimeoutType}),
-                    interpret_loop(I2);
-                cleanup ->
-                    %% Timeout during cleanup
-
-                    %% Initiate stop by sending shutdown to all shells.
-                    multicast(I, {shutdown, self()}),
-                    interpret_loop(I#istate{mode = stopping,
-                                            cleanup_reason = TimeoutType});
-                stopping ->
-                    %% Shutdown has already been sent to the shells.
-                    %% Continue to collect their states.
-                    interpret_loop(I)
-            end;
+            I2 = premature_stop(I, TimeoutType, TimeoutMillis),
+            interpret_loop(I2);
         Unexpected ->
             lux:trace_me(70, 'case', internal_error,
                          [{interpreter_got, Unexpected}]),
@@ -563,6 +539,38 @@ interpret_loop(I) ->
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
             interpret_loop(I2)
+    end.
+
+premature_stop(I, TimeoutType, TimeoutMillis) when I#istate.has_been_blocked ->
+    lux:trace_me(70, 'case', TimeoutType, [{ignored, TimeoutMillis}]),
+    io:format("WARNING: Ignoring ~p"
+              " as the script has been attached by the debugger.\n",
+              [TimeoutType]),
+    I;
+premature_stop(I, TimeoutType, TimeoutMillis) ->
+    lux:trace_me(70, 'case', TimeoutType, [{premature, TimeoutMillis}]),
+    Seconds = TimeoutMillis div timer:seconds(1),
+    Multiplier = I#istate.multiplier / 1000,
+    ilog(I, "~s(~p): ~p (~p seconds * ~.3f)\n",
+         [I#istate.active_name,
+          I#istate.latest_lineno,
+          TimeoutType,
+          Seconds,
+          Multiplier]),
+    case I#istate.mode of
+        running ->
+            %% The test case (or suite) has timed out.
+            prepare_stop(I, dummy_pid, {fail, TimeoutType});
+        cleanup ->
+            %% Timeout during cleanup
+
+            %% Initiate stop by sending shutdown to all shells.
+            multicast(I, {shutdown, self()}),
+            I#istate{mode = stopping, cleanup_reason = TimeoutType};
+        stopping ->
+            %% Shutdown has already been sent to the shells.
+            %% Continue to collect their states.
+            I
     end.
 
 sync_return(I) ->
@@ -639,14 +647,14 @@ dispatch_cmd(#istate{want_more = true} = I,
                  [I#istate.active_name, LineNo]),
             multicast(I, {eval, self(), Cmd}),
             I2 = multisync(I, immediate),
-            Shells = [S#shell{health = zombie} || S <- I#istate.shells],
+            Shells = [S#shell{health = zombie} || S <- I2#istate.shells],
             I3 = I2#istate{mode = cleanup,
-                           timeout = I#istate.cleanup_timeout,
+                           timeout = I2#istate.cleanup_timeout,
                            shells = Shells,
                            active_pid = undefined,
                            active_name = "lux"},
             Suffix =
-                case file_level(I) of
+                case file_level(I3) of
                     1 -> "";
                     N -> integer_to_list(N)
                 end,
@@ -960,7 +968,7 @@ prepare_stop(#istate{results = Acc,
                         active_name = "lux",
                         want_more = true};
         running ->
-            multicast(NewI, {cleanup, self()}),
+            multicast(NewI, {relax, self()}),
             goto_cleanup(NewI, CleanupReason);
         cleanup when NewI#istate.shells =:= [] ->
             %% All shell states has been collected. Full stop.
@@ -976,7 +984,7 @@ prepare_stop(#istate{results = Acc,
     end.
 
 goto_cleanup(OldI, CleanupReason) ->
-    lux:trace_me(50, 'case', cleanup, [{reason, CleanupReason}]),
+    lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
     LineNoPrefix =
         case OldI#istate.results of
             [#result{actual=fail_pattern_matched}|_]    -> "-";
@@ -1057,22 +1065,30 @@ multisync(I, Msg) when Msg =:= flush;
                        Msg =:= wait_for_expect ->
     Pids = multicast(I, {sync, self(), Msg}),
     lux:trace_me(50, 'case', waiting, [{shells, I#istate.shells}, Msg]),
-    I2 = wait_for_reply(I, Pids, sync_ack, undefined),
+    I2 = wait_for_reply(I, Pids, sync_ack, undefined, infinity),
     lux:trace_me(50, 'case', collected, []),
     I2.
 
-wait_for_reply(I, [Pid | Pids], Expect, Fun) ->
+wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
     receive
         {Expect, Pid} ->
-            wait_for_reply(I, Pids, Expect, Fun);
+            wait_for_reply(I, Pids, Expect, Fun, FlushTimeout);
         {stop, SomePid, Res} ->
             I2 = prepare_stop(I, SomePid, Res),
-            wait_for_reply(I2, [Pid|Pids], Expect, Fun);
+            wait_for_reply(I2, [Pid|Pids], Expect, Fun, FlushTimeout);
         {'DOWN', _, process, Pid, Reason} ->
             opt_apply(Fun),
-            shell_crashed(I, Pid, Reason)
+            shell_crashed(I, Pid, Reason);
+        {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
+                                          TimeoutType =:= case_timeout ->
+            I2 = premature_stop(I, TimeoutType, TimeoutMillis),
+            wait_for_reply(I2, [], Expect, Fun, 500);
+        IgnoreMsg when FlushTimeout =/= infinity ->
+            lux:trace_me(70, 'case', ignore_msg, [{interpreter_got, IgnoreMsg}])
+    after FlushTimeout ->
+            I
     end;
-wait_for_reply(I, [], _Expect, _Fun) ->
+wait_for_reply(I, [], _Expect, _Fun, _FlushTimeout) ->
     I.
 
 opt_apply(Fun) when is_function(Fun) ->
@@ -1108,11 +1124,11 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
             Wait = Cmd#cmd{type = expect,
                            arg = {regexp, <<".+">>}},
             %% Set the prompt (after the rc files has ben run)
-            CmdStr = list_to_binary(I#istate.shell_prompt_cmd),
+            CmdStr = list_to_binary(I3#istate.shell_prompt_cmd),
             Prompt = Cmd#cmd{type = send_lf,
                              arg = CmdStr},
             %% Wait for the prompt
-            CmdRegExp = list_to_binary(I#istate.shell_prompt_regexp),
+            CmdRegExp = list_to_binary(I3#istate.shell_prompt_regexp),
             Sync = Cmd#cmd{type = expect,
                            arg = {regexp, CmdRegExp}},
             Cmds = [Wait, Prompt, Sync | I3#istate.commands],
@@ -1133,7 +1149,7 @@ shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
 
 change_shell_mode(I, Cmd, NewMode) when is_pid(I#istate.active_pid) ->
     Pid = cast(I, {change_mode, self(), NewMode, Cmd, I#istate.cmd_stack}),
-    wait_for_reply(I, [Pid], change_mode_ack, undefined);
+    wait_for_reply(I, [Pid], change_mode_ack, undefined, infinity);
 change_shell_mode(I, _Cmd, _NewMode) when I#istate.active_pid =:= undefined ->
     I.
 
@@ -1142,7 +1158,7 @@ switch_cmd(_When, #istate{active_pid=undefined} = I, _CmdStack, _NewCmd, Fun) ->
     I;
 switch_cmd(When, #istate{active_pid=Pid} = I, CmdStack, NewCmd, Fun) ->
     Pid = cast(I, {switch_cmd, self(), When, NewCmd, CmdStack, Fun}),
-    wait_for_reply(I, [Pid], switch_cmd_ack, Fun).
+    wait_for_reply(I, [Pid], switch_cmd_ack, Fun, infinity).
 
 shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_pid ->
     I2 = I#istate{active_pid = undefined, active_name = "lux"},

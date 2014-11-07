@@ -303,6 +303,7 @@ internal_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
 event_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
     require_app(MainOp, et),
+    require_app(MainOp, wx),
     EtOpts =
         [
          {title,"LUX"},
