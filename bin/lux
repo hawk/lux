@@ -424,7 +424,7 @@ do_install(ServerPid, InstallDir, RootDir) ->
                                                   RootDir,
                                                   InstallDir) of
                         ok ->
-                            ok;
+                            0;
                         {error, EvalReasonStr} ->
                             io:format("ERROR: ~s\n", [EvalReasonStr]),
                             1
