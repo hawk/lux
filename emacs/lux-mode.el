@@ -11,6 +11,7 @@
 (defvar lux-keywords
   '("cleanup" "shell" "timeout" "sleep" "say"
     "doc" "doc0" "doc1" "doc2" "doc3" "doc4" "doc5"
+    "loop" "endloop"
     "macro" "endmacro" "invoke" "endshell"))
 
 (defvar lux-meta-commands
@@ -76,29 +77,40 @@
           (cur-indent nil)
           (comment "^[ \t]*#")
           (major-comment "^[ \t]*##")
-          (major-expr "^[ \t]*\\[\\(shell\\|cleanup\\|macro\\|endmacro\\)"))
+          (major-expr "^[ \t]*\\[\\(shell\\|cleanup\\|macro\\)")
+          (block-expr "^[ \t]*\\[\\(loop\\)")
+          (end-expr "^[ \t]*\\[\\(endloop\\|endmacro\\)"))
 
       (if (or (looking-at major-expr)
               (looking-at major-comment))
           (setq cur-indent 0)
-        (if (looking-at comment)
-            ;; check if next non-comment line is a major expression; if so
-            ;; assume this comment belongs to the major expression line
-            (save-excursion
-              (while (and (not (eolp)) (not done))
-                (forward-line 1)
-                (cond ((looking-at major-expr)
-                       (setq cur-indent 0)
-                       (setq done t))
-                      ((not (looking-at comment))
-                       (setq done t))))
-              (if (not cur-indent)
-                  (setq done nil))))
+        (cond
+         ((looking-at end-expr)
+          (save-excursion
+            (forward-line -1)
+            (setq cur-indent (max 0 (- (current-indentation) lux-indent)))
+            (setq done t)))
+         ((looking-at comment)
+          ;; check if next non-comment line is a major expression; if so
+          ;; assume this comment belongs to the major expression line
+          (save-excursion
+            (while (and (not (eolp)) (not done))
+              (forward-line 1)
+              (cond ((looking-at major-expr)
+                     (setq cur-indent 0)
+                     (setq done t))
+                    ((not (looking-at comment))
+                     (setq done t))))
+            (if (not cur-indent)
+                (setq done nil)))))
         (save-excursion
           (while (not done)
             (forward-line -1)
             (cond ((looking-at major-expr)
                    (setq cur-indent lux-indent)
+                   (setq done t))
+                  ((looking-at block-expr)
+                   (setq cur-indent ( + (current-indentation) lux-indent))
                    (setq done t))
                   ((not (looking-at "^[ \t]*$"))
                    (setq cur-indent (current-indentation))
