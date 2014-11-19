@@ -439,10 +439,10 @@ timeout=2000]` can be overridden with `--timeout=4000`.  Explicit
 settings in architecture specific files and command line options. See
 the section *Configuration parameters* about valid configuration
 parameters. Some config parameters can have multiple values, such as
-`skip` and `require`. See their respective descriptions. See also the
-configuration parameter `--config_dir` about the location of the
-architecture specific files.
-<a name="cmd_line_opts"/>
+`skip`, `skip_unless` and `require`. See their respective
+descriptions. See also the configuration parameter `--config_dir`
+about the location of the architecture specific files.  <a
+name="cmd_line_opts"/>
 
 Command line options
 ====================
@@ -634,7 +634,7 @@ Forces Lux to not care about `--skip` and `--skip_unless` settings.
 **--require Var=Value**  
 Require that the given variable is set. The script will fail if
 the variable not is set. This option can be used multiple times,
-which means that all given Vars are required to be set.
+which means that all given `Var`s are required to be set.
 Typically require is used to test on presence of environment
 variables. `--require` is intended to be used as `[config require=Var]`
 or `[config require=Var=Value]` statements within scripts. The
