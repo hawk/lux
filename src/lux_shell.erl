@@ -902,10 +902,6 @@ cmd_expected(Cmd) ->
     end,
     Expected.
 
-close_and_exit(C, Reason, #result{}) ->
-    lux:trace_me(40, C#cstate.name, close_and_exit, []),
-    catch port_close(C#cstate.port),
-    exit(Reason);
 close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
     Cmd = element(3, Error),
     Res = #result{outcome = error,
@@ -917,12 +913,19 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   actual = internal_error,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
+    Trace = erlang:get_stacktrace(),
+    lux:trace_me(70, C#cstate.name, internal_error,
+                 [Reason, Error, Trace]),
     io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
-              [Reason, Error, Res, erlang:get_stacktrace()]),
+              [Reason, Error, Res, Trace]),
     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
     C3 = close_logs(C2),
     reply(C3, C3#cstate.parent, {stop, self(), Res}),
-    close_and_exit(C3, Reason, Res).
+    close_and_exit(C3, Reason, Res);
+close_and_exit(C, Reason, _Res) ->
+    lux:trace_me(40, C#cstate.name, close_and_exit, []),
+    catch port_close(C#cstate.port),
+    exit(Reason).
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),

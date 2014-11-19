@@ -76,9 +76,9 @@ open_summary_log(SummaryLog, ExtendRun) ->
     end.
 
 close_summary_log(SummaryFd, SummaryLog) ->
-    ok = close_summary_tmp_log(SummaryFd),
     TmpSummaryLog = SummaryLog ++ ".tmp",
-    ok = file:rename(TmpSummaryLog, SummaryLog).
+    ok(close_summary_tmp_log(SummaryFd), TmpSummaryLog),
+    ok = ok(file:rename(TmpSummaryLog, SummaryLog), SummaryLog).
 
 close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
@@ -96,6 +96,17 @@ parse_summary_log(SummaryLog) ->
             io:format("~s\n", [ReasonStr]),
             {error, SummaryLog, ReasonStr}
     end.
+
+ok(Res, File) ->
+    if
+        Res =:= ok ->
+            ok;
+        element(1, Res) =:= ok ->
+            ok;
+        true ->
+            io:format("\nERROR in ~s\n~p\n", [File, Res])
+    end,
+    Res.
 
 do_parse_summary_log(SummaryLog) ->
     case read_log(SummaryLog, ?SUMMARY_TAG) of
@@ -404,7 +415,7 @@ write_results(SummaryLog, Summary, Results, Warnings) ->
                 IsTmp = is_temporary(SummaryLog),
                 print_results({IsTmp, Fd}, Summary, Results, Warnings),
                 file:close(Fd),
-                ok = file:rename(TmpResultFile, ResultFile)
+                ok = ok(file:rename(TmpResultFile, ResultFile), ResultFile)
             catch
                 Class:Reason ->
                     file:close(Fd),
@@ -734,7 +745,7 @@ open_config_log(LogDir, Script, ConfigData) ->
     end.
 
 close_config_log(ConfigFd, Logs) ->
-    ok = file:write(ConfigFd, "\n"),
+    file:write(ConfigFd, "\n"),
     ShowLog =
         fun({Name, Stdin, Stdout}) ->
                 Data =
