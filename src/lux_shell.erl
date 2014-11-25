@@ -107,7 +107,7 @@ start_monitor(I, Cmd, Name) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Server
 
-reply(C, To, Msg) ->
+send_reply(C, To, Msg) ->
     TraceFrom = C#cstate.name,
     TraceTo =
         if
@@ -145,7 +145,7 @@ init(C) when is_record(C, cstate) ->
 
         Parent = C3#cstate.parent,
         erlang:monitor(process, Parent),
-        reply(C3, Parent, {started, self(), {Name, InFile, OutFile}}),
+        send_reply(C3, Parent, {started, self(), {Name, InFile, OutFile}}),
         try
             shell_loop(C3, C3)
         catch
@@ -183,20 +183,22 @@ choose_exec(C) ->
     end.
 
 shell_loop(#cstate{idle_count = IdleCount} = C, OrigC) ->
-    {C2, ProgressStr} =
-        case IdleCount of
-            0 ->
-                {C, "."};
-            1 ->
-                {C#cstate{idle_count = IdleCount+1},
-                 integer_to_list((C#cstate.latest_cmd)#cmd.lineno) ++ "?"};
-            _ ->
-                {C, "?"}
-        end,
+    {C2, ProgressStr} = progress(C, IdleCount),
     lux_utils:progress_write(C2#cstate.progress, ProgressStr),
     C3 = expect_more(C2),
     C4 = shell_wait_for_event(C3, OrigC),
     shell_loop(C4, OrigC).
+
+progress(C, IdleCount) ->
+    case IdleCount of
+        0 ->
+            {C, "."};
+        1 ->
+            {C#cstate{idle_count = IdleCount+1},
+             integer_to_list((C#cstate.latest_cmd)#cmd.lineno) ++ "?"};
+        _ ->
+            {C, "?"}
+    end.
 
 shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
     IdleThreshold = 3*1000,
@@ -233,16 +235,11 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
                     throw:{no_such_var, BadName} ->
                         {no_such_var, BadName}
                 end,
-            reply(C, From, {expand_vars, self(), Res}),
+            send_reply(C, From, {expand_vars, self(), Res}),
             C;
         {eval, From, Cmd} ->
-            assert_msg(C, Cmd, From),
-            C2 =
-                case C#cstate.no_more_input of
-                    true  -> exit({no_more_input, Cmd});
-                    false -> C#cstate{waiting = false}
-                end,
-            shell_eval(C2, Cmd, OrigC);
+            assert_eval(C, Cmd, From),
+            shell_eval(C, Cmd, OrigC);
         {global, _From, VarVal} ->
             clog(C, global, "\"~s\"", [VarVal]),
             C#cstate{dict = [VarVal | C#cstate.dict]};
@@ -255,6 +252,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             stop(C, relax, Data);
         {end_of_script, _From} ->
             clog(C, 'end', "of script", []),
+            clog(C, debug, "\"mode=resume (end_of_script)\"", []),
             C#cstate{no_more_input = true, mode = resume};
         {Port, {data, Data}} when Port =:= C#cstate.port ->
             Progress = C#cstate.progress,
@@ -276,8 +274,9 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{state_changed = true,
                      timed_out = true,
                      events = save_event(C, recv, timeout)};
-        {wake_up, Secs} ->
+        {wakeup, Secs} ->
             clog(C, wake, "up (~p seconds)", [Secs]),
+            clog(C, debug, "\"mode=resume (wakeup)\"", []),
             C#cstate{mode = resume};
         {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
             C#cstate{state_changed = true,
@@ -308,25 +307,32 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
 
 switch_cmd(C, From, NewCmd, CmdStack, Fun) ->
     Fun(),
-    reply(C, From, {switch_cmd_ack, self()}),
+    send_reply(C, From, {switch_cmd_ack, self()}),
     C#cstate{latest_cmd = NewCmd, cmd_stack = CmdStack}.
 
 change_mode(C, From, Mode, Cmd, CmdStack) ->
-    TmpC = C#cstate{latest_cmd = Cmd}, % Use the cmd lineno in logging
-    CmdStack2 =
-        case Mode of
-            suspend ->
-                clog(TmpC, Mode, "", []),
-                C#cstate.cmd_stack; % Keep old stack
-            resume ->
-                clog(TmpC, Mode, "(idle since line ~p)",
-                     [Cmd#cmd.lineno]),
-                CmdStack
-        end,
-    reply(TmpC, From, {change_mode_ack, self()}),
-    C#cstate{mode = Mode,
-             waiting = false,
-             cmd_stack = CmdStack2}.
+    Reply = {change_mode_ack, self()},
+    case Mode of
+        suspend ->
+            clog(C, Mode, "", []),
+            clog(C, debug, "\"mode=suspend waiting=false (~p)\"",
+                 [Cmd#cmd.type]),
+            send_reply(C, From, Reply),
+            C#cstate{mode = Mode,
+                     waiting = false};
+        resume ->
+            NewC =
+                C#cstate{mode = Mode,
+                         waiting = false,
+                         latest_cmd = Cmd,
+                         cmd_stack = CmdStack},
+            clog(NewC, debug, "\"mode=resume waiting=false (~p)\"",
+                 [Cmd#cmd.type]),
+            clog(NewC, Mode, "(idle since line ~p)",
+                 [C#cstate.latest_cmd#cmd.lineno]),
+            send_reply(NewC, From, Reply),
+            NewC
+    end.
 
 block(C, From, OrigC) ->
     lux:trace_me(40, C#cstate.name, block, []),
@@ -383,10 +389,10 @@ opt_late_sync_reply(#cstate{wait_for_expect = From} = C) ->
     end.
 
 sync_reply(C, From) ->
-    reply(C, From, {sync_ack, self()}),
+    send_reply(C, From, {sync_ack, self()}),
     C#cstate{wait_for_expect = undefined}.
 
-assert_msg(C, Cmd, From) when From =/= C#cstate.parent ->
+assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     %% Assert - sender must be parent
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
@@ -394,12 +400,19 @@ assert_msg(C, Cmd, From) when From =/= C#cstate.parent ->
                    {error, internal},
                    {internal_error, invalid_sender,
                     Cmd, process_info(From)});
-assert_msg(C, Cmd, _From) ->
+assert_eval(C, Cmd, From) when C#cstate.no_more_input ->
+    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
+    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    close_and_exit(C,
+                   {error, internal},
+                   {internal_error, no_more_input,
+                    Cmd, process_info(From)});
+assert_eval(C, Cmd, _From) ->
     %% Assert - no send nor expect while expect is set
     if
         C#cstate.expected =:= undefined ->
             ok;
-        C#cstate.expected =/= undefined,
+        is_record(C#cstate.expected, cmd),
         Cmd#cmd.type =/= expect,
         Cmd#cmd.type =/= send_lf,
         Cmd#cmd.type =/= send ->
@@ -415,7 +428,8 @@ assert_msg(C, Cmd, _From) ->
 
 shell_eval(#cstate{name = Name} = C0,
            #cmd{type = Type, arg = Arg} = Cmd, OrigC) ->
-    C = C0#cstate{latest_cmd = Cmd},
+    C = C0#cstate{latest_cmd = Cmd, waiting = false},
+    clog(C, debug, "\"waiting=false (~p)\"", [Cmd#cmd.type]),
     case Type of
         variable ->
             try
@@ -425,12 +439,13 @@ shell_eval(#cstate{name = Name} = C0,
                 clog(C, Scope, "\"~s\"", [ VarVal]),
                 case Scope of
                     my ->
-                        reply(C, C#cstate.parent, {my,self(),Name,VarVal}),
+                        send_reply(C, C#cstate.parent, {my,self(),Name,VarVal}),
                         C#cstate{macro_dict = [VarVal | C#cstate.macro_dict]};
                     local ->
                         C#cstate{dict = [VarVal | C#cstate.dict]};
                     global ->
-                        reply(C, C#cstate.parent, {global,self(),Name,VarVal}),
+                        send_reply(C, C#cstate.parent,
+                                   {global,self(), Name, VarVal}),
                         C#cstate{dict = [VarVal | C#cstate.dict]}
                 end
             catch
@@ -447,6 +462,7 @@ shell_eval(#cstate{name = Name} = C0,
         expect when Arg =:= shell_exit ->
             clog(C, expect, "~p", [Arg]),
             C2 = start_timer(C),
+            clog(C2, debug, "\"expected=regexp (shell_exit)\"", []),
             C2#cstate{state_changed = true,
                       expected = Cmd};
         expect when Arg =:= reset ->
@@ -462,6 +478,7 @@ shell_eval(#cstate{name = Name} = C0,
             {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
             clog(C2, expect, "\"~s\"", [lux_utils:to_string(RegExp2)]),
             C3 = start_timer(C2),
+            clog(C3, debug, "\"expected=regexp (shell_exit)\"", []),
             C3#cstate{state_changed = true,
                       expected = Cmd2};
         fail ->
@@ -486,11 +503,12 @@ shell_eval(#cstate{name = Name} = C0,
             clog(C, sleep, "(~p seconds)", [Secs]),
             Progress = C#cstate.progress,
             Self = self(),
-            WakeUp = {wake_up, Secs},
+            WakeUp = {wakeup, Secs},
             Sleeper = spawn_link(fun() ->
                                          sleep_walker(Progress, Self, WakeUp)
                                  end),
             erlang:send_after(timer:seconds(Secs), Sleeper, WakeUp),
+            clog(C, debug, "\"mode=suspend (sleep)\"", []),
             C#cstate{mode = suspend};
         progress when is_list(Arg) ->
             try
@@ -536,6 +554,7 @@ shell_eval(#cstate{name = Name} = C0,
             C3 = C2#cstate{expected = undefined,
                            fail = undefined,
                            success = undefined},
+            clog(C3, debug, "\"expected=undefined (cleanup)\"", []),
             opt_late_sync_reply(C3);
         Unexpected ->
             Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
@@ -603,7 +622,9 @@ expect_more(C) ->
     C2 = expect(C),
     case want_more(C2) of
         true ->
-            reply(C2, C2#cstate.parent, {more, self(), C2#cstate.name}),
+            clog(C2, debug, "\"waiting=true (~p) send more\"",
+                 [C2#cstate.latest_cmd#cmd.type]),
+            send_reply(C2, C2#cstate.parent, {more, self(), C2#cstate.name}),
             C2#cstate{waiting = true};
         false ->
             C2
@@ -672,6 +693,9 @@ expect(#cstate{state_changed = true,
                                     C3 = C2#cstate{expected = undefined,
                                                    actual = Actual2,
                                                    submatches = SubMatches},
+                                    clog(C3, debug,
+                                         "\"expected=undefined (waiting)\"",
+                                         []),
                                     opt_late_sync_reply(C3)
                             end;
                         nomatch ->
@@ -752,6 +776,7 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     C2 = C#cstate{expected = undefined,
                   actual = Match,
                   submatches = []},
+    clog(C2, debug, "\"expected=undefined (prepare_stop)\"", []),
     opt_late_sync_reply(C2).
 
 flush_port(#cstate{port = Port} = C, Timeout, Acc) ->
@@ -879,7 +904,7 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     lux:trace_me(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
     C3 = close_logs(C2),
-    reply(C3, C3#cstate.parent, {stop, self(), Res}),
+    send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
             close_and_exit(C3, Outcome, Res);
@@ -902,6 +927,10 @@ cmd_expected(Cmd) ->
     end,
     Expected.
 
+close_and_exit(C, Reason, #result{}) ->
+    lux:trace_me(40, C#cstate.name, close_and_exit, []),
+    catch port_close(C#cstate.port),
+    exit(Reason);
 close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
     Cmd = element(3, Error),
     Res = #result{outcome = error,
@@ -913,19 +942,13 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   actual = internal_error,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
-    Trace = erlang:get_stacktrace(),
-    lux:trace_me(70, C#cstate.name, internal_error,
-                 [Reason, Error, Trace]),
     io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
-              [Reason, Error, Res, Trace]),
+              [Reason, Error, Res, erlang:get_stacktrace()]),
+    clog(C, internal_error, "\"~p\"", [Cmd#cmd.type]),
     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
     C3 = close_logs(C2),
-    reply(C3, C3#cstate.parent, {stop, self(), Res}),
-    close_and_exit(C3, Reason, Res);
-close_and_exit(C, Reason, _Res) ->
-    lux:trace_me(40, C#cstate.name, close_and_exit, []),
-    catch port_close(C#cstate.port),
-    exit(Reason).
+    send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
+    close_and_exit(C3, Reason, Res).
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),

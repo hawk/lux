@@ -475,14 +475,7 @@ interpret_loop(#istate{commands = [], file_level = FileLevel} = I)
     %% Collect stop and down before popping the cmd_stack
     sync_return(I2);
 interpret_loop(I) ->
-    Timeout =
-        if
-            I#istate.want_more,
-            not I#istate.blocked ->
-                0;
-            true ->
-                infinity
-        end,
+    Timeout = timeout(I),
     receive
         {debug_call, Pid, Cmd, CmdState} ->
             I2 = lux_debug:eval_cmd(I, Pid, Cmd, CmdState),
@@ -539,6 +532,15 @@ interpret_loop(I) ->
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
             interpret_loop(I2)
+    end.
+
+timeout(I) ->
+    if
+        I#istate.want_more,
+        not I#istate.blocked ->
+            0;
+        true ->
+            infinity
     end.
 
 premature_stop(I, TimeoutType, TimeoutMillis) when I#istate.has_been_blocked ->

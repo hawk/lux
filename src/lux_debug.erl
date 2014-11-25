@@ -98,7 +98,7 @@ do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
     [CmdName | Args] = string:tokens(CmdStr, " "),
     case select(CmdName) of
         {ok, #debug_cmd{name = _Name, params = Params, callback = Fun}} ->
-            case parse_params(Params, Args, [], []) of
+            case parse_params(I, Params, Args, [], []) of
                 {ok, Args2} ->
                     %% io:format("Eval: ~s ~p\n", [_Name, Args2]),
                     Fun(I, Args2, CmdState);
@@ -156,12 +156,12 @@ ambiguous(Orig, NamedCmds) ->
     lists:flatten(["Available commands: ", Orig, "\n",
                    "-------------------\n", DeepList]).
 
-parse_params([#debug_param{name = Name,type = Type} | Params],
+parse_params(I, [#debug_param{name = Name,type = Type} | Params],
              [Arg | Args], Acc, _Bad) ->
 
     try
-        Val = parse_param(Type, Arg),
-        parse_params(Params, Args, [{Name, Val} | Acc], [])
+        Val = parse_param(I, Type, Arg),
+        parse_params(I, Params, Args, [{Name, Val} | Acc], [])
     catch
         error:_ ->
             Type2 =
@@ -173,7 +173,7 @@ parse_params([#debug_param{name = Name,type = Type} | Params],
                                        ". Expected ", Type2]),
             {error, ReasonStr}
     end;
-parse_params(Params, [], Acc, Bad) ->
+parse_params(_I, Params, [], Acc, Bad) ->
     case [P || P <- Params, P#debug_param.presence =/= optional] of
         [] ->
             {ok, lists:reverse(Acc)};
@@ -184,35 +184,35 @@ parse_params(Params, [], Acc, Bad) ->
                         [pretty_param(P, Longest) || P <- All]],
             {error, lists:flatten(DeepList)}
     end;
-parse_params([], [Arg | _], _Acc, Bad) ->
+parse_params(_I, [], [Arg | _], _Acc, Bad) ->
     Longest = longest(Bad),
     DeepList = ["Value ", Arg, " has the wrong type.\nPossible parameters:\n",
                 [pretty_param(P, Longest) || P <- Bad]],
     {error, lists:flatten(DeepList)}.
 
-parse_param(Type, Val) ->
+parse_param(I, Type, Val) ->
     case Type of
-        lineno when is_list(Val) ->
-            Parse =
-                fun(Raw) ->
-                        case string:tokens(Raw, "@") of
-                            [LineNo, File] ->
+        lineno when is_list(Val), Val =/= [] ->
+            case string:tokens(Val, ":") of
+                [Static] ->
+                    case string:tokens(Static, "@") of
+                            [Int, File] ->
+                                %% integer@file
                                 {lux_utils:filename_split(File),
-                                 parse_param({integer, 1, infinity}, LineNo)};
-                            [_] ->
-                                try
-                                    %% lineno
-                                    parse_param({integer, 1, infinity}, Raw)
-                                catch
-                                    error:_ ->
-                                        %% file name
-                                        lux_utils:filename_split(Raw)
-                                end
-                        end
-                end,
-            X = lists:reverse(lists:map(Parse, string:tokens(Val, ":"))),
-            %% io:format("lineno: ~p\n", [X]),
-            X;
+                                 parse_param(I, {integer, 1, infinity}, Int)};
+                            [Int] ->
+                                %% integer
+                                {lux_utils:filename_split(I#istate.orig_file),
+                                 parse_param(I, {integer, 1, infinity}, Int)}
+                    end;
+                Dynamic ->
+                    %% integer [ ":" integer ] +
+                    Parse =
+                        fun(Int) ->
+                                parse_param(I, {integer, 1, infinity}, Int)
+                        end,
+                    lists:reverse(lists:map(Parse, Dynamic))
+            end;
         string when is_list(Val) ->
             Val;
         {enum, List} when is_list(List) ->
@@ -415,9 +415,9 @@ lineno_help() ->
         "Several commands has a lineno as parameter. It is a string which\n"
         "is divided in several components. The components are separated\n"
         "with a colon and are used to refer to line numbers in include\n"
-        "files and macros. Each component may either be a line number,\n"
+        "files, macros and loops. Each component may either be a line number,\n"
         "an (possibly abbreviated) file name or a combination of both\n"
-        "separated with an at-sign (int@file).\n"
+        "separated with an at-sign (integer@file).\n"
         "\n"
         "Assume that there is a file called main, which includes a file\n"
         "called outer at line 4 and the file outer includes a file called\n"
@@ -472,8 +472,8 @@ cmd_attach(I, _, CmdState) ->
                             LineNo
                     end,
                 FullLineNo = [{RevFile, LineNo2} | CmdStack],
-                BreakPos2 = full_lineno_to_break_pos(FullLineNo),
-                [{"n_lines", 10}, {"lineno", BreakPos2}]
+                BreakPos = full_lineno_to_break_pos(FullLineNo),
+                [{"n_lines", 10}, {"lineno", BreakPos}]
         end,
     case opt_block(I) of
         {false, I2} ->
@@ -541,18 +541,16 @@ cmd_break(I, Args, _CmdState) ->
             [] ->
                 %% List Breakpoints
                 Print =
-                    fun(#break{pos = Pos, type = T}) ->
+                    fun(#break{pos = Pos, type = Type}) ->
                             Pretty = pretty_break_pos(Pos),
-                            case T of
-                                temporary ->
-                                    io:format("  ~s\ttemporary\n", [Pretty]);
-                                next ->
-                                    io:format("  ~s\tnext\n", [Pretty]);
-                                enabled ->
-                                    io:format("  ~s\n", [Pretty]);
-                                disabled ->
-                                    io:format("  ~s\n", [Pretty])
-                            end
+                            PrettyType =
+                                case Type of
+                                    temporary -> "\ttemporary";
+                                    next      -> "\tnext";
+                                    enabled   -> "";
+                                    disabled  -> ""
+                                end,
+                            io:format("  ~s~s\n", [Pretty, PrettyType])
                     end,
                 case I#istate.commands of
                     [#cmd{} | _] ->
@@ -641,18 +639,19 @@ check_break(I, LineNo) ->
 lookup_break(I, LineNo, Breaks) when is_integer(LineNo) ->
     RevFile = lux_utils:filename_split(I#istate.file), %  optimize later
     FullLineNo = [{RevFile, LineNo} | I#istate.cmd_stack],
-    lookup_break(I, FullLineNo, Breaks);
-lookup_break(I, FullLineNo, [Break | Breaks]) when is_list(FullLineNo) ->
+    do_lookup_break(FullLineNo, Breaks).
+
+do_lookup_break(FullLineNo, [Break | Breaks]) when is_list(FullLineNo) ->
     case match_break(FullLineNo, Break#break.pos) of
         true  -> Break;
-        false -> lookup_break(I, FullLineNo, Breaks)
+        false -> do_lookup_break(FullLineNo, Breaks)
     end;
-lookup_break(_I, _FullLineNo, []) ->
+do_lookup_break(_FullLineNo, []) ->
     false.
 
-%% BreakPos :: [non_neg_integer() | [string()] | {[string(), non_neg_integer()}
+%% BreakPos :: [non_neg_integer()] | [string()] | {[string(), non_neg_integer()}
 match_break([{RevFile, LineNo} | FullLineNo], [BreakPos | Break]) ->
-    case match_break2(RevFile, LineNo, BreakPos) of
+    case match_break_pos(RevFile, LineNo, BreakPos) of
         true  -> match_break(FullLineNo, Break);
         false -> false
     end;
@@ -661,33 +660,33 @@ match_break(_Curr, []) ->
 match_break([], _Break) ->
     false.
 
-match_break2(_RevFile, LineNo, BreakLineNo)
+match_break_pos(_RevFile, LineNo, BreakLineNo)
   when is_integer(BreakLineNo) ->
     LineNo =:= BreakLineNo;
-match_break2(RevFile, LineNo, {BreakFile, BreakLineNo})
+match_break_pos(RevFile, LineNo, {BreakFile, BreakLineNo})
   when is_integer(BreakLineNo) ->
     case LineNo =:= BreakLineNo of
-        true  -> match_break2(RevFile, LineNo, BreakFile);
+        true  -> match_break_pos(RevFile, LineNo, BreakFile);
         false -> false
     end;
-match_break2([FileComp | RevFile], LineNo, [BreakComp | BreakFile]) ->
-    case match_break3(FileComp, BreakComp) of
-        true  -> match_break2(RevFile, LineNo, BreakFile);
+match_break_pos([FileComp | RevFile], LineNo, [BreakComp | BreakFile]) ->
+    case match_break_comp(FileComp, BreakComp) of
+        true  -> match_break_pos(RevFile, LineNo, BreakFile);
         false -> false
     end;
-match_break2(_RevFile, _LineNo, []) ->
+match_break_pos(_RevFile, _LineNo, []) ->
     true;
-match_break2([], _LineNo, _BreakFile) ->
+match_break_pos([], _LineNo, _BreakFile) ->
     false.
 
-match_break3([FileChar | FileComp], [BreakChar | BreakComp]) ->
+match_break_comp([FileChar | FileComp], [BreakChar | BreakComp]) ->
     case FileChar =:= BreakChar of
-        true  -> match_break3(FileComp, BreakComp);
+        true  -> match_break_comp(FileComp, BreakComp);
         false -> false
     end;
-match_break3(_FileComp, []) ->
+match_break_comp(_FileComp, []) ->
     true;
-match_break3([], _BreakComp) ->
+match_break_comp([], _BreakComp) ->
     false.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -821,7 +820,7 @@ longest2([], Longest) ->
 cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
     {ok, Cwd} =  file:get_cwd(),
     io:format("Log files at ~s:\n\n", [lux_utils:drop_prefix(Cwd, LogDir)]),
-    {I2, Logs} = all_logs(I),
+    Logs = all_logs(I),
     Print = fun(Abs, Index) ->
                     Rel = lux_utils:drop_prefix(LogDir, Abs),
                     {Curr, Display} =
@@ -847,8 +846,8 @@ cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
     {Status2, _} = lists:mapfoldl(Print, 1, Logs),
     io:format("\n", []),
     TailOpts = [{"index", 5}, {"format", "compact"}, {"n_lines", 10}],
-    {CmdState2, I3} = cmd_tail(I2, TailOpts, CmdState),
-    {CmdState2, I3#istate{tail_status=Status2}};
+    {CmdState2, I2} = cmd_tail(I, TailOpts, CmdState),
+    {CmdState2, I2#istate{tail_status=Status2}};
 cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
     case Rest of
         [{"format", Format} | Rest2] ->
@@ -1153,7 +1152,8 @@ current_full_lineno(I) ->
 full_lineno_to_break_pos(FullLineNo) ->
     [LineNo || {_File, LineNo} <- FullLineNo].
 
-break_to_full_lineno(I, BreakPos) ->
+break_to_full_lineno(#istate{orig_file = OrigFile, orig_commands = OrigCmds},
+                     BreakPos) ->
     Collect = fun(#cmd{lineno = LineNo}, RevFile, CmdStack, Acc) ->
                       FullLineNo = [{RevFile, LineNo} | CmdStack],
                       case match_break(FullLineNo, BreakPos) of
@@ -1161,11 +1161,7 @@ break_to_full_lineno(I, BreakPos) ->
                           false -> Acc
                       end
               end,
-    Matching = lux_utils:foldl_cmds(Collect,
-                                         [],
-                                         I#istate.orig_file,
-                                         [],
-                                         I#istate.orig_commands),
+    Matching = lux_utils:foldl_cmds(Collect, [], OrigFile, [], OrigCmds),
     case catch lists:last(Matching) of
         {'EXIT', _} -> false;
         FullLineNo  -> FullLineNo
