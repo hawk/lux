@@ -69,3 +69,7 @@
 
     !cat foo
     ?abc\R{4}def
+
+[cleanup]
+    !rm -f multiple_empty_lines.txt foo
+    ?SH-PROMPT:
