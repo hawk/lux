@@ -13,6 +13,8 @@
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
 
+-define(dmore, 10).
+
 -record(cmd,
         {lineno :: non_neg_integer(),
          type   :: atom(),
@@ -87,6 +89,7 @@
          has_been_blocked           :: boolean(),
          want_more                  :: boolean(),
          old_want_more              :: boolean(),
+         debug_level = 0            :: non_neg_integer(),
          breakpoints = []           :: [#break{}],
          shells = []                :: [#shell{}],
          commands                   :: [#cmd{}],

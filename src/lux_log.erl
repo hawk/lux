@@ -188,7 +188,10 @@ split_result2([], Acc) ->
 
 split_cases([Case | Cases], Acc, EventLogs) ->
     [NameRow | Sections] = binary:split(Case, <<"\n">>, [global]),
-    [<<"test case", _/binary>>, Name] = binary:split(NameRow, <<": ">>),
+    case binary:split(NameRow, <<": ">>) of
+        [<<"test case", _/binary>>, Name] ->  ok;
+        [<<>>]                            -> Name = <<"unknown">>
+    end,
     case Sections of
         [] ->
             Res = {result_case, Name, <<"ERROR">>, <<"unknown">>},

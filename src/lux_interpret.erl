@@ -1,4 +1,4 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2012-2014 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
@@ -500,9 +500,11 @@ interpret_loop(I) ->
                     %%       Name]),
                     interpret_loop(I);
                 I#istate.blocked, not I#istate.want_more ->
+                    %% Block more
                     I2 = I#istate{old_want_more = true},
                     interpret_loop(I2);
                 not I#istate.blocked, I#istate.old_want_more =:= undefined ->
+                    dlog(I, ?dmore, "want_more=true (got more)", []),
                     I2 = I#istate{want_more = true},
                     interpret_loop(I2)
             end;
@@ -592,11 +594,11 @@ opt_dispatch_cmd(#istate{commands = Cmds} = I) ->
     case Cmds of
         [#cmd{lineno = CmdLineNo} = Cmd | Rest] ->
             {DoDispatch, I2} = lux_debug:check_break(I, CmdLineNo),
-            case DoDispatch of
-                true ->
+            if
+                DoDispatch, I2#istate.want_more ->
                     I3 = I2#istate{commands = Rest, latest_lineno = CmdLineNo},
                     dispatch_cmd(I3, Cmd);
-                false ->
+                true ->
                     I2
             end;
         [] ->
@@ -615,9 +617,7 @@ opt_dispatch_cmd(#istate{commands = Cmds} = I) ->
             end
     end.
 
-dispatch_cmd(#istate{want_more = false} = I, _Cmd) ->
-    I;
-dispatch_cmd(#istate{want_more = true} = I,
+dispatch_cmd(I,
              #cmd{lineno = LineNo,
                   type = Type,
                   arg = Arg} = Cmd) ->
@@ -661,9 +661,9 @@ dispatch_cmd(#istate{want_more = true} = I,
                     N -> integer_to_list(N)
                 end,
             ShellCmd = Cmd#cmd{type = shell, arg = "cleanup" ++ Suffix},
-            safe_shell_switch(I3, ShellCmd);
+            ensure_shell(I3, ShellCmd);
         shell ->
-            safe_shell_switch(I, Cmd);
+            ensure_shell(I, Cmd);
         include ->
             {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
             ilog(I, "~s(~p): include_file \"~s\"\n",
@@ -729,6 +729,7 @@ dispatch_cmd(#istate{want_more = true} = I,
             end;
         _ ->
             %% Send next command to active shell
+            dlog(I, ?dmore, "want_more=false (send ~p)", [Cmd#cmd.type]),
             cast(I, {eval, self(), Cmd}),
             I#istate{want_more = false}
     end.
@@ -956,33 +957,41 @@ prepare_stop(#istate{results = Acc,
             _ ->
                 Res2
         end,
-    {ShellName, NewI} = delete_shell(I#istate{results = [Res3 | Acc]}, Pid),
+    NewLevel =
+        case Res3#result.actual of
+            internal_error -> ?dmore;
+            _              -> I#istate.debug_level
+        end,
+    I2 = I#istate{results = [Res3 | Acc],
+                  debug_level = NewLevel}, % Activate debug after first error
+    {ShellName, I3} = delete_shell(I2, Pid),
     lux:trace_me(50, 'case', stop,
-                 [{mode, NewI#istate.mode},
+                 [{mode, I3#istate.mode},
                   {stop, ShellName, Res2#result.outcome, Res2#result.actual},
-                  {shells, NewI#istate.shells},
+                  {shells, I3#istate.shells},
                   Res3]),
-    case NewI#istate.mode of
+    case I3#istate.mode of
         running when Res2#result.outcome =:= shutdown,
                      Res2#result.actual =:= shell_exit ->
             %% Successful end of file in shell. Reset active shell.
-            NewI#istate{active_pid = undefined,
-                        active_name = "lux",
-                        want_more = true};
+            dlog(I3, ?dmore, "want_more=true (prepare_stop)", []),
+            I3#istate{active_pid = undefined,
+                      active_name = "lux",
+                      want_more = true};
         running ->
-            multicast(NewI, {relax, self()}),
-            goto_cleanup(NewI, CleanupReason);
-        cleanup when NewI#istate.shells =:= [] ->
+            multicast(I3, {relax, self()}),
+            goto_cleanup(I3, CleanupReason);
+        cleanup when I3#istate.shells =:= [] ->
             %% All shell states has been collected. Full stop.
-            NewI#istate{mode = stopping};
+            I3#istate{mode = stopping};
         cleanup ->
             %% Initiate stop by sending shutdown to the remaining shells.
-            multicast(NewI, {shutdown, self()}),
-            NewI#istate{mode = stopping};
+            multicast(I3, {shutdown, self()}),
+            I3#istate{mode = stopping};
         stopping ->
             %% Shutdown has already been sent to the other shells.
             %% Continue to collect their states if needed.
-            NewI
+            I3
     end.
 
 goto_cleanup(OldI, CleanupReason) ->
@@ -1003,6 +1012,7 @@ goto_cleanup(OldI, CleanupReason) ->
     %% Fast forward to (optional) cleanup command
     CleanupFun = fun(#cmd{type = Type}) -> Type =/= cleanup end,
     Cleanup = lists:dropwhile(CleanupFun, OldI#istate.commands),
+    dlog(OldI, ?dmore, "want_more=true (goto_cleanup)", []),
     NewI =
         OldI#istate{cleanup_reason = CleanupReason,
                     want_more = true,
@@ -1101,8 +1111,8 @@ opt_apply(_Fun) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Control a shell
 
-safe_shell_switch(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
-    I2 = I#istate{latest_lineno = LineNo},
+ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
+    I2 = I#istate{latest_lineno = LineNo, want_more = false},
     case shell_expand_vars(I2, Name, error) of
         {ok, Name2} ->
             case lists:keyfind(Name2, #shell.name, I2#istate.shells) of
@@ -1134,7 +1144,8 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
             Sync = Cmd#cmd{type = expect,
                            arg = {regexp, CmdRegExp}},
             Cmds = [Wait, Prompt, Sync | I3#istate.commands],
-            I3#istate{commands = Cmds, want_more = false};
+            dlog(I3, ?dmore, "want_more=false (shell_start)", []),
+            I3#istate{commands = Cmds};
         {error, I3, Pid, Reason} ->
             shell_crashed(I3, Pid, Reason)
     end.
@@ -1208,6 +1219,12 @@ ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
      Format,
      Args)->
     lux_log:safe_format(Progress, LogFun, Fd, Format, Args).
+
+dlog(I, Level, Format, Args) when I#istate.debug_level >= Level ->
+    ilog(I, "~s(~p): debug2 \"" ++ Format ++ "\"\n",
+         [I#istate.active_name, I#istate.latest_lineno] ++ Args);
+dlog(_I, _Level, _Format, _Args) ->
+    ok.
 
 console_write(String) ->
     io:format("~s", [String]).
