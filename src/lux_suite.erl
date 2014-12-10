@@ -64,18 +64,13 @@ run(Files, Opts) when is_list(Files) ->
                 run_suite(R3, R3#rstate.files, success, []),
             write_results(R4, Summary, Results);
         {ok, R} ->
-            LogDir = R#rstate.log_dir,
-            SummaryLog = filename:join([LogDir, "lux_summary.log"]),
-            case filelib:ensure_dir(SummaryLog) of
-                ok ->
-                    do_run(R, SummaryLog);
-                {error, FileReason} ->
-                    FileErr =
-                        lux_log:safe_format(undefined,
-                                    "ERROR: Failed to create log directory:"
-                                    " ~s -> ~s\n",
-                                    [LogDir, file:format_error(FileReason)]),
-                    {error, LogDir, FileErr}
+            case ensure_log_dir(R) of
+                {ok, R2} ->
+                    SummaryLog = filename:join([R2#rstate.log_dir,
+                                                "lux_summary.log"]),
+                    do_run(R2, SummaryLog);
+                {error, File, DirErr} ->
+                    {error, File, DirErr}
             end;
         {error, {badarg, Name, Val}} ->
             ArgErr =
@@ -271,6 +266,9 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{user_opts = UserOpts})
     end;
 parse_ropts([], R) ->
+    {ok, adjust_log_dir(R)}.
+
+adjust_log_dir(R) ->
     Now = erlang:now(),
     UniqStr = uniq_str(Now),
     UniqRun = "run_" ++ UniqStr,
@@ -282,17 +280,15 @@ parse_ropts([], R) ->
     UserLogDir = pick_val(log_dir, R, undefined),
     RelLogDir =
         case UserLogDir of
-            undefined ->
-                filename:join(["lux_logs", UniqRun]);
-            LogDir ->
-                LogDir
+            undefined -> filename:join(["lux_logs", UniqRun]);
+            LogDir    -> LogDir
         end,
     AbsLogDir0 = filename:absname(RelLogDir),
-    ParentDir0 = filename:dirname(AbsLogDir0),
-    Link0 = filename:join([ParentDir0, "latest_run"]),
     AbsLogDir =
         if
             UserLogDir =:= undefined, R#rstate.extend_run ->
+                ParentDir0 = filename:dirname(AbsLogDir0),
+                Link0 = filename:join([ParentDir0, "latest_run"]),
                 case file:read_link(Link0) of
                     {ok, LinkTo} ->
                         %% Reuse old log dir
@@ -303,32 +299,52 @@ parse_ropts([], R) ->
             true ->
                 AbsLogDir0
         end,
-    ParentDir = filename:dirname(AbsLogDir),
-    Link = filename:join([ParentDir, "latest_run"]),
-    case filelib:ensure_dir(AbsLogDir) of
+    UserOpts = merge_opts([{log_dir, AbsLogDir}], R#rstate.user_opts),
+    R#rstate{start_time = Now,
+             run = Run,
+             log_dir = AbsLogDir,
+             user_opts = UserOpts}.
+
+ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R) ->
+    case opt_ensure_dir(ExtendRun, AbsLogDir) of
         ok ->
+            ParentDir = filename:dirname(AbsLogDir),
+            Link = filename:join([ParentDir, "latest_run"]),
             Base = filename:basename(AbsLogDir),
             _ = file:delete(Link),
             _ = file:make_symlink(Base, Link),
+
             RelFiles = R#rstate.files,
             AbsFiles = [filename:absname(F) || F <- RelFiles],
-            UserOpts = merge_opts([{log_dir, AbsLogDir}], R#rstate.user_opts),
-            R2 = R#rstate{start_time = Now,
-                          run = Run,
-                          log_dir = AbsLogDir,
-                          files = AbsFiles,
-                          user_opts = UserOpts},
-            TagFiles = [{config_dir, R2#rstate.config_dir} |
+            TagFiles = [{config_dir, R#rstate.config_dir} |
                         [{file, F} || F <- RelFiles]],
             try
                 lists:foreach(fun check_file/1, TagFiles),
-                {ok, R2}
+                {ok, R#rstate{files = AbsFiles}}
             catch
                 throw:{error, File, Reason} ->
                     {error, File, Reason}
             end;
+        {error, eexist} ->
+            {error,
+             AbsLogDir,
+             lux_log:safe_format(undefined,
+                                 "ERROR: Log directory already exists:"
+                                 " ~s\n",
+                                 [AbsLogDir])};
         {error, FileReason} ->
-            {error, AbsLogDir, file:format_error(FileReason)}
+            {error,
+             AbsLogDir,
+             lux_log:safe_format(undefined,
+                                 "ERROR: Failed to create log directory:"
+                                 " ~s -> ~s\n",
+                                 [AbsLogDir, file:format_error(FileReason)])}
+    end.
+
+opt_ensure_dir(ExtendRun, AbsLogDir) ->
+    case not ExtendRun andalso filelib:is_dir(AbsLogDir) of
+        true  -> {error, eexist};
+        false -> filelib:ensure_dir(filename:join([AbsLogDir, "dummy"]))
     end.
 
 check_file({Tag, File}) ->
