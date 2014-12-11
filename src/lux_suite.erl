@@ -64,10 +64,9 @@ run(Files, Opts) when is_list(Files) ->
                 run_suite(R3, R3#rstate.files, success, []),
             write_results(R4, Summary, Results);
         {ok, R} ->
-            case ensure_log_dir(R) of
+            SummaryLog = filename:join([R#rstate.log_dir, "lux_summary.log"]),
+            case ensure_log_dir(R, SummaryLog) of
                 {ok, R2} ->
-                    SummaryLog = filename:join([R2#rstate.log_dir,
-                                                "lux_summary.log"]),
                     do_run(R2, SummaryLog);
                 {error, File, DirErr} ->
                     {error, File, DirErr}
@@ -305,8 +304,9 @@ adjust_log_dir(R) ->
              log_dir = AbsLogDir,
              user_opts = UserOpts}.
 
-ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R) ->
-    case opt_ensure_dir(ExtendRun, AbsLogDir) of
+ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
+               SummaryLog) ->
+    case opt_ensure_dir(ExtendRun, SummaryLog) of
         ok ->
             ParentDir = filename:dirname(AbsLogDir),
             Link = filename:join([ParentDir, "latest_run"]),
@@ -325,13 +325,13 @@ ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R) ->
                 throw:{error, File, Reason} ->
                     {error, File, Reason}
             end;
-        {error, eexist} ->
+        summary_log_exists ->
             {error,
              AbsLogDir,
              lux_log:safe_format(undefined,
-                                 "ERROR: Log directory already exists:"
+                                 "ERROR: Summary log file already exists:"
                                  " ~s\n",
-                                 [AbsLogDir])};
+                                 [SummaryLog])};
         {error, FileReason} ->
             {error,
              AbsLogDir,
@@ -341,10 +341,10 @@ ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R) ->
                                  [AbsLogDir, file:format_error(FileReason)])}
     end.
 
-opt_ensure_dir(ExtendRun, AbsLogDir) ->
-    case not ExtendRun andalso filelib:is_dir(AbsLogDir) of
-        true  -> {error, eexist};
-        false -> filelib:ensure_dir(filename:join([AbsLogDir, "dummy"]))
+opt_ensure_dir(ExtendRun, SummaryLog) ->
+    case not ExtendRun andalso filelib:is_dir(SummaryLog) of
+        true  -> summary_log_exists;
+        false -> filelib:ensure_dir(SummaryLog)
     end.
 
 check_file({Tag, File}) ->
