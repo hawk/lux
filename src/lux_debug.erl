@@ -820,7 +820,7 @@ longest2([], Longest) ->
 cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
     {ok, Cwd} =  file:get_cwd(),
     io:format("Log files at ~s:\n\n", [lux_utils:drop_prefix(Cwd, LogDir)]),
-    Logs = all_logs(I),
+    {I2, Logs} = all_logs(I),
     Print = fun(Abs, Index) ->
                     Rel = lux_utils:drop_prefix(LogDir, Abs),
                     {Curr, Display} =
@@ -846,8 +846,8 @@ cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
     {Status2, _} = lists:mapfoldl(Print, 1, Logs),
     io:format("\n", []),
     TailOpts = [{"index", 5}, {"format", "compact"}, {"n_lines", 10}],
-    {CmdState2, I2} = cmd_tail(I, TailOpts, CmdState),
-    {CmdState2, I2#istate{tail_status=Status2}};
+    {CmdState2, I3} = cmd_tail(I2, TailOpts, CmdState),
+    {CmdState2, I3#istate{tail_status=Status2}};
 cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
     case Rest of
         [{"format", Format} | Rest2] ->
