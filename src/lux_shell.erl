@@ -1016,9 +1016,10 @@ wait_for_down(C, Res) ->
             wait_for_down(C2, Res)
     end.
 
-save_event(#cstate{latest_cmd = Cmd, events = Events} = C, Op, Data) ->
+save_event(#cstate{latest_cmd = _Cmd, events = Events} = C, Op, Data) ->
     clog(C, Op, "\"~s\"", [lux_utils:to_string(Data)]),
-    [{Cmd#cmd.lineno, Op, Data} | Events].
+    %% [{Cmd#cmd.lineno, Op, Data} | Events].
+    Events.
 
 safe_send_after(State, Timeout, Pid, Msg) ->
     case multiply(State, Timeout) of
