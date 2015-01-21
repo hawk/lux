@@ -248,7 +248,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
     end.
 
 %% interleave_code(A, Events, Script, FirstLineNo, MaxLineNo,
-%%                 [{_F,SyntheticLineNo}|_] = CmdStack, Files)
+%%                 [{_F,SyntheticLineNo, _T}|_] = CmdStack, Files)
 %%   when is_integer(SyntheticLineNo), SyntheticLineNo < 0 ->
 %%     %% A synthetic command stack level
 %%     ScriptComps = lux_utils:filename_split(Script),
@@ -297,7 +297,7 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
                        {event, SingleLineNo, Shell, Op, Data2} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) when Op =:= <<"recv">>,
-                                               Data2 =/= [<<"timeout">>]->
+                                              Data2 =/= [<<"timeout">>]->
     %% Combine two chunks of recv data into one in order to improve readability
     [Last | Rev] = lists:reverse(Data),
     [First | Rest] = Data2,
@@ -311,7 +311,7 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
     {CodeLines2, CodeLineNo2, Code} =
         pick_code(ScriptComps, CodeLines, CodeLineNo, SingleLineNo,
                   [], CmdStack),
-    CmdStack2 = [{ScriptComps, SingleLineNo} | CmdStack],
+    CmdStack2 = [{ScriptComps, SingleLineNo, undefined} | CmdStack],
     Acc2 = [{event_html, CmdStack2, _Op, Shell, Data}] ++ Code ++ Acc,
     do_interleave_code(A, Events, ScriptComps, CodeLines2, CodeLineNo2,
                        MaxLineNo, Acc2, CmdStack, Files);
@@ -319,7 +319,7 @@ do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
                         SubScript, SubEvents} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) ->
-    CmdStack2 = [{ScriptComps, InvokeLineNo} | CmdStack],
+    CmdStack2 = [{ScriptComps, InvokeLineNo, undefined} | CmdStack],
     SubA = A#astate{source_file = SubScript},
     {SubAnnotated, Files2} =
         interleave_code(SubA, SubEvents, SubScript, FirstLineNo, LastLineNo,
@@ -335,7 +335,7 @@ do_interleave_code(_A, [], ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
 
 pick_code(ScriptComps, [Line | Lines], CodeLineNo, LineNo, Acc, CmdStack)
   when LineNo >= CodeLineNo ->
-    CmdStack2 = [{ScriptComps, CodeLineNo} | CmdStack],
+    CmdStack2 = [{ScriptComps, CodeLineNo, undefined} | CmdStack],
     pick_code(ScriptComps, Lines, CodeLineNo+1, LineNo,
               [{code_html, CmdStack2, Line} | Acc], CmdStack);
 pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _CmdStack) ->
@@ -538,7 +538,7 @@ html_code(A, Annotated) ->
 html_code2(A, [Ann | Annotated], Prev) ->
     case Ann of
         {code_html, LineNoStack, Code} ->
-            FullLineNo = lux_utils:full_lineno(LineNoStack),
+            FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
             [
              html_toggle_div(code, Prev),
              case Code of
@@ -559,7 +559,7 @@ html_code2(A, [Ann | Annotated], Prev) ->
                     _ ->
                         Data0
                 end,
-            FullLineNo = lux_utils:full_lineno(LineNoStack),
+            FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
             Html = [Shell, "(", FullLineNo, "): ", Op, " "],
             [
              html_toggle_div(event, Prev),
@@ -569,7 +569,7 @@ html_code2(A, [Ann | Annotated], Prev) ->
              html_code2(A, Annotated, event)
             ];
         {body_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
-            FullLineNo = lux_utils:full_lineno(LineNoStack),
+            FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
             RelSubScript = drop_prefix(A, SubScript),
             if
                 SubScript =/= A#astate.source_file ->

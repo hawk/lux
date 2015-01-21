@@ -93,7 +93,7 @@ internal_error(I, ReasonTerm) ->
     fatal_error(I, ReasonBin).
 
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
-    FullLineNo = full_lineno(I, I#istate.latest_lineno, I#istate.cmd_stack),
+    FullLineNo = full_lineno(I, I#istate.latest_cmd, I#istate.cmd_stack),
     double_ilog(I, "~sERROR ~s\n",
                 [?TAG("result"),
                  binary_to_list(ReasonBin)]),
@@ -275,10 +275,10 @@ wait_for_done(I, Pid) ->
                                         Reason =:= success ->
                                             print_success(I3, File, Results);
                                         true ->
-                                            Latest = I3#istate.latest_lineno,
+                                            LatestCmd = I3#istate.latest_cmd,
                                             CmdStack = I3#istate.cmd_stack,
                                             R = #result{outcome    = fail,
-                                                        lineno     = Latest,
+                                                        latest_cmd = LatestCmd,
                                                         cmd_stack  = CmdStack,
                                                         expected   = success,
                                                         extra      = undefined,
@@ -310,13 +310,13 @@ print_success(I, File, Results) ->
 
 print_fail(I, File, Results,
            #result{outcome    = fail,
-                   lineno     = LineNo,
+                   latest_cmd = LatestCmd,
                    cmd_stack  = CmdStack,
                    expected   = Expected,
                    extra      = _Extra,
                    actual     = Actual,
                    rest       = Rest}) ->
-    FullLineNo = full_lineno(I, LineNo, CmdStack),
+    FullLineNo = full_lineno(I, LatestCmd, CmdStack),
     ResStr = double_ilog(I, "~sFAIL at ~s:~s\n",
                          [?TAG("result"), File, FullLineNo]),
     io:format("~s", [ResStr]),
@@ -338,10 +338,10 @@ print_fail(I, File, Results,
     end,
     {ok, File, I#istate.log_dir, fail, FullLineNo, Results}.
 
-full_lineno(I, LineNo, CmdStack) ->
+full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),
-    FullStack = [{RevFile, LineNo} | CmdStack],
-    lux_utils:full_lineno(FullStack).
+    FullStack = [{RevFile, LineNo, Type} | CmdStack],
+    lux_utils:pretty_full_lineno(FullStack).
 
 flush_logs(I) ->
     flush_summary_log(I),
@@ -483,8 +483,7 @@ interpret_loop(I) ->
         stopped_by_user ->
             %% Ordered to stop by user
             ilog(I, "~s(~p): stopped_by_user\n",
-                 [I#istate.active_name,
-                  I#istate.latest_lineno]),
+                 [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno]),
             I2 = prepare_stop(I, dummy_pid, {fail, stopped_by_user}),
             interpret_loop(I2);
         {stop, Pid, Res} ->
@@ -496,7 +495,7 @@ interpret_loop(I) ->
                 Pid =/= I#istate.active_pid ->
                     %% ilog(I, "~s(~p): ignore_more \"~s\"\n",
                     %%      [I#istate.active_name,
-                    %%       I#istate.latest_lineno,
+                    %%       (I#istate.latest_cmd)#cmd.lineno,
                     %%       Name]),
                     interpret_loop(I);
                 I#istate.blocked, not I#istate.want_more ->
@@ -556,8 +555,7 @@ premature_stop(I, TimeoutType, TimeoutMillis) ->
     Seconds = TimeoutMillis div timer:seconds(1),
     Multiplier = I#istate.multiplier / 1000,
     ilog(I, "~s(~p): ~p (~p seconds * ~.3f)\n",
-         [I#istate.active_name,
-          I#istate.latest_lineno,
+         [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno,
           TimeoutType,
           Seconds,
           Multiplier]),
@@ -596,7 +594,7 @@ opt_dispatch_cmd(#istate{commands = Cmds} = I) ->
             {DoDispatch, I2} = lux_debug:check_break(I, CmdLineNo),
             if
                 DoDispatch, I2#istate.want_more ->
-                    I3 = I2#istate{commands = Rest, latest_lineno = CmdLineNo},
+                    I3 = I2#istate{commands = Rest, latest_cmd = Cmd},
                     dispatch_cmd(I3, Cmd);
                 true ->
                     I2
@@ -621,7 +619,7 @@ dispatch_cmd(I,
              #cmd{lineno = LineNo,
                   type = Type,
                   arg = Arg} = Cmd) ->
-    %% io:format("~s:\t~p\n", [full_lineno(I, I#istate.latest_lineno,
+    %% io:format("~s:\t~p\n", [full_lineno(I, I#istate.latest_cmd,
     %%                                     I#istate.cmd_stack),
     %%                         Type]),
     lux:trace_me(60, 'case', Type, [Cmd]),
@@ -650,7 +648,12 @@ dispatch_cmd(I,
             multicast(I, {eval, self(), Cmd}),
             I2 = multisync(I, immediate),
             Shells = [S#shell{health = zombie} || S <- I2#istate.shells],
-            I3 = I2#istate{mode = cleanup,
+            NewMode =
+                case I#istate.mode of
+                    stopping -> stopping;
+                    _OldMode -> cleanup
+                end,
+            I3 = I2#istate{mode = NewMode,
                            timeout = I2#istate.cleanup_timeout,
                            shells = Shells,
                            active_pid = undefined,
@@ -674,7 +677,7 @@ dispatch_cmd(I,
             I;
         invoke ->
             {invoke, Name, ArgVals} = Arg,
-            I2 = I#istate{latest_lineno = LineNo},
+            I2 = I#istate{latest_cmd = Cmd},
             case shell_expand_vars(I2, Name, error) of
                 {ok, NewName} ->
                     Macros = [M || M <- I2#istate.macros,
@@ -690,7 +693,7 @@ dispatch_cmd(I,
             end;
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
-            I2 = I#istate{latest_lineno = LineNo},
+            I2 = I#istate{latest_cmd = Cmd},
             case shell_expand_vars(I2, ItemStr, error) of
                 {ok, NewItemStr} ->
                     ilog(I2, "~s(~p): loop items \"~s\"\n",
@@ -708,7 +711,7 @@ dispatch_cmd(I,
         variable when element(1, Arg) =:= global,
                       I#istate.active_pid =:= undefined ->
             %% Allow global variables to be set without any active shell
-            I2 = I#istate{latest_lineno = LineNo},
+            I2 = I#istate{latest_cmd = Cmd},
             {Scope, Var, Val} = Arg,
             Dicts = [I2#istate.dict,
                      I2#istate.builtin_dict,
@@ -744,7 +747,7 @@ get_eval_fun() ->
     fun(I) when is_record(I, istate) -> interpret_loop(I) end.
 
 eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
-          #cmd{} = Invoker, Fun) ->
+          #cmd{type = Type} = Cmd, Fun) ->
     lux_utils:progress_write(OldI#istate.progress, "("),
     Enter =
         fun() ->
@@ -752,13 +755,14 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                      [InvokeLineNo, FirstLineNo, LastLineNo, CmdFile])
         end,
     OldStack = OldI#istate.cmd_stack,
-    NewStack = [{lux_utils:filename_split(CmdFile), InvokeLineNo} | OldStack],
+    Current = {lux_utils:filename_split(CmdFile), InvokeLineNo, Type},
+    NewStack = [Current | OldStack],
     BeforeI = OldI#istate{file_level = OldI#istate.file_level + 1,
                           file = CmdFile,
-                          latest_lineno = InvokeLineNo,
+                          latest_cmd = Cmd,
                           cmd_stack = NewStack,
                           commands = Body},
-    BeforeI2 = switch_cmd(before, BeforeI, NewStack, Invoker, Enter),
+    BeforeI2 = switch_cmd(before, BeforeI, NewStack, Cmd, Enter),
     try
         AfterI = Fun(BeforeI2),
         lux_utils:progress_write(AfterI#istate.progress, ")"),
@@ -768,20 +772,21 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                                [InvokeLineNo, FirstLineNo, LastLineNo,
                                 CmdFile])
             end,
-        AfterI2 = switch_cmd('after', AfterI, OldStack, Invoker, AfterExit),
+        AfterI2 = switch_cmd('after', AfterI, OldStack, Cmd, AfterExit),
         NewI = AfterI2#istate{file_level = OldI#istate.file_level,
                               file = OldI#istate.file,
-                              latest_lineno = OldI#istate.latest_lineno,
+                              latest_cmd = OldI#istate.latest_cmd,
                               cmd_stack = OldI#istate.cmd_stack,
                               commands = OldI#istate.commands},
         if
             NewI#istate.cleanup_reason =:= normal ->
-                %% No cleanup needed
+                %% Everything OK - no cleanup needed
                 NewI;
             OldI#istate.cleanup_reason =:= normal ->
+                %% New cleanup initiated in body - continue on this call level
                 goto_cleanup(NewI, NewI#istate.cleanup_reason);
             true ->
-                %% Already cleaning up
+                %% Already cleaning up when we started eval of body
                 NewI
         end
     catch
@@ -793,7 +798,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                                    [InvokeLineNo, FirstLineNo, LastLineNo,
                                     CmdFile])
                 end,
-            _ = switch_cmd('after2', BeforeI2, OldStack, Invoker, BeforeExit),
+            _ = switch_cmd('after2', BeforeI2, OldStack, Cmd, BeforeExit),
             erlang:raise(Class, Reason, erlang:get_stacktrace())
     end.
 
@@ -802,13 +807,13 @@ file_level(#istate{file_level = FileLevel}) ->
 
 invoke_macro(I,
              #cmd{arg = {invoke, Name, ArgVals},
-                  lineno = LineNo} = Invoke,
+                  lineno = LineNo} = InvokeCmd,
              [#macro{name = Name,
                      file = File,
                      cmd = #cmd{arg = {macro, Name, ArgNames, FirstLineNo,
-                                       LatestLineNo, Body}} = Macro}]) ->
+                                       LatestLineNo, Body}} = MacroCmd}]) ->
     OldMacroDict = I#istate.macro_dict,
-    MacroDict = macro_dict(I, ArgNames, ArgVals, Invoke),
+    MacroDict = macro_dict(I, ArgNames, ArgVals, InvokeCmd),
     ilog(I, "~s(~p): invoke_~s \"~s\"\n",
          [I#istate.active_name,
           LineNo,
@@ -816,19 +821,19 @@ invoke_macro(I,
           lists:flatten([[M, " "] || M <- MacroDict])]),
 
     multicast(I, {macro_dict, self(), MacroDict}),
-    BeforeI = I#istate{macro_dict = MacroDict, latest_lineno = LineNo},
+    BeforeI = I#istate{macro_dict = MacroDict, latest_cmd = InvokeCmd},
     DefaultFun = get_eval_fun(),
     AfterI = eval_body(BeforeI, LineNo, FirstLineNo,
-                       LatestLineNo, File, Body, Macro, DefaultFun),
+                       LatestLineNo, File, Body, MacroCmd, DefaultFun),
     multicast(AfterI, {macro_dict, self(), OldMacroDict}),
 
     AfterI#istate{macro_dict = OldMacroDict};
-invoke_macro(I, #cmd{arg = {invoke, Name, _Values}, lineno = LineNo}, []) ->
-    I2 = I#istate{latest_lineno = LineNo},
+invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, []) ->
+    I2 = I#istate{latest_cmd = Cmd},
     BinName = list_to_binary(Name),
     throw({error, <<"No such macro: ", BinName/binary>>, I2});
-invoke_macro(I, #cmd{arg = {invoke, Name, _Values}, lineno = LineNo}, [_|_]) ->
-    I2 = I#istate{latest_lineno = LineNo},
+invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, [_|_]) ->
+    I2 = I#istate{latest_cmd = Cmd},
     BinName = list_to_binary(Name),
     throw({error, <<"Ambiguous macro: ", BinName/binary>>, I2}).
 
@@ -853,22 +858,22 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
                ": Argument mismatch in macro: ", BinName/binary>>,
     throw({error, Reason, I}).
 
-eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = Loop) ->
+eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = LoopCmd) ->
     DefaultFun = get_eval_fun(),
     LoopStack = [continue | OldI#istate.loop_stack],
     NewI = eval_body(OldI#istate{loop_stack = LoopStack}, First, First, First,
-                     OldI#istate.file, Body, Loop,
+                     OldI#istate.file, Body, LoopCmd,
                      fun(I) ->
                              do_eval_loop(I, Name, Items, First, Last, Body,
-                                          Loop, DefaultFun, 1)
+                                          LoopCmd, DefaultFun, 1)
                      end),
     NewI#istate{loop_stack = tl(NewI#istate.loop_stack)}.
 
-do_eval_loop(OldI, _Name, _Items, _First, _Last, _Body, _Loop, _LoopFun, _N)
+do_eval_loop(OldI, _Name, _Items, _First, _Last, _Body, _LoopCmd, _LoopFun, _N)
   when hd(OldI#istate.loop_stack) =:= break ->
     %% Exit the loop
     OldI;
-do_eval_loop(OldI, Name, Items, First, Last, Body, Loop, LoopFun, N)
+do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
   when hd(OldI#istate.loop_stack) =:= continue ->
     case pick_item(Items) of
         {item, Item, Rest} ->
@@ -876,10 +881,10 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, Loop, LoopFun, N)
             MacroDict = [LoopVar|OldI#istate.macro_dict],
             multicast(OldI, {macro_dict, self(), MacroDict}),
             BeforeI = OldI#istate{macro_dict = MacroDict,
-                                  latest_lineno = First},
+                                  latest_cmd = LoopCmd},
             SyntheticLineNo = -N,
             AfterI = eval_body(BeforeI, SyntheticLineNo, First, Last,
-                               BeforeI#istate.file, Body, Loop,
+                               BeforeI#istate.file, Body, LoopCmd,
                                fun(I) ->
                                        ilog(I, "~s(~p): loop \"~s\"\n",
                                             [I#istate.active_name,
@@ -887,7 +892,7 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, Loop, LoopFun, N)
                                              LoopVar]),
                                        LoopFun(I)
                                end),
-            do_eval_loop(AfterI, Name, Rest, First, Last, Body, Loop,
+            do_eval_loop(AfterI, Name, Rest, First, Last, Body, LoopCmd,
                          LoopFun, N+1);
         endloop ->
             ilog(OldI, "~s(~p): endloop \"~s\"\n",
@@ -922,41 +927,8 @@ pick_item([Item|Items]) ->
 pick_item([]) ->
     endloop.
 
-prepare_stop(#istate{results = Acc,
-                     latest_lineno = Latest,
-                     cmd_stack = CmdStack,
-                     cleanup_reason = OrigCleanupReason} = I,
-             Pid,
-             Res) ->
-    {CleanupReason, Res2} =
-        case Res of
-            #result{outcome = shutdown} ->
-                {OrigCleanupReason, Res};
-            #result{outcome = NewOutcome} ->
-                {NewOutcome, Res};
-            {'EXIT', Res} ->
-                {fail, Res};
-            {fail, FailReason} ->
-                {fail,
-                 #result{outcome   = fail,
-                         lineno    = Latest,
-                         cmd_stack = CmdStack,
-                         expected  = <<"">>,
-                         extra     = undefined,
-                         actual    = FailReason,
-                         rest      = fail}}
-        end,
-    Res3 =
-        case Res2 of
-            #result{actual = fail_pattern_matched} ->
-                Res2#result{lineno = Latest,
-                            cmd_stack = CmdStack};
-            #result{actual = success_pattern_matched} ->
-                Res2#result{lineno = Latest,
-                            cmd_stack = CmdStack};
-            _ ->
-                Res2
-        end,
+prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
+    {CleanupReason, Res3} = prepare_result(I, Res),
     NewLevel =
         case Res3#result.actual of
             internal_error -> ?dmore;
@@ -967,12 +939,12 @@ prepare_stop(#istate{results = Acc,
     {ShellName, I3} = delete_shell(I2, Pid),
     lux:trace_me(50, 'case', stop,
                  [{mode, I3#istate.mode},
-                  {stop, ShellName, Res2#result.outcome, Res2#result.actual},
+                  {stop, ShellName, Res3#result.outcome, Res3#result.actual},
                   {shells, I3#istate.shells},
                   Res3]),
     case I3#istate.mode of
-        running when Res2#result.outcome =:= shutdown,
-                     Res2#result.actual =:= shell_exit ->
+        running when Res3#result.outcome =:= shutdown,
+                     Res3#result.actual =:= shell_exit ->
             %% Successful end of file in shell. Reset active shell.
             dlog(I3, ?dmore, "want_more=true (prepare_stop)", []),
             I3#istate{active_pid = undefined,
@@ -981,9 +953,11 @@ prepare_stop(#istate{results = Acc,
         running ->
             multicast(I3, {relax, self()}),
             goto_cleanup(I3, CleanupReason);
-        cleanup when I3#istate.shells =:= [] ->
-            %% All shell states has been collected. Full stop.
-            I3#istate{mode = stopping};
+        cleanup when Res#result.outcome =:= relax -> % Orig outcome
+            I3; % Continue with cleanup
+        %% cleanup when I3#istate.shells =:= [] ->
+        %%     %% All shell states has been collected. Full stop.
+        %%     I3#istate{mode = stopping};
         cleanup ->
             %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I3, {shutdown, self()}),
@@ -994,6 +968,43 @@ prepare_stop(#istate{results = Acc,
             I3
     end.
 
+prepare_result(#istate{latest_cmd = LatestCmd,
+                       cmd_stack = CmdStack,
+                       cleanup_reason = OrigCleanupReason},
+               Res) ->
+    {CleanupReason, Res2} =
+        case Res of
+            #result{outcome = shutdown} ->
+                {OrigCleanupReason, Res};
+            #result{outcome = relax} ->
+                {OrigCleanupReason, Res#result{outcome = shutdown}};
+            #result{outcome = NewOutcome} ->
+                {NewOutcome, Res};
+            {'EXIT', Res} ->
+                {fail, Res};
+            {fail, FailReason} ->
+                {fail,
+                 #result{outcome    = fail,
+                         latest_cmd = LatestCmd,
+                         cmd_stack  = CmdStack,
+                         expected   = <<"">>,
+                         extra      = undefined,
+                         actual     = FailReason,
+                         rest       = fail}}
+        end,
+    Res3 =
+        case Res2 of
+            #result{actual = fail_pattern_matched} ->
+                Res2#result{latest_cmd = LatestCmd,
+                            cmd_stack = CmdStack};
+            #result{actual = success_pattern_matched} ->
+                Res2#result{latest_cmd = LatestCmd,
+                            cmd_stack = CmdStack};
+            _ ->
+                Res2
+        end,
+    {CleanupReason, Res3}.
+
 goto_cleanup(OldI, CleanupReason) ->
     lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
     LineNoPrefix =
@@ -1002,40 +1013,48 @@ goto_cleanup(OldI, CleanupReason) ->
             [#result{actual=success_pattern_matched}|_] -> "+";
             _                                           -> ""
         end,
-    LineNo = integer_to_list(OldI#istate.latest_lineno),
+    LineNo = integer_to_list((OldI#istate.latest_cmd)#cmd.lineno),
     lux_utils:progress_write(OldI#istate.progress, LineNoPrefix ++ LineNo),
 
     %% Ensure that the cleanup does not take too long time
     safe_send_after(OldI, OldI#istate.case_timeout, self(),
                     {case_timeout, OldI#istate.case_timeout}),
+    dlog(OldI, ?dmore, "want_more=true (goto_cleanup)", []),
+    do_goto_cleanup(OldI, CleanupReason, LineNo).
 
+do_goto_cleanup(I, CleanupReason, LineNo) ->
+    case I#istate.cmd_stack of
+        []                    -> Context = main;
+        [{_, _, Context} | _] -> ok
+    end,
     %% Fast forward to (optional) cleanup command
     CleanupFun = fun(#cmd{type = Type}) -> Type =/= cleanup end,
-    Cleanup = lists:dropwhile(CleanupFun, OldI#istate.commands),
-    dlog(OldI, ?dmore, "want_more=true (goto_cleanup)", []),
-    NewI =
-        OldI#istate{cleanup_reason = CleanupReason,
-                    want_more = true,
-                    commands = Cleanup},
-    FileLevel = file_level(NewI),
-    Mode =
-        case Cleanup of
-            [_|_] when NewI#istate.mode =:= running;
-                       NewI#istate.mode =:= cleanup ->
-                ilog(NewI, "~s(~s): goto cleanup\n",
-                     [NewI#istate.active_name, LineNo]),
+    CleanupCmds = lists:dropwhile(CleanupFun, I#istate.commands),
+    case CleanupCmds of
+        [#cmd{lineno = CleanupLineNo} | _] ->
+            ilog(I, "~s(~s): goto cleanup at line ~p\n",
+                 [I#istate.active_name, LineNo, CleanupLineNo]);
+        [] ->
+            ilog(I, "~s(~s): no cleanup\n",
+                 [I#istate.active_name, LineNo])
+    end,
+    NewMode =
+        if
+            I#istate.mode =/= stopping ->
                 cleanup;
-            _ when FileLevel > 1 ->
-                ilog(NewI, "~s(~s): no cleanup\n",
-                     [NewI#istate.active_name, LineNo]),
-                cleanup;
-            _  ->
+            Context =:= main ->
                 %% Initiate stop by sending shutdown to the remaining shells.
-                multicast(NewI, {shutdown, self()}),
+                multicast(I, {shutdown, self()}),
+                stopping;
+            true ->
                 stopping
         end,
-    LoopStack = [break || _ <- NewI#istate.loop_stack], % Break active loops
-    NewI#istate{mode = Mode, loop_stack = LoopStack}.
+    LoopStack = [break || _ <- I#istate.loop_stack], % Break active loops
+    I#istate{mode = NewMode,
+             loop_stack = LoopStack,
+             cleanup_reason = CleanupReason,
+             want_more = true,
+             commands = CleanupCmds}.
 
 delete_shell(I, Pid) ->
     Shells = I#istate.shells,
@@ -1112,7 +1131,7 @@ opt_apply(_Fun) ->
 %% Control a shell
 
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
-    I2 = I#istate{latest_lineno = LineNo, want_more = false},
+    I2 = I#istate{latest_cmd = Cmd, want_more = false},
     case shell_expand_vars(I2, Name, error) of
         {ok, Name2} ->
             case lists:keyfind(Name2, #shell.name, I2#istate.shells) of
@@ -1157,7 +1176,7 @@ shell_switch(OldI, Cmd, #shell{pid = Pid, health = alive, name = Name}) ->
     change_shell_mode(NewI, Cmd, resume);
 shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
     ilog(OldI, "~s(~p): zombie shell at cleanup\n",
-         [Name, OldI#istate.latest_lineno]),
+         [Name, (OldI#istate.latest_cmd)#cmd.lineno]),
     throw({error, list_to_binary(Name ++ " is a zombie shell"), OldI}).
 
 change_shell_mode(I, Cmd, NewMode) when is_pid(I#istate.active_pid) ->
@@ -1222,7 +1241,7 @@ ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
 
 dlog(I, Level, Format, Args) when I#istate.debug_level >= Level ->
     ilog(I, "~s(~p): debug2 \"" ++ Format ++ "\"\n",
-         [I#istate.active_name, I#istate.latest_lineno] ++ Args);
+         [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno] ++ Args);
 dlog(_I, _Level, _Format, _Args) ->
     ok.
 

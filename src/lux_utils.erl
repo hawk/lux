@@ -14,7 +14,7 @@
          normalize_newlines/1, expand_lines/1,
          to_string/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5,
-         full_lineno/1, filename_split/1, dequote/1,
+         pretty_full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
          cmd/2, chop_newline/1]).
@@ -317,9 +317,9 @@ do_foldl_cmds(Fun, Acc, RevFile, CmdStack, [Cmd | Cmds]) ->
 do_foldl_cmds(_Fun, Acc, _RevFile, _CmdStack, []) ->
     Acc.
 
-full_lineno(FullStack) ->
-    Pick = fun({_F,L}) when is_integer(L) -> L;
-              (L)      when is_integer(L) -> L
+pretty_full_lineno(FullStack) ->
+    Pick = fun({_F, L,_T}) when is_integer(L) -> L;
+              (L)          when is_integer(L) -> L
            end,
     FullStack2 = lists:dropwhile(fun(FL) -> Pick(FL) < 0 end, FullStack),
     [FileLine | Incl] = lists:reverse(FullStack2),

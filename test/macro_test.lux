@@ -1,14 +1,5 @@
 [doc Test of macros]
 
-# Define a few macros
-"""[macro xxx arg1 arg2 arg3]
-!echo arg1=xxx$arg1xxx
-!echo arg2=xxx$arg2xxx
-!echo arg3=xxx$arg3xxx
-!echo hohoho
-?(ho){3}
-"""
-
 [macro yyy arg1 arg2 arg3]
     !echo arg1=yyy$arg1yyy
     !echo arg2=yyy$arg2yyy

@@ -38,10 +38,10 @@ parse_file(RelFile, Opts) ->
                         Opts2 = updated_opts(I2, DefaultI),
                         {ok, I2#istate.file, Cmds, Opts2};
                     {error, Reason} ->
-                        {error, [{File, 0}], Reason}
+                        {error, [{File, 0, main}], Reason}
                 end;
             {error, Reason} ->
-                {error, [{File, 0}], Reason}
+                {error, [{File, 0, main}], Reason}
         end
     catch
         throw:{error, ErrorStack, ErrorBin} ->
@@ -557,7 +557,12 @@ parse_error(File, LineNo, IoList) ->
 
 parse_error(StateOrFile, LineNo, IoList, Stack) ->
     File = state_to_file(StateOrFile),
-    throw({error, [{File, LineNo} | Stack], iolist_to_binary(IoList)}).
+    Context =
+        case Stack of
+            [] -> main;
+            _  -> include
+        end,
+    throw({error, [{File, LineNo, Context} | Stack], iolist_to_binary(IoList)}).
 
 state_to_file(File) when is_list(File) -> File;
 state_to_file(#pstate{file = File})    -> File;

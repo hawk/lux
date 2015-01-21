@@ -13,14 +13,14 @@
 
 -record(pattern,
         {cmd       :: #cmd{},
-         cmd_stack :: [{string(), non_neg_integer()}]}).
+         cmd_stack :: [{string(), non_neg_integer(), atom()}]}).
 
 -record(cstate,
         {orig_file               :: string(),
          parent                  :: pid(),
          name                    :: string(),
          latest_cmd              :: #cmd{},
-         cmd_stack = []          :: [{string(), non_neg_integer()}],
+         cmd_stack = []          :: [{string(), non_neg_integer(), atom()}],
          wait_for_expect         :: undefined | pid(),
          mode = resume           :: resume | suspend,
          start_reason            :: fail | success | normal,
@@ -882,40 +882,15 @@ patch_latest(C, NewArg, Expect) ->
     {C#cstate{latest_cmd = Cmd2}, Cmd2, Expect}.
 
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
-    Cmd = C#cstate.latest_cmd,
-    if
-        Outcome =:= fail, Actual =:= fail_pattern_matched ->
-            NewOutcome = Outcome,
-            Fail = C#cstate.fail,
-            FailCmd = Fail#pattern.cmd,
-            Extra = element(2, FailCmd#cmd.arg),
-            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
-        Outcome =:= success, Actual =:= success_pattern_matched ->
-            NewOutcome = Outcome,
-            Success = C#cstate.success,
-            SuccessCmd = Success#pattern.cmd,
-            Extra = element(2, SuccessCmd#cmd.arg),
-            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
-        Outcome =:= error ->
-            NewOutcome = fail,
-            Extra = Actual;
-        Outcome =:= shutdown ->
-            NewOutcome = Outcome,
-            Extra = undefined;
-        Outcome =:= relax ->
-            NewOutcome = shutdown,
-            Extra = undefined;
-        true ->
-            NewOutcome = Outcome,
-            Extra = undefined
-    end,
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
     clog(C, stop, "~p", [Outcome]),
+    Cmd = C#cstate.latest_cmd,
     Expected = cmd_expected(Cmd),
+    {NewOutcome, Extra} = prepare_outcome(C, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
                   name = C#cstate.name,
-                  lineno = Cmd#cmd.lineno,
+                  latest_cmd = Cmd,
                   cmd_stack = C#cstate.cmd_stack,
                   expected = Expected,
                   extra = Extra,
@@ -937,6 +912,35 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
             wait_for_down(C3, Res)
     end.
 
+prepare_outcome(C, Outcome, Actual) ->
+    if
+        Outcome =:= fail, Actual =:= fail_pattern_matched ->
+            NewOutcome = Outcome,
+            Fail = C#cstate.fail,
+            FailCmd = Fail#pattern.cmd,
+            Extra = element(2, FailCmd#cmd.arg),
+            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
+        Outcome =:= success, Actual =:= success_pattern_matched ->
+            NewOutcome = Outcome,
+            Success = C#cstate.success,
+            SuccessCmd = Success#pattern.cmd,
+            Extra = element(2, SuccessCmd#cmd.arg),
+            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
+        Outcome =:= error ->
+            NewOutcome = fail,
+            Extra = Actual;
+        Outcome =:= shutdown ->
+            NewOutcome = Outcome,
+            Extra = undefined;
+        Outcome =:= relax ->
+            NewOutcome = Outcome,
+            Extra = undefined;
+        true ->
+            NewOutcome = Outcome,
+            Extra = undefined
+    end,
+    {NewOutcome, Extra}.
+
 cmd_expected(Cmd) ->
     case Cmd of
         #cmd{type = expect, arg = {verbatim, Expected}} ->
@@ -957,7 +961,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
     Why = element(2, Error),
     Res = #result{outcome = error,
                   name = C#cstate.name,
-                  lineno = Cmd#cmd.lineno,
+                  latest_cmd = Cmd,
                   cmd_stack = C#cstate.cmd_stack,
                   expected = cmd_expected(Cmd),
                   extra = undefined,

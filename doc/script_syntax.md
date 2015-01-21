@@ -90,10 +90,10 @@ the same as the dirname of the script file. The **environment
 variable** `LUX_SHELLNAME` is set to `Name`. The shell prompt variable
 `PS1` is set to `SH-PROMPT:` and the first printout of the prompt is
 automatically matched in a expect manner in order to ensure that the
-shell is ready for input. The `Name` may contain variables. Avoid
-shell names beginning with `cleanup` as they may come in conflict with
-the `[cleanup]` mechanism. The **environment variable**
-`LUX_START_REASON` is initially set to `normal`. See also `[cleanup]`.
+shell is ready for input. The `Name` may contain variables. Shell
+names beginning with `lux` and `cleanup` are reserved for internal
+purposes. The **environment variable** `LUX_START_REASON` is
+initially set to `normal`. See also `[cleanup]`.
 
 **\[cleanup\]**  
 is the cleanup marker. If the script is prematurely aborted due to

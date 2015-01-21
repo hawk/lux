@@ -637,8 +637,8 @@ check_break(I, LineNo) ->
     end.
 
 lookup_break(I, LineNo, Breaks) when is_integer(LineNo) ->
-    RevFile = lux_utils:filename_split(I#istate.file), %  optimize later
-    FullLineNo = [{RevFile, LineNo} | I#istate.cmd_stack],
+    {RevFile, _, Type} = current(I),
+    FullLineNo = [{RevFile, LineNo, Type} | I#istate.cmd_stack],
     do_lookup_break(FullLineNo, Breaks).
 
 do_lookup_break(FullLineNo, [Break | Breaks]) when is_list(FullLineNo) ->
@@ -1141,13 +1141,24 @@ skip_cmds(0, Cmds, Skipped) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 current_full_lineno(I) ->
-    LineNo =
-        case I#istate.commands of
-            [] -> 1;
-            [#cmd{lineno = CurrentLineNo} | _] -> CurrentLineNo
+    [current(I) | I#istate.cmd_stack].
+
+current(#istate{file = File,
+                file_level = Level,
+                latest_cmd = LatestCmd,
+                commands = Cmds}) ->
+    case Cmds of
+        [] when Level =:= 1 ->
+            LineNo = 1,
+            Type = main;
+        [] ->
+            LineNo = 1,
+            Type = LatestCmd#cmd.type;
+        [#cmd{lineno = LineNo, type = Type} | _] ->
+            ok
         end,
-    RevFile = lux_utils:filename_split(I#istate.file),
-    [{RevFile, LineNo} | I#istate.cmd_stack].
+    RevFile = lux_utils:filename_split(File), % optimize later
+    {RevFile, LineNo, Type}.
 
 full_lineno_to_break_pos(FullLineNo) ->
     [LineNo || {_File, LineNo} <- FullLineNo].

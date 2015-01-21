@@ -766,9 +766,9 @@ parse_config_file(R, ConfigFile) ->
     end.
 
 parse_error(ErrorStack, ErrorBin) ->
-    {MainFile,_} = hd(ErrorStack),
-    {ErrorFile, _} = lists:last(ErrorStack),
-    FullLineNo = lux_utils:full_lineno(ErrorStack),
+    {MainFile, _, _} = hd(ErrorStack),
+    {ErrorFile, _, _} = lists:last(ErrorStack),
+    FullLineNo = lux_utils:pretty_full_lineno(ErrorStack),
     if
         ErrorFile =:= MainFile ->
             {MainFile, FullLineNo, ErrorBin};

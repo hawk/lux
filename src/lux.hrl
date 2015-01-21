@@ -30,8 +30,8 @@
 -record(result,
         {outcome       :: fail | success | shutdown,
          name          :: string(),
-         lineno        :: string(), % Full lineno
-         cmd_stack     :: [{string(), non_neg_integer()}],
+         latest_cmd    :: #cmd{},
+         cmd_stack     :: [{string(), non_neg_integer(), atom()}],
          expected      :: binary() | atom(),
          extra         :: undefined | atom() | binary(),
          actual        :: binary() | atom(),
@@ -95,8 +95,8 @@
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
-         latest_lineno = 0          :: non_neg_integer(),
-         cmd_stack = []             :: [{string(), non_neg_integer()}],
+         latest_cmd                 :: #cmd{},
+         cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
          macro_dict = []            :: [string()],   % ["name=val"]
          dict = []                  :: [string()],   % ["name=val"]
          builtin_dict               :: [string()],   % ["name=val"]
@@ -121,4 +121,3 @@
  -define(DEFAULT_RUN, <<"unknown">>).
  -define(DEFAULT_REV, <<"">>).
  -define(DEFAULT_TIME, <<"yyyy-mm-dd hh:mm:ss">>).
-

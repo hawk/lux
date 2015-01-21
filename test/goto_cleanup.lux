@@ -1,0 +1,27 @@
+[shell setup]
+    !echo he  llo
+    ?he llo
+    ?SH-PROMPT
+
+[macro check-output]
+    !echo done
+    """???
+    = =
+    SH-PROMPT:echo done
+    done
+    """
+[endmacro]
+
+[shell a]
+    !echo =  =
+    [invoke check-output]
+    !echo =
+    [invoke check-output]
+    !echo =  =
+    [invoke check-output]
+
+[cleanup]
+    [progress Running cleanup]
+    !echo x  x
+    ?x x
+    ?SH-PROMPT
