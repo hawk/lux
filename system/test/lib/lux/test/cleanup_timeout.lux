@@ -1,0 +1,7 @@
+[shell test]
+    [timeout 2]
+    ?fail here
+
+[cleanup]
+    [timeout 3]
+    ?fail here
