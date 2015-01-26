@@ -471,6 +471,9 @@ cmd_attach(I, _, CmdState) ->
                 BreakPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
                 [{"n_lines", 1}, {"lineno", BreakPos}];
             _ ->
+                CurrentPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
+                io:format("\nBreak at \"~s\"\n",
+                          [pretty_break_pos(CurrentPos)]),
                 [{RevFile, LineNo, Type} | CmdStack] = CurrentFullLineNo,
                 {LineNo2, Type2} =
                     if
@@ -485,7 +488,6 @@ cmd_attach(I, _, CmdState) ->
                     end,
                 FullLineNo = [{RevFile, LineNo2, Type2} | CmdStack],
                 BreakPos = full_lineno_to_static_break_pos(FullLineNo),
-                io:format("\nBreak at \"~s\"\n", [pretty_break_pos(BreakPos)]),
                 [{"n_lines", 10}, {"lineno", BreakPos}]
         end,
     case opt_block(I) of
