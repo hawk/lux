@@ -1,0 +1,18 @@
+[global f=data.txt]
+
+[shell output]
+    !(echo INIT > $f; sleep 2; echo START >> $f; echo bad >> $f; sleep 1; echo ==$?==; sleep 5; echo DONE >> $f)&
+    ?echo DONE
+    ?==0==
+
+[shell test]
+    -bad
+    [progress PRE]
+    !(tail -f $f)&
+    ?INIT
+    [progress INIT]
+    ?START
+    [progress START]
+    -
+    ?DONE
+    [progress DONE]

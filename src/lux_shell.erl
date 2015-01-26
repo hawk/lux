@@ -222,7 +222,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {change_mode, From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->
             C2 = change_mode(C, From, Mode, Cmd, CmdStack),
-            expect_more(C2);
+            C3 = match_patterns(C2, C2#cstate.actual),
+            expect_more(C3);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
         {expand_vars, From, Bin, MissingVar} ->
@@ -667,36 +668,42 @@ expect(#cstate{state_changed = true,
                no_more_output = NoMoreOutput,
                expected = Expected,
                actual = Actual,
-               timed_out = TimedOut} = C0) ->
+               timed_out = TimedOut} = C) ->
     %% Something has changed
-    TmpC = match_success_pattern(C0#cstate{state_changed = false}, Actual),
-    C = match_fail_pattern(TmpC, Actual),
     case Expected of
-        undefined ->
+        undefined when C#cstate.mode =:= suspend ->
+            %% Nothing to wait for
+            C2 =  match_patterns(C, Actual),
+            cancel_timer(C2);
+        undefined when C#cstate.mode =:= resume ->
             %% Nothing to wait for
             cancel_timer(C);
         #cmd{arg = Arg} ->
             if
                 TimedOut ->
                     %% timeout - waited enough for more input
-                    Earlier = C#cstate.timer_started_at,
-                    clog(C, timer, "fail (~p seconds)",
-                         [timer:now_diff(erlang:now(), Earlier) div 1000000]),
-                    stop(C, fail, timeout);
+                    C2 =  match_patterns(C, Actual),
+                    Earlier = C2#cstate.timer_started_at,
+                    Diff = timer:now_diff(erlang:now(), Earlier),
+                    clog(C2, timer, "fail (~p seconds)", [Diff div 1000000]),
+                    stop(C2, fail, timeout);
                 NoMoreOutput, Arg =:= shell_exit ->
                     %% Successful match of end of file (port program closed)
-                    C2 = cancel_timer(C),
-                    clog(C2, match, "\"shell_exit\"", []),
-                    stop(C, shutdown, shell_exit);
+                    C2 = match_patterns(C, Actual),
+                    C3 = cancel_timer(C2),
+                    clog(C3, match, "\"shell_exit\"", []),
+                    stop(C3, shutdown, shell_exit);
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
-                    stop(C, fail, shell_exit);
+                    C2 =  match_patterns(C, Actual),
+                    stop(C2, fail, shell_exit);
                 Arg =:= shell_exit ->
                     %% Still waiting for end of file
-                    C;
+                    match_patterns(C, Actual);
                 true ->
                     %% Waiting for more data
                     try_match(C, Actual)
+
             end
     end.
 
@@ -704,27 +711,76 @@ try_match(C, Actual) ->
     case match(Actual, C#cstate.expected) of
         {match, Matches}  ->
             %% Successful match
-            C2 = cancel_timer(C),
-            {Actual2, SubMatches} =
-                split_submatches(C2, Matches, Actual, ""),
-            case C2#cstate.no_more_input of
+            {Skip, Rest, SubMatches} = split_submatches(C, Matches, Actual, ""),
+            C2 = match_patterns(C, Skip),
+            C3 = cancel_timer(C2),
+            case C3#cstate.no_more_input of
                 true ->
                     %% End of input
-                    stop(C2, success, end_of_script);
+                    stop(C3, success, end_of_script);
                 false ->
-                    C3 = C2#cstate{expected = undefined,
-                                   actual = Actual2,
+                    C4 = C3#cstate{expected = undefined,
+                                   actual = Rest,
                                    submatches = SubMatches},
-                    dlog(C3, ?dmore,
-                         "expected=undefined (waiting)",
-                         []),
-                    opt_late_sync_reply(C3)
+                    dlog(C4, ?dmore, "expected=undefined (waiting)", []),
+                    opt_late_sync_reply(C4)
             end;
         nomatch ->
             %% Main pattern does not match
             %% Wait for more input
+            match_patterns(C, Actual)
+    end.
+
+match_patterns(C, Actual) ->
+    C2 = match_fail_pattern(C, Actual),
+    C3 = match_success_pattern(C2, Actual),
+    C3#cstate{state_changed = false}.
+
+match_fail_pattern(C, Actual) ->
+    case match(Actual, C#cstate.fail) of
+        {match, Matches} ->
+            C2 = cancel_timer(C),
+            C3 = prepare_stop(C2, Actual, Matches, "fail pattern matched "),
+            stop(C3, fail, fail_pattern_matched);
+        nomatch ->
             C
     end.
+
+match_success_pattern(C, Actual) ->
+    case match(Actual, C#cstate.success) of
+        {match, Matches} ->
+            C2 = cancel_timer(C),
+            C3 = prepare_stop(C2, Actual, Matches, "success pattern matched "),
+            stop(C3, success, success_pattern_matched);
+        nomatch ->
+            C
+    end.
+
+prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
+    {Skip, Rest} = split_binary(Actual, First),
+    {Match, _Actual2} = split_binary(Rest, TotLen),
+    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
+    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
+    C2 = C#cstate{expected = undefined,
+                  actual = Match,
+                  submatches = []},
+    dlog(C2, ?dmore, "expected=undefined (prepare_stop)", []),
+    opt_late_sync_reply(C2).
+
+split_submatches(C, [{First, TotLen} | Matches], Actual, Context) ->
+    {Consumed, Rest} = split_binary(Actual, First+TotLen),
+    {Skip, Match} = split_binary(Consumed, First),
+    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
+    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
+    Extract =
+        fun(PosLen) ->
+                case PosLen of
+                    {-1,0} -> nosubmatch;
+                    _      -> binary:part(Actual, PosLen)
+                end
+        end,
+    SubBins = lists:map(Extract, Matches),
+    {Skip, Rest, SubBins}.
 
 match(Actual, #pattern{cmd = Cmd}) -> % success or fail pattern
     match(Actual, Cmd);
@@ -751,52 +807,6 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
                     re:run(Actual, MP, Opts)
             end
     end.
-
-match_fail_pattern(C, Actual) ->
-    case match(Actual, C#cstate.fail) of
-        {match, Matches} ->
-            C2 = cancel_timer(C),
-            C3 = prepare_stop(C2, Actual, Matches, "fail pattern matched "),
-            stop(C3, fail, fail_pattern_matched);
-        nomatch ->
-            C
-    end.
-
-match_success_pattern(C, Actual) ->
-    case match(Actual, C#cstate.success) of
-        {match, Matches} ->
-            C2 = cancel_timer(C),
-            C3 = prepare_stop(C2, Actual, Matches, "success pattern matched "),
-            stop(C3, success, success_pattern_matched);
-        nomatch ->
-            C
-    end.
-
-split_submatches(C, [{First, TotLen} | Matches], Actual, Context) ->
-    {Consumed, Rest} = split_binary(Actual, First+TotLen),
-    {Skip, Match} = split_binary(Consumed, First),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
-    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
-    Extract =
-        fun(PosLen) ->
-                case PosLen of
-                    {-1,0} -> nosubmatch;
-                    _      -> binary:part(Actual, PosLen)
-                end
-        end,
-    SubBins = lists:map(Extract, Matches),
-    {Rest, SubBins}.
-
-prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
-    {Skip, Rest} = split_binary(Actual, First),
-    {Match, _Actual2} = split_binary(Rest, TotLen),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
-    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
-    C2 = C#cstate{expected = undefined,
-                  actual = Match,
-                  submatches = []},
-    dlog(C2, ?dmore, "expected=undefined (prepare_stop)", []),
-    opt_late_sync_reply(C2).
 
 flush_port(#cstate{port = Port} = C, Timeout, Acc) ->
     case do_flush_port(Port, 0, 0, Acc) of

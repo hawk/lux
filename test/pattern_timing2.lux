@@ -1,0 +1,24 @@
+[shell shell]
+    !rm -rf /tmp/test4711
+    !echo ==$$?==
+    ?==0==
+    !mkdir -p /tmp/test4711
+    !echo ==$$?==
+    ?==0==
+    !cd /tmp/test4711
+    !echo ==$$?==
+    ?==0==
+    !touch aaa bbb ccc ddd
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -SH-PROMPT
+    !ls
+    ?aaa
+    ?bbb
+    ?ccc
+    ?ddd
+    -
+    ?SH-PROMPT
+
+[cleanup]

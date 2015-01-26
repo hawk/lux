@@ -693,7 +693,7 @@ dispatch_cmd(I,
                     ilog(I2, "~s(~p): ~s\n",
                          [I2#istate.active_name, LineNo, E]),
                     Raw = Cmd#cmd.raw,
-                    throw({error, <<Raw/binary, " ", E/binary>>, I2})
+                    throw_error(I2, <<Raw/binary, " ", E/binary>>)
             end;
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
@@ -710,7 +710,7 @@ dispatch_cmd(I,
                     ilog(I2, "~s(~p): ~s\n",
                          [I2#istate.active_name, LineNo, E]),
                     Raw = Cmd#cmd.raw,
-                    throw({error, <<Raw/binary, " ", E/binary>>, I2})
+                    throw_error(I2, <<Raw/binary, " ", E/binary>>)
             end;
         variable when element(1, Arg) =:= global,
                       I#istate.active_pid =:= undefined ->
@@ -732,7 +732,7 @@ dispatch_cmd(I,
                                           BadName, " is not set"]),
                     ilog(I2, "~s(~p): ~s\n",
                          [I2#istate.active_name, LineNo, Err]),
-                    throw({error, Err, I2})
+                    throw_error(I2, Err)
             end;
         _ ->
             %% Send next command to active shell
@@ -846,11 +846,11 @@ invoke_macro(I,
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, []) ->
     I2 = I#istate{latest_cmd = Cmd},
     BinName = list_to_binary(Name),
-    throw({error, <<"No such macro: ", BinName/binary>>, I2});
+    throw_error(I2, <<"No such macro: ", BinName/binary>>);
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, [_|_]) ->
     I2 = I#istate{latest_cmd = Cmd},
     BinName = list_to_binary(Name),
-    throw({error, <<"Ambiguous macro: ", BinName/binary>>, I2}).
+    throw_error(I2, <<"Ambiguous macro: ", BinName/binary>>).
 
 macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
     case shell_expand_vars(I, Val, error) of
@@ -862,7 +862,7 @@ macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
             ilog(I, "~s(~p): ~s\n",
                  [I#istate.active_name, Invoke#cmd.lineno, Err]),
             Raw = Invoke#cmd.raw,
-            throw({error, <<Raw/binary, " ", Err/binary>>, I})
+            throw_error(I, <<Raw/binary, " ", Err/binary>>)
     end;
 macro_dict(_I, [], [], _Invoke) ->
     [];
@@ -871,7 +871,7 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
     BinLineNo = list_to_binary(integer_to_list(LineNo)),
     Reason = <<"at ", BinLineNo/binary,
                ": Argument mismatch in macro: ", BinName/binary>>,
-    throw({error, Reason, I}).
+    throw_error(I, Reason).
 
 eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = LoopCmd) ->
     DefaultFun = get_eval_fun(),
@@ -1097,7 +1097,7 @@ multicast(#istate{shells = Shells}, Msg) ->
     lists:map(Send, Shells).
 
 cast(#istate{active_pid = undefined} = I, _Msg) ->
-    throw({error, <<"The command must be executed in context of a shell">>, I});
+    throw_error(I, <<"The command must be executed in context of a shell">>);
 cast(#istate{active_pid = Pid, active_name = Name}, Msg) ->
     trace_msg(#shell{name=Name}, Msg),
     Pid ! Msg,
@@ -1159,7 +1159,7 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
             Err = list_to_binary(["Variable $", BadName, " is not set"]),
             ilog(I2, "~s(~p): ~s\n", [Name, LineNo, Err]),
             BinName = list_to_binary(Name),
-            throw({error, <<"[shell ", BinName/binary, "] ", Err/binary>>, I2})
+            throw_error(I2, <<"[shell ", BinName/binary, "] ", Err/binary>>)
     end.
 
 shell_start(I, #cmd{arg = Name} = Cmd) ->
@@ -1192,7 +1192,7 @@ shell_switch(OldI, Cmd, #shell{pid = Pid, health = alive, name = Name}) ->
 shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
     ilog(OldI, "~s(~p): zombie shell at cleanup\n",
          [Name, (OldI#istate.latest_cmd)#cmd.lineno]),
-    throw({error, list_to_binary(Name ++ " is a zombie shell"), OldI}).
+    throw_error(OldI, list_to_binary(Name ++ " is a zombie shell")).
 
 change_shell_mode(I, Cmd, NewMode) when is_pid(I#istate.active_pid) ->
     Pid = cast(I, {change_mode, self(), NewMode, Cmd, I#istate.cmd_stack}),
@@ -1225,7 +1225,7 @@ shell_crashed(I, Pid, Reason) ->
                 list_to_binary( [What, " crashed: ",
                                  io_lib:format("~p\n~p", [Reason, ?stack()])])
         end,
-    throw({error, Error, I2}).
+    throw_error(I2, Error).
 
 shell_expand_vars(I, Bin, MissingVar) when is_pid(I#istate.active_pid) ->
     Pid = cast(I, {expand_vars, self(), Bin, MissingVar}),
@@ -1297,3 +1297,15 @@ default_shell_wrapper() ->
         true  -> Wrapper;
         false -> undefined
     end.
+
+throw_error(#istate{shells = Shells} = I, Reason) when is_binary(Reason) ->
+    lux:trace_me(50, 'case', error, [{shells, Shells}, Reason]),
+    %% Exit all shells before the interpreter is exited
+    Sig= shutdown,
+    Send =
+        fun(#shell{name = Name, pid = Pid}) ->
+                lux:trace_me(50, 'case', Name, Sig, [{'EXIT', Sig}]),
+                exit(Pid, Sig)
+        end,
+    lists:map(Send, Shells),
+    throw({error, Reason, I}).
