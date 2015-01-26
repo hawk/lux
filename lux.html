@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.7 - 2015-01-15</p>
+<p>Version 1.7.1 - 2015-01-26</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -266,16 +266,33 @@ keywords are ignored. Variables are still substituted.</p>
 Like <code>??Template</code>, but more restricted as no variables are substituted.
 That is the string is matched as is.</p>
 
-<p><strong>-Regexp</strong> <br />
-Sets a failure condition <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If the given <code>Regexp</code>
-ever matches, the test case is considered failed (no further
-processing of the script). If no <code>Regexp</code> is given, the old failure
-condition is reset (cleared). Typically used to match error messages.</p>
+<p><em>-</em> <br />
+<em>-Regexp</em> <br />
+Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
+the given <code>Regexp</code> ever matches, the test case is considered to have
+failed (no further processing of the script will be performed besides
+cleanup). If no <code>Regexp</code> is given, the old failure condition is reset
+(cleared). It is typically used to match error messages.</p>
 
-<p><strong>+Regexp</strong> <br />
-Sets a success condition. If the given <code>Regexp</code> ever matches, the test
-case is considered a success (no further processing of the script). If
-no <code>Regexp</code> is given, the old success condition is reset (cleared).</p>
+<p>In the active shell, the <code>Regexp</code> is tried on the output preceding
+each successful match of expect expressions. The characters up to, but
+not including, the (successful) match are tried against the failure
+condition. In non-active shells the <code>RegExp</code> is tried when the shell
+produces new output.</p>
+
+<p><strong>+</strong> <br />
+<strong>+Regexp</strong> <br />
+Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
+the given <code>Regexp</code> ever matches, the test case is considered a success
+(no further processing of the script will be performed besides
+cleanup). If no <code>Regexp</code> is given, the old success condition is reset
+(cleared). It is typically used to match error messages.</p>
+
+<p>In the active shell, the <code>Regexp</code> is tried on the output preceding
+each successful match of expect expressions. The characters up to, but
+not including, the (successful) match are tried against the success
+condition. In non-active shells the <code>RegExp</code> is tried when the shell
+produces new output.</p>
 
 <p><strong>[endshell]</strong> <br />
 An <code>expect</code> operation like <code>?</code>, but it waits for the <code>stdout</code> stream
@@ -296,10 +313,10 @@ the same as the dirname of the script file. The <strong>environment
 variable</strong> <code>LUX_SHELLNAME</code> is set to <code>Name</code>. The shell prompt variable
 <code>PS1</code> is set to <code>SH-PROMPT:</code> and the first printout of the prompt is
 automatically matched in a expect manner in order to ensure that the
-shell is ready for input. The <code>Name</code> may contain variables. Avoid
-shell names beginning with <code>cleanup</code> as they may come in conflict with
-the <code>[cleanup]</code> mechanism. The <strong>environment variable</strong>
-<code>LUX_START_REASON</code> is initially set to <code>normal</code>. See also <code>[cleanup]</code>.</p>
+shell is ready for input. The <code>Name</code> may contain variables. Shell
+names beginning with <code>lux</code> and <code>cleanup</code> are reserved for internal
+purposes. The <strong>environment variable</strong> <code>LUX_START_REASON</code> is
+initially set to <code>normal</code>. See also <code>[cleanup]</code>.</p>
 
 <p><strong>[cleanup]</strong> <br />
 is the cleanup marker. If the script is prematurely aborted due to
@@ -951,11 +968,11 @@ inner at line 12.</p>
 
 <ul>
 <li>3       - line 3 in current file</li>
-<li>main    - any line in file main</li>
+<li>main    - line 1 in file main</li>
 <li>m:3     - line 3 in file main</li>
 <li>:3      - line 3 in file main</li>
-<li>inner   - any line in file inner</li>
-<li>outer   - any line in file outer</li>
+<li>inner   - line 1 in file inner</li>
+<li>outer   - line 1 in file outer</li>
 <li>o:12    - line 12 in file outer</li>
 <li>4:12:6  - line 6 in file inner if it is included
         on line 12 in outer and outer is included

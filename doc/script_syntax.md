@@ -60,16 +60,33 @@ keywords are ignored. Variables are still substituted.
 Like `??Template`, but more restricted as no variables are substituted.
 That is the string is matched as is.
 
-**-Regexp**  
-Sets a failure condition [regular expression][]. If the given `Regexp`
-ever matches, the test case is considered failed (no further
-processing of the script). If no `Regexp` is given, the old failure
-condition is reset (cleared). Typically used to match error messages.
+*-*
+*-Regexp*
+Sets a failure condition regular expression [regular expression][]. If
+the given `Regexp` ever matches, the test case is considered to have
+failed (no further processing of the script will be performed besides
+cleanup). If no `Regexp` is given, the old failure condition is reset
+(cleared). It is typically used to match error messages.
 
+In the active shell, the `Regexp` is tried on the output preceding
+each successful match of expect expressions. The characters up to, but
+not including, the (successful) match are tried against the failure
+condition. In non-active shells the `RegExp` is tried when the shell
+produces new output.
+
+**+**
 **+Regexp**  
-Sets a success condition. If the given `Regexp` ever matches, the test
-case is considered a success (no further processing of the script). If
-no `Regexp` is given, the old success condition is reset (cleared).
+Sets a success condition regular expression [regular expression][]. If
+the given `Regexp` ever matches, the test case is considered a success
+(no further processing of the script will be performed besides
+cleanup). If no `Regexp` is given, the old success condition is reset
+(cleared). It is typically used to match error messages.
+
+In the active shell, the `Regexp` is tried on the output preceding
+each successful match of expect expressions. The characters up to, but
+not including, the (successful) match are tried against the success
+condition. In non-active shells the `RegExp` is tried when the shell
+produces new output.
 
 **\[endshell\]**  
 An `expect` operation like `?`, but it waits for the `stdout` stream
