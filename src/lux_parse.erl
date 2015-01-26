@@ -139,14 +139,14 @@ parse(P, [OrigLine | Lines], LineNo, Tokens) ->
 parse(_P, [], _LineNo, Tokens) ->
     Tokens.
 
-do_parse(P, [<<>> = Raw | Lines], LineNo, _OrigLine, Tokens) ->
-    Token = #cmd{type = comment, lineno = LineNo, raw = Raw},
+do_parse(P, [<<>> | Lines], LineNo, OrigLine, Tokens) ->
+    Token = #cmd{type = comment, lineno = LineNo, raw = OrigLine},
     parse(P, Lines, LineNo+1, [Token | Tokens]);
 do_parse(P,
          [<<Op:8/integer, Bin/binary>> = Raw | Lines],
          LineNo, OrigLine, Tokens) ->
     Type = parse_oper(P, Op, LineNo, Raw),
-    Cmd = #cmd{type = Type, lineno = LineNo, raw = Raw},
+    Cmd = #cmd{type = Type, lineno = LineNo, raw = OrigLine},
     Cmd2 =
         case Type of
             send_lf                   -> Cmd#cmd{arg = Bin};

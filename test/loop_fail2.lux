@@ -1,0 +1,26 @@
+[doc Test deep loop failure]
+
+[shell fail]
+    [invoke outer]
+
+[macro outer]
+    # Cause a failure in the third iteration
+    !echo foo
+    ?echo foo
+    ?foo
+    [loop iter first second third fourth]
+        [invoke inner $iter]
+        ?first|second
+        ?first|second
+    [endloop]
+[endmacro]
+
+[macro inner iter]
+    !echo $iter
+    [sleep 1]
+[endmacro]
+
+[cleanup]
+    !echo clean
+    !echo ===$?===
+    ?===0===

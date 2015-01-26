@@ -11,6 +11,11 @@
 
 -include("lux.hrl").
 
+-define(end_of_script(C),
+        C#cstate.no_more_input =:= true andalso
+        C#cstate.timer =:= undefined andalso
+        C#cstate.expected =:= undefined).
+
 -record(pattern,
         {cmd       :: #cmd{},
          cmd_stack :: [{string(), non_neg_integer(), atom()}]}).
@@ -221,15 +226,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
         {expand_vars, From, Bin, MissingVar} ->
-            Res =
-                try
-                    {ok, expand_vars(C, Bin, MissingVar)}
-                catch
-                    throw:{no_such_var, BadName} ->
-                        {no_such_var, BadName}
-                end,
-            send_reply(C, From, {expand_vars, self(), Res}),
-            C;
+            expand_vars_and_reply(C, From, Bin, MissingVar);
         {eval, From, Cmd} ->
             dlog(C, ?dmore, "eval (got ~p)", [Cmd#cmd.type]),
             assert_eval(C, Cmd, From),
@@ -258,12 +255,9 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
                                C#cstate.stdout_log_fd,
                                NewData),
             OldData = C#cstate.actual,
-            Actual = <<OldData/binary, NewData/binary>>,
-            C2 = C#cstate{state_changed = true,
-                          actual = Actual,
-                          events = save_event(C, recv, NewData)},
-            C3 = match_success_pattern(C2, Actual),
-            match_fail_pattern(C3, Actual);
+            C#cstate{state_changed = true,
+                     actual = <<OldData/binary, NewData/binary>>,
+                     events = save_event(C, recv, NewData)};
         timeout ->
             C#cstate{state_changed = true,
                      timed_out = true,
@@ -310,6 +304,17 @@ timeout(C) ->
             IdleThreshold
     end.
 
+expand_vars_and_reply(C, From, Bin, MissingVar) ->
+    Res =
+        try
+            {ok, expand_vars(C, Bin, MissingVar)}
+        catch
+            throw:{no_such_var, BadName} ->
+                {no_such_var, BadName}
+        end,
+    send_reply(C, From, {expand_vars, self(), Res}),
+    C.
+
 switch_cmd(C, From, NewCmd, CmdStack, Fun) ->
     Fun(),
     send_reply(C, From, {switch_cmd_ack, self()}),
@@ -346,6 +351,9 @@ block(C, From, OrigC) ->
             lux:trace_me(40, C#cstate.name, unblock, []),
             %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
             shell_wait_for_event(C, OrigC);
+        {expand_vars, From, Bin, MissingVar} ->
+            C2 = expand_vars_and_reply(C, From, Bin, MissingVar),
+            block(C2, From, OrigC);
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             block(C2, From, OrigC);
@@ -495,18 +503,16 @@ shell_eval(#cstate{name = Name} = C0,
             clog(C2, fail, "pattern ~p", [lux_utils:to_string(RegExp2)]),
             Pattern = #pattern{cmd = Cmd2,
                                cmd_stack = C2#cstate.cmd_stack},
-            C3 = C2#cstate{state_changed = true,
-                           fail = Pattern},
-            match_fail_pattern(C3, C3#cstate.actual);
+            C2#cstate{state_changed = true,
+                      fail = Pattern};
         success ->
             {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
             clog(C2, success, "pattern ~p",
                  [lux_utils:to_string(RegExp2)]),
             Pattern = #pattern{cmd = Cmd2,
                                cmd_stack = C2#cstate.cmd_stack},
-            C3 = C2#cstate{state_changed = true,
-                           success = Pattern},
-            match_success_pattern(C3, C3#cstate.actual);
+            C2#cstate{state_changed = true,
+                           success = Pattern};
         sleep ->
             Secs = parse_int(C, Arg, Cmd),
             clog(C, sleep, "(~p seconds)", [Secs]),
@@ -651,31 +657,21 @@ expect_more(C) ->
             C2
     end.
 
-expect(#cstate{state_changed = false,
-               no_more_input = true,
-               timer = undefined,
-               expected = Expected} = C) ->
-    %% End of script
-    case Expected of
-        undefined -> stop(C, success, end_of_script);
-        _         -> start_timer(C)
-    end;
+expect(#cstate{} = C) when ?end_of_script(C) ->
+    %% Normal end of script
+    stop(C, success, end_of_script);
 expect(#cstate{state_changed = false} = C) ->
     %% Nothing has changed
     C;
 expect(#cstate{state_changed = true,
-               no_more_input = NoMoreInput,
                no_more_output = NoMoreOutput,
                expected = Expected,
                actual = Actual,
-               timed_out = TimedOut,
-               timer = Timer} = C0) ->
+               timed_out = TimedOut} = C0) ->
     %% Something has changed
-    C = C0#cstate{state_changed = false},
+    TmpC = match_success_pattern(C0#cstate{state_changed = false}, Actual),
+    C = match_fail_pattern(TmpC, Actual),
     case Expected of
-        undefined when NoMoreInput, Timer =:= undefined ->
-            %% Success
-            stop(C, success, end_of_script);
         undefined ->
             %% Nothing to wait for
             cancel_timer(C);
@@ -700,57 +696,59 @@ expect(#cstate{state_changed = true,
                     C;
                 true ->
                     %% Waiting for more data
-                    case match(Actual, C#cstate.expected) of
-                        {match, Matches}  ->
-                            %% Successful match
-                            C2 = cancel_timer(C),
-                            {Actual2, SubMatches} =
-                                split_submatches(C2, Matches, Actual, ""),
-                            case NoMoreInput of
-                                true ->
-                                    %% End of input
-                                    stop(C2, success, end_of_script);
-                                false ->
-                                    C3 = C2#cstate{expected = undefined,
-                                                   actual = Actual2,
-                                                   submatches = SubMatches},
-                                    dlog(C3, ?dmore,
-                                         "expected=undefined (waiting)",
-                                         []),
-                                    opt_late_sync_reply(C3)
-                            end;
-                        nomatch ->
-                            %% Main pattern does not match
-                            %% Wait for more input
-                            C
-                    end
+                    try_match(C, Actual)
             end
+    end.
+
+try_match(C, Actual) ->
+    case match(Actual, C#cstate.expected) of
+        {match, Matches}  ->
+            %% Successful match
+            C2 = cancel_timer(C),
+            {Actual2, SubMatches} =
+                split_submatches(C2, Matches, Actual, ""),
+            case C2#cstate.no_more_input of
+                true ->
+                    %% End of input
+                    stop(C2, success, end_of_script);
+                false ->
+                    C3 = C2#cstate{expected = undefined,
+                                   actual = Actual2,
+                                   submatches = SubMatches},
+                    dlog(C3, ?dmore,
+                         "expected=undefined (waiting)",
+                         []),
+                    opt_late_sync_reply(C3)
+            end;
+        nomatch ->
+            %% Main pattern does not match
+            %% Wait for more input
+            C
     end.
 
 match(Actual, #pattern{cmd = Cmd}) -> % success or fail pattern
     match(Actual, Cmd);
-match(Actual, Cmd) ->
-    case Cmd of
-        undefined ->
-            nomatch;
-        #cmd{type = Type, arg = Arg} ->
-            if
-                Type =:= expect; Type =:= fail; Type =:= success ->
-                    case Arg of
-                        {verbatim, Expected} ->
-                            %% io:format("\nbinary:match(~p,\n"
-                            %%           "            ~p,\n"
-                            %%           "            ~p).\n",
-                            %%           [Actual, Expected, []]),
-                            lux_utils:verbatim_match(Actual, Expected);
-                        {mp, _RegExp, MP} ->
-                            Opts = [{newline,any},notempty,{capture,all,index}],
-                            %% io:format("\nre:run(~p,\n"
-                            %%           "       ~p,\n"
-                            %%           "       ~p).\n",
-                            %%           [Actual, _RegExp, Opts]),
-                            re:run(Actual, MP, Opts)
-                    end
+match(_Actual, undefined) ->
+    nomatch;
+match(Actual, #cmd{type = Type, arg = Arg}) ->
+    if
+        Type =:= expect; Type =:= fail; Type =:= success ->
+            case Arg of
+                {verbatim, Expected} ->
+                    %% io:format("\n"
+                    %%           "verbatim_match(~p,\n"
+                    %%           "               ~p,\n"
+                    %%           "               ~p).\n",
+                    %%           [Actual, Expected, []]),
+                    lux_utils:verbatim_match(Actual, Expected);
+                {mp, _RegExp, MP} ->
+                    Opts = [{newline,any},notempty,{capture,all,index}],
+                    %% io:format("\n"
+                    %%           "re:run(~p,\n"
+                    %%           "       ~p,\n"
+                    %%           "       ~p).\n",
+                    %%           [Actual, _RegExp, Opts]),
+                    re:run(Actual, MP, Opts)
             end
     end.
 
@@ -1066,8 +1064,7 @@ expand_vars(#cstate{submatches   = SubMatches,
     Fun = fun(nosubmatch, {N, Acc}) ->
                   {N+1, Acc}; % Omit $N as its value is undefined
              (Sub, {N, Acc}) ->
-                  List = [integer_to_list(N), $=,
-                          binary_to_list(Sub)],
+                  List = [integer_to_list(N), $=, binary_to_list(Sub)],
                   {N+1, [lists:flatten(List) | Acc]}
           end,
     {_,SubDict} = lists:foldl(Fun, {1, []}, SubMatches),

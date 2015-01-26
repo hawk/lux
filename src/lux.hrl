@@ -41,7 +41,7 @@
                             binary() | atom() | string()}]}).
 
 -record(break,
-        {pos  :: [non_neg_integer() | string() | {string(), non_neg_integer()}],
+        {pos  :: {string(), non_neg_integer()} | [non_neg_integer()],
          type :: temporary | next | enabled | disabled}).
 
 -record(macro,
@@ -81,7 +81,7 @@
          shell_args = ["-i"]        :: [string()],
          shell_prompt_cmd = "export PS1=SH-PROMPT:" :: string(),
          shell_prompt_regexp = "^SH-PROMPT:" :: string(),
-         file_level= 1              :: non_neg_integer(),
+         call_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
          active_pid                 :: undefined | pid(),
          active_name = "lux"        :: undefined | string(),
@@ -95,7 +95,8 @@
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
-         latest_cmd                 :: #cmd{},
+         latest_cmd = #cmd{type = comment, lineno = 0, raw = <<>>}
+                                    :: #cmd{},
          cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
          macro_dict = []            :: [string()],   % ["name=val"]
          dict = []                  :: [string()],   % ["name=val"]

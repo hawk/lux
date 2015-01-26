@@ -1,0 +1,3 @@
+[macro bar]
+    [include macro_debug_body.luxinc]
+[endmacro]

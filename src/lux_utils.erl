@@ -13,7 +13,7 @@
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
          normalize_newlines/1, expand_lines/1,
          to_string/1, tag_prefix/2,
-         progress_write/2, fold_files/5, foldl_cmds/5,
+         progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
          pretty_full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
@@ -292,29 +292,65 @@ do_fold_files(File, RegExp, Recursive, Fun, Acc, IsTopLevel) ->
             Acc
     end.
 
+%% Iterate over commands
 foldl_cmds(Fun, Acc, File, CmdStack, Cmds) ->
+    foldl_cmds(Fun, Acc, File, CmdStack, Cmds, include).
+
+%% Depth :: main         - iterate only over main script file
+%%        | include      - do also iterate over include files
+%%        | static       - do also iterate over loops and macros
+%%        | {dynamic, I} - do also iterate over macros invokations
+foldl_cmds(Fun, Acc, File, CmdStack, Cmds, Depth) when is_atom(Depth) ->
+    foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, undefined});
+foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, OptI})
+  when Depth =:= main; Depth =:= include; Depth =:= static; Depth =:= dynamic ->
     File2 = lux_utils:drop_prefix(File),
     RevFile = lux_utils:filename_split(File2),
-    do_foldl_cmds(Fun, Acc, RevFile, CmdStack, Cmds).
+    do_foldl_cmds(Fun, Acc, File2, RevFile, CmdStack, Cmds, {Depth, OptI}).
 
-do_foldl_cmds(Fun, Acc, RevFile, CmdStack, [Cmd | Cmds]) ->
+do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
+              [#cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd | Cmds],
+              {Depth, OptI} = FullDepth) ->
+    Pos = {RevFile, LineNo, Type},
+    SubFun =
+        fun(SubFile, SubCmds, SubStack) ->
+                SubAcc = Fun(Cmd, RevFile, SubStack, Acc),
+                foldl_cmds(Fun, SubAcc, SubFile, SubStack, SubCmds, FullDepth)
+        end,
     Acc2 =
-        case Cmd of
-            #cmd{type = include,
-                 lineno = LineNo,
-                 arg = {include, SubFile, _FirstLineNo,
-                        _LastFileNo, SubCmds}} ->
-                SubAcc = Fun(Cmd, RevFile, CmdStack, Acc),
-                foldl_cmds(Fun,
-                           SubAcc,
-                           SubFile,
-                           [{RevFile, LineNo} | CmdStack],
-                           SubCmds);
-            #cmd{} ->
+        case Type of
+            include when Depth =:= include;
+                         Depth =:= static;
+                         Depth =:= dynamic ->
+                {include, SubFile, _FirstLineNo, _LastFileNo, SubCmds} = Arg,
+                SubFun(SubFile, SubCmds, [Pos | CmdStack]);
+            macro when Depth =:= static;
+                       Depth =:= dynamic ->
+                {macro, _Name, _ArgNames, _FirstLineNo, _LastLineNo, Body} =
+                    Arg,
+                SubFun(File, Body, [Pos | CmdStack]);
+            loop when Depth =:= static;
+                      Depth =:= dynamic ->
+                {loop, _Name, _ItemStr, _FirstLineNo, _LastLineNo, Body} = Arg,
+                SubStack = [{RevFile, 0, iteration}, Pos | CmdStack],
+                SubFun(File, Body, SubStack);
+            invoke when Depth =:= dynamic ->
+                case lux_interpret:lookup_macro(OptI, Cmd) of
+                    {ok, _NewCmd, [#macro{file = MacroFile, cmd = MacroCmd}]} ->
+                        #cmd{arg = MacroArg} = MacroCmd,
+                        {macro, _Name, _ArgNames,
+                         _FirstLineNo, _LastLineNo, Body} =
+                            MacroArg,
+                        SubFun(MacroFile, Body, [Pos | CmdStack]);
+                _NoMatch ->
+                        %% Ignore non-existent macro
+                        Acc
+                end;
+            _ ->
                 Fun(Cmd, RevFile, CmdStack, Acc)
         end,
-    do_foldl_cmds(Fun, Acc2, RevFile, CmdStack, Cmds);
-do_foldl_cmds(_Fun, Acc, _RevFile, _CmdStack, []) ->
+    do_foldl_cmds(Fun, Acc2, File, RevFile, CmdStack, Cmds, FullDepth);
+do_foldl_cmds(_Fun, Acc, _File, _RevFile, _CmdStack, [], {_Depth, _OptI}) ->
     Acc.
 
 pretty_full_lineno(FullStack) ->

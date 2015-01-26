@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.6 - 2014-10-21</p>
+<p>Version 1.7 - 2015-01-15</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -927,7 +927,7 @@ If no command has been entered yet, the command <code>help</code> is assumed.</p
 <li>tail     - display log files</li>
 <li>list     - list script source</li>
 <li>load     - load file with debug commands</li>
-<li>next     - execute one or more commands. A multiline command counts as one command.</li>
+<li>next     - execute next command. A multiline command counts as one command.</li>
 <li>progress - set verbosity level of progress</li>
 <li>quit     - exit lux in a controlled manner. Runs cleanup if applicable. </li>
 <li>save     - save debug state to file</li>
@@ -939,9 +939,9 @@ If no command has been entered yet, the command <code>help</code> is assumed.</p
 <p>Several commands has a lineno as parameter. It is a string which
 is divided in several components. The components are separated
 with a colon and are used to refer to line numbers in include
-files and macros. Each component may either be a line number,
-an (possibly abbreviated) file name or a combination of both
-separated with an at-sign (int@file).</p>
+files, macros and loops. The first component is a bit special.
+It may be a file name or a line number. The file name may be
+abbreviated.</p>
 
 <p>Assume that there is a file called main, which includes a file
 called outer at line 4 and the file outer includes a file called
@@ -950,14 +950,13 @@ inner at line 12.</p>
 <p>Here are a few examples of how lineno can be used:</p>
 
 <ul>
-<li>3       - line 3 in file main</li>
-<li>main    - first line in file main</li>
-<li>3@m     - line 3 in file main</li>
+<li>3       - line 3 in current file</li>
+<li>main    - any line in file main</li>
+<li>m:3     - line 3 in file main</li>
+<li>:3      - line 3 in file main</li>
 <li>inner   - any line in file inner</li>
-<li>outer:i - any line in file inner if it is directly
-        included from outer</li>
-<li>12@o:i  - any line in file inner if it is directly
-        included from outer on line 12</li>
+<li>outer   - any line in file outer</li>
+<li>o:12    - line 12 in file outer</li>
 <li>4:12:6  - line 6 in file inner if it is included
         on line 12 in outer and outer is included
         on line 4 in main.</li>
@@ -980,10 +979,10 @@ inner at line 12.</p>
 <p>When a breakpoint is set it may either be normal (default)
 or temporary. The difference between them is that normal
 breakpoints remains after break while temporary breakpoints
-are automatically deleted when they have been used once.</p>
+are automatically deleted when they have been used once.
+delete means that the breakpoint immediately is removed.</p>
 
-<p>delete means that the breakpoint immediately is removed
-Without parameters, all breakpoints are listed.</p>
+<p>Without parameters, all breakpoints are listed.</p>
 
 <p><strong>Parameters:</strong>  </p>
 
@@ -1058,14 +1057,14 @@ commands have been given in between.</p>
 <li>file - file name. Default is "lux.debug".; string  </li>
 </ul>
 
-<h2>next [n_commands]</h2>
+<h2>next</h2>
 
-<p>execute one or more commands. A multiline command counts as one command.</p>
+<p>execute next command. A multiline command counts as one command.</p>
 
 <p><strong>Parameters:</strong>  </p>
 
 <ul>
-<li>n_commands - number of commands; 1 >= integer =&lt; infinity  </li>
+<li>no parameters</li>
 </ul>
 
 <h2>progress [level]</h2>

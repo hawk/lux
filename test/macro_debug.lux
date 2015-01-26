@@ -1,0 +1,31 @@
+[macro fun]
+    !echo bar
+    ?echo bar
+    ?bar
+    ?SH-PROMPT:
+[endmacro]
+
+[include macro_debug.luxinc]
+
+[shell test]
+    [invoke fun]
+
+    !echo foo
+    ?echo foo
+    ?foo
+    ?SH-PROMPT:
+
+    [include macro_debug_body.luxinc]
+
+    [loop iter a1 b2]
+        # iter
+        !echo $iter
+    [endloop]
+    ?echo a1
+    ?a1
+    ?SH-PROMPT:
+    ?echo b2
+    ?b2
+    ?SH-PROMPT:
+
+    [invoke bar]
