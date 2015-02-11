@@ -29,7 +29,7 @@ interpret_commands(Script, Commands, Opts) ->
                 Base = filename:basename(Script),
                 ExtraLogs = filename:join([LogDir, Base ++ ".extra.logs"]),
                 ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
-                I4 = I3#istate{dict = [ExtraDict | I#istate.dict]},
+                I4 = I3#istate{dict = [ExtraDict | I3#istate.dict]},
                 Config = config_data(I4),
                 case filelib:ensure_dir(LogDir) of
                     ok ->
