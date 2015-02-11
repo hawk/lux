@@ -1,0 +1,22 @@
+[global log_file=$LUX_EXTRA_LOGS/my.log]
+
+[shell test]
+    !env | grep LUX_EXTRA_LOGS
+    ?grep LUX_EXTRA_LOGS
+    ?LUX_EXTRA_LOGS=
+    ?SH-PROMPT
+
+    !echo $LUX_EXTRA_LOGS
+    ?SH-PROMPT
+
+[cleanup]
+    !mkdir $LUX_EXTRA_LOGS
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+
+    !echo foo > $LUX_EXTRA_LOGS/my.log
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT

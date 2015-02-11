@@ -26,19 +26,23 @@ interpret_commands(Script, Commands, Opts) ->
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
                 LogDir = I3#istate.log_dir,
-                Config = config_data(I3),
+                Base = filename:basename(Script),
+                ExtraLogs = filename:join([LogDir, Base ++ ".extra.logs"]),
+                ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
+                I4 = I3#istate{dict = [ExtraDict | I#istate.dict]},
+                Config = config_data(I4),
                 case filelib:ensure_dir(LogDir) of
                     ok ->
                         ConfigFd = lux_log:open_config_log(LogDir,
                                                            Script,
                                                            Config),
-                        Progress = I3#istate.progress,
-                        LogFun = I3#istate.log_fun,
+                        Progress = I4#istate.progress,
+                        LogFun = I4#istate.log_fun,
                         Verbose = true,
                         case lux_log:open_event_log(LogDir, Script, Progress,
                                                     LogFun, Verbose) of
                             {ok, EventLog, EventFd} ->
-                                eval(I3, Progress, Verbose, LogFun,
+                                eval(I4, Progress, Verbose, LogFun,
                                      EventLog, EventFd, ConfigFd);
                             {error, FileReason} ->
                                 internal_error(I3,

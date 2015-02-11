@@ -1,18 +1,41 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.7.1 - 2015-01-26
+-n Version 1.7.2 - 
+2015-02-11
 
-* [Introduction](#../README)
-* [Concepts](#main_concepts)
-* [Script syntax](#script_syntax)
-* [Command line options](#cmd_line_opts)
-* [Configuration parameters](#config_params)
-* [Logs](#logs)
-* [Debugger for Lux scripts](#debug_cmds)
-* [Examples](#examples)
-* [Installation](#../INSTALL)
-* [Original author:](#../AUTHORS)
-* [References](#references)
+-n * [
+Introduction-n ]
+(#../README)
+-n * [
+Concepts-n ]
+(#main_concepts)
+-n * [
+Script syntax-n ]
+(#script_syntax)
+-n * [
+Command line options-n ]
+(#cmd_line_opts)
+-n * [
+Configuration parameters-n ]
+(#config_params)
+-n * [
+Logs-n ]
+(#logs)
+-n * [
+Debugger for Lux scripts-n ]
+(#debug_cmds)
+-n * [
+Examples-n ]
+(#examples)
+-n * [
+Installation-n ]
+(#../INSTALL)
+-n * [
+Original author:-n ]
+(#../AUTHORS)
+-n * [
+References-n ]
+(#references)
 
 <a name="../README"/>
 
@@ -325,10 +348,20 @@ occurred in the included file. This means that each file can take care
 of its own failures. This does also apply on nested include files. On
 the topmost level the automatically started shell will be called
 `cleanup`, on the next level it is called `cleanup2`, on next level
-`cleanup3` etc. The **environment* variable** `LUX_START_REASON` is
-set to `normal` in most shells, but if the cleanup is run due to
-premature failure or premature success it will be set to `fail` or
-`success` respectively.
+`cleanup3` etc.
+
+The **environment* variable** `LUX_START_REASON` is set to `normal`
+in most shells, but if the cleanup is run due to premature failure or
+premature success it will be set to `fail` or `success` respectively.
+This can for example be used if you want to save the contents of
+error logs, core dumps etc. in case of failure. Textual logs can
+simply be written to `stdout` in order to be easily accessible in
+the post mortem analyzis. For the purpose of saving binary files
+the **environment* variable** `LUX_EXTRA_LOGS` may be used. It
+refers to a log directory name unique for each test case. The
+directory is however not automatically created. It must be created
+by you in the test script if you want to use it. If you have created
+the directory, it will turn up as a link in the annotated event log.
 
 **\[include FileName\]**  
 Includes and runs the specified script at this point. The `FileName`
