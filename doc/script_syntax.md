@@ -131,10 +131,20 @@ occurred in the included file. This means that each file can take care
 of its own failures. This does also apply on nested include files. On
 the topmost level the automatically started shell will be called
 `cleanup`, on the next level it is called `cleanup2`, on next level
-`cleanup3` etc. The **environment* variable** `LUX_START_REASON` is
-set to `normal` in most shells, but if the cleanup is run due to
-premature failure or premature success it will be set to `fail` or
-`success` respectively.
+`cleanup3` etc.
+
+The **environment* variable** `LUX_START_REASON` is set to `normal`
+in most shells, but if the cleanup is run due to premature failure or
+premature success it will be set to `fail` or `success` respectively.
+This can for example be used if you want to save the contents of
+error logs, core dumps etc. in case of failure. Textual logs can
+simply be written to `stdout` in order to be easily accessible in
+the post mortem analyzis. For the purpose of saving binary files
+the **environment* variable** `LUX_EXTRA_LOGS` may be used. It
+refers to a log directory name unique for each test case. The
+directory is however not automatically created. It must be created
+by you in the test script if you want to use it. If you have created
+the directory, it will turn up as a link in the annotated event log.
 
 **\[include FileName\]**  
 Includes and runs the specified script at this point. The `FileName`

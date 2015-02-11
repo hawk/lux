@@ -98,7 +98,7 @@ html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
      html_header(["Lux summary log (", Dir, ")"]),
      "<table border=1>\n",
      "  <tr>\n",
-     "    <td><strong>Raw log files:</strong></td>",
+     "    <td><strong>Log files:</strong></td>",
      LogFun(RelSummaryLog, "Summary"),
      LogFun(RelResultLog, "Result"),
      LogFun(RelConfigLog, "Config"),
@@ -167,19 +167,19 @@ html_groups2(A, [{test_group, _Group, Cases} | Groups]) ->
 html_groups2(_A, []) ->
     [].
 
-html_cases(A, [{test_case, Name, EventLog, Doc, HtmlLog, Res} | Cases]) ->
+html_cases(A, [{test_case, Name, _EventLog, Doc, HtmlLog, Res} | Cases]) ->
     Tag = "a",
     RelFile = drop_prefix(A, Name),
     RelHtmlLog = drop_prefix(A, HtmlLog),
-    RelEventLog = drop_prefix(A, EventLog),
+    %% RelEventLog = drop_prefix(A, EventLog),
     [
      html_anchor(RelFile, ""),
      "\n",
      html_href("h2", "Test case: ", "", RelHtmlLog, RelFile),
      "\n<div class=case><pre>",
      html_doc(Tag, Doc),
-     html_href(Tag, "Raw event log: ", "", RelEventLog, RelEventLog),
-     html_href(Tag, "Annotated script: ", "", RelHtmlLog, RelHtmlLog),
+     %% html_href(Tag, "Raw event log: ", "", RelEventLog, RelEventLog),
+     %% html_href(Tag, "Annotated script: ", "", RelHtmlLog, RelHtmlLog),
      html_result(Tag, Res, RelHtmlLog),
      "\n",
      "</pre></div>",
@@ -346,7 +346,16 @@ pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _CmdStack) ->
 
 html_events(A, EventLog, ConfigLog, Script, Result, Files,
             Logs, Annotated, RawConfig) ->
-    Dir = filename:basename(filename:dirname(EventLog)),
+    EventLogDir = filename:dirname(EventLog),
+    EventLogBase = filename:join([EventLogDir, filename:basename(Script)]),
+    ExtraLogs = <<EventLogBase/binary, ".extra.logs">>,
+    Dir = filename:basename(EventLogDir),
+    LogFun =
+        fun(L, S) ->
+                ["    <td><strong>",
+                 html_href("", drop_prefix(A, L), S),
+                 "</strong></td>\n"]
+        end,
     [
      html_header(["Lux event log (", Dir, ")"]),
      "\n", html_href("h2", "", "", "#annotate", drop_prefix(A, Script)),
@@ -356,9 +365,19 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      "\n<h3>Source files: ",
      html_files(A, Files),
      "\n</h3>",
-     html_href("h3", "", "", drop_prefix(A, EventLog), "Raw event log"),
-     html_href("h3", "", "", drop_prefix(A, ConfigLog), "Raw config log"),
+     "\n<h3>Log files:</h3>\n ",
+     "<table border=1>\n",
+     "  <tr>\n",
+     LogFun(EventLog, "Event"),
+     LogFun(ConfigLog, "Config"),
+     case filelib:is_dir(ExtraLogs) of
+         true  -> LogFun(ExtraLogs, "Extra");
+         false -> "    <td><strong>No extra</strong></td>\n"
+     end,
      html_logs(A, Logs),
+     "  </tr>\n",
+     "</table>\n\n",
+
      "\n",html_anchor("h2", "", "annotate", "Annotated source code"),"\n",
      html_code(A, Annotated),
 
@@ -518,11 +537,15 @@ html_config(Config) when is_binary(Config) ->
 
 html_logs(A, [{log, Shell, Stdin, Stdout} | Logs]) ->
     [
-     "\n<h3>Logs for shell ", Shell, ": ",
-     html_href("", drop_prefix(A, Stdin), "stdin"),
-     " ",
-     html_href("", drop_prefix(A, Stdout), "stdout"),
-     "</h3>\n",
+     "\n<tr>\n    ",
+     "<td><strong>Shell ", Shell, "</strong></td>",
+     "<td><strong>",
+     html_href("", drop_prefix(A, Stdin), "Stdin"),
+     "</strong></td>",
+     "<td><strong>",
+     html_href("", drop_prefix(A, Stdout), "Stdout"),
+     "</strong></td>",
+     "\n</tr>\n",
      html_logs(A, Logs)
     ];
 html_logs(_A, []) ->
