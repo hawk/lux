@@ -742,8 +742,10 @@ match_fail_pattern(C, Actual) ->
     case match(Actual, C#cstate.fail) of
         {match, Matches} ->
             C2 = cancel_timer(C),
-            C3 = prepare_stop(C2, Actual, Matches, "fail pattern matched "),
-            stop(C3, fail, fail_pattern_matched);
+            {C3, Actual2} =
+                prepare_stop(C2, Actual, Matches,
+                             <<"fail pattern matched ">>),
+            stop(C3, fail, Actual2);
         nomatch ->
             C
     end.
@@ -752,8 +754,10 @@ match_success_pattern(C, Actual) ->
     case match(Actual, C#cstate.success) of
         {match, Matches} ->
             C2 = cancel_timer(C),
-            C3 = prepare_stop(C2, Actual, Matches, "success pattern matched "),
-            stop(C3, success, success_pattern_matched);
+            {C3, Actual2} =
+                prepare_stop(C2, Actual, Matches,
+                             <<"success pattern matched ">>),
+            stop(C3, success, Actual2);
         nomatch ->
             C
     end.
@@ -764,10 +768,12 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{expected = undefined,
-                  actual = Match,
+                  actual = Actual,
                   submatches = []},
+    Actual2 = <<Context/binary, "\"", Match/binary, "\"">>,
     dlog(C2, ?dmore, "expected=undefined (prepare_stop)", []),
-    opt_late_sync_reply(C2).
+    C3 = opt_late_sync_reply(C2),
+    {C3, Actual2}.
 
 split_submatches(C, [{First, TotLen} | Matches], Actual, Context) ->
     {Consumed, Rest} = split_binary(Actual, First+TotLen),
@@ -923,14 +929,20 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     end.
 
 prepare_outcome(C, Outcome, Actual) ->
+    Context =
+        case Actual of
+            <<"fail pattern matched ",    _/binary>> -> fail_pattern_matched;
+            <<"success pattern matched ", _/binary>> -> success_pattern_matched;
+            _                                        -> Actual
+        end,
     if
-        Outcome =:= fail, Actual =:= fail_pattern_matched ->
+        Outcome =:= fail, Context =:= fail_pattern_matched ->
             NewOutcome = Outcome,
             Fail = C#cstate.fail,
             FailCmd = Fail#pattern.cmd,
             Extra = element(2, FailCmd#cmd.arg),
             clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
-        Outcome =:= success, Actual =:= success_pattern_matched ->
+        Outcome =:= success, Context =:= success_pattern_matched ->
             NewOutcome = Outcome,
             Success = C#cstate.success,
             SuccessCmd = Success#pattern.cmd,

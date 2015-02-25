@@ -331,13 +331,23 @@ print_fail(I0, File, Results,
               [simple_to_string(Expected)]),
     double_ilog(I, "expected\n\"~s\"\n",
                 [lux_utils:to_string(Expected)]),
-    if
-        is_atom(Actual) ->
+    case Actual of
+        <<"fail pattern matched ",    _/binary>> ->
+            io:format("actual ~s\n\t~s\n",
+                      [Actual, simple_to_string(Rest)]),
+            double_ilog(I, "actual ~s\n\"~s\"\n",
+                        [Actual, lux_utils:to_string(Rest)]);
+        <<"success pattern matched ", _/binary>> ->
+            io:format("actual ~s\n\t~s\n",
+                      [Actual, simple_to_string(Rest)]),
+            double_ilog(I, "actual ~s\n\"~s\"\n",
+                        [Actual, lux_utils:to_string(Rest)]);
+        _ when is_atom(Actual) ->
             io:format("actual ~p\n\t~s\n",
                       [Actual, simple_to_string(Rest)]),
             double_ilog(I, "actual ~p\n\"~s\"\n",
                         [Actual, lux_utils:to_string(Rest)]);
-        is_binary(Actual) ->
+        _ when is_binary(Actual) ->
             io:format("actual error\n\t~s\n",
                       [simple_to_string(Actual)]),
             double_ilog(I, "actual error\n\"~s\"\n",
@@ -1013,10 +1023,10 @@ prepare_result(#istate{latest_cmd = LatestCmd,
         end,
     Res3 =
         case Res2 of
-            #result{actual = fail_pattern_matched} ->
+            #result{actual = <<"fail pattern matched ", _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             cmd_stack = CmdStack};
-            #result{actual = success_pattern_matched} ->
+            #result{actual = <<"success pattern matched ", _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             cmd_stack = CmdStack};
             _ ->
@@ -1028,9 +1038,12 @@ goto_cleanup(OldI, CleanupReason) ->
     lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
     LineNoPrefix =
         case OldI#istate.results of
-            [#result{actual=fail_pattern_matched}|_]    -> "-";
-            [#result{actual=success_pattern_matched}|_] -> "+";
-            _                                           -> ""
+            [#result{actual= <<"fail pattern matched ", _/binary>>}|_] ->
+                "-";
+            [#result{actual= <<"success pattern matched ", _/binary>>}|_] ->
+                "+";
+            _ ->
+                ""
         end,
     LineNo = integer_to_list((OldI#istate.latest_cmd)#cmd.lineno),
     lux_utils:progress_write(OldI#istate.progress, LineNoPrefix ++ LineNo),
