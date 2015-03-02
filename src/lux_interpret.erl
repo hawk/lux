@@ -1009,8 +1009,15 @@ prepare_result(#istate{latest_cmd = LatestCmd,
                 {OrigCleanupReason, Res#result{outcome = shutdown}};
             #result{outcome = NewOutcome} ->
                 {NewOutcome, Res};
-            {'EXIT', Res} ->
-                {fail, Res};
+            {'EXIT', {error, FailReason}} ->
+                {fail,
+                 #result{outcome    = fail,
+                         latest_cmd = LatestCmd,
+                         cmd_stack  = CmdStack,
+                         expected   = <<"">>,
+                         extra      = undefined,
+                         actual     = FailReason,
+                         rest       = fail}};
             {fail, FailReason} ->
                 {fail,
                  #result{outcome    = fail,
