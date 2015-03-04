@@ -230,8 +230,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
                 {Annotated, Files} =
                     interleave_code(A2, Events, Script, 1, 999999, [], []),
                 Html = html_events(A2, EventLog2, ConfigLog, Script, Result,
-                                   lists:reverse(Files),
-                                   Logs, Annotated, RawConfig),
+                                   Files, Logs, Annotated, RawConfig),
                 {ok, Html};
             {error, _File, _ReasonStr} = Error ->
                 Error
