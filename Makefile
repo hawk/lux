@@ -18,4 +18,4 @@ all install clean: Makefile
 
 config_clean:
 	$(MAKE) clean
-	-rm -rf configure include.mk autom4te.cache config.status config.log rm -f *~
+	-rm -rf configure include.mk autom4te.cache config.status config.log *~

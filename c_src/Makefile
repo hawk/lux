@@ -8,6 +8,6 @@ $(PROG): runpty.c
 	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $<
 
 clean:
-	rm -f $(PROG) core* *~
+	rm -rf $(PROG) ../priv/bin/runpty.dSYM core* *~
 
 install:
