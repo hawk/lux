@@ -666,20 +666,16 @@ dispatch_cmd(I,
             case shell_expand_vars(I, Val) of
                 {ok, Val2} ->
                     VarVal = lists:flatten([Var, $=, Val2]),
-                    Msg = {variable, self(), Scope, VarVal},
                     case Scope of
                         my ->
-                            multicast(I, Msg), % OBSOLETE
                             Dict = [VarVal | I#istate.macro_dict],
                             I#istate{macro_dict = Dict};
                         local when I#istate.active_shell =/= undefined ->
-                            cast(I, Msg), % OBSOLETE
                             Shell = I#istate.active_shell,
                             ShellDict = [VarVal | Shell#shell.dict],
                             Shell2 = Shell#shell{dict = ShellDict},
                             I#istate{active_shell = Shell2};
                         global ->
-                            multicast(I, Msg), % OBSOLETE
                             GlobalDict = [VarVal | I#istate.global_dict],
                             I#istate{global_dict = GlobalDict}
                     end;
@@ -902,12 +898,10 @@ invoke_macro(I,
           Name,
           lists:flatten([[M, " "] || M <- MacroDict])]),
 
-    multicast(I, {macro_dict, self(), MacroDict}), %% OBSOLETE
     BeforeI = I#istate{macro_dict = MacroDict, latest_cmd = InvokeCmd},
     DefaultFun = get_eval_fun(),
     AfterI = eval_body(BeforeI, LineNo, FirstLineNo,
                        LastLineNo, File, Body, MacroCmd, DefaultFun),
-    multicast(AfterI, {macro_dict, self(), OldMacroDict}), %% OBSOLETE
 
     AfterI#istate{macro_dict = OldMacroDict};
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
@@ -1019,7 +1013,6 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
         {item, Item, Rest} ->
             LoopVar = lists:flatten([Name, $=, Item]),
             MacroDict = [LoopVar|OldI#istate.macro_dict],
-            multicast(OldI, {macro_dict, self(), MacroDict}),  %% OBSOLETE
             BeforeI = OldI#istate{macro_dict = MacroDict,
                                   latest_cmd = LoopCmd},
             SyntheticLineNo = -N,
@@ -1366,15 +1359,7 @@ shell_crashed(I, Pid, Reason) ->
         end,
     throw_error(I2, Error).
 
-shell_expand_vars(I, Bin) when is_pid(I#istate.active_shell#shell.pid) ->
-    Pid = cast(I, {expand_vars, self(), Bin}), % OBSOLETE
-    receive
-        {expand_vars, Pid, Res} ->
-            Res;
-        {'DOWN', _, process, Pid, Reason} ->
-            shell_crashed(I, Pid, Reason)
-    end;
-shell_expand_vars(I, Bin) when I#istate.active_shell =:= undefined ->
+shell_expand_vars(I, Bin) ->
     MissingVar = error,
     try
         {ok, expand_vars(I, Bin, MissingVar)}

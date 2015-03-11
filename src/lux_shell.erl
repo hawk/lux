@@ -60,12 +60,7 @@
                                                  non_neg_integer(),
                                                  non_neg_integer()},
          debug_level = 0         :: non_neg_integer(),
-         events = []             :: [tuple()],
-         submatch_dict = []      :: [string()],   % ["name=val"]
-         macro_dict              :: [string()],   % ["name=val"]
-         dict                    :: [string()],   % ["name=val"]
-         builtin_dict            :: [string()],   % ["name=val"]
-         system_dict             :: [string()]}). % ["name=val"]
+         events = []             :: [tuple()]}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Client
@@ -94,23 +89,21 @@ start_monitor(I, Cmd, Name) ->
                 shell_args = I#istate.shell_args,
                 shell_prompt_cmd = I#istate.shell_prompt_cmd,
                 shell_prompt_regexp = I#istate.shell_prompt_regexp,
-                debug_level = I#istate.debug_level,
-                submatch_dict = I#istate.submatch_dict,
-                macro_dict = I#istate.macro_dict,
-                dict = I#istate.global_dict,
-                builtin_dict = I#istate.builtin_dict,
-                system_dict = I#istate.system_dict},
+                debug_level = I#istate.debug_level},
     {Pid, Ref} = spawn_monitor(fun() -> init(C) end),
-    Shell = #shell{name = Name, pid = Pid, ref = Ref,
-                   health = alive, dict = I#istate.global_dict},
-    I2 = I#istate{active_shell = Shell,
-                  active_name = Name,
-                  shells = [Shell | I#istate.shells]},
     receive
-        {started, Pid, Logs} ->
+        {started, Pid, Logs, NewVarVals} ->
+            Shell = #shell{name = Name,
+                           pid = Pid,
+                           ref = Ref,
+                           health = alive,
+                           dict = NewVarVals ++ I#istate.global_dict},
+            I2 = I#istate{active_shell = Shell,
+                          active_name = Name,
+                          shells = [Shell | I#istate.shells]},
             {ok, I2#istate{logs = I2#istate.logs ++ [Logs]}};
         {'DOWN', _, process, Pid, Reason} ->
-            {error, I2, Pid, Reason}
+            {error, I, Pid, Reason}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -148,15 +141,14 @@ init(C) when is_record(C, cstate) ->
             {args, Args}, {cd, WorkDir}, {env, PortEnv}],
     try
         Port = open_port({spawn_executable, Exec}, Opts),
-        Dict = ["LUX_SHELLNAME=" ++ Name,
-                "LUX_START_REASON=" ++ StartReason],
+        NewVarVals = ["LUX_SHELLNAME=" ++ Name,
+                      "LUX_START_REASON=" ++ StartReason],
         C3 = C2#cstate{port = Port,
-                       events = Events,
-                       dict = Dict ++ C2#cstate.dict},
-
+                       events = Events},
         Parent = C3#cstate.parent,
         erlang:monitor(process, Parent),
-        send_reply(C3, Parent, {started, self(), {Name, InFile, OutFile}}),
+        send_reply(C3, Parent,
+                   {started, self(), {Name, InFile, OutFile}, NewVarVals}),
         try
             shell_loop(C3, C3)
         catch
@@ -230,39 +222,13 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             expect_more(C3);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
-        %% OBSOLETE
-        {expand_vars, From, Bin} ->
-            expand_vars_and_reply(C, From, Bin);
         {eval, From, Cmd} ->
             dlog(C, ?dmore, "eval (got ~p)", [Cmd#cmd.type]),
             assert_eval(C, Cmd, From),
             shell_eval(C, Cmd);
         {variable, _From, Scope, VarVal} ->
-            case Scope of
-                my ->
-                    clog(C, Scope, "\"~s\"", [VarVal]),
-                    Dict = [VarVal | C#cstate.macro_dict],
-                    C#cstate{macro_dict = Dict};
-                local ->
-                    clog(C, Scope, "\"~s\"", [VarVal]),
-                    Dict = [VarVal | C#cstate.dict],
-                    C#cstate{dict = Dict};
-                global when C#cstate.mode =:= resume ->
-                    clog(C, Scope, "\"~s\"", [VarVal]),
-                    Dict = [VarVal | C#cstate.dict],
-                    C#cstate{dict = Dict};
-                global when C#cstate.mode =:= suspend ->
-                    Dict = [VarVal | C#cstate.dict],
-                    C#cstate{dict = Dict}
-            end;
-        %% OBSOLETE
-        {submatch_dict, _From, SubDict} ->
-            %% clog(C, submatch_dict, "\"~s\"", [SubDict]),
-            C#cstate{submatch_dict = SubDict};
-        %% OBSOLETE
-        {macro_dict, _From, MacroDict} ->
-            %% clog(C, macro_dict, "\"~s\"", [MacroDict]),
-            C#cstate{macro_dict = MacroDict};
+            clog(C, Scope, "\"~s\"", [VarVal]),
+            C;
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
         {relax = Data, _From} ->
@@ -330,17 +296,6 @@ timeout(C) ->
             IdleThreshold
     end.
 
-expand_vars_and_reply(C, From, Bin) ->
-    Res =
-        try
-            {ok, expand_vars(C, Bin, error)}
-        catch
-            throw:{no_such_var, BadName} ->
-                {no_such_var, BadName}
-        end,
-    send_reply(C, From, {expand_vars, self(), Res}),
-    C.
-
 switch_cmd(C, From, NewCmd, CmdStack, Fun) ->
     Fun(),
     send_reply(C, From, {switch_cmd_ack, self()}),
@@ -377,9 +332,6 @@ block(C, From, OrigC) ->
             lux:trace_me(40, C#cstate.name, unblock, []),
             %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
             shell_wait_for_event(C, OrigC);
-        {expand_vars, From, Bin} ->
-            C2 = expand_vars_and_reply(C, From, Bin),
-            block(C2, From, OrigC);
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             block(C2, From, OrigC);
@@ -692,8 +644,7 @@ try_match(C, Actual) ->
                     send_reply(C3, C3#cstate.parent,
                                {submatch_dict, self(), SubDict}),
                     C4 = C3#cstate{expected = undefined,
-                                   actual = Rest,
-                                   submatch_dict = SubDict},
+                                   actual = Rest},
                     dlog(C4, ?dmore, "expected=undefined (waiting)", []),
                     opt_late_sync_reply(C4)
             end;
@@ -1036,13 +987,3 @@ dlog(C, Level, Format, Args) when C#cstate.debug_level >= Level ->
     clog(C, debug, Format, Args);
 dlog(_C, _Level, _Format, _Args) ->
     ok.
-
-expand_vars(#cstate{submatch_dict = SubDict,
-                    macro_dict    = MacroDict,
-                    dict          = Dict,
-                    builtin_dict  = BuiltinDict,
-                    system_dict   = SystemDict},
-            Bin,
-            MissingVar) ->
-    Dicts = [SubDict, MacroDict, Dict, BuiltinDict, SystemDict],
-    lux_utils:expand_vars(Dicts, Bin, MissingVar).
