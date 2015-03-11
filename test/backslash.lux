@@ -1,17 +1,18 @@
 [doc Testing\
-...]
+    ...]
 
 [global my\
-var=myval]
+    var=myval]
 
 [shell test]
     !echo 1$myvar
     !echo \
-2$myvar
+        2$myvar
     """?
     .*echo 1myval\
 
-^1myval
+    1my\
+        val
     .*echo 2myval
-    ^2myval
+    2myval
     """

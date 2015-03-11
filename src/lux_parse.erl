@@ -241,12 +241,13 @@ file_next_wrapper(Fd) ->
         {line, Line, NewFd} when Lines =:= [] ->
             {line, Line, NewFd, 0};
         {line, Line, NewFd} ->
-            ComboLine = iolist_to_binary([Lines, Line]),
+            NewLine = lux_utils:strip_leading_whitespaces(Line),
+            ComboLine = backslash_merge(Lines, NewLine),
             {line, ComboLine, NewFd, length(Lines)};
         eof when Lines =:= [] ->
             eof;
         eof ->
-            ComboLine = iolist_to_binary(Lines),
+            ComboLine = backslash_merge(Lines, <<>>),
             {line, ComboLine, BackslashFd, length(Lines)}
     end.
 
@@ -263,6 +264,10 @@ backslash_filter(Line) ->
         _ ->
             false
     end.
+
+backslash_merge([First|Rest], Last) ->
+    Lines = [lux_utils:strip_leading_whitespaces(Line) || Line <- Rest],
+    iolist_to_binary([First,Lines,Last]).
 
 parse(P, Fd, LineNo, Tokens) ->
     case file_next_wrapper(Fd) of
