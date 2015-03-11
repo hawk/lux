@@ -1113,13 +1113,14 @@ multi_member([], _Files) ->
     false.
 
 parse_summary_logs(HtmlFile, Dir, Acc) ->
-    Skip = ["lux.skip",
-             "lux_summary.log",
-             "lux_summary.log.tmp",
-             "qmscript.skip",
-             "qmscript_summary.log",
-             "qmscript_summary.log.tmp",
-             "qmscript.summary.log"],
+    Skip =
+        ["lux.skip",
+         "lux_summary.log",
+         "lux_summary.log.tmp",
+         "qmscript.skip",
+         "qmscript_summary.log",
+         "qmscript_summary.log.tmp",
+         "qmscript.summary.log"],
     do_parse_summary_logs(HtmlFile, Dir, Acc, Skip).
 
 do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->

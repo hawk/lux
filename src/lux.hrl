@@ -97,13 +97,14 @@
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
-         latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
-                                    :: #cmd{},
          cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
          macro_dict = []            :: [string()],   % ["name=val"]
          dict = []                  :: [string()],   % ["name=val"]
          builtin_dict               :: [string()],   % ["name=val"]
-         system_dict                :: [string()]}). % ["name=val"]
+         system_dict                :: [string()],   % ["name=val"]
+         latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
+                                    :: #cmd{}}).
+
 
 -record(run,
         {id,

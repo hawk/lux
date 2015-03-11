@@ -21,7 +21,7 @@
 
 interpret_commands(Script, Cmds, Opts) ->
     I = default_istate(Script),
-    I2 = I#istate{commands = Cmds, orig_commands = undefined},
+    I2 = I#istate{commands = Cmds, orig_commands = shrinked},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
@@ -85,7 +85,15 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
                     exit(shutdown)
             end,
         Pid = spawn_link(Interpret),
-        wait_for_done(NewI, Pid, Docs)
+        %% Poor mans hibernate
+        ShrinkedI =
+            NewI#istate{commands     = shrinked,
+                        macro_dict   = shrinked,
+                        dict         = shrinked,
+                        builtin_dict = shrinked,
+                        system_dict  = shrinked},
+        garbage_collect(),
+        wait_for_done(ShrinkedI, Pid, Docs)
     after
         process_flag(trap_exit, Flag),
         lux_log:close_event_log(EventFd),
@@ -721,7 +729,7 @@ dispatch_cmd(I,
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
             I2 = I#istate{latest_cmd = Cmd},
-            case shell_expand_vars(I2, ItemStr, error) of
+            case shell_expand_vars(I2, ItemStr) of
                 {ok, NewItemStr} ->
                     ilog(I2, "~s(~p): loop items \"~s\"\n",
                          [I2#istate.active_name, LastLineNo, NewItemStr]),
@@ -833,7 +841,7 @@ call_level(#istate{call_level = CallLevel}) ->
     CallLevel.
 
 lookup_macro(I, #cmd{arg = {invoke, Name, ArgVals}} = Cmd) ->
-    case shell_expand_vars(I, Name, error) of
+    case shell_expand_vars(I, Name) of
         {ok, NewName} ->
             Macros = [M || M <- I#istate.macros,
                            M#macro.name =:= NewName],
@@ -876,7 +884,7 @@ invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, [_|_]) ->
     throw_error(I2, <<"Ambiguous macro: ", BinName/binary>>).
 
 macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
-    case shell_expand_vars(I, Val, error) of
+    case shell_expand_vars(I, Val) of
         {ok, Val2} ->
             [lists:flatten([Name, $=, Val2]) |
              macro_dict(I, Names, Vals, Invoke)];
@@ -1180,7 +1188,7 @@ opt_apply(_Fun) ->
 
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
     I2 = I#istate{latest_cmd = Cmd, want_more = false},
-    case shell_expand_vars(I2, Name, error) of
+    case shell_expand_vars(I2, Name) of
         {ok, Name2} ->
             case lists:keyfind(Name2, #shell.name, I2#istate.shells) of
                 false ->
@@ -1260,15 +1268,16 @@ shell_crashed(I, Pid, Reason) ->
         end,
     throw_error(I2, Error).
 
-shell_expand_vars(I, Bin, MissingVar) when is_pid(I#istate.active_pid) ->
-    Pid = cast(I, {expand_vars, self(), Bin, MissingVar}),
+shell_expand_vars(I, Bin) when is_pid(I#istate.active_pid) ->
+    Pid = cast(I, {expand_vars, self(), Bin}),
     receive
         {expand_vars, Pid, Res} ->
             Res;
         {'DOWN', _, process, Pid, Reason} ->
             shell_crashed(I, Pid, Reason)
     end;
-shell_expand_vars(I, Bin, MissingVar) when I#istate.active_pid =:= undefined ->
+shell_expand_vars(I, Bin) when I#istate.active_pid =:= undefined ->
+    MissingVar = error,
     try
         {ok, expand_vars(I, Bin, MissingVar)}
     catch

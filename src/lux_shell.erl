@@ -228,8 +228,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             expect_more(C3);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
-        {expand_vars, From, Bin, MissingVar} ->
-            expand_vars_and_reply(C, From, Bin, MissingVar);
+        {expand_vars, From, Bin} ->
+            expand_vars_and_reply(C, From, Bin);
         {eval, From, Cmd} ->
             dlog(C, ?dmore, "eval (got ~p)", [Cmd#cmd.type]),
             assert_eval(C, Cmd, From),
@@ -307,10 +307,10 @@ timeout(C) ->
             IdleThreshold
     end.
 
-expand_vars_and_reply(C, From, Bin, MissingVar) ->
+expand_vars_and_reply(C, From, Bin) ->
     Res =
         try
-            {ok, expand_vars(C, Bin, MissingVar)}
+            {ok, expand_vars(C, Bin, error)}
         catch
             throw:{no_such_var, BadName} ->
                 {no_such_var, BadName}
@@ -354,8 +354,8 @@ block(C, From, OrigC) ->
             lux:trace_me(40, C#cstate.name, unblock, []),
             %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
             shell_wait_for_event(C, OrigC);
-        {expand_vars, From, Bin, MissingVar} ->
-            C2 = expand_vars_and_reply(C, From, Bin, MissingVar),
+        {expand_vars, From, Bin} ->
+            C2 = expand_vars_and_reply(C, From, Bin),
             block(C2, From, OrigC);
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
