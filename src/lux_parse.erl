@@ -219,12 +219,14 @@ file_next([]) ->
 file_next(eof) ->
     eof.
 
-file_splitwith(Fd, Pred, Acc) ->
+file_takewhile(Fd, Pred, Acc) ->
     case file_next(Fd) of
         {line, Line, NewFd} ->
             case Pred(Line) of
                 true  ->
-                    file_splitwith(NewFd, Pred, [Line|Acc]);
+                    file_takewhile(NewFd, Pred, [Line|Acc]);
+                {true, NewLine}  ->
+                    file_takewhile(NewFd, Pred, [NewLine|Acc]);
                 false ->
                     {file_push(NewFd, [Line]), lists:reverse(Acc)}
             end;
@@ -232,19 +234,50 @@ file_splitwith(Fd, Pred, Acc) ->
             {NewFd, lists:reverse(Acc)}
     end.
 
+%% Read until first line without trailing backslash
+file_next_wrapper(Fd) ->
+    {BackslashFd, Lines} = backslash_takewhile(Fd),
+    case file_next(BackslashFd) of
+        {line, Line, NewFd} when Lines =:= [] ->
+            {line, Line, NewFd, 0};
+        {line, Line, NewFd} ->
+            ComboLine = iolist_to_binary([Lines, Line]),
+            {line, ComboLine, NewFd, length(Lines)};
+        eof when Lines =:= [] ->
+            eof;
+        eof ->
+            ComboLine = iolist_to_binary(Lines),
+            {line, ComboLine, BackslashFd, length(Lines)}
+    end.
+
+backslash_takewhile(Fd) ->
+    Pred = fun(Line) -> backslash_filter(Line) end,
+    file_takewhile(Fd, Pred, []).
+
+backslash_filter(Line) ->
+    Sz = byte_size(Line) - 1,
+    case Line of
+        <<Chopped:Sz/binary, "\\">> ->
+            %% Found trailing backslash
+            {true, Chopped};
+        _ ->
+            false
+    end.
+
 parse(P, Fd, LineNo, Tokens) ->
-    case file_next(Fd) of
-        {line, OrigLine, NewFd} ->
+    case file_next_wrapper(Fd) of
+        {line, OrigLine, NewFd, Incr} ->
             Line = lux_utils:strip_leading_whitespaces(OrigLine),
-            parse_cmd(P, NewFd, Line, LineNo, OrigLine, Tokens);
+            parse_cmd(P, NewFd, Line, LineNo, Incr, OrigLine, Tokens);
         eof = NewFd ->
             {NewFd, Tokens}
     end.
 
-parse_cmd(P, Fd, <<>>, LineNo, OrigLine, Tokens) ->
+parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens) ->
     Token = #cmd{type = comment, lineno = LineNo, orig = OrigLine},
-    parse(P, Fd, LineNo+1, [Token | Tokens]);
-parse_cmd(#pstate{mode = RunMode} = P, Fd, Line, LineNo, OrigLine, Tokens) ->
+    parse(P, Fd, LineNo+Incr+1, [Token | Tokens]);
+parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
+    RunMode = P#pstate.mode,
     <<Op:8/integer, Data/binary>> = Line,
     Type = parse_oper(P, Fd, Op, LineNo, Line),
     Cmd = #cmd{type = Type, lineno = LineNo, orig = OrigLine},
@@ -255,10 +288,10 @@ parse_cmd(#pstate{mode = RunMode} = P, Fd, Line, LineNo, OrigLine, Tokens) ->
             parse_multi(P, Fd, Data, Cmd, Tokens);
         RunMode =:= validate; RunMode =:= execute ->
             Cmd2 = parse_single(Op, Cmd, Data),
-            parse(P, Fd, LineNo+1, [Cmd2 | Tokens]);
+            parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
         RunMode =:= list; RunMode =:= doc ->
             %% Skip command
-            parse(P, Fd, LineNo+1, Tokens)
+            parse(P, Fd, LineNo+Incr+1, Tokens)
     end.
 
 parse_oper(P, Fd, Op, LineNo, OrigLine) ->
@@ -381,30 +414,45 @@ parse_body(#pstate{mode = RunMode} = P,
            LineNo) ->
     {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
     Pred = fun(L) -> re:run(L, MP, [{capture, none}]) =:= nomatch end,
-    {FdAfter, BodyLines} = file_splitwith(Fd, Pred, []),
-    case file_next(FdAfter) of
+    {FdAfter, BodyLines0} = file_takewhile(Fd, Pred, []),
+    {BodyLines, BodyIncr} = merge_body(BodyLines0, [], [], 0),
+    case file_next_wrapper(FdAfter) of
         eof = NewFd ->
             parse_error(P, NewFd, LineNo,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": [" ++ EndKeyword ++ "] expected"]);
-        {line, _EndMacro, NewFd}
+        {line, _EndMacro, NewFd, Incr}
           when RunMode =:= list; RunMode =:= doc ->
             %% Do not parse body
-            BodyLen = length(BodyLines),
-            LastLineNo = LineNo+BodyLen+1,
+            BodyLen = length(BodyLines)+BodyIncr,
+            LastLineNo = LineNo+Incr+BodyLen+1,
             {NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
-        {line, _EndMacro, NewFd}
+        {line, _EndMacro, NewFd, Incr}
           when RunMode =:= validate; RunMode =:= execute ->
             %% Parse body
-            BodyLen = length(BodyLines),
+            BodyLen = length(BodyLines)+BodyIncr,
             FdBody = file_open(BodyLines),
-            {eof, RevBodyCmds} = parse(P, FdBody, LineNo+1, []),
+            {eof, RevBodyCmds} = parse(P, FdBody, LineNo+Incr+1, []),
             BodyCmds = lists:reverse(RevBodyCmds),
-            LastLineNo = LineNo+BodyLen+1,
+            LastLineNo = LineNo+Incr+BodyLen+1,
             Arg = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
             {NewFd, LastLineNo, Cmd#cmd{arg = Arg}}
     end.
+
+merge_body([Line | Lines], Acc, Pending, Decr) ->
+    case backslash_filter(Line) of
+        {true, Chopped} ->
+            merge_body(Lines, Acc, [Chopped | Pending], Decr+1);
+        false ->
+            NewLine = iolist_to_binary([lists:reverse(Pending), Line]),
+            merge_body(Lines, [NewLine | Acc], [], Decr)
+    end;
+merge_body([], Acc, [], Decr) ->
+    {lists:reverse(Acc), Decr};
+merge_body([], Acc, Pending, Decr) ->
+    NewLine = iolist_to_binary(lists:reverse(Pending)),
+    {lists:reverse([NewLine | Acc]), Decr}.
 
 parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
     case binary_to_list(Meta) of
@@ -659,24 +707,27 @@ parse_multi(#pstate{mode = RunMode} = P,
             #cmd{lineno = LineNo, orig = OrigLine},
             Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
-    {RevBefore, FdAfter, RemPrefixLen} = scan_multi(Fd, PrefixLen, []),
-    LastLineNo = LineNo + length(RevBefore) + 1,
-    case file_next(FdAfter) of
+    {RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
+        scan_multi(Fd, PrefixLen, [], 0),
+    LastLineNo0 = LineNo+MultiIncr+length(RevBefore)+1,
+    case file_next_wrapper(FdAfter) of
         eof = NewFd ->
-            parse_error(P, NewFd, LastLineNo,
+            parse_error(P, NewFd, LastLineNo0,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": '\"\"\"' expected"]);
-        {line, _, NewFd} when RemPrefixLen =/= 0 ->
+        {line, _, NewFd, Incr} when RemPrefixLen =/= 0 ->
+            LastLineNo = LastLineNo0+Incr,
             parse_error(P, NewFd, LastLineNo,
                         ["Syntax error at line ", integer_to_list(LastLineNo),
                          ": multi line block must end in same column as"
                          " it started on line ", integer_to_list(LineNo)]);
-        {line, _EndOfMulti, NewFd}
+        {line, _EndOfMulti, NewFd, Incr}
           when RunMode =:= list; RunMode =:= doc ->
             %% Skip command
+            LastLineNo = LastLineNo0+Incr,
             parse(P, NewFd, LastLineNo+1, Tokens);
-        {line, _EndOfMulti, Fd2}
+        {line, _EndOfMulti, Fd2, Incr}
           when RunMode =:= validate; RunMode =:= execute ->
             %% Join all lines with a newline as separator
             Blob =
@@ -693,8 +744,9 @@ parse_multi(#pstate{mode = RunMode} = P,
                         <<"">>
                 end,
             MultiLine = <<Chars/binary, Blob/binary>>,
+            LastLineNo = LastLineNo0+Incr,
             {NewFd, Tokens2} =
-                parse_cmd(P, Fd2, MultiLine, LastLineNo, OrigLine, Tokens),
+                parse_cmd(P, Fd2, MultiLine, LastLineNo, 0, OrigLine, Tokens),
             parse(P, NewFd, LastLineNo+1, Tokens2)
     end;
 parse_multi(P, Fd, _, #cmd{lineno = LineNo}, _Tokens) ->
@@ -704,22 +756,22 @@ parse_multi(P, Fd, _, #cmd{lineno = LineNo}, _Tokens) ->
 
 count_prefix_len([H | T], N) ->
     case H of
-        $\  -> count_prefix_len(T, N + 1);
-        $\t -> count_prefix_len(T, N + ?TAB_LEN);
+        $\  -> count_prefix_len(T, N+1);
+        $\t -> count_prefix_len(T, N+?TAB_LEN);
         $"  -> N
     end.
 
-scan_multi(Fd, PrefixLen, Acc) ->
-    case file_next(Fd) of
-        {line, Line, NewFd} ->
+scan_multi(Fd, PrefixLen, Acc, Incr0) ->
+    case file_next_wrapper(Fd) of
+        {line, Line, NewFd, Incr} ->
             case scan_single(Line, PrefixLen) of
                 {more, Line2} ->
-                    scan_multi(NewFd, PrefixLen, [Line2 | Acc]);
+                    scan_multi(NewFd, PrefixLen, [Line2 | Acc], Incr0+Incr);
                 {nomore, RemPrefixLen} ->
-                    {Acc, file_push(NewFd, [Line]), RemPrefixLen}
+                    {Acc, file_push(NewFd, [Line]), RemPrefixLen, Incr0+Incr}
             end;
         eof = NewFd->
-            {Acc, NewFd, PrefixLen}
+            {Acc, NewFd, PrefixLen, Incr0}
     end.
 
 scan_single(Line, PrefixLen) ->
