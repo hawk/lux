@@ -99,8 +99,7 @@ start_monitor(I, Cmd, Name) ->
                            health = alive,
                            dict = NewVarVals ++ I#istate.global_dict},
             I2 = I#istate{active_shell = Shell,
-                          active_name = Name,
-                          shells = [Shell | I#istate.shells]},
+                          active_name = Name},
             {ok, I2#istate{logs = I2#istate.logs ++ [Logs]}};
         {'DOWN', _, process, Pid, Reason} ->
             {error, I, Pid, Reason}
@@ -613,7 +612,7 @@ expect(#cstate{state_changed = true,
                     C2 = match_patterns(C, Actual),
                     C3 = cancel_timer(C2),
                     clog(C3, match, "\"shell_exit\"", []),
-                    stop(C3, shutdown, shell_exit);
+                    stop(C3, success, shell_exit);
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
                     C2 =  match_patterns(C, Actual),
