@@ -7,12 +7,13 @@
 
 -module(lux_parse).
 
--export([parse_file/2]).
+-export([parse_file/3]).
 
 -include("lux.hrl").
 
 -record(pstate,
         {file :: string(),
+         mode :: run_mode(),
          dict :: [string()]}). % ["name=val"][]}).
 
 -define(TAB_LEN, 8).
@@ -20,7 +21,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse
 
-parse_file(RelFile, Opts) ->
+parse_file(RelFile, RunMode, Opts) ->
     try
         File = filename:absname(RelFile),
         DefaultI = lux_interpret:default_istate(File),
@@ -29,8 +30,9 @@ parse_file(RelFile, Opts) ->
                 Dict = I#istate.dict ++
                        I#istate.builtin_dict ++
                        I#istate.system_dict,
-                P = #pstate{file = File, dict = Dict},
+                P = #pstate{file = File, mode = RunMode, dict = Dict},
                 {_FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
+                garbage_collect(),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
                                               [], File, [], Cmds),
                 case parse_config(I, lists:reverse(Config)) of
@@ -118,34 +120,121 @@ updated_opts(I, DefaultI) ->
     lists:zf(Filter, Candidates).
 
 parse_file2(P) ->
-    case file:read_file(P#pstate.file) of
-        {ok, Bin} ->
-            Bins = re:split(Bin, <<"\n">>),
+    case file_open(P) of
+        {ok, Fd} ->
             FirstLineNo = 1,
-            Commands = parse(P, Bins, FirstLineNo, []),
-            %% io:format("Cmds: ~p\n", [Commands]),
-            case Commands of
+            {eof, RevCmds} = parse(P, Fd, FirstLineNo, []),
+            Cmds = lists:reverse(RevCmds),
+            %% io:format("Cmds: ~p\n", [Cmds]),
+            case Cmds of
                 [#cmd{lineno = LastLineNo} | _] -> ok;
-                [] -> LastLineNo = 1
+                []                              -> LastLineNo = 1
             end,
-            {FirstLineNo, LastLineNo, lists:reverse(Commands)};
-        {error, Reason} ->
-            parse_error(P, 0, file:format_error(Reason))
+            {FirstLineNo, LastLineNo, Cmds};
+        {error, FileReason} ->
+            NewFd = eof,
+            parse_error(P, NewFd, 0, file:format_error(FileReason))
     end.
 
-parse(P, [OrigLine | Lines], LineNo, Tokens) ->
-    Line = lux_utils:strip_leading_whitespaces(OrigLine),
-    do_parse(P, [Line | Lines], LineNo, OrigLine, Tokens);
-parse(_P, [], _LineNo, Tokens) ->
-    Tokens.
+file_open(Lines) when is_list(Lines) ->
+    [{read_ahead, Lines}];
+file_open(#pstate{file = File, mode = execute}) ->
+    case file:read_file(File) of
+        {ok, Bin} ->
+            Bins = re:split(Bin, <<"\n">>),
+            {ok, [{read_ahead, Bins}]};
+        {error, FileReason} ->
+            {error, FileReason}
+    end;
+file_open(#pstate{file = File}) ->
+    case file:open(File, [raw, binary, read_ahead]) of
+        {ok, Io} ->
+            {ok, [{open_file, Io, chopped}]};
+        {error, FileReason} ->
+            {error, FileReason}
+    end.
 
-do_parse(P, [<<>> | Lines], LineNo, OrigLine, Tokens) ->
+file_close([{read_ahead, _Bins} | Rest]) ->
+    file_close(Rest);
+file_close([{open_file, Io, _} | Rest]) ->
+    file:close(Io),
+    file_close(Rest);
+file_close([]) ->
+    eof;
+file_close(eof) ->
+    eof.
+
+file_push(Fd, []) ->
+    Fd;
+file_push([{read_ahead, Lines} | Fd], [Line]) ->
+    [{read_ahead, [Line | Lines]} | Fd];
+file_push(Fd, MoreLines) ->
+    [{read_ahead, MoreLines} | Fd].
+
+file_next([{read_ahead, Lines} | Rest]) ->
+    case Lines of
+        [H | T] ->
+            {line, H, [{read_ahead, T} | Rest]};
+        [] ->
+            file_next(Rest)
+    end;
+file_next([{open_file, Io, Trailing} | Rest]) ->
+    case file:read_line(Io) of
+        {ok, Line} ->
+            %% Chop newline
+            Line2 = re:replace(Line, "\n$", "", [{return, binary}]),
+            if
+                byte_size(Line) =/= byte_size(Line2) ->
+                    %% Trailing newline
+                    {line, Line2, [{open_file, Io, newline} | Rest]};
+                true ->
+                    {line, Line2, [{open_file, Io, chopped} | Rest]}
+            end;
+        eof when Trailing =:= newline ->
+            file:close(Io),
+            {line, <<>>, Rest};
+        eof when Trailing =:= chopped ->
+            file:close(Io),
+            file_next(Rest);
+        {error, _Reason} ->
+            file:close(Io),
+            file_next(Rest)
+    end;
+file_next([]) ->
+    eof;
+file_next(eof) ->
+    eof.
+
+file_splitwith(Fd, Pred, Acc) ->
+    case file_next(Fd) of
+        {line, Line, NewFd} ->
+            case Pred(Line) of
+                true  ->
+                    file_splitwith(NewFd, Pred, [Line|Acc]);
+                false ->
+                    {file_push(NewFd, [Line]), lists:reverse(Acc)}
+            end;
+        eof = NewFd ->
+            {NewFd, lists:reverse(Acc)}
+    end.
+
+parse(P, Fd, LineNo, Tokens) ->
+    case file_next(Fd) of
+        {line, OrigLine, NewFd} ->
+            Line = lux_utils:strip_leading_whitespaces(OrigLine),
+            parse_cmd(P, NewFd, Line, LineNo, OrigLine, Tokens);
+        eof = NewFd ->
+            {NewFd, Tokens}
+    end.
+
+parse_cmd(P, Fd, <<>>, LineNo, OrigLine, Tokens) ->
     Token = #cmd{type = comment, lineno = LineNo, raw = OrigLine},
-    parse(P, Lines, LineNo+1, [Token | Tokens]);
-do_parse(P,
-         [<<Op:8/integer, Bin/binary>> = Raw | Lines],
-         LineNo, OrigLine, Tokens) ->
-    Type = parse_oper(P, Op, LineNo, Raw),
+    parse(P, Fd, LineNo+1, [Token | Tokens]);
+parse_cmd(P,
+          Fd,
+          <<Op:8/integer, Bin/binary>> = Line,
+          LineNo, OrigLine, Tokens) ->
+    Type = parse_oper(P, Fd, Op, LineNo, Line),
     Cmd = #cmd{type = Type, lineno = LineNo, raw = OrigLine},
     Cmd2 =
         case Type of
@@ -163,14 +252,12 @@ do_parse(P,
             comment                   -> Cmd
         end,
     case Type of
-        meta       -> parse_meta(P, Bin, Cmd2, Lines, Tokens);
-        multi_line -> parse_multi(P, Bin, Cmd2, Lines, OrigLine, Tokens);
-        _          -> parse(P, Lines, LineNo+1, [Cmd2 | Tokens])
-    end;
-do_parse(_P, [], _LineNo, _OrigLine, Tokens) ->
-    Tokens.
+        meta       -> parse_meta(P, Fd, Bin, Cmd2, Tokens);
+        multi_line -> parse_multi(P, Fd, Bin, Cmd2, OrigLine, Tokens);
+        _          -> parse(P, Fd, LineNo+1, [Cmd2 | Tokens])
+    end.
 
-parse_oper(P, Op, LineNo, Raw) ->
+parse_oper(P, Fd, Op, LineNo, Raw) ->
     case Op of
         $!  -> send_lf;
         $~  -> send;
@@ -182,6 +269,7 @@ parse_oper(P, Op, LineNo, Raw) ->
         $"  -> multi_line;
         $#  -> comment;
         _   -> parse_error(P,
+                           Fd,
                            LineNo,
                            ["Syntax error at line ", integer_to_list(LineNo),
                             ": '", Raw, "'"])
@@ -210,7 +298,7 @@ parse_regexp(Cmd, Value) when Value =:= shell_exit;
                               Value =:= reset ->
     Cmd#cmd{arg = Value}.
 
-parse_var(P, Cmd, Scope, String) ->
+parse_var(P, Fd, Cmd, Scope, String) ->
     Pred = fun(C) -> C =/= $= end,
     case lists:splitwith(Pred, String) of
         {Var, [$= | Val]} ->
@@ -218,70 +306,63 @@ parse_var(P, Cmd, Scope, String) ->
         _ ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P,
+                        Fd,
                         LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": illegal ", atom_to_list(Scope),
                          " variable "," '", String, "'"])
     end.
 
-parse_meta(P, Bin, #cmd{lineno = LineNo} = Cmd, Lines, Tokens) ->
-    [First | MultiLine] = re:split(Bin, <<"\n">>),
-    ChoppedBin = lux_utils:strip_trailing_whitespaces(First),
+parse_meta(P, Fd, Bin, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+    ChoppedBin = lux_utils:strip_trailing_whitespaces(Bin),
     MetaSize = byte_size(ChoppedBin) - 1,
     case ChoppedBin of
         <<Meta:MetaSize/binary, "]">> ->
-            {LineNo2, Token2, Lines2} =
-                case parse_meta_token(P, Cmd, Meta, LineNo) of
+            {NewFd, LineNo2, Token2} =
+                case parse_meta_token(P, Fd, Cmd, Meta, LineNo) of
                     #cmd{type = macro} = Macro ->
-                        parse_body(P, Macro, "endmacro",
-                                   LineNo, MultiLine, Lines);
+                        parse_body(P, Fd, Macro, "endmacro", LineNo);
                     #cmd{type = loop} = Loop ->
-                        parse_body(P, Loop, "endloop",
-                                   LineNo, MultiLine, Lines);
+                        parse_body(P, Fd, Loop, "endloop", LineNo);
                     Token ->
-                        {LineNo, Token, Lines}
+                        {Fd, LineNo, Token}
                 end,
-            parse(P, Lines2, LineNo2+1, [Token2 | Tokens]);
+            parse(P, NewFd, LineNo2+1, [Token2 | Tokens]);
         _ ->
             parse_error(P,
+                        Fd,
                         LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": ']' is expected to be at end of line"])
     end.
 
 parse_body(P,
+           Fd,
            #cmd{arg = {body, Tag, Name, Items}} = Cmd,
            EndKeyword,
-           LineNo,
-           MultiLine,
-           Lines) ->
-    case MultiLine of
-        [] ->
-            {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
-            Pred = fun(L) -> re:run(L, MP, [{capture, none}]) =:= nomatch end,
-            {RawBody, After} = lists:splitwith(Pred, Lines),
-            case After of
-                [] ->
-                    parse_error(P,
-                                LineNo,
-                                ["Syntax error after line ",
-                                 integer_to_list(LineNo),
-                                 ": [" ++ EndKeyword ++ "] expected"]);
-                [_EndMacro | Lines2] ->
-                    BodyLen = length(RawBody),
-                    Body = lists:reverse(parse(P, RawBody, LineNo+1, [])),
-                    LastLineNo = LineNo+BodyLen+1,
-                    Arg = {Tag, Name, Items, LineNo, LastLineNo, Body},
-                    {LineNo+BodyLen+1, Cmd#cmd{arg = Arg}, Lines2}
-            end;
-        _ ->
-            Body = lists:reverse(parse(P, MultiLine, LineNo+1, [])),
-            LastLineNo = LineNo,
-            Arg = {Tag, Name, Items, LineNo, LastLineNo, Body},
-            {LineNo, Cmd#cmd{arg = Arg}, Lines}
+           LineNo) ->
+    {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
+    Pred = fun(L) -> re:run(L, MP, [{capture, none}]) =:= nomatch end,
+    {FdAfter, BodyLines} = file_splitwith(Fd, Pred, []),
+    case file_next(FdAfter) of
+        eof = NewFd ->
+            parse_error(P,
+                        NewFd,
+                        LineNo,
+                        ["Syntax error after line ",
+                         integer_to_list(LineNo),
+                         ": [" ++ EndKeyword ++ "] expected"]);
+        {line, _EndMacro, NewFd} ->
+            BodyLen = length(BodyLines),
+            FdBody = file_open(BodyLines),
+            {eof, RevBodyCmds} = parse(P, FdBody, LineNo+1, []),
+            BodyCmds = lists:reverse(RevBodyCmds),
+            LastLineNo = LineNo+BodyLen+1,
+            Arg = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
+            {NewFd, LastLineNo, Cmd#cmd{arg = Arg}}
     end.
 
-parse_meta_token(P, Cmd, Meta, LineNo) ->
+parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
     case binary_to_list(Meta) of
         "doc" ++ Text ->
             Text2 =
@@ -303,6 +384,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
             catch
                 error:_ ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 ["Illegal prefix of doc string" ,
                                  Text2,
@@ -317,12 +399,14 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
             case {Name2, Match} of
                 {"", _} ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 io_lib:format("Syntax error at line ~p"
                                               ": missing shell name",
                                               [LineNo]));
                 {"lux"++_, _} ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 io_lib:format("Syntax error at line ~p"
                                               ": ~s is a reserved"
@@ -330,6 +414,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                                               [LineNo, Name2]));
                 {"cleanup"++_, _} ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 io_lib:format("Syntax error at line ~p"
                                               ": ~s is a reserved"
@@ -337,6 +422,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                                               [LineNo, Name2]));
                 {_, match} ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 io_lib:format("Syntax error at line ~p"
                                               ": $$ in shell name",
@@ -348,7 +434,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
             Cmd2 = Cmd#cmd{type = expect, raw = <<".">>},
             parse_regexp(Cmd2, shell_exit);
         "config" ++ VarVal ->
-            ConfigCmd = parse_var(P, Cmd, config, string:strip(VarVal)),
+            ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
             try
                 MissingVar = keep, % BUGBUG: should be error
@@ -359,6 +445,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
             catch
                 throw:{no_such_var, BadVar} ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 ["Variable $",
                                  BadVar,
@@ -368,11 +455,11 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                     erlang:error(Reason)
             end;
         "my" ++ VarVal ->
-            parse_var(P, Cmd, my, string:strip(VarVal));
+            parse_var(P, Fd, Cmd, my, string:strip(VarVal));
         "local" ++ VarVal ->
-            parse_var(P, Cmd, local, string:strip(VarVal));
+            parse_var(P, Fd, Cmd, local, string:strip(VarVal));
         "global" ++ VarVal ->
-            parse_var(P, Cmd, global, string:strip(VarVal));
+            parse_var(P, Fd, Cmd, global, string:strip(VarVal));
         "timeout" ++ Time ->
             Cmd#cmd{type = change_timeout, arg = string:strip(Time)};
         "sleep" ++ Time ->
@@ -390,7 +477,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                                LastLineNo,InclCmds}}
             catch
                 throw:{error, ErrorStack, Reason} ->
-                    parse_error(P, LineNo, Reason, ErrorStack) % re-throw
+                    parse_error(P, Fd, LineNo, Reason, ErrorStack) % re-throw
             end;
         "macro" ++ Head ->
             case string:tokens(string:strip(Head), " ") of
@@ -398,17 +485,19 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                     Cmd#cmd{type = macro, arg = {body, macro, Name, ArgNames}};
                 [] ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
                                  ": missing macro name"])
             end;
         "invoke" ++ Head ->
-            case split_invoke_args(P, LineNo, Head, normal, [], []) of
+            case split_invoke_args(P, Fd, LineNo, Head, normal, [], []) of
                 [Name | ArgVals] ->
                     Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}};
                 [] ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
@@ -422,6 +511,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                     Cmd#cmd{type = loop, arg = {body, loop, Var, Items}};
                 _ ->
                     parse_error(P,
+                                Fd,
                                 LineNo,
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
@@ -429,6 +519,7 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
             end;
         Bad ->
             parse_error(P,
+                        Fd,
                         LineNo,
                         ["Syntax error at line ",
                          integer_to_list(LineNo),
@@ -436,63 +527,66 @@ parse_meta_token(P, Cmd, Meta, LineNo) ->
                          Bad, "'"])
     end.
 
-split_invoke_args(P, LineNo, [], quoted, Arg, _Args) ->
+split_invoke_args(P, Fd, LineNo, [], quoted, Arg, _Args) ->
     parse_error(P,
+                Fd,
                 LineNo,
                 ["Syntax error at line ",
                  integer_to_list(LineNo),
                  ": Unterminated quote '",
                  lists:reverse(Arg), "'"]);
-split_invoke_args(_P, _LineNo, [], normal, [], Args) ->
+split_invoke_args(_P, _ArgsFd, _LineNo, [], normal, [], Args) ->
     lists:reverse(Args);
-split_invoke_args(_P, _LineNo, [], normal, Arg, Args) ->
+split_invoke_args(_P, _Fd, _LineNo, [], normal, Arg, Args) ->
     lists:reverse([lists:reverse(Arg) | Args]);
-split_invoke_args(P, LineNo, [H | T], normal = Mode, Arg, Args) ->
+split_invoke_args(P, Fd, LineNo, [H | T], normal = Mode, Arg, Args) ->
     case H of
         $\" -> % quote begin
-            split_invoke_args(P, LineNo, T, quoted, Arg, Args);
+            split_invoke_args(P, Fd, LineNo, T, quoted, Arg, Args);
         $\  when Arg =:= [] -> % skip space between args
-            split_invoke_args(P, LineNo, T, Mode, Arg, Args);
+            split_invoke_args(P, Fd, LineNo, T, Mode, Arg, Args);
         $\  when Arg =/= [] -> % first space after arg
             Arg2 = lists:reverse(Arg),
-            split_invoke_args(P, LineNo, T, Mode, [], [Arg2 | Args]);
+            split_invoke_args(P, Fd, LineNo, T, Mode, [], [Arg2 | Args]);
         $\\ when hd(T) =:= $\\ ; hd(T) =:= $\" -> % escaped char
-            split_invoke_args(P, LineNo, tl(T), Mode, [hd(T) | Arg], Args);
+            split_invoke_args(P, Fd, LineNo, tl(T), Mode, [hd(T) | Arg], Args);
         Char ->
-            split_invoke_args(P, LineNo, T, Mode, [Char | Arg], Args)
+            split_invoke_args(P, Fd, LineNo, T, Mode, [Char | Arg], Args)
     end;
-split_invoke_args(P, LineNo, [H | T], quoted = Mode, Arg, Args) ->
+split_invoke_args(P, Fd, LineNo, [H | T], quoted = Mode, Arg, Args) ->
     case H of
         $\" -> % quote end
             Arg2 = lists:reverse(Arg),
-            split_invoke_args(P, LineNo, T, normal, [], [Arg2 | Args]);
+            split_invoke_args(P, Fd, LineNo, T, normal, [], [Arg2 | Args]);
         $\\ when hd(T) =:= $\\; hd(T) =:= $\" ->  % escaped char
-            split_invoke_args(P, LineNo, tl(T), Mode, [hd(T) | Arg], Args);
+            split_invoke_args(P, Fd, LineNo, tl(T), Mode, [hd(T) | Arg], Args);
         Char ->
-            split_invoke_args(P, LineNo, T, Mode, [Char | Arg], Args)
+            split_invoke_args(P, Fd, LineNo, T, Mode, [Char | Arg], Args)
     end.
 
-parse_multi(P, <<$":8/integer, $":8/integer, Chars/binary>>,
-            #cmd{lineno = LineNo}, Lines, OrigLine, Tokens) ->
+parse_multi(P, Fd, <<$":8/integer, $":8/integer, Chars/binary>>,
+            #cmd{lineno = LineNo}, OrigLine, Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
-    {RevBefore, After, RemPrefixLen} = scan_multi(Lines, PrefixLen, []),
+    {RevBefore, FdAfter, RemPrefixLen} = scan_multi(Fd, PrefixLen, []),
     LastLineNo = LineNo + length(RevBefore) + 1,
-    case After of
-        [] ->
+    case file_next(FdAfter) of
+        eof = NewFd ->
             parse_error(P,
+                        NewFd,
                         LastLineNo,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": '\"\"\"' expected"]);
-        _ when RemPrefixLen =/= 0 ->
+        {line, _, NewFd} when RemPrefixLen =/= 0 ->
             parse_error(P,
+                        NewFd,
                         LastLineNo,
                         ["Syntax error at line ", integer_to_list(LastLineNo),
                          ": multi line block must end in same column as"
                          " it started on line ", integer_to_list(LineNo)]);
-        [_EndOfMulti | Lines2] ->
+        {line, _EndOfMulti, Fd2} ->
             %% Join all lines with a newline as separator
-            Multi =
+            Blob =
                 case RevBefore of
                     [Single] ->
                         Single;
@@ -504,12 +598,14 @@ parse_multi(P, <<$":8/integer, $":8/integer, Chars/binary>>,
                     [] ->
                         <<"">>
                 end,
-            Extra = [<<Chars/binary, Multi/binary>>],
-            Tokens2 = do_parse(P, Extra, LastLineNo, OrigLine, Tokens),
-            parse(P, Lines2, LastLineNo+1, Tokens2)
+            MultiLine = <<Chars/binary, Blob/binary>>,
+            {NewFd, Tokens2} =
+                parse_cmd(P, Fd2, MultiLine, LastLineNo, OrigLine, Tokens),
+            parse(P, NewFd, LastLineNo+1, Tokens2)
     end;
-parse_multi(P, _, #cmd{lineno = LineNo}, _Lines, _OrigLine, _Tokens) ->
+parse_multi(P, Fd, _, #cmd{lineno = LineNo}, _OrigLine, _Tokens) ->
     parse_error(P,
+                Fd,
                 LineNo,
                 ["Syntax error at line ", integer_to_list(LineNo),
                  ": '\"\"\"' command expected"]).
@@ -521,15 +617,18 @@ count_prefix_len([H | T], N) ->
         $"  -> N
     end.
 
-scan_multi([Line | Lines] = All, PrefixLen, Acc) ->
-    case scan_single(Line, PrefixLen) of
-        {more, Line2} ->
-            scan_multi(Lines, PrefixLen, [Line2 | Acc]);
-        {nomore, RemPrefixLen} ->
-            {Acc, All, RemPrefixLen}
-    end;
-scan_multi([], PrefixLen, Acc) ->
-    {Acc, [], PrefixLen}.
+scan_multi(Fd, PrefixLen, Acc) ->
+    case file_next(Fd) of
+        {line, Line, NewFd} ->
+            case scan_single(Line, PrefixLen) of
+                {more, Line2} ->
+                    scan_multi(NewFd, PrefixLen, [Line2 | Acc]);
+                {nomore, RemPrefixLen} ->
+                    {Acc, file_push(NewFd, [Line]), RemPrefixLen}
+            end;
+        eof = NewFd->
+            {Acc, NewFd, PrefixLen}
+    end.
 
 scan_single(Line, PrefixLen) ->
     case Line of
@@ -543,8 +642,8 @@ scan_single(Line, PrefixLen) ->
             Left = PrefixLen - ?TAB_LEN,
             if
                 Left < 0 -> % Too much leading whitespace
-                    Spaces = list_to_binary(lists:duplicate(abs(Left), $\ )),
-                    {more, <<Spaces/binary, Line/binary>>};
+                    Spaces = lists:duplicate(abs(Left), $\ ),
+                    {more, iolist_to_binary([Spaces, Line])};
                 true ->
                     scan_single(Rest, Left)
             end;
@@ -552,10 +651,11 @@ scan_single(Line, PrefixLen) ->
             {more, Line}
     end.
 
-parse_error(File, LineNo, IoList) ->
-    parse_error(File, LineNo, IoList, []).
+parse_error(File, Fd, LineNo, IoList) ->
+    parse_error(File, Fd, LineNo, IoList, []).
 
-parse_error(StateOrFile, LineNo, IoList, Stack) ->
+parse_error(StateOrFile, Fd, LineNo, IoList, Stack) ->
+    file_close(Fd),
     File = state_to_file(StateOrFile),
     Context =
         case Stack of

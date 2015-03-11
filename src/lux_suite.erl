@@ -16,7 +16,7 @@
 
 -record(rstate,
         {files                      :: [string()],
-         mode = execute             :: list | doc | validate | execute | doc,
+         mode = execute             :: run_mode(),
          skip_skip = false          :: boolean(),
          config_dir                 :: string(),
          file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
@@ -405,7 +405,7 @@ run_cases(R, [{SuiteFile, {error,Reason}}|Scripts], OldSummary, Results, CC) ->
     run_cases(R, Scripts, OldSummary, Results2, CC+1);
 run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
     RelScript = lux_utils:drop_prefix(Script),
-    Mode = R#rstate.mode,
+    RunMode = R#rstate.mode,
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
         {ok, R2, Script2, Commands, Opts} ->
             SkipNames0 = list_matching_variables(R2, skip, false),
@@ -427,13 +427,13 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                         ""
                 end,
             RequireNames =
-                case Mode of
+                case RunMode of
                     doc -> [];
                     _   -> list_matching_variables(R2, require, true)
                 end,
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
-            case Mode of
+            case RunMode of
                 list when SkipNames =/= []; SkipUnlessNames =/= [] ->
                     run_cases(R, Scripts, OldSummary, Results, CC+1);
                 list ->
@@ -560,10 +560,10 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     end,
                     run_cases(R3, NewScripts, NewSummary, NewResults, CC+1)
             end;
-        {error, _R2, _ErrorStack, _ErrorBin} when Mode =:= list ->
+        {error, _R2, _ErrorStack, _ErrorBin} when RunMode =:= list ->
             io:format("~s\n", [Script]),
             run_cases(R, Scripts, OldSummary, Results, CC+1);
-        {error, _R2, ErrorStack, ErrorBin} when Mode =:= doc ->
+        {error, _R2, ErrorStack, ErrorBin} when RunMode =:= doc ->
             {MainFile, _FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
             io:format("~s:\n\tERROR: ~s: ~s\n",
@@ -654,7 +654,7 @@ print_results(#rstate{warnings=Warnings}, Summary, Results) ->
     lux_log:print_results({false,standard_io}, Summary, Results, Warnings).
 
 parse_script(R, SuiteFile, Script) ->
-    case lux:parse_file(Script, []) of
+    case lux:parse_file(Script, R#rstate.mode, []) of
         {ok, Script2, Commands, FileOpts} ->
             FileOpts2 = merge_opts(FileOpts, R#rstate.file_opts),
             R2 = R#rstate{internal_opts=[],
@@ -738,7 +738,7 @@ config_name() ->
 
 parse_config_file(R, ConfigFile) ->
     Key = config_dir,
-    case lux:parse_file(ConfigFile, []) of
+    case lux:parse_file(ConfigFile, R#rstate.mode, []) of
         {ok, _File, _Commands, Opts} ->
             Opts2 =
                 case lists:keyfind(Key, 1, Opts) of

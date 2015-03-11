@@ -8,6 +8,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Defines
 
+-type run_mode() :: list | doc | validate | execute.
+
 -define(stack(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
 -define(APPLICATION, lux).
 -define(TAG_WIDTH, 20).
