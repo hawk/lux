@@ -147,14 +147,11 @@ parse_file2(P) ->
 
 file_open(Lines) when is_list(Lines) ->
     [{read_ahead, Lines}];
-%% file_open(#pstate{file = File, mode = execute}) ->
 file_open(#pstate{file = File, mode = RunMode}) ->
-    do_file_open(File, RunMode, os:getenv("LUX_READ_LINE")).
+    do_file_open(File, RunMode).
 
-do_file_open( File, RM, false) ->
-    if RM =:= validate; RM =:= execute -> io:format("BULK: ~s\n", [File]);
-       true -> ok
-    end,
+do_file_open( File, RM) when RM =:= validate; RM =:= execute ->
+    %% Bulk read file
     case file:read_file(File) of
         {ok, Bin} ->
             Bins = re:split(Bin, <<"\n">>),
@@ -162,10 +159,8 @@ do_file_open( File, RM, false) ->
         {error, FileReason} ->
             {error, FileReason}
     end;
-do_file_open(File, RM, _) ->
-    if RM =:= validate; RM =:= execute -> io:format("LINE: ~s\n", [File]);
-       true -> ok
-    end,
+do_file_open(File, RM) when RM =:= doc; RM =:= list ->
+    %% Read lines on demand
     case file:open(File, [raw, binary, read_ahead]) of
         {ok, Io} ->
             {ok, [{open_file, Io, chopped}]};
