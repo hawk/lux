@@ -960,9 +960,16 @@ ensure_lux_app_dir(Retry) ->
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
             %%           [Name, EbinDir]),
-            code:add_patha(EbinDir),
+            case code:add_patha(EbinDir) of
+                true ->
+                    ok;
+                {error, AddReason} ->
+                    io:format("ADD PATH FAILED: ~s ~p\n", [EbinDir, AddReason])
+            end,
             ensure_lux_app_dir(false);
         {error, Reason} ->
+            io:format("ROOT DIR: ~p\n", [code:root_dir()]),
+            io:format("CODE PATH: ~p\n", [code:get_path()]),
             fatal_error(2, "The application '~p' is required to run: ~p\n",
                         [AppName, Reason]);
         EbinDir ->
