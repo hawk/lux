@@ -30,7 +30,7 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
         case lux_interpret:parse_iopts(DefaultI, Opts) of
             {ok, I} ->
                 Dicts =
-                    [I#istate.dict,
+                    [I#istate.global_dict,
                      I#istate.builtin_dict,
                      I#istate.system_dict],
                 P = #pstate{file = File,
@@ -115,7 +115,7 @@ updated_opts(I, DefaultI) ->
          {shell_args, #istate.shell_args},
          {shell_prompt_cmd, #istate.shell_prompt_cmd},
          {shell_prompt_regexp, #istate.shell_prompt_regexp},
-         {var, #istate.dict},
+         {var, #istate.global_dict},
          {system_env, #istate.system_dict}
         ],
     Filter = fun({Tag, Pos}) ->
@@ -323,17 +323,23 @@ parse_regexp(Cmd, Value) when Value =:= shell_exit;
     Cmd#cmd{arg = Value}.
 
 parse_var(P, Fd, Cmd, Scope, String) ->
-    Pred = fun(C) -> C =/= $= end,
-    case lists:splitwith(Pred, String) of
-        {Var, [$= | Val]} ->
+    case split_var(String, []) of
+        {Var, Val} ->
             Cmd#cmd{type = variable, arg = {Scope, Var, Val}};
-        _ ->
+        false ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": illegal ", atom_to_list(Scope),
                          " variable "," '", String, "'"])
     end.
+
+split_var([$= | Val], Var) ->
+    {lists:reverse(Var), Val};
+split_var([H | T], Var) ->
+    split_var(T, [H | Var]);
+split_var([], _Var) ->
+    false.
 
 parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
     ChoppedData = lux_utils:strip_trailing_whitespaces(Data),
@@ -575,31 +581,33 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
             Cmd
     end.
 
-test_variable(P, NameVal) ->
-    Pred = fun(Char) -> Char =/= $= end,
-    {Name, OptVal} = lists:splitwith(Pred, NameVal),
-    UnExpanded = [$$ | Name],
+test_variable(P, VarVal) ->
+    case split_var(VarVal, []) of
+        {Var, Val} ->
+            ok;
+        false ->
+            Var = VarVal,
+            Val = false
+    end,
+    UnExpanded = [$$ | Var],
     try
         Expanded = lux_utils:expand_vars(P#pstate.dicts, UnExpanded, error),
         %% Variable is set
-        case OptVal of
-            "" ->
+        if
+            Val =:= false ->
                 %% Variable exists
-                {true, Name};
-            "=" ->
-                %% Variable exists
-                {true, Name};
-            "=" ++ Val when Val =:= Expanded ->
+                {true, Var};
+            Val =:= Expanded ->
                 %% Value matches. Possible empty.
-                {true, Name};
-            _ ->
+                {true, Var};
+            true ->
                 %% Value does not match
-                {false, Name}
+                {false, Var}
         end
     catch
         throw:{no_such_var, _} ->
             %% Variable is not set
-            {false, Name}
+            {false, Var}
     end.
 
 expand_vars(P, Fd, Val, LineNo) ->

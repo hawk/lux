@@ -27,7 +27,8 @@
         {name   :: string(),
          pid    :: pid(),
          ref    :: reference(),
-         health :: alive | zombie}).
+         health :: alive | zombie,
+         dict   :: [string()]}). % ["name=val"]
 
 -record(result,
         {outcome       :: fail | success | shutdown,
@@ -85,21 +86,22 @@
          shell_prompt_regexp = "^SH-PROMPT:" :: string(),
          call_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
-         active_pid                 :: undefined | pid(),
+         active_shell               :: undefined | #shell{},
          active_name = "lux"        :: undefined | string(),
+         shells = []                :: [#shell{}],
          blocked                    :: boolean(),
          has_been_blocked           :: boolean(),
          want_more                  :: boolean(),
          old_want_more              :: boolean(),
          debug_level = 0            :: non_neg_integer(),
          breakpoints = []           :: [#break{}],
-         shells = []                :: [#shell{}],
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
          cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
+         submatch_dict = []         :: [string()],   % ["name=val"]
          macro_dict = []            :: [string()],   % ["name=val"]
-         dict = []                  :: [string()],   % ["name=val"]
+         global_dict = []           :: [string()],   % ["name=val"]
          builtin_dict               :: [string()],   % ["name=val"]
          system_dict                :: [string()],   % ["name=val"]
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}

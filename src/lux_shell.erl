@@ -59,9 +59,9 @@
          timer_started_at        :: undefined | {non_neg_integer(),
                                                  non_neg_integer(),
                                                  non_neg_integer()},
-         submatches = []         :: [binary()],
          debug_level = 0         :: non_neg_integer(),
          events = []             :: [tuple()],
+         submatch_dict = []      :: [string()],   % ["name=val"]
          macro_dict              :: [string()],   % ["name=val"]
          dict                    :: [string()],   % ["name=val"]
          builtin_dict            :: [string()],   % ["name=val"]
@@ -95,13 +95,15 @@ start_monitor(I, Cmd, Name) ->
                 shell_prompt_cmd = I#istate.shell_prompt_cmd,
                 shell_prompt_regexp = I#istate.shell_prompt_regexp,
                 debug_level = I#istate.debug_level,
+                submatch_dict = I#istate.submatch_dict,
                 macro_dict = I#istate.macro_dict,
-                dict = I#istate.dict,
+                dict = I#istate.global_dict,
                 builtin_dict = I#istate.builtin_dict,
                 system_dict = I#istate.system_dict},
     {Pid, Ref} = spawn_monitor(fun() -> init(C) end),
-    Shell = #shell{name = Name, pid = Pid, ref = Ref, health = alive},
-    I2 = I#istate{active_pid = Pid,
+    Shell = #shell{name = Name, pid = Pid, ref = Ref,
+                   health = alive, dict = I#istate.global_dict},
+    I2 = I#istate{active_shell = Shell,
                   active_name = Name,
                   shells = [Shell | I#istate.shells]},
     receive
@@ -228,15 +230,36 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             expect_more(C3);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
+        %% OBSOLETE
         {expand_vars, From, Bin} ->
             expand_vars_and_reply(C, From, Bin);
         {eval, From, Cmd} ->
             dlog(C, ?dmore, "eval (got ~p)", [Cmd#cmd.type]),
             assert_eval(C, Cmd, From),
-            shell_eval(C, Cmd, OrigC);
-        {global, _From, VarVal} ->
-            clog(C, global, "\"~s\"", [VarVal]),
-            C#cstate{dict = [VarVal | C#cstate.dict]};
+            shell_eval(C, Cmd);
+        {variable, _From, Scope, VarVal} ->
+            case Scope of
+                my ->
+                    clog(C, Scope, "\"~s\"", [VarVal]),
+                    Dict = [VarVal | C#cstate.macro_dict],
+                    C#cstate{macro_dict = Dict};
+                local ->
+                    clog(C, Scope, "\"~s\"", [VarVal]),
+                    Dict = [VarVal | C#cstate.dict],
+                    C#cstate{dict = Dict};
+                global when C#cstate.mode =:= resume ->
+                    clog(C, Scope, "\"~s\"", [VarVal]),
+                    Dict = [VarVal | C#cstate.dict],
+                    C#cstate{dict = Dict};
+                global when C#cstate.mode =:= suspend ->
+                    Dict = [VarVal | C#cstate.dict],
+                    C#cstate{dict = Dict}
+            end;
+        %% OBSOLETE
+        {submatch_dict, _From, SubDict} ->
+            %% clog(C, submatch_dict, "\"~s\"", [SubDict]),
+            C#cstate{submatch_dict = SubDict};
+        %% OBSOLETE
         {macro_dict, _From, MacroDict} ->
             %% clog(C, macro_dict, "\"~s\"", [MacroDict]),
             C#cstate{macro_dict = MacroDict};
@@ -447,36 +470,12 @@ assert_eval(C, Cmd, _From) ->
                     Cmd, C#cstate.expected, Cmd#cmd.type}).
 
 shell_eval(#cstate{name = Name} = C0,
-           #cmd{type = Type, arg = Arg} = Cmd, OrigC) ->
+           #cmd{type = Type, arg = Arg} = Cmd) ->
     C = C0#cstate{latest_cmd = Cmd, waiting = false},
     dlog(C, ?dmore,"waiting=false (eval ~p)", [Cmd#cmd.type]),
     case Type of
-        variable ->
-            try
-                {Scope, Var, Val} = Arg,
-                Val2 = expand_vars(C, Val, error),
-                VarVal = lists:flatten([Var, $=, Val2]),
-                clog(C, Scope, "\"~s\"", [ VarVal]),
-                case Scope of
-                    my ->
-                        send_reply(C, C#cstate.parent, {my,self(),Name,VarVal}),
-                        C#cstate{macro_dict = [VarVal | C#cstate.macro_dict]};
-                    local ->
-                        C#cstate{dict = [VarVal | C#cstate.dict]};
-                    global ->
-                        send_reply(C, C#cstate.parent,
-                                   {global,self(), Name, VarVal}),
-                        C#cstate{dict = [VarVal | C#cstate.dict]}
-                end
-            catch
-                throw:{no_such_var, BadName} ->
-                    BinErr = list_to_binary(["Variable $", BadName,
-                                             " is not set"]),
-                    %% io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
-                    stop(C, error, BinErr)
-            end;
         send_lf when is_binary(Arg) ->
-            send_to_port(C, <<Arg/binary, "\n">>);
+            send_to_port(C, Arg); % newline already added
         send when is_binary(Arg) ->
             send_to_port(C, Arg);
         expect when Arg =:= shell_exit ->
@@ -495,29 +494,33 @@ shell_eval(#cstate{name = Name} = C0,
                       actual = <<>>,
                       events = save_event(C, recv, Waste)};
         expect ->
-            {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
-            clog(C2, expect, "\"~s\"", [lux_utils:to_string(RegExp2)]),
-            C3 = start_timer(C2),
-            dlog(C3, ?dmore, "expected=regexp (expect)", []),
-            C3#cstate{state_changed = true,
-                      expected = Cmd2};
+            RegExp = extract_regexp(Arg),
+            clog(C, expect, "\"~s\"", [lux_utils:to_string(RegExp)]),
+            C2 = start_timer(C),
+            dlog(C2, ?dmore, "expected=regexp (expect)", []),
+            C2#cstate{state_changed = true, expected = Cmd};
+        fail when Arg =:= reset ->
+            clog(C, fail, "pattern ~p", [Arg]),
+            Pattern = #pattern{cmd = undefined,
+                               cmd_stack = C#cstate.cmd_stack},
+            C#cstate{state_changed = true, fail = Pattern};
         fail ->
-            {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
-            clog(C2, fail, "pattern ~p", [lux_utils:to_string(RegExp2)]),
-            Pattern = #pattern{cmd = Cmd2,
-                               cmd_stack = C2#cstate.cmd_stack},
-            C2#cstate{state_changed = true,
-                      fail = Pattern};
+            RegExp = extract_regexp(Arg),
+            clog(C, fail, "pattern ~p", [lux_utils:to_string(RegExp)]),
+            Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
+            C#cstate{state_changed = true, fail = Pattern};
+        success when Arg =:= reset ->
+            clog(C, success, "pattern ~p", [Arg]),
+            Pattern = #pattern{cmd = undefined,
+                               cmd_stack = C#cstate.cmd_stack},
+            C#cstate{state_changed = true, success = Pattern};
         success ->
-            {C2, Cmd2, RegExp2} = compile_regexp(C, Arg),
-            clog(C2, success, "pattern ~p",
-                 [lux_utils:to_string(RegExp2)]),
-            Pattern = #pattern{cmd = Cmd2,
-                               cmd_stack = C2#cstate.cmd_stack},
-            C2#cstate{state_changed = true,
-                           success = Pattern};
-        sleep ->
-            Secs = parse_int(C, Arg, Cmd),
+            RegExp = extract_regexp(Arg),
+            clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
+            Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
+            C#cstate{state_changed = true, success = Pattern};
+        sleep when is_integer(Arg) ->
+            Secs = Arg,
             clog(C, sleep, "(~p seconds)", [Secs]),
             Progress = C#cstate.progress,
             Self = self(),
@@ -529,32 +532,16 @@ shell_eval(#cstate{name = Name} = C0,
             dlog(C, ?dmore,"mode=suspend (sleep)", []),
             C#cstate{mode = suspend};
         progress when is_list(Arg) ->
-            try
-                String = expand_vars(C, Arg, error),
-                clog(C, progress, "\"~s\"", [String]),
-                io:format("~s", [String]),
-                C
-            catch
-                throw:{no_such_var, BadName} ->
-                    BinErr = list_to_binary(["Variable $", BadName,
-                                             " is not set"]),
-                    stop(C, error, BinErr)
-            end;
+            String = Arg,
+            clog(C, progress, "\"~s\"", [String]),
+            io:format("~s", [String]),
+            C;
         change_timeout ->
-            Millis =
-                case Arg of
-                    "" ->
-                        OrigC#cstate.timeout;
-                    "infinity" ->
-                        infinity;
-                    SecsStr ->
-                        Secs = parse_int(C, SecsStr, Cmd),
-                        timer:seconds(Secs)
-                end,
-            case Millis of
-                infinity ->
+            Millis = Arg,
+            if
+                Millis =:= infinity ->
                     clog(C, change, "expect timeout to infinity", []);
-                _ ->
+                is_integer(Millis) ->
                     clog(C, change, "expect timeout to ~p seconds",
                          [Millis div timer:seconds(1)])
             end,
@@ -580,46 +567,26 @@ shell_eval(#cstate{name = Name} = C0,
             stop(C, error, list_to_binary(Err))
     end.
 
-send_to_port(C, RawData) ->
+send_to_port(C, Data) ->
+    lux_log:safe_write(C#cstate.progress,
+                       C#cstate.log_fun,
+                       C#cstate.stdin_log_fd,
+                       Data),
+    C2 = C#cstate{events = save_event(C, send, Data)},
     try
-        Data = expand_vars(C, RawData, error),
-        lux_log:safe_write(C#cstate.progress,
-                           C#cstate.log_fun,
-                           C#cstate.stdin_log_fd,
-                           Data),
-        C2 = C#cstate{events = save_event(C, send, Data)},
-        try
-            true = port_command(C2#cstate.port, Data),
-            C2
-        catch
-            error:_Reason ->
-                receive
-                    {'EXIT', Port, _PosixCode}
-                      when Port =:= C2#cstate.port ->
-                        C2#cstate{state_changed = true,
-                                  no_more_output = true,
-                                  events = save_event(C2, recv, shell_exit)}
-                after 0 ->
-                        C2
-                end
-        end
+        true = port_command(C2#cstate.port, Data),
+        C2
     catch
-        throw:{no_such_var, BadName} ->
-            VarErr = list_to_binary(["Variable $", BadName,
-                                     " is not set"]),
-            stop(C, error, VarErr)
-    end.
-
-parse_int(C, Chars, Cmd) ->
-    Chars2 = expand_vars(C, Chars, error),
-    try
-        list_to_integer(Chars2)
-    catch
-        error:_ ->
-            BinErr = list_to_binary(["Syntax error at line ",
-                                     integer_to_list(Cmd#cmd.lineno),
-                                     ": '", Chars2, "' integer expected"]),
-            stop(C, error, BinErr)
+        error:_Reason ->
+            receive
+                {'EXIT', Port, _PosixCode}
+                  when Port =:= C2#cstate.port ->
+                    C2#cstate{state_changed = true,
+                              no_more_output = true,
+                              events = save_event(C2, recv, shell_exit)}
+            after 0 ->
+                    C2
+            end
     end.
 
 sleep_walker(Progress, ReplyTo, WakeUp) ->
@@ -721,9 +688,12 @@ try_match(C, Actual) ->
                     %% End of input
                     stop(C3, success, end_of_script);
                 false ->
+                    SubDict = submatch_dict(SubMatches, 1),
+                    send_reply(C3, C3#cstate.parent,
+                               {submatch_dict, self(), SubDict}),
                     C4 = C3#cstate{expected = undefined,
                                    actual = Rest,
-                                   submatches = SubMatches},
+                                   submatch_dict = SubDict},
                     dlog(C4, ?dmore, "expected=undefined (waiting)", []),
                     opt_late_sync_reply(C4)
             end;
@@ -732,6 +702,17 @@ try_match(C, Actual) ->
             %% Wait for more input
             match_patterns(C, Actual)
     end.
+
+submatch_dict([SubMatches | Rest], N) ->
+    case SubMatches of
+        nosubmatch ->
+            submatch_dict(Rest, N+1); % Omit $N as its value is undefined
+        Val ->
+            VarVal = integer_to_list(N) ++ "=" ++ binary_to_list(Val),
+            [VarVal | submatch_dict(Rest, N+1)]
+    end;
+submatch_dict([], _) ->
+    [].
 
 match_patterns(C, Actual) ->
     C2 = match_fail_pattern(C, Actual),
@@ -769,7 +750,7 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{expected = undefined,
                   actual = Actual,
-                  submatches = []},
+                  submatch_dict = []},
     Actual2 = <<Context/binary, "\"", Match/binary, "\"">>,
     dlog(C2, ?dmore, "expected=undefined (prepare_stop)", []),
     C3 = opt_late_sync_reply(C2),
@@ -859,43 +840,21 @@ cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
              timer = undefined,
              timer_started_at = undefined}.
 
-compile_regexp(C, reset) ->
-    {C, undefined, reset};
-compile_regexp(C, shell_exit) ->
-    {C, undefined, shell_exit};
-compile_regexp(C, {verbatim, Verbatim}) ->
-    {C, C#cstate.latest_cmd, Verbatim};
-compile_regexp(C, {mp, RegExp, _MP}) ->
-    {C, C#cstate.latest_cmd, RegExp};
-compile_regexp(C, {template, Template}) ->
-    Verbatim = expand_vars(C, Template, error),
-    patch_latest(C, {verbatim, Verbatim}, Verbatim);
-compile_regexp(C, {regexp, RegExp}) ->
-    try
-        RegExp2 = expand_vars(C, RegExp, error),
-        RegExp3 = lux_utils:normalize_newlines(RegExp2),
-        %% io:format("REGEXP: ~p ~p\n", [RegExp, RegExp3]),
-        Opts = [multiline, {newline, anycrlf}],
-        case re:compile(RegExp3, Opts) of
-            {ok, MP2} ->
-                patch_latest(C, {mp, RegExp3, MP2}, RegExp3);
-            {error, {Reason, _Pos}} ->
-                BinErr = list_to_binary(["Syntax error: ", Reason,
-                                         " in regexp '", RegExp3, "'"]),
-                stop(C, error, BinErr)
-        end
-    catch
-        throw:{no_such_var, BadName} ->
-            BinErr2 = list_to_binary(["Syntax error: Variable $",
-                                      BadName, " is not set in regexp '",
-                                      RegExp, "'"]),
-            stop(C, error, BinErr2)
+extract_regexp(ExpectArg) ->
+    case ExpectArg of
+        reset ->
+            reset;
+        shell_exit ->
+            shell_exit;
+        {verbatim, Verbatim} ->
+            Verbatim;
+        {mp, RegExp, _MP} ->
+            RegExp;
+        {template, Template} ->
+            Template;
+        {regexp, RegExp} ->
+            RegExp
     end.
-
-patch_latest(C, NewArg, Expect) ->
-    Cmd = C#cstate.latest_cmd,
-    Cmd2 = Cmd#cmd{arg = NewArg},
-    {C#cstate{latest_cmd = Cmd2}, Cmd2, Expect}.
 
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
@@ -1078,19 +1037,12 @@ dlog(C, Level, Format, Args) when C#cstate.debug_level >= Level ->
 dlog(_C, _Level, _Format, _Args) ->
     ok.
 
-expand_vars(#cstate{submatches   = SubMatches,
-                    macro_dict   = MacroDict,
-                    dict         = Dict,
-                    builtin_dict = BuiltinDict,
-                    system_dict  = SystemDict},
+expand_vars(#cstate{submatch_dict = SubDict,
+                    macro_dict    = MacroDict,
+                    dict          = Dict,
+                    builtin_dict  = BuiltinDict,
+                    system_dict   = SystemDict},
             Bin,
             MissingVar) ->
-    Fun = fun(nosubmatch, {N, Acc}) ->
-                  {N+1, Acc}; % Omit $N as its value is undefined
-             (Sub, {N, Acc}) ->
-                  List = [integer_to_list(N), $=, binary_to_list(Sub)],
-                  {N+1, [lists:flatten(List) | Acc]}
-          end,
-    {_,SubDict} = lists:foldl(Fun, {1, []}, SubMatches),
     Dicts = [SubDict, MacroDict, Dict, BuiltinDict, SystemDict],
     lux_utils:expand_vars(Dicts, Bin, MissingVar).

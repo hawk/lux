@@ -89,7 +89,7 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
         ShrinkedI =
             NewI#istate{commands     = shrinked,
                         macro_dict   = shrinked,
-                        dict         = shrinked,
+                        global_dict  = shrinked,
                         builtin_dict = shrinked,
                         system_dict  = shrinked},
         garbage_collect(),
@@ -192,7 +192,7 @@ config_type(Name) ->
         shell_prompt_regexp ->
             {ok, #istate.shell_prompt_regexp, [string]};
         var ->
-            {ok, #istate.dict, [{env_list, [string]}]};
+            {ok, #istate.global_dict, [{env_list, [string]}]};
         _ ->
             {error, lists:concat(["Bad argument: ", Name])}
     end.
@@ -247,13 +247,20 @@ set_config_val(Name, Val, [Type | Types], Pos, I) ->
 set_config_val(Name, Val, [], _Pos, _I) ->
     {error, lists:concat(["Bad argument: ", Name, "=", Val])}.
 
-expand_vars(#istate{macro_dict   = MacroDict,
-                    dict         = Dict,
-                    builtin_dict = BuiltinDict,
-                    system_dict  = SystemDict},
+expand_vars(#istate{submatch_dict = SubDict,
+                    macro_dict    = MacroDict,
+                    active_shell  = Shell,
+                    global_dict   = GlobalDict,
+                    builtin_dict  = BuiltinDict,
+                    system_dict   = SystemDict},
             Val,
             MissingVar) ->
-    Dicts = [MacroDict, Dict, BuiltinDict, SystemDict],
+    case Shell of
+        #shell{dict = ShellDict} -> ok;
+        undefined                -> ShellDict = []
+    end,
+    Dicts = [SubDict, MacroDict, ShellDict,
+             GlobalDict, BuiltinDict, SystemDict],
     lux_utils:expand_vars(Dicts, Val, MissingVar).
 
 wait_for_done(I, Pid, Docs) ->
@@ -447,7 +454,7 @@ config_data(I) ->
      {shell_args,                              I#istate.shell_args},
      {shell_prompt_cmd,                        I#istate.shell_prompt_cmd},
      {shell_prompt_regexp,                     I#istate.shell_prompt_regexp},
-     {var,                                     I#istate.dict},
+     {var,                                     I#istate.global_dict},
      {builtin,         [{env_list, [string]}], I#istate.builtin_dict},
      {system_env,      [{env_list, [string]}], I#istate.system_dict}
     ].
@@ -526,7 +533,7 @@ interpret_loop(I) ->
             interpret_loop(I2);
         {more, Pid, _Name} ->
             if
-                Pid =/= I#istate.active_pid ->
+                Pid =/= I#istate.active_shell#shell.pid ->
                     %% ilog(I, "~s(~p): ignore_more \"~s\"\n",
                     %%      [I#istate.active_name,
                     %%       (I#istate.latest_cmd)#cmd.lineno,
@@ -541,18 +548,9 @@ interpret_loop(I) ->
                     I2 = I#istate{want_more = true},
                     interpret_loop(I2)
             end;
-        {my, Pid, _Name, VarVal} ->
-            Shells = I#istate.shells,
-            Others = [S || S <- Shells, S#shell.pid =/= Pid],
-            MacroDict = [VarVal | I#istate.macro_dict],
-            multicast(I#istate{shells = Others},
-                      {macro_dict, self(), MacroDict}),
-            interpret_loop(I#istate{macro_dict = MacroDict});
-        {global, Pid, _Name, VarVal} ->
-            Shells = I#istate.shells,
-            Others = [S || S <- Shells, S#shell.pid =/= Pid],
-            multicast(I#istate{shells = Others}, {global, self(), VarVal}),
-            interpret_loop(I#istate{dict = [VarVal | I#istate.dict]});
+        {submatch_dict, _From, SubDict} ->
+            I2 = I#istate{submatch_dict = SubDict},
+            interpret_loop(I2);
         {'DOWN', _, process, Pid, Reason} ->
             I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
             interpret_loop(I2);
@@ -658,13 +656,76 @@ dispatch_cmd(I,
              #cmd{lineno = LineNo,
                   type = Type,
                   arg = Arg} = Cmd) ->
-    %% io:format("~s:\t~p\n", [full_lineno(I, I#istate.latest_cmd,
-    %%                                     I#istate.cmd_stack),
-    %%                         Type]),
+    %% io:format("~p\n", [Cmd]),
     lux:trace_me(60, 'case', Type, [Cmd]),
     case Type of
         comment ->
             I;
+        variable ->
+            {Scope, Var, Val} = Arg,
+            case shell_expand_vars(I, Val) of
+                {ok, Val2} ->
+                    VarVal = lists:flatten([Var, $=, Val2]),
+                    Msg = {variable, self(), Scope, VarVal},
+                    case Scope of
+                        my ->
+                            multicast(I, Msg), % OBSOLETE
+                            Dict = [VarVal | I#istate.macro_dict],
+                            I#istate{macro_dict = Dict};
+                        local when I#istate.active_shell =/= undefined ->
+                            cast(I, Msg), % OBSOLETE
+                            Shell = I#istate.active_shell,
+                            ShellDict = [VarVal | Shell#shell.dict],
+                            Shell2 = Shell#shell{dict = ShellDict},
+                            I#istate{active_shell = Shell2};
+                        global ->
+                            multicast(I, Msg), % OBSOLETE
+                            GlobalDict = [VarVal | I#istate.global_dict],
+                            I#istate{global_dict = GlobalDict}
+                    end;
+                {no_such_var, BadName} ->
+                    no_such_var(I, Cmd, LineNo, BadName)
+            end;
+        send_lf when is_binary(Arg) ->
+            expand_send(I, Cmd, <<Arg/binary, "\n">>);
+        send when is_binary(Arg) ->
+            expand_send(I, Cmd, Arg);
+        expect when is_atom(Arg) ->
+            shell_eval(I, Cmd);
+        expect when is_tuple(Arg) ->
+            Cmd2 = compile_regexp(I, Cmd, Arg),
+            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+        fail when is_tuple(Arg) ->
+            Cmd2 = compile_regexp(I, Cmd, Arg),
+            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+        success when is_tuple(Arg) ->
+            Cmd2 = compile_regexp(I, Cmd, Arg),
+            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+        sleep ->
+            Secs = parse_int(I, Arg, Cmd),
+            Cmd2 = Cmd#cmd{arg = Secs},
+            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+        progress ->
+            case shell_expand_vars(I, Arg) of
+                {ok, String} ->
+                    Cmd2 = Cmd#cmd{arg = String},
+                    shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                {no_such_var, BadName} ->
+                    no_such_var(I, Cmd, LineNo, BadName)
+            end;
+        change_timeout ->
+            Millis =
+                case Arg of
+                    "" ->
+                        I#istate.timeout;
+                    "infinity" ->
+                        infinity;
+                    SecsStr ->
+                        Secs = parse_int(I, SecsStr, Cmd),
+                        timer:seconds(Secs)
+                end,
+            Cmd2 = Cmd#cmd{arg = Millis},
+            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
         doc ->
             {Level, Doc} = Arg,
             Indent = lists:duplicate((Level-1)*4, $\ ),
@@ -695,7 +756,7 @@ dispatch_cmd(I,
             I3 = I2#istate{mode = NewMode,
                            timeout = I2#istate.cleanup_timeout,
                            shells = Shells,
-                           active_pid = undefined,
+                           active_shell = undefined,
                            active_name = "lux"},
             Suffix =
                 case call_level(I3) of
@@ -715,62 +776,37 @@ dispatch_cmd(I,
         macro ->
             I;
         invoke ->
-            I2 = I#istate{latest_cmd = Cmd},
-            case lookup_macro(I2, Cmd) of
+            case lookup_macro(I, Cmd) of
                 {ok, NewCmd, MatchingMacros} ->
-                    invoke_macro(I2, NewCmd, MatchingMacros);
+                    invoke_macro(I, NewCmd, MatchingMacros);
                 {error, BadName} ->
                     E = list_to_binary(["Variable $", BadName, " is not set"]),
-                    ilog(I2, "~s(~p): ~s\n",
-                         [I2#istate.active_name, LineNo, E]),
+                    ilog(I, "~s(~p): ~s\n",
+                         [I#istate.active_name, LineNo, E]),
                     OrigLine = Cmd#cmd.orig,
-                    throw_error(I2, <<OrigLine/binary, " ", E/binary>>)
+                    throw_error(I, <<OrigLine/binary, " ", E/binary>>)
             end;
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
-            I2 = I#istate{latest_cmd = Cmd},
-            case shell_expand_vars(I2, ItemStr) of
+            case shell_expand_vars(I, ItemStr) of
                 {ok, NewItemStr} ->
-                    ilog(I2, "~s(~p): loop items \"~s\"\n",
-                         [I2#istate.active_name, LastLineNo, NewItemStr]),
+                    ilog(I, "~s(~p): loop items \"~s\"\n",
+                         [I#istate.active_name, LastLineNo, NewItemStr]),
                     Items = string:tokens(NewItemStr, " "),
                     NewArgs = {loop, Name, Items, LineNo, LastLineNo, Body},
-                    eval_loop(I2, Cmd#cmd{arg = NewArgs});
+                    eval_loop(I, Cmd#cmd{arg = NewArgs});
                 {no_such_var, BadName} ->
-                    E = list_to_binary(["Variable $", BadName, " is not set"]),
-                    ilog(I2, "~s(~p): ~s\n",
-                         [I2#istate.active_name, LineNo, E]),
-                    OrigLine = Cmd#cmd.orig,
-                    throw_error(I2, <<OrigLine/binary, " ", E/binary>>)
-            end;
-        variable when element(1, Arg) =:= global,
-                      I#istate.active_pid =:= undefined ->
-            %% Allow global variables to be set without any active shell
-            I2 = I#istate{latest_cmd = Cmd},
-            {Scope, Var, Val} = Arg,
-            Dicts = [I2#istate.dict,
-                     I2#istate.builtin_dict,
-                     I2#istate.system_dict],
-            try
-                Val2 = lux_utils:expand_vars(Dicts, Val, error),
-                VarVal = lists:flatten([Var, $=, Val2]),
-                ilog(I2, "~s(~p): ~p \"~s\"\n",
-                     [I2#istate.active_name, LineNo, Scope, VarVal]),
-                I2#istate{dict = [VarVal | I2#istate.dict]}
-            catch
-                throw:{no_such_var, BadName} ->
-                    Err = list_to_binary(["Variable $",
-                                          BadName, " is not set"]),
-                    ilog(I2, "~s(~p): ~s\n",
-                         [I2#istate.active_name, LineNo, Err]),
-                    throw_error(I2, Err)
+                    no_such_var(I, Cmd, LineNo, BadName)
             end;
         _ ->
             %% Send next command to active shell
-            dlog(I, ?dmore, "want_more=false (send ~p)", [Cmd#cmd.type]),
-            cast(I, {eval, self(), Cmd}),
-            I#istate{want_more = false}
+            shell_eval(I, Cmd)
     end.
+
+shell_eval(I, Cmd) ->
+    dlog(I, ?dmore, "want_more=false (send ~p)", [Cmd#cmd.type]),
+    cast(I, {eval, self(), Cmd}),
+    I#istate{want_more = false}.
 
 eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo,
              InclFile, InclCmds, InclCmd) ->
@@ -866,22 +902,20 @@ invoke_macro(I,
           Name,
           lists:flatten([[M, " "] || M <- MacroDict])]),
 
-    multicast(I, {macro_dict, self(), MacroDict}),
+    multicast(I, {macro_dict, self(), MacroDict}), %% OBSOLETE
     BeforeI = I#istate{macro_dict = MacroDict, latest_cmd = InvokeCmd},
     DefaultFun = get_eval_fun(),
     AfterI = eval_body(BeforeI, LineNo, FirstLineNo,
                        LastLineNo, File, Body, MacroCmd, DefaultFun),
-    multicast(AfterI, {macro_dict, self(), OldMacroDict}),
+    multicast(AfterI, {macro_dict, self(), OldMacroDict}), %% OBSOLETE
 
     AfterI#istate{macro_dict = OldMacroDict};
-invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, []) ->
-    I2 = I#istate{latest_cmd = Cmd},
+invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
     BinName = list_to_binary(Name),
-    throw_error(I2, <<"No such macro: ", BinName/binary>>);
-invoke_macro(I, #cmd{arg = {invoke, Name, _Values}} = Cmd, [_|_]) ->
-    I2 = I#istate{latest_cmd = Cmd},
+    throw_error(I, <<"No such macro: ", BinName/binary>>);
+invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
     BinName = list_to_binary(Name),
-    throw_error(I2, <<"Ambiguous macro: ", BinName/binary>>).
+    throw_error(I, <<"Ambiguous macro: ", BinName/binary>>).
 
 macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
     case shell_expand_vars(I, Val) of
@@ -889,11 +923,7 @@ macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
             [lists:flatten([Name, $=, Val2]) |
              macro_dict(I, Names, Vals, Invoke)];
         {no_such_var, BadName} ->
-            Err = list_to_binary(["Variable $", BadName, " is not set"]),
-            ilog(I, "~s(~p): ~s\n",
-                 [I#istate.active_name, Invoke#cmd.lineno, Err]),
-            OrigLine = Invoke#cmd.orig,
-            throw_error(I, <<OrigLine/binary, " ", Err/binary>>)
+            no_such_var(I, Invoke, Invoke#cmd.lineno, BadName)
     end;
 macro_dict(_I, [], [], _Invoke) ->
     [];
@@ -903,6 +933,70 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
     Reason = <<"at ", BinLineNo/binary,
                ": Argument mismatch in macro: ", BinName/binary>>,
     throw_error(I, Reason).
+
+compile_regexp(_I, Cmd, reset) ->
+    Cmd;
+compile_regexp(_I, Cmd, shell_exit) ->
+    Cmd;
+compile_regexp(_I, Cmd, {verbatim, _Verbatim}) ->
+    Cmd;
+compile_regexp(_I, Cmd, {mp, _RegExp, _MP}) ->
+    Cmd;
+compile_regexp(I, Cmd, {template, Template}) ->
+    case shell_expand_vars(I, Template) of
+        {ok, Verbatim} ->
+            Cmd#cmd{arg = {verbatim, Verbatim}};
+        {no_such_var, BadName} ->
+            no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
+    end;
+compile_regexp(I, Cmd, {regexp, RegExp}) ->
+    case shell_expand_vars(I, RegExp) of
+        {ok, RegExp2} ->
+            RegExp3 = lux_utils:normalize_newlines(RegExp2),
+            Opts = [multiline, {newline, anycrlf}],
+            case re:compile(RegExp3, Opts) of
+                {ok, MP3} ->
+                    Cmd#cmd{arg = {mp, RegExp3, MP3}};
+                {error, {Reason, _Pos}} ->
+                    BinErr = list_to_binary(["Syntax error: ", Reason,
+                                             " in regexp '", RegExp3, "'"]),
+                    throw_error(I, BinErr)
+            end;
+        {no_such_var, BadName} ->
+            no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
+    end.
+
+expand_send(I, Cmd, Arg) ->
+    case shell_expand_vars(I, Arg) of
+        {ok, Arg2} ->
+            Cmd2 = Cmd#cmd{arg = Arg2},
+            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+        {no_such_var, BadName} ->
+            no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
+    end.
+
+no_such_var(I, Cmd, LineNo, BadName) ->
+    E = list_to_binary(["Variable $", BadName, " is not set"]),
+    ilog(I, "~s(~p): ~s\n", [I#istate.active_name, LineNo, E]),
+    OrigLine = Cmd#cmd.orig,
+    throw_error(I, <<OrigLine/binary, " ", E/binary>>).
+
+parse_int(I, Chars, Cmd) ->
+    case shell_expand_vars(I, Chars) of
+        {ok, Chars2} ->
+            try
+                list_to_integer(Chars2)
+            catch
+                error:_ ->
+                    BinErr =
+                        list_to_binary(["Syntax error at line ",
+                                        integer_to_list(Cmd#cmd.lineno),
+                                        ": '", Chars2, "' integer expected"]),
+                    throw_error(I, BinErr)
+            end;
+        {no_such_var, BadName} ->
+            no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
+    end.
 
 eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = LoopCmd) ->
     DefaultFun = get_eval_fun(),
@@ -925,7 +1019,7 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
         {item, Item, Rest} ->
             LoopVar = lists:flatten([Name, $=, Item]),
             MacroDict = [LoopVar|OldI#istate.macro_dict],
-            multicast(OldI, {macro_dict, self(), MacroDict}),
+            multicast(OldI, {macro_dict, self(), MacroDict}),  %% OBSOLETE
             BeforeI = OldI#istate{macro_dict = MacroDict,
                                   latest_cmd = LoopCmd},
             SyntheticLineNo = -N,
@@ -993,7 +1087,7 @@ prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
                      Res3#result.actual =:= shell_exit ->
             %% Successful end of file in shell. Reset active shell.
             dlog(I3, ?dmore, "want_more=true (prepare_stop)", []),
-            I3#istate{active_pid = undefined,
+            I3#istate{active_shell = undefined,
                       active_name = "lux",
                       want_more = true};
         running ->
@@ -1121,9 +1215,9 @@ delete_shell(I, Pid) ->
             erlang:demonitor(Ref, [flush]),
             Shells2 = lists:keydelete(Pid, #shell.pid, Shells),
             if
-                Pid =:= I#istate.active_pid ->
+                Pid =:= I#istate.active_shell#shell.pid ->
                     {Name,
-                     I#istate{active_pid = undefined,
+                     I#istate{active_shell = undefined,
                               active_name = "lux",
                               shells = Shells2}};
                 true ->
@@ -1137,9 +1231,9 @@ multicast(#istate{shells = Shells}, Msg) ->
     Send = fun(#shell{pid = Pid} = S) -> trace_msg(S, Msg), Pid ! Msg, Pid end,
     lists:map(Send, Shells).
 
-cast(#istate{active_pid = undefined} = I, _Msg) ->
+cast(#istate{active_shell = undefined} = I, _Msg) ->
     throw_error(I, <<"The command must be executed in context of a shell">>);
-cast(#istate{active_pid = Pid, active_name = Name}, Msg) ->
+cast(#istate{active_shell = #shell{pid =Pid}, active_name = Name}, Msg) ->
     trace_msg(#shell{name=Name}, Msg),
     Pid ! Msg,
     Pid.
@@ -1197,10 +1291,7 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
                     shell_switch(I2, Cmd, Shell)
             end;
         {no_such_var, BadName} ->
-            Err = list_to_binary(["Variable $", BadName, " is not set"]),
-            ilog(I2, "~s(~p): ~s\n", [Name, LineNo, Err]),
-            BinName = list_to_binary(Name),
-            throw_error(I2, <<"[shell ", BinName/binary, "] ", Err/binary>>)
+            no_such_var(I, Cmd, LineNo, BadName)
     end.
 
 shell_start(I, #cmd{arg = Name} = Cmd) ->
@@ -1225,31 +1316,38 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
             shell_crashed(I3, Pid, Reason)
     end.
 
-shell_switch(OldI, Cmd, #shell{pid = Pid, health = alive, name = Name}) ->
+shell_switch(OldI, Cmd,
+             #shell{pid = Pid, health = alive, name = Name} = Shell) ->
     %% Activate shell
-    OldI2 = change_shell_mode(OldI, Cmd, suspend),
-    NewI = OldI2#istate{active_pid = Pid, active_name = Name},
+    TmpI = change_shell_mode(OldI, Cmd, suspend),
+    Shells = lists:keyreplace(Pid, #shell.pid, TmpI#istate.shells, Shell),
+    NewI = TmpI#istate{active_shell = Shell,
+                       active_name = Name,
+                       shells = Shells},
     change_shell_mode(NewI, Cmd, resume);
 shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
     ilog(OldI, "~s(~p): zombie shell at cleanup\n",
          [Name, (OldI#istate.latest_cmd)#cmd.lineno]),
     throw_error(OldI, list_to_binary(Name ++ " is a zombie shell")).
 
-change_shell_mode(I, Cmd, NewMode) when is_pid(I#istate.active_pid) ->
+change_shell_mode(I, Cmd, NewMode)
+  when is_pid(I#istate.active_shell#shell.pid) ->
     Pid = cast(I, {change_mode, self(), NewMode, Cmd, I#istate.cmd_stack}),
     wait_for_reply(I, [Pid], change_mode_ack, undefined, infinity);
-change_shell_mode(I, _Cmd, _NewMode) when I#istate.active_pid =:= undefined ->
+change_shell_mode(I, _Cmd, _NewMode) when I#istate.active_shell =:= undefined ->
     I.
 
-switch_cmd(_When, #istate{active_pid=undefined} = I, _CmdStack, _NewCmd, Fun) ->
+switch_cmd(_When, #istate{active_shell = undefined} = I,
+           _CmdStack, _NewCmd, Fun) ->
     Fun(),
     I;
-switch_cmd(When, #istate{active_pid=Pid} = I, CmdStack, NewCmd, Fun) ->
+switch_cmd(When, #istate{active_shell = #shell{pid = Pid}} = I,
+           CmdStack, NewCmd, Fun) ->
     Pid = cast(I, {switch_cmd, self(), When, NewCmd, CmdStack, Fun}),
     wait_for_reply(I, [Pid], switch_cmd_ack, Fun, infinity).
 
-shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_pid ->
-    I2 = I#istate{active_pid = undefined, active_name = "lux"},
+shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
+    I2 = I#istate{active_shell = undefined, active_name = "lux"},
     shell_crashed(I2, Pid, Reason);
 shell_crashed(I, Pid, Reason) ->
     I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
@@ -1268,15 +1366,15 @@ shell_crashed(I, Pid, Reason) ->
         end,
     throw_error(I2, Error).
 
-shell_expand_vars(I, Bin) when is_pid(I#istate.active_pid) ->
-    Pid = cast(I, {expand_vars, self(), Bin}),
+shell_expand_vars(I, Bin) when is_pid(I#istate.active_shell#shell.pid) ->
+    Pid = cast(I, {expand_vars, self(), Bin}), % OBSOLETE
     receive
         {expand_vars, Pid, Res} ->
             Res;
         {'DOWN', _, process, Pid, Reason} ->
             shell_crashed(I, Pid, Reason)
     end;
-shell_expand_vars(I, Bin) when I#istate.active_pid =:= undefined ->
+shell_expand_vars(I, Bin) when I#istate.active_shell =:= undefined ->
     MissingVar = error,
     try
         {ok, expand_vars(I, Bin, MissingVar)}
