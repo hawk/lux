@@ -228,36 +228,26 @@ parse(P, Fd, LineNo, Tokens) ->
     end.
 
 parse_cmd(P, Fd, <<>>, LineNo, OrigLine, Tokens) ->
-    Token = #cmd{type = comment, lineno = LineNo, raw = OrigLine},
+    Token = #cmd{type = comment, lineno = LineNo, orig = OrigLine},
     parse(P, Fd, LineNo+1, [Token | Tokens]);
-parse_cmd(P,
-          Fd,
-          <<Op:8/integer, Bin/binary>> = Line,
-          LineNo, OrigLine, Tokens) ->
+parse_cmd(#pstate{mode = RunMode} = P, Fd, Line, LineNo, OrigLine, Tokens) ->
+    <<Op:8/integer, Data/binary>> = Line,
     Type = parse_oper(P, Fd, Op, LineNo, Line),
-    Cmd = #cmd{type = Type, lineno = LineNo, raw = OrigLine},
-    Cmd2 =
-        case Type of
-            send_lf                   -> Cmd#cmd{arg = Bin};
-            send                      -> Cmd#cmd{arg = Bin};
-            expect when Op =:= $.     -> parse_regexp(Cmd, shell_exit);
-            expect when Bin =:= <<>>  -> parse_regexp(Cmd, reset);
-            expect                    -> parse_regexp(Cmd, Bin);
-            fail when Bin =:= <<>>    -> parse_regexp(Cmd, reset);
-            fail                      -> parse_regexp(Cmd, Bin);
-            success when Bin =:= <<>> -> parse_regexp(Cmd, reset);
-            success                   -> parse_regexp(Cmd, Bin);
-            meta                      -> Cmd;
-            multi_line                -> Cmd;
-            comment                   -> Cmd
-        end,
-    case Type of
-        meta       -> parse_meta(P, Fd, Bin, Cmd2, Tokens);
-        multi_line -> parse_multi(P, Fd, Bin, Cmd2, OrigLine, Tokens);
-        _          -> parse(P, Fd, LineNo+1, [Cmd2 | Tokens])
+    Cmd = #cmd{type = Type, lineno = LineNo, orig = OrigLine},
+    if
+        Type =:= meta ->
+            parse_meta(P, Fd, Data, Cmd, Tokens);
+        Type =:= multi_line ->
+            parse_multi(P, Fd, Data, Cmd, Tokens);
+        RunMode =:= validate; RunMode =:= execute ->
+            Cmd2 = parse_single(Op, Cmd, Data),
+            parse(P, Fd, LineNo+1, [Cmd2 | Tokens]);
+        RunMode =:= list; RunMode =:= doc ->
+            %% Skip command
+            parse(P, Fd, LineNo+1, Tokens)
     end.
 
-parse_oper(P, Fd, Op, LineNo, Raw) ->
+parse_oper(P, Fd, Op, LineNo, OrigLine) ->
     case Op of
         $!  -> send_lf;
         $~  -> send;
@@ -272,7 +262,23 @@ parse_oper(P, Fd, Op, LineNo, Raw) ->
                            Fd,
                            LineNo,
                            ["Syntax error at line ", integer_to_list(LineNo),
-                            ": '", Raw, "'"])
+                            ": '", OrigLine, "'"])
+    end.
+
+parse_single(Op, #cmd{type = Type} = Cmd, Data) ->
+    case Type of
+        send_lf                    -> Cmd#cmd{arg = Data};
+        send                       -> Cmd#cmd{arg = Data};
+        expect when Op =:= $.      -> parse_regexp(Cmd, shell_exit);
+        expect when Data =:= <<>>  -> parse_regexp(Cmd, reset);
+        expect                     -> parse_regexp(Cmd, Data);
+        fail when Data =:= <<>>    -> parse_regexp(Cmd, reset);
+        fail                       -> parse_regexp(Cmd, Data);
+        success when Data =:= <<>> -> parse_regexp(Cmd, reset);
+        success                    -> parse_regexp(Cmd, Data);
+%%      meta                       -> Cmd;
+%%      multi_line                 -> Cmd;
+        comment                    -> Cmd
     end.
 
 %% Arg :: shell_exit           |
@@ -313,21 +319,38 @@ parse_var(P, Fd, Cmd, Scope, String) ->
                          " variable "," '", String, "'"])
     end.
 
-parse_meta(P, Fd, Bin, #cmd{lineno = LineNo} = Cmd, Tokens) ->
-    ChoppedBin = lux_utils:strip_trailing_whitespaces(Bin),
-    MetaSize = byte_size(ChoppedBin) - 1,
-    case ChoppedBin of
+parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+    ChoppedData = lux_utils:strip_trailing_whitespaces(Data),
+    MetaSize = byte_size(ChoppedData) - 1,
+    case ChoppedData of
         <<Meta:MetaSize/binary, "]">> ->
-            {NewFd, LineNo2, Token2} =
-                case parse_meta_token(P, Fd, Cmd, Meta, LineNo) of
-                    #cmd{type = macro} = Macro ->
-                        parse_body(P, Fd, Macro, "endmacro", LineNo);
-                    #cmd{type = loop} = Loop ->
-                        parse_body(P, Fd, Loop, "endloop", LineNo);
-                    Token ->
-                        {Fd, LineNo, Token}
+            MetaCmd = parse_meta_token(P, Fd, Cmd, Meta, LineNo),
+            {NewFd, NewLineNo, NewCmd} =
+                case MetaCmd#cmd.type of
+                    macro ->
+                        parse_body(P, Fd, MetaCmd, "endmacro", LineNo);
+                    loop ->
+                        parse_body(P, Fd, MetaCmd, "endloop", LineNo);
+                    _ ->
+                        {Fd, LineNo, MetaCmd}
                 end,
-            parse(P, NewFd, LineNo2+1, [Token2 | Tokens]);
+            RunMode = P#pstate.mode,
+            NewType = NewCmd#cmd.type,
+            NewTokens =
+                if
+                    NewType =:= config ->
+                        [NewCmd | Tokens];
+                    NewType =:= include  ->
+                        [NewCmd | Tokens];
+                    NewType =:= doc, P#pstate.mode =/= list ->
+                        [NewCmd | Tokens];
+                    RunMode =:= list; RunMode =:= doc ->
+                        %% Skip command
+                        Tokens;
+                    RunMode =:= validate; RunMode =:= execute ->
+                        [NewCmd | Tokens]
+                end,
+            parse(P, NewFd, NewLineNo+1, NewTokens);
         _ ->
             parse_error(P,
                         Fd,
@@ -336,7 +359,7 @@ parse_meta(P, Fd, Bin, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                          ": ']' is expected to be at end of line"])
     end.
 
-parse_body(P,
+parse_body(#pstate{mode = RunMode} = P,
            Fd,
            #cmd{arg = {body, Tag, Name, Items}} = Cmd,
            EndKeyword,
@@ -352,7 +375,15 @@ parse_body(P,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": [" ++ EndKeyword ++ "] expected"]);
-        {line, _EndMacro, NewFd} ->
+        {line, _EndMacro, NewFd}
+          when RunMode =:= list; RunMode =:= doc ->
+            %% Do not parse body
+            BodyLen = length(BodyLines),
+            LastLineNo = LineNo+BodyLen+1,
+            {NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
+        {line, _EndMacro, NewFd}
+          when RunMode =:= validate; RunMode =:= execute ->
+            %% Parse body
             BodyLen = length(BodyLines),
             FdBody = file_open(BodyLines),
             {eof, RevBodyCmds} = parse(P, FdBody, LineNo+1, []),
@@ -431,7 +462,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     Cmd#cmd{type = shell, arg = Name2}
             end;
         "endshell" ->
-            Cmd2 = Cmd#cmd{type = expect, raw = <<".">>},
+            Cmd2 = Cmd#cmd{type = expect, orig = <<".">>},
             parse_regexp(Cmd2, shell_exit);
         "config" ++ VarVal ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
@@ -562,8 +593,11 @@ split_invoke_args(P, Fd, LineNo, [H | T], quoted = Mode, Arg, Args) ->
             split_invoke_args(P, Fd, LineNo, T, Mode, [Char | Arg], Args)
     end.
 
-parse_multi(P, Fd, <<$":8/integer, $":8/integer, Chars/binary>>,
-            #cmd{lineno = LineNo}, OrigLine, Tokens) ->
+parse_multi(#pstate{mode = RunMode} = P,
+            Fd,
+            <<$":8/integer, $":8/integer, Chars/binary>>,
+            #cmd{lineno = LineNo, orig = OrigLine},
+            Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
     {RevBefore, FdAfter, RemPrefixLen} = scan_multi(Fd, PrefixLen, []),
     LastLineNo = LineNo + length(RevBefore) + 1,
@@ -582,16 +616,22 @@ parse_multi(P, Fd, <<$":8/integer, $":8/integer, Chars/binary>>,
                         ["Syntax error at line ", integer_to_list(LastLineNo),
                          ": multi line block must end in same column as"
                          " it started on line ", integer_to_list(LineNo)]);
-        {line, _EndOfMulti, Fd2} ->
+        {line, _EndOfMulti, NewFd}
+          when RunMode =:= list; RunMode =:= doc ->
+            %% Skip command
+            parse(P, NewFd, LastLineNo+1, Tokens);
+        {line, _EndOfMulti, Fd2}
+          when RunMode =:= validate; RunMode =:= execute ->
             %% Join all lines with a newline as separator
             Blob =
                 case RevBefore of
                     [Single] ->
                         Single;
                     [Last | Other] ->
-                        Join = fun(F, L) ->
-                                       <<F/binary, <<"\n">>/binary, L/binary>>
-                               end,
+                        Join =
+                            fun(F, L) ->
+                                    <<F/binary, <<"\n">>/binary, L/binary>>
+                            end,
                         lists:foldl(Join, Last, Other);
                     [] ->
                         <<"">>
@@ -601,10 +641,8 @@ parse_multi(P, Fd, <<$":8/integer, $":8/integer, Chars/binary>>,
                 parse_cmd(P, Fd2, MultiLine, LastLineNo, OrigLine, Tokens),
             parse(P, NewFd, LastLineNo+1, Tokens2)
     end;
-parse_multi(P, Fd, _, #cmd{lineno = LineNo}, _OrigLine, _Tokens) ->
-    parse_error(P,
-                Fd,
-                LineNo,
+parse_multi(P, Fd, _, #cmd{lineno = LineNo}, _Tokens) ->
+    parse_error(P, Fd, LineNo,
                 ["Syntax error at line ", integer_to_list(LineNo),
                  ": '\"\"\"' command expected"]).
 

@@ -706,8 +706,8 @@ dispatch_cmd(I,
                     E = list_to_binary(["Variable $", BadName, " is not set"]),
                     ilog(I2, "~s(~p): ~s\n",
                          [I2#istate.active_name, LineNo, E]),
-                    Raw = Cmd#cmd.raw,
-                    throw_error(I2, <<Raw/binary, " ", E/binary>>)
+                    OrigLine = Cmd#cmd.orig,
+                    throw_error(I2, <<OrigLine/binary, " ", E/binary>>)
             end;
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
@@ -723,8 +723,8 @@ dispatch_cmd(I,
                     E = list_to_binary(["Variable $", BadName, " is not set"]),
                     ilog(I2, "~s(~p): ~s\n",
                          [I2#istate.active_name, LineNo, E]),
-                    Raw = Cmd#cmd.raw,
-                    throw_error(I2, <<Raw/binary, " ", E/binary>>)
+                    OrigLine = Cmd#cmd.orig,
+                    throw_error(I2, <<OrigLine/binary, " ", E/binary>>)
             end;
         variable when element(1, Arg) =:= global,
                       I#istate.active_pid =:= undefined ->
@@ -875,8 +875,8 @@ macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
             Err = list_to_binary(["Variable $", BadName, " is not set"]),
             ilog(I, "~s(~p): ~s\n",
                  [I#istate.active_name, Invoke#cmd.lineno, Err]),
-            Raw = Invoke#cmd.raw,
-            throw_error(I, <<Raw/binary, " ", Err/binary>>)
+            OrigLine = Invoke#cmd.orig,
+            throw_error(I, <<OrigLine/binary, " ", Err/binary>>)
     end;
 macro_dict(_I, [], [], _Invoke) ->
     [];

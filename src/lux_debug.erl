@@ -1018,32 +1018,33 @@ do_list(I, PrevRevFile, RevFile, First, N, [{CurrRevFile,CurrLineNo,_} | _]) ->
         true ->
             ignore
     end,
-    Print = fun(#cmd{lineno = LineNo, raw = Text, type = Type}, RF, _IS, Acc) ->
-                    if
-                        RF =:= RevFile, LineNo >= First, LineNo =< Last ->
-                            Delim =
-                                if
-                                    RevFile =:= CurrRevFile,
-                                    LineNo =:= CurrLineNo ->
-                                        ">";
-                                    true ->
-                                        ":"
-                                end,
-                            Pos = {RevFile, LineNo, Type},
-                            case lists:member(Pos, Acc) of
+    Print =
+        fun(#cmd{type = Type, lineno = LineNo, orig = Text}, RF, _IS, Acc) ->
+                if
+                    RF =:= RevFile, LineNo >= First, LineNo =< Last ->
+                        Delim =
+                            if
+                                RevFile =:= CurrRevFile,
+                                LineNo =:= CurrLineNo ->
+                                    ">";
                                 true ->
-                                    %% Duplicate due to multiple
-                                    %% inclusions of same file
-                                    Acc;
-                                false ->
-                                    io:format("~p~s ~s\n",
-                                              [LineNo, Delim, Text]),
-                                    [Pos | Acc]
-                            end;
-                        true ->
-                            Acc
-                    end
-            end,
+                                    ":"
+                            end,
+                        Pos = {RevFile, LineNo, Type},
+                        case lists:member(Pos, Acc) of
+                            true ->
+                                %% Duplicate due to multiple
+                                %% inclusions of same file
+                                Acc;
+                            false ->
+                                io:format("~p~s ~s\n",
+                                          [LineNo, Delim, Text]),
+                                [Pos | Acc]
+                        end;
+                    true ->
+                        Acc
+                end
+        end,
     PosList =
         lux_utils:foldl_cmds(Print,
                              [],
@@ -1196,7 +1197,7 @@ current(#istate{file = File,
         [] ->
             LineNo = 1,
             Type = LatestCmd#cmd.type;
-        [#cmd{lineno = LineNo, type = Type} | _] ->
+        [#cmd{type = Type, lineno = LineNo} | _] ->
             ok
         end,
     RevFile = lux_utils:filename_split(File), % optimize later
@@ -1228,7 +1229,7 @@ break_to_depth(I, BreakPos) ->
         is_list(BreakPos), BreakPos =/= []             -> {dynamic, I}
     end.
 
-collect_break(#cmd{lineno = LineNo, type = Type},
+collect_break(#cmd{type = Type, lineno = LineNo},
               RevFile, CmdStack, Acc, BreakPos) ->
     FullLineNo = [{RevFile, LineNo, Type} | CmdStack],
     case match_break(FullLineNo, BreakPos, fuzzy) of

@@ -21,7 +21,7 @@
         {lineno :: non_neg_integer(),
          type   :: atom(),
          arg    :: term(),
-         raw    :: binary()}).
+         orig   :: binary()}).
 
 -record(shell,
         {name   :: string(),
@@ -97,7 +97,7 @@
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
-         latest_cmd = #cmd{type = comment, lineno = 0, raw = <<>>}
+         latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
          cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
          macro_dict = []            :: [string()],   % ["name=val"]
