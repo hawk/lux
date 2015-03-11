@@ -148,23 +148,30 @@ parse_file2(P) ->
 file_open(Lines) when is_list(Lines) ->
     [{read_ahead, Lines}];
 %% file_open(#pstate{file = File, mode = execute}) ->
-file_open(#pstate{file = File}) ->
+file_open(#pstate{file = File, mode = RunMode}) ->
+    do_file_open(File, RunMode, os:getenv("LUX_READ_LINE")).
+
+do_file_open( File, RM, false) ->
+    if RM =:= validate; RM =:= execute -> io:format("BULK: ~s\n", [File]);
+       true -> ok
+    end,
     case file:read_file(File) of
         {ok, Bin} ->
             Bins = re:split(Bin, <<"\n">>),
             {ok, [{read_ahead, Bins}]};
         {error, FileReason} ->
             {error, FileReason}
-    end
-%%;
-%%file_open(#pstate{file = File}) ->
-%%    case file:open(File, [raw, binary, read_ahead]) of
-%%        {ok, Io} ->
-%%            {ok, [{open_file, Io, chopped}]};
-%%        {error, FileReason} ->
-%%            {error, FileReason}
-%%    end
-.
+    end;
+do_file_open(File, RM, _) ->
+    if RM =:= validate; RM =:= execute -> io:format("LINE: ~s\n", [File]);
+       true -> ok
+    end,
+    case file:open(File, [raw, binary, read_ahead]) of
+        {ok, Io} ->
+            {ok, [{open_file, Io, chopped}]};
+        {error, FileReason} ->
+            {error, FileReason}
+    end.
 
 file_close([{read_ahead, _Bins} | Rest]) ->
     file_close(Rest);
