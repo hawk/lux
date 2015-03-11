@@ -247,22 +247,6 @@ set_config_val(Name, Val, [Type | Types], Pos, I) ->
 set_config_val(Name, Val, [], _Pos, _I) ->
     {error, lists:concat(["Bad argument: ", Name, "=", Val])}.
 
-expand_vars(#istate{submatch_dict = SubDict,
-                    macro_dict    = MacroDict,
-                    active_shell  = Shell,
-                    global_dict   = GlobalDict,
-                    builtin_dict  = BuiltinDict,
-                    system_dict   = SystemDict},
-            Val,
-            MissingVar) ->
-    case Shell of
-        #shell{dict = ShellDict} -> ok;
-        undefined                -> ShellDict = []
-    end,
-    Dicts = [SubDict, MacroDict, ShellDict,
-             GlobalDict, BuiltinDict, SystemDict],
-    lux_utils:expand_vars(Dicts, Val, MissingVar).
-
 wait_for_done(I, Pid, Docs) ->
     receive
         {suite_timeout, SuiteTimeout} ->
@@ -676,8 +660,11 @@ dispatch_cmd(I,
                             Shell2 = Shell#shell{dict = ShellDict},
                             I#istate{active_shell = Shell2};
                         global ->
+                            Shells =
+                                [S#shell{dict = [VarVal | S#shell.dict]} ||
+                                    S <- I#istate.shells],
                             GlobalDict = [VarVal | I#istate.global_dict],
-                            I#istate{global_dict = GlobalDict}
+                            I#istate{global_dict = GlobalDict, shells = Shells}
                     end;
                 {no_such_var, BadName} ->
                     no_such_var(I, Cmd, LineNo, BadName)
@@ -1367,6 +1354,20 @@ shell_expand_vars(I, Bin) ->
         throw:{no_such_var, BadName} ->
             {no_such_var, BadName}
     end.
+
+expand_vars(#istate{submatch_dict = SubDict,
+                    macro_dict    = MacroDict,
+                    active_shell  = Shell,
+                    builtin_dict  = BuiltinDict,
+                    system_dict   = SystemDict},
+            Val,
+            MissingVar) ->
+    case Shell of
+        #shell{dict = ShellDict} -> ok;
+        undefined                -> ShellDict = []
+    end,
+    Dicts = [SubDict, MacroDict, ShellDict, BuiltinDict, SystemDict],
+    lux_utils:expand_vars(Dicts, Val, MissingVar).
 
 double_ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
             Format,
