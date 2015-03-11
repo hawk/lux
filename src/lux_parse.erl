@@ -7,21 +7,23 @@
 
 -module(lux_parse).
 
--export([parse_file/3]).
+-export([parse_file/4]).
 
 -include("lux.hrl").
 
 -record(pstate,
-        {file :: string(),
-         mode :: run_mode(),
-         dict :: [string()]}). % ["name=val"][]}).
+        {file      :: string(),
+         mode      :: run_mode(),
+         skip_skip :: boolean(),
+         dict      :: [string()]}). % ["name=val"][]}).
 
 -define(TAB_LEN, 8).
+-define(FF(Format, Args), io_lib:format(Format, Args)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse
 
-parse_file(RelFile, RunMode, Opts) ->
+parse_file(RelFile, RunMode, SkipSkip, Opts) ->
     try
         File = filename:absname(RelFile),
         DefaultI = lux_interpret:default_istate(File),
@@ -30,15 +32,19 @@ parse_file(RelFile, RunMode, Opts) ->
                 Dict = I#istate.dict ++
                        I#istate.builtin_dict ++
                        I#istate.system_dict,
-                P = #pstate{file = File, mode = RunMode, dict = Dict},
+                P = #pstate{file = File,
+                            mode = RunMode,
+                            skip_skip = SkipSkip,
+                            dict = Dict},
                 {_FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 garbage_collect(),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
                                               [], File, [], Cmds),
                 case parse_config(I, lists:reverse(Config)) of
                     {ok, I2} ->
-                        Opts2 = updated_opts(I2, DefaultI),
-                        {ok, I2#istate.file, Cmds, Opts2};
+                        UpdatedOpts = updated_opts(I2, I),
+                        %%io:format("PARSE: ~s\n\t~p\n", [RelFile,UpdatedOpts]),
+                        {ok, I2#istate.file, Cmds, UpdatedOpts};
                     {error, Reason} ->
                         {error, [{File, 0, main}], Reason}
                 end;
@@ -47,7 +53,9 @@ parse_file(RelFile, RunMode, Opts) ->
         end
     catch
         throw:{error, ErrorStack, ErrorBin} ->
-            {error, ErrorStack, ErrorBin}
+            {error, ErrorStack, ErrorBin};
+        throw:{skip, ErrorStack, ErrorBin} ->
+            {skip, ErrorStack, ErrorBin}
     end.
 
 extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
@@ -138,21 +146,24 @@ parse_file2(P) ->
 
 file_open(Lines) when is_list(Lines) ->
     [{read_ahead, Lines}];
-file_open(#pstate{file = File, mode = execute}) ->
+%% file_open(#pstate{file = File, mode = execute}) ->
+file_open(#pstate{file = File}) ->
     case file:read_file(File) of
         {ok, Bin} ->
             Bins = re:split(Bin, <<"\n">>),
             {ok, [{read_ahead, Bins}]};
         {error, FileReason} ->
             {error, FileReason}
-    end;
-file_open(#pstate{file = File}) ->
-    case file:open(File, [raw, binary, read_ahead]) of
-        {ok, Io} ->
-            {ok, [{open_file, Io, chopped}]};
-        {error, FileReason} ->
-            {error, FileReason}
-    end.
+    end
+%%;
+%%file_open(#pstate{file = File}) ->
+%%    case file:open(File, [raw, binary, read_ahead]) of
+%%        {ok, Io} ->
+%%            {ok, [{open_file, Io, chopped}]};
+%%        {error, FileReason} ->
+%%            {error, FileReason}
+%%    end
+.
 
 file_close([{read_ahead, _Bins} | Rest]) ->
     file_close(Rest);
@@ -258,11 +269,10 @@ parse_oper(P, Fd, Op, LineNo, OrigLine) ->
         $[  -> meta;
         $"  -> multi_line;
         $#  -> comment;
-        _   -> parse_error(P,
-                           Fd,
-                           LineNo,
-                           ["Syntax error at line ", integer_to_list(LineNo),
-                            ": '", OrigLine, "'"])
+        _   ->
+            parse_error(P, Fd, LineNo,
+                        ["Syntax error at line ", integer_to_list(LineNo),
+                         ": '", OrigLine, "'"])
     end.
 
 parse_single(Op, #cmd{type = Type} = Cmd, Data) ->
@@ -311,9 +321,7 @@ parse_var(P, Fd, Cmd, Scope, String) ->
             Cmd#cmd{type = variable, arg = {Scope, Var, Val}};
         _ ->
             LineNo = Cmd#cmd.lineno,
-            parse_error(P,
-                        Fd,
-                        LineNo,
+            parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": illegal ", atom_to_list(Scope),
                          " variable "," '", String, "'"])
@@ -352,9 +360,7 @@ parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                 end,
             parse(P, NewFd, NewLineNo+1, NewTokens);
         _ ->
-            parse_error(P,
-                        Fd,
-                        LineNo,
+            parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": ']' is expected to be at end of line"])
     end.
@@ -369,9 +375,7 @@ parse_body(#pstate{mode = RunMode} = P,
     {FdAfter, BodyLines} = file_splitwith(Fd, Pred, []),
     case file_next(FdAfter) of
         eof = NewFd ->
-            parse_error(P,
-                        NewFd,
-                        LineNo,
+            parse_error(P, NewFd, LineNo,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": [" ++ EndKeyword ++ "] expected"]);
@@ -414,12 +418,9 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 Cmd#cmd{type = doc, arg = {Level, Doc}}
             catch
                 error:_ ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
+                    parse_error(P, Fd, LineNo,
                                 ["Illegal prefix of doc string" ,
-                                 Text2,
-                                 " on line ",
+                                 Text2, " on line ",
                                  integer_to_list(LineNo)])
             end;
         "cleanup" ++ Name ->
@@ -429,35 +430,27 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             Match = re:run(Name2, "\\$\\$", [{capture,none}]),
             case {Name2, Match} of
                 {"", _} ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
-                                io_lib:format("Syntax error at line ~p"
-                                              ": missing shell name",
-                                              [LineNo]));
+                    parse_error(P, Fd, LineNo,
+                                ?FF("Syntax error at line ~p"
+                                    ": missing shell name",
+                                    [LineNo]));
                 {"lux"++_, _} ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
-                                io_lib:format("Syntax error at line ~p"
-                                              ": ~s is a reserved"
-                                              " shell name",
-                                              [LineNo, Name2]));
+                    parse_error(P, Fd, LineNo,
+                                ?FF("Syntax error at line ~p"
+                                    ": ~s is a reserved"
+                                    " shell name",
+                                    [LineNo, Name2]));
                 {"cleanup"++_, _} ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
-                                io_lib:format("Syntax error at line ~p"
-                                              ": ~s is a reserved"
-                                              " shell name",
-                                              [LineNo, Name2]));
+                    parse_error(P, Fd, LineNo,
+                                ?FF("Syntax error at line ~p"
+                                    ": ~s is a reserved"
+                                    " shell name",
+                                    [LineNo, Name2]));
                 {_, match} ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
-                                io_lib:format("Syntax error at line ~p"
-                                              ": $$ in shell name",
-                                              [LineNo]));
+                    parse_error(P, Fd, LineNo,
+                                ?FF("Syntax error at line ~p"
+                                    ": $$ in shell name",
+                                    [LineNo]));
                 {_, nomatch} ->
                     Cmd#cmd{type = shell, arg = Name2}
             end;
@@ -468,7 +461,8 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
             Val2 = expand_vars(P, Fd, Val, LineNo),
-            ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}};
+            ConfigCmd2 = ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}},
+            test_skip(P, Fd, ConfigCmd2);
         "my" ++ VarVal ->
             parse_var(P, Fd, Cmd, my, string:strip(VarVal));
         "local" ++ VarVal ->
@@ -492,17 +486,19 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                         arg = {include,InclFile,FirstLineNo,
                                LastLineNo,InclCmds}}
             catch
+                throw:{skip, ErrorStack, Reason} ->
+                    %% re-throw
+                    parse_error(P, Fd, skip, LineNo, Reason, ErrorStack);
                 throw:{error, ErrorStack, Reason} ->
-                    parse_error(P, Fd, LineNo, Reason, ErrorStack) % re-throw
+                    %% re-throw
+                    parse_error(P, Fd, error, LineNo, Reason, ErrorStack)
             end;
         "macro" ++ Head ->
             case string:tokens(string:strip(Head), " ") of
                 [Name | ArgNames] ->
                     Cmd#cmd{type = macro, arg = {body, macro, Name, ArgNames}};
                 [] ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
+                    parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
                                  ": missing macro name"])
@@ -512,9 +508,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 [Name | ArgVals] ->
                     Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}};
                 [] ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
+                    parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
                                  ": missing macro name"])
@@ -526,21 +520,78 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     Items = string:strip(Items0, left),
                     Cmd#cmd{type = loop, arg = {body, loop, Var, Items}};
                 _ ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
+                    parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
                                  integer_to_list(LineNo),
                                  ": missing loop variable"])
             end;
         Bad ->
-            parse_error(P,
-                        Fd,
-                        LineNo,
+            parse_error(P, Fd, LineNo,
                         ["Syntax error at line ",
                          integer_to_list(LineNo),
                          ": Unknown meta command '",
                          Bad, "'"])
+    end.
+
+test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
+          #cmd{lineno = LineNo, arg = {config, Var, NameVal}} = Cmd) ->
+    case Var of
+        "skip" when not SkipSkip ->
+            {IsSet, Name} = test_variable(P, NameVal),
+            case IsSet of
+                false ->
+                    Cmd;
+                true ->
+                    Reason = "SKIP as variable ~s is set",
+                    parse_skip(P, Fd, LineNo,?FF(Reason, [Name]))
+            end;
+        "skip_unless" when not SkipSkip ->
+            {IsSet, Name} = test_variable(P, NameVal),
+            case IsSet of
+                true ->
+                    Cmd;
+                false ->
+                    Reason = "SKIP as variable ~s is not set",
+                    parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
+            end;
+        "require" when not SkipSkip, RunMode =:= execute ->
+            {IsSet, Name} = test_variable(P, NameVal),
+            case IsSet of
+                true ->
+                    Cmd;
+                false ->
+                    Reason = "FAIL as required variable ~s is not set",
+                    parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
+            end;
+        _ ->
+            Cmd
+    end.
+
+test_variable(P, NameVal) ->
+    Pred = fun(Char) -> Char =/= $= end,
+    {Name, OptVal} = lists:splitwith(Pred, NameVal),
+    UnExpanded = [$$ | Name],
+    try
+        Expanded = lux_utils:expand_vars([P#pstate.dict], UnExpanded, error),
+        %% Variable is set
+        case OptVal of
+            "" ->
+                %% Variable exists
+                {true, Name};
+            "=" ->
+                %% Variable exists
+                {true, Name};
+            "=" ++ Val when Val =:= Expanded ->
+                %% Value matches. Possible empty.
+                {true, Name};
+            _ ->
+                %% Value does not match
+                {false, Name}
+        end
+    catch
+        throw:{no_such_var, _} ->
+            %% Variable is not set
+            {false, Name}
     end.
 
 expand_vars(P, Fd, Val, LineNo) ->
@@ -557,9 +608,7 @@ expand_vars(P, Fd, Val, LineNo) ->
     end.
 
 split_invoke_args(P, Fd, LineNo, [], quoted, Arg, _Args) ->
-    parse_error(P,
-                Fd,
-                LineNo,
+    parse_error(P, Fd, LineNo,
                 ["Syntax error at line ",
                  integer_to_list(LineNo),
                  ": Unterminated quote '",
@@ -603,16 +652,12 @@ parse_multi(#pstate{mode = RunMode} = P,
     LastLineNo = LineNo + length(RevBefore) + 1,
     case file_next(FdAfter) of
         eof = NewFd ->
-            parse_error(P,
-                        NewFd,
-                        LastLineNo,
+            parse_error(P, NewFd, LastLineNo,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": '\"\"\"' expected"]);
         {line, _, NewFd} when RemPrefixLen =/= 0 ->
-            parse_error(P,
-                        NewFd,
-                        LastLineNo,
+            parse_error(P, NewFd, LastLineNo,
                         ["Syntax error at line ", integer_to_list(LastLineNo),
                          ": multi line block must end in same column as"
                          " it started on line ", integer_to_list(LineNo)]);
@@ -687,10 +732,16 @@ scan_single(Line, PrefixLen) ->
             {more, Line}
     end.
 
+parse_skip(File, Fd, LineNo, IoList) ->
+    parse_error(File, Fd, skip, LineNo, IoList, []).
+
 parse_error(File, Fd, LineNo, IoList) ->
     parse_error(File, Fd, LineNo, IoList, []).
 
 parse_error(StateOrFile, Fd, LineNo, IoList, Stack) ->
+    parse_error(StateOrFile, Fd, error, LineNo, IoList, Stack).
+
+parse_error(StateOrFile, Fd, Tag, LineNo, IoList, Stack) ->
     file_close(Fd),
     File = state_to_file(StateOrFile),
     Context =
@@ -698,7 +749,8 @@ parse_error(StateOrFile, Fd, LineNo, IoList, Stack) ->
             [] -> main;
             _  -> include
         end,
-    throw({error, [{File, LineNo, Context} | Stack], iolist_to_binary(IoList)}).
+    throw({Tag, [{File, LineNo, Context} | Stack],
+           iolist_to_binary(IoList)}).
 
 state_to_file(File) when is_list(File) -> File;
 state_to_file(#pstate{file = File})    -> File;

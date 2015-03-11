@@ -95,7 +95,8 @@ dir(Dir) ->
     case Dir of
         ""          -> Dir;
         "SKIP" ++ _ -> " # " ++ Dir;
-        "TODO" ++ _ -> " # " ++ Dir
+        "TODO" ++ _ -> " # " ++ Dir;
+        "FAIL" ++ _ -> " # " ++ Dir
         %%_           -> " # " ++ Dir % Accept anyway
     end.
 

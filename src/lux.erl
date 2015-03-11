@@ -7,7 +7,7 @@
 
 -module(lux).
 
--export([run/2, parse_file/3, interpret_commands/3, annotate_log/1, history/2]).
+-export([run/2, parse_file/4, interpret_commands/3, annotate_log/1, history/2]).
 -export([trace_me/4, trace_me/5]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -22,6 +22,7 @@
 -type summary()  :: success | skip | warning | fail | error.
 -type lineno()   :: string().
 -type warning()  :: {warning, filename(), lineno(), string()}.
+-type skip()     :: {skip, filename(), string()}.
 -type error()    :: {error, filename(), string()}.
 -type result()   :: {ok, filename(), summary(), lineno(), [warning()]}.
 
@@ -37,11 +38,11 @@ run(File, Opts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file
 
--spec(parse_file(filename(), run_mode(), opts()) ->
-             {ok, filename(), cmds(), opts()} | error()).
+-spec(parse_file(filename(), run_mode(), boolean(), opts()) ->
+             {ok, filename(), cmds(), opts()} | skip() | error()).
 
-parse_file(File, RunMode, Opts) ->
-    lux_parse:parse_file(File, RunMode, Opts).
+parse_file(File, RunMode, SkipSkip, Opts) ->
+    lux_parse:parse_file(File, RunMode, SkipSkip,Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Interpret parsed script
