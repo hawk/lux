@@ -6,7 +6,7 @@
 [shell single]
     # The terminal echoes all input
     !echo foo
-    ?foo
+    ?echo foo
 
 [shell multi]
     # bar is indented 4 characters
@@ -27,7 +27,7 @@
 [shell single]
     ?^foo
 
-# Cleanup is executed regardless of the script succeeds or fails
+# Cleanup is always executed, regardless of the script succeeds or fails
 [cleanup]
     # Match of command exit status. Observe the double dollar sign.
     !rm -f $file

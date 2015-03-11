@@ -24,27 +24,27 @@ on [GitHub](https://github.com/hawk/lux/blob/master/doc/lux.md).
 A sample script
 ---------------
 
-Here is an example of script `(lux/examples/intro.lux)`
-which starts a couple of concurrent shells and sends text to them with
-the `!` command and matches expected output with `?`.
+Here is an example of a test script `(lux/examples/intro.lux)`. It
+starts couple of concurrent shells and sends text to them with the
+`!` command and matches expected output with `?`.
 
 >     [doc Test of single and multi line regular expressions]
-> 
+>
 >     # A global variable is accessible in all shells
 >     [global file=removeme.txt]
-> 
+>
 >     [shell single]
 >         # The terminal echoes all input
 >         !echo foo
->         ?foo
-> 
+>         ?echo foo
+>
 >     [shell multi]
 >         # bar is indented 4 characters
 >         !echo "foo"      > $file
 >         !echo "    bar" >> $file
 >         !echo "fum"     >> $file
 >         !cat $file
-> 
+>
 >         # The first double quote char defines the
 >         # first column of the multi line regexp
 >         """?
@@ -52,12 +52,12 @@ the `!` command and matches expected output with `?`.
 >             bar
 >         fum
 >         """
-> 
+>
 >     # Let single be the active shell again
 >     [shell single]
 >         ?^foo
-> 
->     # Cleanup is executed regardless of the script succeeds or fails
+>
+>     # Cleanup is always executed, regardless of the script succeeds or fails
 >     [cleanup]
 >         # Match of command exit status. Observe the double dollar sign.
 >         !rm -f $file
@@ -72,17 +72,17 @@ Run a single script like this:
 >     /home/hm> lux lux/examples/intro.lux
 >
 >     summary log       : /home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log
-> 
+>
 >     test case         : /home/hm/lux/examples/intro.lux
 >     progress          : ..:..:....:.....:...:...:..:..:..:.....c......:...:...:..:....
 >     result            : SUCCESS
-> 
+>
 >     successful        : 1
 >     summary           : SUCCESS
 >
 >     file:///home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log.html
 >
->     /home/hm> 
+>     /home/hm>
 
 In this run we got a (brief) progress report of the test case on
 stdout and a link to a summary log containing (lots of) details.
@@ -104,4 +104,3 @@ identities if provided with `--revision`).
 >     Assembling history of logs in /home/hm.......4 test runs...ok
 >
 >     file:///home/hm/lux_history.html
-
