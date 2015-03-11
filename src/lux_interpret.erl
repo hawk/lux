@@ -1137,17 +1137,19 @@ prepare_result(#istate{latest_cmd = LatestCmd,
 
 goto_cleanup(OldI, CleanupReason) ->
     lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
-    LineNoPrefix =
+    LineNo = integer_to_list((OldI#istate.latest_cmd)#cmd.lineno),
+    NewLineNo =
         case OldI#istate.results of
             [#result{actual= <<"fail pattern matched ", _/binary>>}|_] ->
-                "-";
+                "-" ++ LineNo;
             [#result{actual= <<"success pattern matched ", _/binary>>}|_] ->
-                "+";
+                "+" ++ LineNo;
+            [#result{outcome = success}|_] ->
+                "";
             _ ->
-                ""
+                LineNo
         end,
-    LineNo = integer_to_list((OldI#istate.latest_cmd)#cmd.lineno),
-    lux_utils:progress_write(OldI#istate.progress, LineNoPrefix ++ LineNo),
+    lux_utils:progress_write(OldI#istate.progress, NewLineNo),
 
     %% Ensure that the cleanup does not take too long time
     safe_send_after(OldI, OldI#istate.case_timeout, self(),
