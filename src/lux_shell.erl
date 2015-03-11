@@ -7,7 +7,7 @@
 
 -module(lux_shell).
 
--export([start_monitor/3]).
+-export([start_monitor/4]).
 
 -include("lux.hrl").
 
@@ -65,7 +65,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Client
 
-start_monitor(I, Cmd, Name) ->
+start_monitor(I, Cmd, Name, ExtraLogs) ->
     OrigFile = I#istate.orig_file,
     Self = self(),
     Base = filename:basename(OrigFile),
@@ -90,7 +90,7 @@ start_monitor(I, Cmd, Name) ->
                 shell_prompt_cmd = I#istate.shell_prompt_cmd,
                 shell_prompt_regexp = I#istate.shell_prompt_regexp,
                 debug_level = I#istate.debug_level},
-    {Pid, Ref} = spawn_monitor(fun() -> init(C) end),
+    {Pid, Ref} = spawn_monitor(fun() -> init(C, ExtraLogs) end),
     receive
         {started, Pid, Logs, NewVarVals} ->
             Shell = #shell{name = Name,
@@ -118,7 +118,7 @@ send_reply(C, To, Msg) ->
     lux:trace_me(50, TraceFrom, TraceTo, element(1, Msg), [Msg]),
     To ! Msg.
 
-init(C) when is_record(C, cstate) ->
+init(C, ExtraLogs) when is_record(C, cstate) ->
     erlang:monitor(process, C#cstate.parent),
     process_flag(trap_exit, true),
     Name = C#cstate.name,
@@ -131,7 +131,6 @@ init(C) when is_record(C, cstate) ->
     FlatExec = lists:flatten([Exec, [[" ", A] || A <- Args]]),
     Events = save_event(C2, start, FlatExec),
     StartReason = atom_to_list(C#cstate.start_reason),
-    ExtraLogs = expand_vars(C, "$LUX_EXTRA_LOGS", error),
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason},
                {"LUX_EXTRA_LOGS", ExtraLogs}],
@@ -699,8 +698,7 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{expected = undefined,
-                  actual = Actual,
-                  submatch_dict = []},
+                  actual = Actual},
     Actual2 = <<Context/binary, "\"", Match/binary, "\"">>,
     dlog(C2, ?dmore, "expected=undefined (prepare_stop)", []),
     C3 = opt_late_sync_reply(C2),

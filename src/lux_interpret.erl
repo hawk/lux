@@ -29,7 +29,8 @@ interpret_commands(Script, Cmds, Opts) ->
                 Base = filename:basename(Script),
                 ExtraLogs = filename:join([LogDir, Base ++ ".extra.logs"]),
                 ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
-                I4 = I3#istate{dict = [ExtraDict | I3#istate.dict]},
+                GlobalDict = [ExtraDict | I3#istate.global_dict],
+                I4 = I3#istate{global_dict = GlobalDict},
                 Config = config_data(I4),
                 case filelib:ensure_dir(LogDir) of
                     ok ->
@@ -649,7 +650,7 @@ dispatch_cmd(I,
             I;
         variable ->
             {Scope, Var, Val} = Arg,
-            case shell_expand_vars(I, Val) of
+            case safe_expand_vars(I, Val) of
                 {ok, Val2} ->
                     VarVal = lists:flatten([Var, $=, Val2]),
                     case Scope of
@@ -693,7 +694,7 @@ dispatch_cmd(I,
             Cmd2 = Cmd#cmd{arg = Secs},
             shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
         progress ->
-            case shell_expand_vars(I, Arg) of
+            case safe_expand_vars(I, Arg) of
                 {ok, String} ->
                     Cmd2 = Cmd#cmd{arg = String},
                     shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
@@ -774,7 +775,7 @@ dispatch_cmd(I,
             end;
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
-            case shell_expand_vars(I, ItemStr) of
+            case safe_expand_vars(I, ItemStr) of
                 {ok, NewItemStr} ->
                     ilog(I, "~s(~p): loop items \"~s\"\n",
                          [I#istate.active_name, LastLineNo, NewItemStr]),
@@ -863,7 +864,7 @@ call_level(#istate{call_level = CallLevel}) ->
     CallLevel.
 
 lookup_macro(I, #cmd{arg = {invoke, Name, ArgVals}} = Cmd) ->
-    case shell_expand_vars(I, Name) of
+    case safe_expand_vars(I, Name) of
         {ok, NewName} ->
             Macros = [M || M <- I#istate.macros,
                            M#macro.name =:= NewName],
@@ -902,7 +903,7 @@ invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
     throw_error(I, <<"Ambiguous macro: ", BinName/binary>>).
 
 macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
-    case shell_expand_vars(I, Val) of
+    case safe_expand_vars(I, Val) of
         {ok, Val2} ->
             [lists:flatten([Name, $=, Val2]) |
              macro_dict(I, Names, Vals, Invoke)];
@@ -927,14 +928,14 @@ compile_regexp(_I, Cmd, {verbatim, _Verbatim}) ->
 compile_regexp(_I, Cmd, {mp, _RegExp, _MP}) ->
     Cmd;
 compile_regexp(I, Cmd, {template, Template}) ->
-    case shell_expand_vars(I, Template) of
+    case safe_expand_vars(I, Template) of
         {ok, Verbatim} ->
             Cmd#cmd{arg = {verbatim, Verbatim}};
         {no_such_var, BadName} ->
             no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
     end;
 compile_regexp(I, Cmd, {regexp, RegExp}) ->
-    case shell_expand_vars(I, RegExp) of
+    case safe_expand_vars(I, RegExp) of
         {ok, RegExp2} ->
             RegExp3 = lux_utils:normalize_newlines(RegExp2),
             Opts = [multiline, {newline, anycrlf}],
@@ -951,7 +952,7 @@ compile_regexp(I, Cmd, {regexp, RegExp}) ->
     end.
 
 expand_send(I, Cmd, Arg) ->
-    case shell_expand_vars(I, Arg) of
+    case safe_expand_vars(I, Arg) of
         {ok, Arg2} ->
             Cmd2 = Cmd#cmd{arg = Arg2},
             shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
@@ -966,7 +967,7 @@ no_such_var(I, Cmd, LineNo, BadName) ->
     throw_error(I, <<OrigLine/binary, " ", E/binary>>).
 
 parse_int(I, Chars, Cmd) ->
-    case shell_expand_vars(I, Chars) of
+    case safe_expand_vars(I, Chars) of
         {ok, Chars2} ->
             try
                 list_to_integer(Chars2)
@@ -1268,7 +1269,7 @@ opt_apply(_Fun) ->
 %% Control a shell
 
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
-    case shell_expand_vars(I, Name) of
+    case safe_expand_vars(I, Name) of
         {ok, Name2} when I#istate.active_shell#shell.name =:= Name2 ->
             %% Keep active shell
             I;
@@ -1289,24 +1290,29 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
 shell_start(I, #cmd{arg = Name} = Cmd) ->
     I2 = change_active_mode(I, Cmd, suspend),
     I3 = inactivate_shell(I2, I2#istate.want_more),
-    case lux_shell:start_monitor(I3, Cmd, Name) of
-        {ok, I4} ->
-            %% Wait for some shell output
-            Wait = Cmd#cmd{type = expect,
-                           arg = {regexp, <<".+">>}},
-            %% Set the prompt (after the rc files has ben run)
-            CmdStr = list_to_binary(I4#istate.shell_prompt_cmd),
-            Prompt = Cmd#cmd{type = send_lf,
-                             arg = CmdStr},
-            %% Wait for the prompt
-            CmdRegExp = list_to_binary(I4#istate.shell_prompt_regexp),
-            Sync = Cmd#cmd{type = expect,
-                           arg = {regexp, CmdRegExp}},
-            Cmds = [Wait, Prompt, Sync | I4#istate.commands],
-            dlog(I4, ?dmore, "want_more=false (shell_start)", []),
-            I4#istate{commands = Cmds};
-        {error, I4, Pid, Reason} ->
-            shell_crashed(I4, Pid, Reason)
+    case safe_expand_vars(I3, "$LUX_EXTRA_LOGS") of
+        {ok, ExtraLogs} ->
+            case lux_shell:start_monitor(I3, Cmd, Name, ExtraLogs) of
+                {ok, I4} ->
+                    %% Wait for some shell output
+                    Wait = Cmd#cmd{type = expect,
+                                   arg = {regexp, <<".+">>}},
+                    %% Set the prompt (after the rc files has ben run)
+                    CmdStr = list_to_binary(I4#istate.shell_prompt_cmd),
+                    Prompt = Cmd#cmd{type = send_lf,
+                                     arg = CmdStr},
+                    %% Wait for the prompt
+                    CmdRegExp = list_to_binary(I4#istate.shell_prompt_regexp),
+                    Sync = Cmd#cmd{type = expect,
+                                   arg = {regexp, CmdRegExp}},
+                    Cmds = [Wait, Prompt, Sync | I4#istate.commands],
+                    dlog(I4, ?dmore, "want_more=false (shell_start)", []),
+                    I4#istate{commands = Cmds};
+                {error, I4, Pid, Reason} ->
+                    shell_crashed(I4, Pid, Reason)
+            end;
+        {no_such_var, BadName} ->
+            no_such_var(I3, Cmd, Cmd#cmd.lineno, BadName)
     end.
 
 shell_switch(OldI, Cmd, #shell{health = alive, name = NewName} = NewShell) ->
@@ -1370,7 +1376,7 @@ shell_crashed(I, Pid, Reason) ->
         end,
     throw_error(I2, Error).
 
-shell_expand_vars(I, Bin) ->
+safe_expand_vars(I, Bin) ->
     MissingVar = error,
     try
         {ok, expand_vars(I, Bin, MissingVar)}
@@ -1379,16 +1385,17 @@ shell_expand_vars(I, Bin) ->
             {no_such_var, BadName}
     end.
 
-expand_vars(#istate{submatch_dict = SubDict,
+expand_vars(#istate{active_shell  = Shell,
+                    submatch_dict = SubDict,
                     macro_dict    = MacroDict,
-                    active_shell  = Shell,
+                    global_dict   = OptGlobalDict,
                     builtin_dict  = BuiltinDict,
                     system_dict   = SystemDict},
             Val,
             MissingVar) ->
     case Shell of
         #shell{dict = LocalDict} -> ok;
-        undefined                -> LocalDict = []
+        undefined                -> LocalDict = OptGlobalDict
     end,
     Dicts = [SubDict, MacroDict, LocalDict, BuiltinDict, SystemDict],
     lux_utils:expand_vars(Dicts, Val, MissingVar).
