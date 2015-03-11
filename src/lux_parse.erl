@@ -436,24 +436,8 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "config" ++ VarVal ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
-            try
-                MissingVar = keep, % BUGBUG: should be error
-                Val2 = lux_utils:expand_vars(P#pstate.dict,
-                                                  Val,
-                                                  MissingVar),
-                ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}}
-            catch
-                throw:{no_such_var, BadVar} ->
-                    parse_error(P,
-                                Fd,
-                                LineNo,
-                                ["Variable $",
-                                 BadVar,
-                                 " is not set on line ",
-                                 integer_to_list(LineNo)]);
-                error:Reason ->
-                    erlang:error(Reason)
-            end;
+            Val2 = expand_vars(P, Fd, Val, LineNo),
+            ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}};
         "my" ++ VarVal ->
             parse_var(P, Fd, Cmd, my, string:strip(VarVal));
         "local" ++ VarVal ->
@@ -467,7 +451,8 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "progress" ++ String ->
             Cmd#cmd{type = progress, arg = string:strip(String)};
         "include" ++ File ->
-            InclFile = filename:absname(string:strip(File),
+            File2 = expand_vars(P, Fd, File, LineNo),
+            InclFile = filename:absname(string:strip(File2),
                                         filename:dirname(P#pstate.file)),
             try
                 {FirstLineNo, LastLineNo, InclCmds} =
@@ -525,6 +510,19 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                          integer_to_list(LineNo),
                          ": Unknown meta command '",
                          Bad, "'"])
+    end.
+
+expand_vars(P, Fd, Val, LineNo) ->
+    try
+        lux_utils:expand_vars([P#pstate.dict], Val, error)
+    catch
+        throw:{no_such_var, BadVar} ->
+            Reason = ["Variable $", BadVar,
+                      " is not set on line ",
+                      integer_to_list(LineNo)],
+            parse_error(P, Fd, LineNo, Reason);
+        error:Reason ->
+            erlang:error(Reason)
     end.
 
 split_invoke_args(P, Fd, LineNo, [], quoted, Arg, _Args) ->

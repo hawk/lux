@@ -151,7 +151,8 @@ Includes and runs the specified script at this point. The `FileName`
 is relative to the currently executing script, unless given as an
 absolute path. `.luxinc` is preferred as file extension. If the included
 file contains a `[cleanup]` marker, the statements after that will be
-evaluated in order to clean up unwanted side effects.
+evaluated in order to clean up unwanted side effects. Variables in
+`FileName` are expanded.
 
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
   ...  
