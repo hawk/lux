@@ -50,8 +50,8 @@ parse_file(File, RunMode, SkipSkip, Opts) ->
 -spec(interpret_commands(filename(), cmds(), opts()) ->
              [{ok, summary(), filename(), [result()]} | error()]).
 
-interpret_commands(File, Commands, Opts) ->
-    lux_interpret:interpret_commands(File, Commands, Opts).
+interpret_commands(File, Cmds, Opts) ->
+    lux_interpret:interpret_commands(File, Cmds, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate log file(s)

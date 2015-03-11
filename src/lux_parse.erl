@@ -15,7 +15,7 @@
         {file      :: string(),
          mode      :: run_mode(),
          skip_skip :: boolean(),
-         dict      :: [string()]}). % ["name=val"][]}).
+         dicts     :: [[string()]]}). % ["name=val"][]}).
 
 -define(TAB_LEN, 8).
 -define(FF(Format, Args), io_lib:format(Format, Args)).
@@ -29,13 +29,14 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
         DefaultI = lux_interpret:default_istate(File),
         case lux_interpret:parse_iopts(DefaultI, Opts) of
             {ok, I} ->
-                Dict = I#istate.dict ++
-                       I#istate.builtin_dict ++
-                       I#istate.system_dict,
+                Dicts =
+                    [I#istate.dict,
+                     I#istate.builtin_dict,
+                     I#istate.system_dict],
                 P = #pstate{file = File,
                             mode = RunMode,
                             skip_skip = SkipSkip,
-                            dict = Dict},
+                            dicts = Dicts},
                 {_FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 garbage_collect(),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
@@ -572,7 +573,7 @@ test_variable(P, NameVal) ->
     {Name, OptVal} = lists:splitwith(Pred, NameVal),
     UnExpanded = [$$ | Name],
     try
-        Expanded = lux_utils:expand_vars([P#pstate.dict], UnExpanded, error),
+        Expanded = lux_utils:expand_vars(P#pstate.dicts, UnExpanded, error),
         %% Variable is set
         case OptVal of
             "" ->
@@ -596,7 +597,7 @@ test_variable(P, NameVal) ->
 
 expand_vars(P, Fd, Val, LineNo) ->
     try
-        lux_utils:expand_vars([P#pstate.dict], Val, error)
+        lux_utils:expand_vars(P#pstate.dicts, Val, error)
     catch
         throw:{no_such_var, BadVar} ->
             Reason = ["Variable $", BadVar,

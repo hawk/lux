@@ -19,9 +19,9 @@
          lookup_macro/2,
          flush_logs/1]).
 
-interpret_commands(Script, Commands, Opts) ->
+interpret_commands(Script, Cmds, Opts) ->
     I = default_istate(Script),
-    I2 = I#istate{commands = Commands, orig_commands = Commands},
+    I2 = I#istate{commands = Cmds, orig_commands = undefined},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
@@ -33,23 +33,23 @@ interpret_commands(Script, Commands, Opts) ->
                 Config = config_data(I4),
                 case filelib:ensure_dir(LogDir) of
                     ok ->
-                        ConfigFd = lux_log:open_config_log(LogDir,
-                                                           Script,
-                                                           Config),
+                        ConfigFd =
+                            lux_log:open_config_log(LogDir, Script, Config),
                         Progress = I4#istate.progress,
                         LogFun = I4#istate.log_fun,
                         Verbose = true,
                         case lux_log:open_event_log(LogDir, Script, Progress,
                                                     LogFun, Verbose) of
                             {ok, EventLog, EventFd} ->
+                                Docs = docs(I4#istate.orig_file, Cmds),
                                 eval(I4, Progress, Verbose, LogFun,
-                                     EventLog, EventFd, ConfigFd);
+                                     EventLog, EventFd, ConfigFd, Docs);
                             {error, FileReason} ->
-                                internal_error(I3,
+                                internal_error(I4,
                                                file:format_error(FileReason))
                         end;
                     {error, FileReason} ->
-                        internal_error(I3, file:format_error(FileReason))
+                        internal_error(I4, file:format_error(FileReason))
                 end;
             {error, ParseReason} ->
                 internal_error(I2, ParseReason)
@@ -61,7 +61,7 @@ interpret_commands(Script, Commands, Opts) ->
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason}})
     end.
 
-eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd) ->
+eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
     NewI = OldI#istate{event_log_fd =  {Verbose, EventFd},
                        config_log_fd = {Verbose, ConfigFd}},
     Flag = process_flag(trap_exit, true),
@@ -77,7 +77,7 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd) ->
         ReplyTo = self(),
         Interpret =
             fun() ->
-                    lux_debug:start_link(OldI),
+                    lux_debug:start_link(OldI#istate.debug_file),
                     Res = interpret_init(NewI),
                     lux:trace_me(70, 'case', shutdown, []),
                     unlink(ReplyTo),
@@ -85,7 +85,7 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd) ->
                     exit(shutdown)
             end,
         Pid = spawn_link(Interpret),
-        wait_for_done(NewI, Pid)
+        wait_for_done(NewI, Pid, Docs)
     after
         process_flag(trap_exit, Flag),
         lux_log:close_event_log(EventFd),
@@ -248,14 +248,14 @@ expand_vars(#istate{macro_dict   = MacroDict,
     Dicts = [MacroDict, Dict, BuiltinDict, SystemDict],
     lux_utils:expand_vars(Dicts, Val, MissingVar).
 
-wait_for_done(I, Pid) ->
+wait_for_done(I, Pid, Docs) ->
     receive
         {suite_timeout, SuiteTimeout} ->
             %% double_ilog(I, "\n~s~p\n",
             %%             [?TAG("suite timeout"),
             %%              SuiteTimeout]),
             Pid ! {suite_timeout, SuiteTimeout},
-            case wait_for_done(I, Pid) of
+            case wait_for_done(I, Pid, Docs) of
                 {ok, File, CaseLogDir, _Summary, FullLineNo, _Events} ->
                     ok;
                 {error, File, CaseLogDir, FullLineNo, _} ->
@@ -266,18 +266,18 @@ wait_for_done(I, Pid) ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
                 {ok, I2} ->
-                    handle_done(I, I2);
+                    handle_done(I, I2, Docs);
                 {error, ReasonBin, I2} ->
-                    I3 = post_ilog(I2),
+                    I3 = post_ilog(I2, Docs),
                     fatal_error(I3, ReasonBin)
             end;
         {'EXIT', _Pid, Reason} ->
-            I2 = post_ilog(I),
+            I2 = post_ilog(I, Docs),
             internal_error(I2, {'EXIT', Reason})
     end.
 
-handle_done(I, I2) ->
-    I3 = post_ilog(I2),
+handle_done(I, I2, Docs) ->
+    I3 = post_ilog(I2, Docs),
     File = I3#istate.file,
     Results = I3#istate.results,
     case lists:keyfind('EXIT', 1, Results) of
@@ -310,8 +310,8 @@ handle_done(I, I2) ->
 
 print_success(I, File, Results) ->
     double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
-    L = length(I#istate.commands),
-    FullLineNo = integer_to_list(L),
+    LatestCmd = I#istate.latest_cmd,
+    FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
     {ok, File, I#istate.log_dir, success, FullLineNo, Results}.
 
 print_fail(I0, File, Results,
@@ -369,28 +369,36 @@ flush_summary_log(#istate{summary_log_fd=undefined}) ->
 flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
     file:sync(SummaryFd).
 
-post_ilog(#istate{logs = Logs, config_log_fd = {_, ConfigFd}}=I) ->
+post_ilog(#istate{logs = Logs, config_log_fd = {_, ConfigFd}} = I, Docs) ->
     lux_log:close_config_log(ConfigFd, Logs),
-    log_doc(I),
+    log_doc(I, Docs),
     ilog(I, "\n", []),
-    I#istate{progress = silent,
-             log_fun = fun(Bin) ->
-                               console_write(binary_to_list(Bin)),
-                               (I#istate.log_fun)(Bin),
-                               Bin
-                       end}.
+    LogFun =
+        fun(Bin) ->
+                console_write(binary_to_list(Bin)),
+                (I#istate.log_fun)(Bin),
+                Bin
+        end,
+    I#istate{progress = silent,log_fun = LogFun}.
 
-log_doc(#istate{log_fun = LogFun, orig_file = File, orig_commands = Cmds}) ->
-    Prefix = list_to_binary(?TAG("doc")),
+docs(File, OrigCmds) ->
     Fun =
-        fun(#cmd{type = doc, arg = {Level, Doc}}, _RevFile, _CmdStack, Acc) ->
-                Tabs = list_to_binary(lists:duplicate(Level-1, $\t)),
-                LogFun(<<Prefix/binary, Tabs/binary, Doc/binary, "\n">>),
-                Acc;
+        fun(#cmd{type = doc, arg = Arg}, _RevFile, _CmdStack, Acc)
+           when tuple_size(Arg) =:= 2 ->
+                [Arg | Acc];
            (_, _RevFile, _FileStack, Acc) ->
                 Acc
         end,
-    lux_utils:foldl_cmds(Fun, ok, File, [], Cmds).
+    lists:reverse(lux_utils:foldl_cmds(Fun, [], File, [], OrigCmds)).
+
+log_doc(#istate{log_fun = LogFun}, Docs) ->
+    Prefix = list_to_binary(?TAG("doc")),
+    Fun =
+        fun({Level, Doc}) ->
+                Tabs = list_to_binary(lists:duplicate(Level-1, $\t)),
+                LogFun(<<Prefix/binary, Tabs/binary, Doc/binary, "\n">>)
+        end,
+    lists:foreach(Fun, Docs).
 
 simple_to_string(Atom) when is_atom(Atom) ->
     simple_to_string(atom_to_list(Atom));
@@ -439,11 +447,14 @@ config_data(I) ->
 interpret_init(I) ->
     Ref = safe_send_after(I, I#istate.case_timeout, self(),
                           {case_timeout, I#istate.case_timeout}),
-    I2 = I#istate{macros = collect_macros(I),
-                  blocked = false,
-                  has_been_blocked = false,
-                  want_more = true,
-                  old_want_more = undefined},
+    OrigCmds = I#istate.commands,
+    I2 =
+        I#istate{macros = collect_macros(I, OrigCmds),
+                 blocked = false,
+                 has_been_blocked = false,
+                 want_more = true,
+                 old_want_more = undefined,
+                 orig_commands = OrigCmds},
     I4 =
         case I2#istate.debug orelse I2#istate.debug_file =/= undefined of
             false ->
@@ -465,9 +476,7 @@ interpret_init(I) ->
         safe_cancel_timer(Ref)
     end.
 
-collect_macros(#istate{file = File,
-                       orig_file = OrigFile,
-                       orig_commands = OrigCmds}) ->
+collect_macros(#istate{file = File, orig_file = OrigFile}, OrigCmds) ->
     Collect =
         fun(Cmd, _RevFile, _CmdStack, Acc) ->
                 case Cmd of

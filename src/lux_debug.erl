@@ -33,23 +33,23 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Read commands from stdin and communicate with interpreter
 
-start_link(I) ->
+start_link(DebugFile) ->
     Parent = self(),
-    spawn_link(fun() -> init(I, Parent) end).
+    spawn_link(fun() -> init(Parent, DebugFile) end).
 
-init(I, Ipid) ->
+init(Ipid, DebugFile) ->
     CmdState = undefined,
     NewCmdState =
-        case I#istate.debug_file of
+        case DebugFile of
             undefined ->
                 CmdState;
             DebugFile ->
                 LoadCmd = "load " ++ DebugFile,
                 call(Ipid, LoadCmd, CmdState)
         end,
-    loop(I, Ipid, "help", NewCmdState, 1).
+    loop(Ipid, "help", NewCmdState, 1).
 
-loop(I, Ipid, PrevCmd, CmdState, N) ->
+loop(Ipid, PrevCmd, CmdState, N) ->
     case io:get_line("") of
         eof when N =:= 1 ->
             %% Closed already at startup
@@ -68,14 +68,14 @@ loop(I, Ipid, PrevCmd, CmdState, N) ->
                 [] when Cmd =:= "" ->
                     %% Repeat previous command
                     NewCmdState = call(Ipid, PrevCmd, CmdState),
-                    loop(I, Ipid, PrevCmd, NewCmdState, N+1);
+                    loop(Ipid, PrevCmd, NewCmdState, N+1);
                 [] ->
                     %% Ignore empty command
-                    loop(I, Ipid, Cmd, CmdState, N+1);
+                    loop(Ipid, Cmd, CmdState, N+1);
                 _ ->
                     %% Execute new command
                     NewCmdState = call(Ipid, Cmd, CmdState),
-                    loop(I, Ipid, Cmd, NewCmdState, N+1)
+                    loop(Ipid, Cmd, NewCmdState, N+1)
             end
     end.
 

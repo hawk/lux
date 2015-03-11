@@ -407,7 +407,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
     RelScript = lux_utils:drop_prefix(Script),
     RunMode = R#rstate.mode,
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
-        {ok, R2, Script2, Commands, Opts} ->
+        {ok, R2, Script2, Cmds, Opts} ->
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             case RunMode of
@@ -415,7 +415,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     io:format("~s\n", [Script]),
                     run_cases(R2, Scripts, OldSummary, Results, CC+1);
                 doc ->
-                    Docs = extract_doc(Script2, Commands),
+                    Docs = extract_doc(Script2, Cmds),
                     io:format("~s:\n",
                               [lux_utils:drop_prefix(Script)]),
                     [io:format("~s~s\n", [lists:duplicate(Level, $\t), Str]) ||
@@ -456,7 +456,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     tap_case_begin(R, RelScript),
                     double_rlog(R2, "\n~s~s\n",
                                 [?TAG("test case"), Script]),
-                    Res = lux:interpret_commands(Script2, Commands, Opts),
+                    Res = lux:interpret_commands(Script2, Cmds, Opts),
                     SkipReason = "",
                     case Res of
                         {ok, _, CaseLogDir, Summary, FullLineNo, Events} ->
@@ -589,7 +589,7 @@ print_results(#rstate{warnings=Warnings}, Summary, Results) ->
 parse_script(R, SuiteFile, Script) ->
     Opts0 = config_opts(R),
     case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, Opts0) of
-        {ok, Script2, Commands, FileOpts} ->
+        {ok, Script2, Cmds, FileOpts} ->
             FileOpts2 = merge_opts(FileOpts, R#rstate.file_opts),
             R2 = R#rstate{internal_opts = [],
                           file_opts = FileOpts2},
@@ -612,7 +612,7 @@ parse_script(R, SuiteFile, Script) ->
             R3 = R2#rstate{user_opts = UserOpts,
                            file_opts = FileOpts2,
                            internal_opts = InternalOpts},
-            {ok, R3, Script2, Commands, Opts};
+            {ok, R3, Script2, Cmds, Opts};
         {skip, ErrorStack, ErrorBin} ->
             {skip, R, ErrorStack, ErrorBin};
         {error, ErrorStack, ErrorBin} ->
@@ -675,7 +675,7 @@ config_name() ->
 parse_config_file(R, ConfigFile) ->
     Opts0 = config_opts(R),
     case lux:parse_file(ConfigFile, R#rstate.mode, false, Opts0) of
-        {ok, _File, _Commands, Opts} ->
+        {ok, _File, _Cmds, Opts} ->
             Key = config_dir,
             Opts2 =
                 case lists:keyfind(Key, 1, Opts) of
