@@ -1,41 +1,18 @@
 Lux - LUcid eXpect scripting
 ============================
--n Version 1.7.2 - 
-2015-02-11
+Version 1.8 - 2015-03-10
 
--n * [
-Introduction-n ]
-(#../README)
--n * [
-Concepts-n ]
-(#main_concepts)
--n * [
-Script syntax-n ]
-(#script_syntax)
--n * [
-Command line options-n ]
-(#cmd_line_opts)
--n * [
-Configuration parameters-n ]
-(#config_params)
--n * [
-Logs-n ]
-(#logs)
--n * [
-Debugger for Lux scripts-n ]
-(#debug_cmds)
--n * [
-Examples-n ]
-(#examples)
--n * [
-Installation-n ]
-(#../INSTALL)
--n * [
-Original author:-n ]
-(#../AUTHORS)
--n * [
-References-n ]
-(#references)
+* [Introduction](#../README)
+* [Concepts](#main_concepts)
+* [Script syntax](#script_syntax)
+* [Command line options](#cmd_line_opts)
+* [Configuration parameters](#config_params)
+* [Logs](#logs)
+* [Debugger for Lux scripts](#debug_cmds)
+* [Examples](#examples)
+* [Installation](#../INSTALL)
+* [Original author:](#../AUTHORS)
+* [References](#references)
 
 <a name="../README"/>
 
@@ -65,27 +42,27 @@ on [GitHub](https://github.com/hawk/lux/blob/master/doc/lux.md).
 A sample script
 ---------------
 
-Here is an example of script `(lux/examples/intro.lux)`
-which starts a couple of concurrent shells and sends text to them with
-the `!` command and matches expected output with `?`.
+Here is an example of a test script `(lux/examples/intro.lux)`. It
+starts couple of concurrent shells and sends text to them with the
+`!` command and matches expected output with `?`.
 
 >     [doc Test of single and multi line regular expressions]
-> 
+>
 >     # A global variable is accessible in all shells
 >     [global file=removeme.txt]
-> 
+>
 >     [shell single]
 >         # The terminal echoes all input
 >         !echo foo
->         ?foo
-> 
+>         ?echo foo
+>
 >     [shell multi]
 >         # bar is indented 4 characters
 >         !echo "foo"      > $file
 >         !echo "    bar" >> $file
 >         !echo "fum"     >> $file
 >         !cat $file
-> 
+>
 >         # The first double quote char defines the
 >         # first column of the multi line regexp
 >         """?
@@ -93,12 +70,12 @@ the `!` command and matches expected output with `?`.
 >             bar
 >         fum
 >         """
-> 
+>
 >     # Let single be the active shell again
 >     [shell single]
 >         ?^foo
-> 
->     # Cleanup is executed regardless of the script succeeds or fails
+>
+>     # Cleanup is always executed, regardless of the script succeeds or fails
 >     [cleanup]
 >         # Match of command exit status. Observe the double dollar sign.
 >         !rm -f $file
@@ -113,17 +90,17 @@ Run a single script like this:
 >     /home/hm> lux lux/examples/intro.lux
 >
 >     summary log       : /home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log
-> 
+>
 >     test case         : /home/hm/lux/examples/intro.lux
 >     progress          : ..:..:....:.....:...:...:..:..:..:.....c......:...:...:..:....
 >     result            : SUCCESS
-> 
+>
 >     successful        : 1
 >     summary           : SUCCESS
 >
 >     file:///home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log.html
 >
->     /home/hm> 
+>     /home/hm>
 
 In this run we got a (brief) progress report of the test case on
 stdout and a link to a summary log containing (lots of) details.
@@ -145,7 +122,6 @@ identities if provided with `--revision`).
 >     Assembling history of logs in /home/hm.......4 test runs...ok
 >
 >     file:///home/hm/lux_history.html
-
 <a name="main_concepts"/>
 
 Concepts
@@ -241,6 +217,10 @@ of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
 is treated as 8 space characters.
 
+A backslash at end of line implies line continuation and not a
+newline. This is syntactic sugar which makes it possible to split
+a long line into several shorter ones. Leading whitespaces on the
+following line are ignored.
 
 Interacting with a shell
 ------------------------
@@ -368,7 +348,8 @@ Includes and runs the specified script at this point. The `FileName`
 is relative to the currently executing script, unless given as an
 absolute path. `.luxinc` is preferred as file extension. If the included
 file contains a `[cleanup]` marker, the statements after that will be
-evaluated in order to clean up unwanted side effects.
+evaluated in order to clean up unwanted side effects. Variables in
+`FileName` are expanded.
 
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
   ...  

@@ -24,6 +24,10 @@ of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
 is treated as 8 space characters.
 
+A backslash at end of line implies line continuation and not a
+newline. This is syntactic sugar which makes it possible to split
+a long line into several shorter ones. Leading whitespaces on the
+following line are ignored.
 
 Interacting with a shell
 ------------------------
