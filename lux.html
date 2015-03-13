@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.8 - 2015-03-10</p>
+<p>Version 1.8.2 - 2015-03-13</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -271,8 +271,8 @@ keywords are ignored. Variables are still substituted.</p>
 Like <code>??Template</code>, but more restricted as no variables are substituted.
 That is the string is matched as is.</p>
 
-<p><em>-</em> <br />
-<em>-Regexp</em> <br />
+<p><em>-</em>
+<em>-Regexp</em>
 Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
@@ -285,7 +285,7 @@ not including, the (successful) match are tried against the failure
 condition. In non-active shells the <code>RegExp</code> is tried when the shell
 produces new output.</p>
 
-<p><strong>+</strong> <br />
+<p><strong>+</strong>
 <strong>+Regexp</strong> <br />
 Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered a success
@@ -300,8 +300,11 @@ condition. In non-active shells the <code>RegExp</code> is tried when the shell
 produces new output.</p>
 
 <p><strong>[endshell]</strong> <br />
+<strong>[endshell RegExp]</strong>
 An <code>expect</code> operation like <code>?</code>, but it waits for the <code>stdout</code> stream
-of the shell to be closed. This means the shell has terminated.</p>
+of the shell to be closed. This means the shell has terminated. The
+<code>RegExp</code> may optionally be used to match on the exit status from the
+ehell, such as <code>[endshell ^0$]</code>.</p>
 
 <h3>Meta statements</h3>
 
@@ -309,9 +312,13 @@ of the shell to be closed. This means the shell has terminated.</p>
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a <code>]</code>.</p>
 
-<p><strong>[shell Name]</strong> Switches to the named shell, to make it active. In
-case there is no such shell started yet, a new shell named <code>Name</code> is
-created. By default a <code>/bin/sh</code> shell (Bourne shell) is started. See
+<p><strong>[shell]</strong>
+<strong>[shell Name]</strong>
+Switches to the named shell, to make it active. In case there is no
+such shell started yet, a new shell named <code>Name</code> is created.  If
+<code>Name</code> is missing, the active shell is deactivated.</p>
+
+<p>By default a <code>/bin/sh</code> shell (Bourne shell) is started. See
 the <code>--shell_wrapper</code>, <code>--shell_cmd</code> and <code>--shell_arg</code> configuration
 parameters. The current working directory of a newly started shell is
 the same as the dirname of the script file. The <strong>environment
@@ -984,11 +991,11 @@ inner at line 12.</p>
 
 <ul>
 <li>3       - line 3 in current file</li>
-<li>main    - line 1 in file main</li>
+<li>main    - any line in file main</li>
 <li>m:3     - line 3 in file main</li>
 <li>:3      - line 3 in file main</li>
-<li>inner   - line 1 in file inner</li>
-<li>outer   - line 1 in file outer</li>
+<li>inner   - any line in file inner</li>
+<li>outer   - any line in file outer</li>
 <li>o:12    - line 12 in file outer</li>
 <li>4:12:6  - line 6 in file inner if it is included
         on line 12 in outer and outer is included

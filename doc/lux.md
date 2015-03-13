@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.8 - 2015-03-10
+Version 1.8.2 - 2015-03-13
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -286,8 +286,11 @@ condition. In non-active shells the `RegExp` is tried when the shell
 produces new output.
 
 **\[endshell\]**  
+**\[endshell RegExp\]**
 An `expect` operation like `?`, but it waits for the `stdout` stream
-of the shell to be closed. This means the shell has terminated.
+of the shell to be closed. This means the shell has terminated. The
+`RegExp` may optionally be used to match on the exit status from the
+ehell, such as `[endshell ^0$]`.
 
 ### Meta statements ###
 
@@ -295,9 +298,13 @@ of the shell to be closed. This means the shell has terminated.
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a `]`.
 
-**\[shell Name\]** Switches to the named shell, to make it active. In
-case there is no such shell started yet, a new shell named `Name` is
-created. By default a `/bin/sh` shell (Bourne shell) is started. See
+**\[shell\]**
+**\[shell Name\]**
+Switches to the named shell, to make it active. In case there is no
+such shell started yet, a new shell named `Name` is created.  If
+`Name` is missing, the active shell is deactivated.
+
+By default a `/bin/sh` shell (Bourne shell) is started. See
 the `--shell_wrapper`, `--shell_cmd` and `--shell_arg` configuration
 parameters. The current working directory of a newly started shell is
 the same as the dirname of the script file. The **environment
@@ -965,11 +972,11 @@ inner at line 12.
 Here are a few examples of how lineno can be used:
 
 * 3       - line 3 in current file
-* main    - line 1 in file main
+* main    - any line in file main
 * m:3     - line 3 in file main
 * :3      - line 3 in file main
-* inner   - line 1 in file inner
-* outer   - line 1 in file outer
+* inner   - any line in file inner
+* outer   - any line in file outer
 * o:12    - line 12 in file outer
 * 4:12:6  - line 6 in file inner if it is included
             on line 12 in outer and outer is included
