@@ -921,7 +921,7 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
 
 compile_regexp(_I, Cmd, reset) ->
     Cmd;
-compile_regexp(_I, Cmd, shell_exit) ->
+compile_regexp(_I, Cmd, endshell) ->
     Cmd;
 compile_regexp(_I, Cmd, {verbatim, _Verbatim}) ->
     Cmd;
@@ -1052,6 +1052,7 @@ pick_item([]) ->
     endloop.
 
 prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
+    %% Handle stop procedure
     {CleanupReason, Res3} = prepare_result(I, Res),
     NewLevel =
         case Res3#result.actual of
@@ -1068,19 +1069,11 @@ prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
                   {shells, I3#istate.shells},
                   Res3]),
     case I3#istate.mode of
-        running when Res3#result.outcome =:= shutdown,
-                     Res3#result.actual =:= shell_exit ->
-            %% Successful end of file in shell. Reset active shell.
-            dlog(I3, ?dmore, "want_more=true (prepare_stop)", []),
-            inactivate_shell(I3, true);
         running ->
             multicast(I3, {relax, self()}),
             goto_cleanup(I3, CleanupReason);
         cleanup when Res#result.outcome =:= relax -> % Orig outcome
             I3; % Continue with cleanup
-        %% cleanup when I3#istate.shells =:= [], I3#istate.active_shell =:= ->
-        %%     %% All shell states has been collected. Full stop.
-        %%     I3#istate{mode = stopping};
         cleanup ->
             %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I3, {shutdown, self()}),

@@ -11,10 +11,12 @@
 
 -include("lux.hrl").
 
--define(end_of_script(C),
-        C#cstate.no_more_input =:= true andalso
-        C#cstate.timer =:= undefined andalso
-        C#cstate.expected =:= undefined).
+-define(micros, 1000000).
+
+%% -define(end_of_script(C),
+%%         C#cstate.no_more_input =:= true andalso
+%%         C#cstate.timer =:= undefined andalso
+%%         C#cstate.expected =:= undefined).
 
 -record(pattern,
         {cmd       :: #cmd{},
@@ -234,7 +236,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {end_of_script, _From} ->
             clog(C, 'end', "of script", []),
             dlog(C, ?dmore,"mode=resume (end_of_script)", []),
-            C#cstate{no_more_input = true, mode = resume};
+            %% C#cstate{no_more_input = true, mode = suspend};
+            stop(C, success, end_of_script);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
             Progress = C#cstate.progress,
             lux_utils:progress_write(Progress, ":"),
@@ -389,13 +392,8 @@ assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
                    {error, internal},
                    {internal_error, invalid_sender,
                     Cmd, process_info(From)});
-assert_eval(C, Cmd, From) when C#cstate.no_more_input ->
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-    close_and_exit(C,
-                   {error, internal},
-                   {internal_error, no_more_input,
-                    Cmd, process_info(From)});
+assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
+    stop(C, fail, endshell);
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
     ok;
 assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
@@ -428,10 +426,10 @@ shell_eval(#cstate{name = Name} = C0,
             send_to_port(C, Arg); % newline already added
         send when is_binary(Arg) ->
             send_to_port(C, Arg);
-        expect when Arg =:= shell_exit ->
+        expect when Arg =:= endshell ->
             clog(C, expect, "~p", [Arg]),
             C2 = start_timer(C),
-            dlog(C2, ?dmore, "expected=regexp (shell_exit)", []),
+            dlog(C2, ?dmore, "expected=regexp (endshell)", []),
             C2#cstate{state_changed = true,
                       expected = Cmd};
         expect when Arg =:= reset ->
@@ -561,7 +559,7 @@ expect_more(C) ->
                 Msgs = element(2, process_info(self(), messages)),
                 lists:keymember(eval, 1, Msgs);
             true ->
-                undefined
+                false
         end,
     case want_more(C2) of
         true when HasEval ->
@@ -577,9 +575,9 @@ expect_more(C) ->
             C2
     end.
 
-expect(#cstate{} = C) when ?end_of_script(C) ->
-    %% Normal end of script
-    stop(C, success, end_of_script);
+%% expect(#cstate{} = C) when ?end_of_script(C) ->
+%%     %% Normal end of script
+%%     stop(C, success, end_of_script);
 expect(#cstate{state_changed = false} = C) ->
     %% Nothing has changed
     C;
@@ -604,19 +602,20 @@ expect(#cstate{state_changed = true,
                     C2 =  match_patterns(C, Actual),
                     Earlier = C2#cstate.timer_started_at,
                     Diff = timer:now_diff(erlang:now(), Earlier),
-                    clog(C2, timer, "fail (~p seconds)", [Diff div 1000000]),
+                    clog(C2, timer, "fail (~p seconds)", [Diff div ?micros]),
                     stop(C2, fail, timeout);
-                NoMoreOutput, Arg =:= shell_exit ->
+                NoMoreOutput, Arg =:= endshell ->
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C, Actual),
                     C3 = cancel_timer(C2),
-                    clog(C3, match, "\"shell_exit\"", []),
-                    stop(C3, success, shell_exit);
+                    clog(C3, match, "\"endshell\"", []),
+                    %% stop(C3, success, endshell);
+                    opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
                     C2 =  match_patterns(C, Actual),
                     stop(C2, fail, shell_exit);
-                Arg =:= shell_exit ->
+                Arg =:= endshell ->
                     %% Still waiting for end of file
                     match_patterns(C, Actual);
                 true ->
@@ -779,7 +778,7 @@ cancel_timer(#cstate{timer = undefined} = C) ->
     C;
 cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
     clog(C, timer, "cancel (~p seconds)",
-        [timer:now_diff(erlang:now(), Earlier) div 1000000]),
+        [timer:now_diff(erlang:now(), Earlier) div ?micros]),
     case Timer of
         infinity -> ok;
         _        -> erlang:cancel_timer(Timer)
@@ -792,8 +791,8 @@ extract_regexp(ExpectArg) ->
     case ExpectArg of
         reset ->
             reset;
-        shell_exit ->
-            shell_exit;
+        endshell ->
+            endshell;
         {verbatim, Verbatim} ->
             Verbatim;
         {mp, RegExp, _MP} ->

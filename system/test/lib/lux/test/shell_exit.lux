@@ -1,0 +1,29 @@
+[global first_status=init]
+[global last_status=init]
+
+[shell first]
+    [global first_status=start]
+    !exit
+    [global first_status=exit]
+    [endshell]
+    [global first_status=end]
+
+[shell mid]
+
+[shell last]
+    [global last_status=start]
+    !exit
+    [global last_status=exit]
+    [endshell]
+    [global last_status=end]
+
+[cleanup]
+    [timeout 10]
+    !echo $first_status
+    ?echo end
+    ?end
+    ?SH-PROMPT:
+    !echo $last_status
+    ?echo end
+    ?end
+    ?SH-PROMPT:

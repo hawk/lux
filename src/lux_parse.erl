@@ -320,7 +320,7 @@ parse_single(Op, #cmd{type = Type} = Cmd, Data) ->
     case Type of
         send_lf                    -> Cmd#cmd{arg = Data};
         send                       -> Cmd#cmd{arg = Data};
-        expect when Op =:= $.      -> parse_regexp(Cmd, shell_exit);
+        expect when Op =:= $.      -> parse_regexp(Cmd, endshell);
         expect when Data =:= <<>>  -> parse_regexp(Cmd, reset);
         expect                     -> parse_regexp(Cmd, Data);
         fail when Data =:= <<>>    -> parse_regexp(Cmd, reset);
@@ -332,7 +332,7 @@ parse_single(Op, #cmd{type = Type} = Cmd, Data) ->
         comment                    -> Cmd
     end.
 
-%% Arg :: shell_exit           |
+%% Arg :: endshell           |
 %%        reset                |
 %%        {verbatim, binary()} |
 %%        {template, binary()} |
@@ -351,7 +351,7 @@ parse_regexp(Cmd, RegExp) when is_binary(RegExp) ->
         Stripped ->
             Cmd#cmd{arg = {regexp, Stripped}}
     end;
-parse_regexp(Cmd, Value) when Value =:= shell_exit;
+parse_regexp(Cmd, Value) when Value =:= endshell;
                               Value =:= reset ->
     Cmd#cmd{arg = Value}.
 
@@ -518,7 +518,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             end;
         "endshell" ->
             Cmd2 = Cmd#cmd{type = expect, orig = <<".">>},
-            parse_regexp(Cmd2, shell_exit);
+            parse_regexp(Cmd2, endshell);
         "config" ++ VarVal ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
