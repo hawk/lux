@@ -292,7 +292,7 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
         Type =:= multi_line ->
             parse_multi(P, Fd, Data, Cmd, Tokens);
         RunMode =:= validate; RunMode =:= execute ->
-            Cmd2 = parse_single(Op, Cmd, Data),
+            Cmd2 = parse_single(Cmd, Data),
             parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
         RunMode =:= list; RunMode =:= doc ->
             %% Skip command
@@ -304,7 +304,6 @@ parse_oper(P, Fd, Op, LineNo, OrigLine) ->
         $!  -> send_lf;
         $~  -> send;
         $?  -> expect;
-        $.  -> expect;
         $-  -> fail;
         $+  -> success;
         $[  -> meta;
@@ -316,11 +315,10 @@ parse_oper(P, Fd, Op, LineNo, OrigLine) ->
                          ": '", OrigLine, "'"])
     end.
 
-parse_single(Op, #cmd{type = Type} = Cmd, Data) ->
+parse_single(#cmd{type = Type} = Cmd, Data) ->
     case Type of
         send_lf                    -> Cmd#cmd{arg = Data};
         send                       -> Cmd#cmd{arg = Data};
-        expect when Op =:= $.      -> parse_regexp(Cmd, endshell);
         expect when Data =:= <<>>  -> parse_regexp(Cmd, reset);
         expect                     -> parse_regexp(Cmd, Data);
         fail when Data =:= <<>>    -> parse_regexp(Cmd, reset);
@@ -517,7 +515,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     Cmd#cmd{type = shell, arg = Name2}
             end;
         "endshell" ->
-            Cmd2 = Cmd#cmd{type = expect, orig = <<".">>},
+            Cmd2 = Cmd#cmd{type = expect},
             parse_regexp(Cmd2, endshell);
         "config" ++ VarVal ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
