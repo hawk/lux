@@ -921,8 +921,10 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
 
 compile_regexp(_I, Cmd, reset) ->
     Cmd;
-compile_regexp(_I, Cmd, endshell) ->
-    Cmd;
+compile_regexp(I, Cmd, {endshell, RegExp}) ->
+    Cmd2 = compile_regexp(I, Cmd, {regexp, RegExp}),
+    {mp, RegExp2, MP2} = Cmd2#cmd.arg,
+    Cmd2#cmd{arg = {endshell, RegExp2, MP2}};
 compile_regexp(_I, Cmd, {verbatim, _Verbatim}) ->
     Cmd;
 compile_regexp(_I, Cmd, {mp, _RegExp, _MP}) ->

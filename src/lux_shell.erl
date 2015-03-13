@@ -57,6 +57,7 @@
          idle_count = 0          :: non_neg_integer(),
          no_more_input = false   :: boolean(),
          no_more_output = false  :: boolean(),
+         exit_status              :: integer(),
          timer                   :: undefined | infinity | reference(),
          timer_started_at        :: undefined | {non_neg_integer(),
                                                  non_neg_integer(),
@@ -137,7 +138,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
                {"LUX_START_REASON", StartReason},
                {"LUX_EXTRA_LOGS", ExtraLogs}],
                WorkDir = filename:dirname(C#cstate.orig_file),
-    Opts = [binary, stream, use_stdio, stderr_to_stdout,
+    Opts = [binary, stream, use_stdio, stderr_to_stdout, exit_status,
             {args, Args}, {cd, WorkDir}, {env, PortEnv}],
     try
         Port = open_port({spawn_executable, Exec}, Opts),
@@ -259,10 +260,15 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             dlog(C, ?dmore,"mode=resume (wakeup)", []),
             C#cstate{mode = resume};
-        {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
+        {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C#cstate{state_changed = true,
                      no_more_output = true,
+                     exit_status = ExitStatus,
                      events = save_event(C, recv, shell_exit)};
+        {'EXIT', Port, _PosixCode}
+          when Port =:= C#cstate.port,
+               C#cstate.exit_status =/= undefined ->
+            C;
         {'DOWN', _, process, Pid, Reason} ->
             if
                 Pid =:= C#cstate.parent ->
@@ -348,11 +354,16 @@ block(C, From, OrigC) ->
                            {error, internal},
                            {internal_error, interpreter_died,
                             C#cstate.latest_cmd, Reason});
-        {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
+        {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C2 = C#cstate{state_changed = true,
                           no_more_output = true,
+                          exit_status = ExitStatus,
                           events = save_event(C, recv, shell_exit)},
             shell_wait_for_event(C2, OrigC);
+        {'EXIT', Port, _PosixCode}
+          when Port =:= C#cstate.port,
+               C#cstate.exit_status =/= undefined ->
+            shell_wait_for_event(C, OrigC);
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
         {relax = Data, _From} ->
@@ -426,12 +437,6 @@ shell_eval(#cstate{name = Name} = C0,
             send_to_port(C, Arg); % newline already added
         send when is_binary(Arg) ->
             send_to_port(C, Arg);
-        expect when Arg =:= endshell ->
-            clog(C, expect, "~p", [Arg]),
-            C2 = start_timer(C),
-            dlog(C2, ?dmore, "expected=regexp (endshell)", []),
-            C2#cstate{state_changed = true,
-                      expected = Cmd};
         expect when Arg =:= reset ->
             %% Reset output buffer
             C2 = cancel_timer(C),
@@ -441,6 +446,13 @@ shell_eval(#cstate{name = Name} = C0,
             C2#cstate{state_changed = true,
                       actual = <<>>,
                       events = save_event(C, recv, Waste)};
+        expect when element(1, Arg) =:= endshell ->
+            RegExp = extract_regexp(Arg),
+            clog(C, expect, "\"endshell retcode=~s\"",
+                 [lux_utils:to_string(RegExp)]),
+            C2 = start_timer(C),
+            dlog(C2, ?dmore, "expected=regexp (endshell)", []),
+            C2#cstate{state_changed = true, expected = Cmd};
         expect ->
             RegExp = extract_regexp(Arg),
             clog(C, expect, "\"~s\"", [lux_utils:to_string(RegExp)]),
@@ -527,11 +539,15 @@ send_to_port(C, Data) ->
     catch
         error:_Reason ->
             receive
-                {'EXIT', Port, _PosixCode}
-                  when Port =:= C2#cstate.port ->
+                {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
                     C2#cstate{state_changed = true,
                               no_more_output = true,
-                              events = save_event(C2, recv, shell_exit)}
+                              exit_status = ExitStatus,
+                              events = save_event(C2, recv, shell_exit)};
+                {'EXIT', Port, _PosixCode}
+                  when Port =:= C2#cstate.port,
+                       C#cstate.exit_status =/= undefined ->
+                    C2
             after 0 ->
                     C2
             end
@@ -604,32 +620,33 @@ expect(#cstate{state_changed = true,
                     Diff = timer:now_diff(erlang:now(), Earlier),
                     clog(C2, timer, "fail (~p seconds)", [Diff div ?micros]),
                     stop(C2, fail, timeout);
-                NoMoreOutput, Arg =:= endshell ->
+                NoMoreOutput, element(1, Arg) =:= endshell ->
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C, Actual),
                     C3 = cancel_timer(C2),
-                    clog(C3, match, "\"endshell\"", []),
-                    %% stop(C3, success, endshell);
+                    ExitStatus = C3#cstate.exit_status,
+                    try_match(C, integer_to_binary(ExitStatus), Actual),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
                     C2 =  match_patterns(C, Actual),
                     stop(C2, fail, shell_exit);
-                Arg =:= endshell ->
+                element(1, Arg) =:= endshell ->
                     %% Still waiting for end of file
                     match_patterns(C, Actual);
                 true ->
                     %% Waiting for more data
-                    try_match(C, Actual)
+                    try_match(C, Actual, undefined)
 
             end
     end.
 
-try_match(C, Actual) ->
+try_match(C, Actual, AltSkip) ->
     case match(Actual, C#cstate.expected) of
         {match, Matches}  ->
             %% Successful match
-            {Skip, Rest, SubMatches} = split_submatches(C, Matches, Actual, ""),
+            {Skip, Rest, SubMatches} =
+                split_submatches(C, Matches, Actual, "", AltSkip),
             C2 = match_patterns(C, Skip),
             C3 = cancel_timer(C2),
             case C3#cstate.no_more_input of
@@ -645,10 +662,13 @@ try_match(C, Actual) ->
                     dlog(C4, ?dmore, "expected=undefined (waiting)", []),
                     opt_late_sync_reply(C4)
             end;
-        nomatch ->
+        nomatch when AltSkip =:= undefined ->
             %% Main pattern does not match
             %% Wait for more input
-            match_patterns(C, Actual)
+            match_patterns(C, Actual);
+        nomatch ->
+            C2 = cancel_timer(C),
+            stop(C2, fail, Actual)
     end.
 
 submatch_dict([SubMatches | Rest], N) ->
@@ -703,11 +723,21 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     C3 = opt_late_sync_reply(C2),
     {C3, Actual2}.
 
-split_submatches(C, [{First, TotLen} | Matches], Actual, Context) ->
+split_submatches(C, [{First, TotLen} | Matches], Actual, Context, AltSkip) ->
     {Consumed, Rest} = split_binary(Actual, First+TotLen),
     {Skip, Match} = split_binary(Consumed, First),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
-    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
+    case AltSkip of
+        undefined ->
+            NewSkip = Skip,
+            NewMatch = Match,
+            NewRest = Rest;
+        _ ->
+            NewSkip = AltSkip,
+            NewMatch = Actual,
+            NewRest = <<>>
+    end,
+    clog(C, skip, "\"~s\"", [lux_utils:to_string(NewSkip)]),
+    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(NewMatch)]),
     Extract =
         fun(PosLen) ->
                 case PosLen of
@@ -716,7 +746,7 @@ split_submatches(C, [{First, TotLen} | Matches], Actual, Context) ->
                 end
         end,
     SubBins = lists:map(Extract, Matches),
-    {Skip, Rest, SubBins}.
+    {NewSkip, NewRest, SubBins}.
 
 match(Actual, #pattern{cmd = Cmd}) -> % success or fail pattern
     match(Actual, Cmd);
@@ -734,6 +764,14 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
                     %%           [Actual, Expected, []]),
                     lux_utils:verbatim_match(Actual, Expected);
                 {mp, _RegExp, MP} ->
+                    Opts = [{newline,any},notempty,{capture,all,index}],
+                    %% io:format("\n"
+                    %%           "re:run(~p,\n"
+                    %%           "       ~p,\n"
+                    %%           "       ~p).\n",
+                    %%           [Actual, _RegExp, Opts]),
+                    re:run(Actual, MP, Opts);
+                {endshell, _RegExp, MP} ->
                     Opts = [{newline,any},notempty,{capture,all,index}],
                     %% io:format("\n"
                     %%           "re:run(~p,\n"
@@ -791,8 +829,8 @@ extract_regexp(ExpectArg) ->
     case ExpectArg of
         reset ->
             reset;
-        endshell ->
-            endshell;
+        {endshell, RegExp, _MP} ->
+            RegExp;
         {verbatim, Verbatim} ->
             Verbatim;
         {mp, RegExp, _MP} ->
@@ -875,6 +913,8 @@ cmd_expected(Cmd) ->
             ok;
         #cmd{type = expect, arg = {mp, Expected, _MP}} ->
             ok;
+        #cmd{type = expect, arg = {endshell, Expected, _MP}} ->
+            ok;
         #cmd{} ->
             Expected = <<"">>
     end,
@@ -941,11 +981,16 @@ wait_for_down(C, Res) ->
             wait_for_down(C2, Res);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
             close_and_exit(C, Reason, Res);
-        {'EXIT', Port, _PosixCode} when Port =:= C#cstate.port ->
+        {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C2 = C#cstate{state_changed = true,
                           no_more_output = true,
+                          exit_status = ExitStatus,
                           events = save_event(C, recv, shell_exit)},
-            wait_for_down(C2, Res)
+            wait_for_down(C2, Res);
+        {'EXIT', Port, _PosixCode}
+          when Port =:= C#cstate.port,
+               C#cstate.exit_status =/= undefined ->
+            wait_for_down(C, Res)
     end.
 
 save_event(#cstate{latest_cmd = _Cmd, events = Events} = C, Op, Data) ->

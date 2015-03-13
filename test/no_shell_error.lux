@@ -1,0 +1,18 @@
+[global foo=bar]
+
+[shell test]
+    !echo xxx
+    ?SH-PROMPT:
+
+[shell]
+
+[global foo=bazzzzz]
+
+[shell test]
+    !echo yyy
+    ?SH-PROMPT:
+
+[shell]
+
+!echo This is an illegal command as there is no active shell
+?SH-PROMPT:

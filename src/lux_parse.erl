@@ -330,8 +330,8 @@ parse_single(#cmd{type = Type} = Cmd, Data) ->
         comment                    -> Cmd
     end.
 
-%% Arg :: endshell           |
-%%        reset                |
+%% Arg :: reset                |
+%%        {endshell, binary()} |
 %%        {verbatim, binary()} |
 %%        {template, binary()} |
 %%        {regexp, binary}     |
@@ -349,8 +349,7 @@ parse_regexp(Cmd, RegExp) when is_binary(RegExp) ->
         Stripped ->
             Cmd#cmd{arg = {regexp, Stripped}}
     end;
-parse_regexp(Cmd, Value) when Value =:= endshell;
-                              Value =:= reset ->
+parse_regexp(Cmd, Value) when Value =:= reset ->
     Cmd#cmd{arg = Value}.
 
 parse_var(P, Fd, Cmd, Scope, String) ->
@@ -514,9 +513,13 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 {_, nomatch} ->
                     Cmd#cmd{type = shell, arg = Name2}
             end;
-        "endshell" ->
-            Cmd2 = Cmd#cmd{type = expect},
-            parse_regexp(Cmd2, endshell);
+        "endshell" ++ Data ->
+            case list_to_binary(string:strip(Data)) of
+             %% <<>>   -> RegExp = <<"0">>;
+                <<>>   -> RegExp = <<".*">>;
+                RegExp -> ok
+            end,
+            Cmd#cmd{type = expect, arg = {endshell, RegExp}};
         "config" ++ VarVal ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,

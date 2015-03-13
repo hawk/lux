@@ -3,12 +3,14 @@
 
 [shell first]
     [global first_status=start]
-    !exit
+    !exit 24
     [global first_status=exit]
-    [endshell]
+    [endshell 24]
     [global first_status=end]
 
 [shell mid]
+    !${_CTRL_D_}
+    [endshell ^0$]
 
 [shell last]
     [global last_status=start]

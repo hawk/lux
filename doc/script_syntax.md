@@ -93,8 +93,11 @@ condition. In non-active shells the `RegExp` is tried when the shell
 produces new output.
 
 **\[endshell\]**  
+**\[endshell RegExp\]**
 An `expect` operation like `?`, but it waits for the `stdout` stream
-of the shell to be closed. This means the shell has terminated.
+of the shell to be closed. This means the shell has terminated. The
+`RegExp` may optionally be used to match on the exit status from the
+ehell, such as `[endshell ^0$]`.
 
 ### Meta statements ###
 
