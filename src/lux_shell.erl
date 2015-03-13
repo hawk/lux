@@ -403,6 +403,12 @@ assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
                    {error, internal},
                    {internal_error, invalid_sender,
                     Cmd, process_info(From)});
+assert_eval(C, Cmd, _From)
+  when C#cstate.no_more_output andalso
+       (Cmd#cmd.type =:= send_lf orelse Cmd#cmd.type =:= send) ->
+    ErrBin = <<"The command must be executed",
+               " in context of a running shell">>,
+    stop(C, error, ErrBin);
 assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
     stop(C, fail, endshell);
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
@@ -539,7 +545,8 @@ send_to_port(C, Data) ->
     catch
         error:_Reason ->
             receive
-                {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
+                {Port, {exit_status, ExitStatus}}
+                  when Port =:= C2#cstate.port ->
                     C2#cstate{state_changed = true,
                               no_more_output = true,
                               exit_status = ExitStatus,
@@ -630,7 +637,9 @@ expect(#cstate{state_changed = true,
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
                     C2 =  match_patterns(C, Actual),
-                    stop(C2, fail, shell_exit);
+                    ErrBin = <<"The command must be executed",
+                               " in context of a shell">>,
+                    stop(C2, error, ErrBin);
                 element(1, Arg) =:= endshell ->
                     %% Still waiting for end of file
                     match_patterns(C, Actual);

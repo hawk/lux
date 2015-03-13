@@ -1265,7 +1265,7 @@ opt_apply(_Fun) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Control a shell
 
-ensure_shell(I, #cmd{lineno = LineNo, arg = ""} = Cmd) ->
+ensure_shell(I, #cmd{arg = ""}) ->
     %% No name. Inactivate the shell
     inactivate_shell(I, I#istate.want_more);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
