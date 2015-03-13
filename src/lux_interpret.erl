@@ -1265,6 +1265,9 @@ opt_apply(_Fun) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Control a shell
 
+ensure_shell(I, #cmd{lineno = LineNo, arg = ""} = Cmd) ->
+    %% No name. Inactivate the shell
+    inactivate_shell(I, I#istate.want_more);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
     case safe_expand_vars(I, Name) of
         {ok, Name2} when I#istate.active_shell#shell.name =:= Name2 ->

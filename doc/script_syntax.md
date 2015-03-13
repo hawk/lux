@@ -105,9 +105,13 @@ ehell, such as `[endshell ^0$]`.
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a `]`.
 
-**\[shell Name\]** Switches to the named shell, to make it active. In
-case there is no such shell started yet, a new shell named `Name` is
-created. By default a `/bin/sh` shell (Bourne shell) is started. See
+**\[shell\]**
+**\[shell Name\]**
+Switches to the named shell, to make it active. In case there is no
+such shell started yet, a new shell named `Name` is created.  If
+`Name` is missing, the active shell is deactivated.
+
+By default a `/bin/sh` shell (Bourne shell) is started. See
 the `--shell_wrapper`, `--shell_cmd` and `--shell_arg` configuration
 parameters. The current working directory of a newly started shell is
 the same as the dirname of the script file. The **environment

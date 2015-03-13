@@ -488,11 +488,11 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             Name2 = string:strip(Name),
             Match = re:run(Name2, "\\$\\$", [{capture,none}]),
             case {Name2, Match} of
-                {"", _} ->
-                    parse_error(P, Fd, LineNo,
-                                ?FF("Syntax error at line ~p"
-                                    ": missing shell name",
-                                    [LineNo]));
+%%                 {"", _} ->
+%%                     parse_error(P, Fd, LineNo,
+%%                                 ?FF("Syntax error at line ~p"
+%%                                     ": missing shell name",
+%%                                     [LineNo]));
                 {"lux"++_, _} ->
                     parse_error(P, Fd, LineNo,
                                 ?FF("Syntax error at line ~p"
