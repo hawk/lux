@@ -227,9 +227,6 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             dlog(C, ?dmore, "eval (got ~p)", [Cmd#cmd.type]),
             assert_eval(C, Cmd, From),
             shell_eval(C, Cmd);
-        {variable, _From, Scope, VarVal} ->
-            clog(C, Scope, "\"~s\"", [VarVal]),
-            C;
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
         {relax = Data, _From} ->

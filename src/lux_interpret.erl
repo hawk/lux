@@ -653,6 +653,8 @@ dispatch_cmd(I,
             case safe_expand_vars(I, Val) of
                 {ok, Val2} ->
                     VarVal = lists:flatten([Var, $=, Val2]),
+                    ilog(I, "~s(~p): ~p \"~s\"\n",
+                         [I#istate.active_name, LineNo, Scope, VarVal]),
                     case Scope of
                         my ->
                             Dict = [VarVal | I#istate.macro_dict],
