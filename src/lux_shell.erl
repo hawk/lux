@@ -408,7 +408,8 @@ assert_eval(C, Cmd, _From)
        (Cmd#cmd.type =:= send_lf orelse Cmd#cmd.type =:= send) ->
     ErrBin = <<"The command must be executed",
                " in context of a running shell">>,
-    stop(C, error, ErrBin);
+    C2 = C#cstate{latest_cmd = Cmd},
+    stop(C2, error, ErrBin);
 assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
     stop(C, fail, endshell);
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
