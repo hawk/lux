@@ -239,9 +239,11 @@ file_next_wrapper(Fd) ->
     {BackslashFd, Lines} = backslash_takewhile(Fd),
     case file_next(BackslashFd) of
         {line, Line, NewFd} when Lines =:= [] ->
-            {line, Line, NewFd, 0};
+            NewLine = backslash_chop(Line),
+            {line, NewLine, NewFd, 0};
         {line, Line, NewFd} ->
-            NewLine = lux_utils:strip_leading_whitespaces(Line),
+            TmpLine = backslash_chop(Line),
+            NewLine = lux_utils:strip_leading_whitespaces(TmpLine),
             ComboLine = backslash_merge(Lines, NewLine),
             {line, ComboLine, NewFd, length(Lines)};
         eof when Lines =:= [] ->
@@ -257,12 +259,25 @@ backslash_takewhile(Fd) ->
 
 backslash_filter(Line) ->
     Sz = byte_size(Line) - 1,
+    Sz2 = Sz - 1,
     case Line of
+        <<_Chopped:Sz2/binary, "\\\\">> ->
+            %% Found two trailing backslashes
+            false;
         <<Chopped:Sz/binary, "\\">> ->
             %% Found trailing backslash
             {true, Chopped};
         _ ->
             false
+    end.
+
+backslash_chop(Line) ->
+    Sz = byte_size(Line) - 1,
+    case Line of
+        <<Chopped:Sz/binary, "\\">> ->
+            Chopped;
+        _ ->
+            Line
     end.
 
 backslash_merge([First|Rest], Last) ->

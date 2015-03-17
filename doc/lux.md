@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.8.2 - 2015-03-13
+Version 1.8.3 - 2015-03-17
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -220,7 +220,8 @@ is treated as 8 space characters.
 A backslash at end of line implies line continuation and not a
 newline. This is syntactic sugar which makes it possible to split
 a long line into several shorter ones. Leading whitespaces on the
-following line are ignored.
+following line are ignored. If the intention is to keep the backslash
+at the end of the line, this can be achieved with two backslashes.
 
 Interacting with a shell
 ------------------------
@@ -972,11 +973,11 @@ inner at line 12.
 Here are a few examples of how lineno can be used:
 
 * 3       - line 3 in current file
-* main    - any line in file main
+* main    - line 1 in file main
 * m:3     - line 3 in file main
 * :3      - line 3 in file main
-* inner   - any line in file inner
-* outer   - any line in file outer
+* inner   - line 1 in file inner
+* outer   - line 1 in file outer
 * o:12    - line 12 in file outer
 * 4:12:6  - line 6 in file inner if it is included
             on line 12 in outer and outer is included

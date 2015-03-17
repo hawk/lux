@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.8.2 - 2015-03-13</p>
+<p>Version 1.8.3 - 2015-03-17</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -235,7 +235,8 @@ is treated as 8 space characters.</p>
 <p>A backslash at end of line implies line continuation and not a
 newline. This is syntactic sugar which makes it possible to split
 a long line into several shorter ones. Leading whitespaces on the
-following line are ignored.</p>
+following line are ignored. If the intention is to keep the backslash
+at the end of the line, this can be achieved with two backslashes.</p>
 
 <h2>Interacting with a shell</h2>
 
@@ -991,11 +992,11 @@ inner at line 12.</p>
 
 <ul>
 <li>3       - line 3 in current file</li>
-<li>main    - any line in file main</li>
+<li>main    - line 1 in file main</li>
 <li>m:3     - line 3 in file main</li>
 <li>:3      - line 3 in file main</li>
-<li>inner   - any line in file inner</li>
-<li>outer   - any line in file outer</li>
+<li>inner   - line 1 in file inner</li>
+<li>outer   - line 1 in file outer</li>
 <li>o:12    - line 12 in file outer</li>
 <li>4:12:6  - line 6 in file inner if it is included
         on line 12 in outer and outer is included

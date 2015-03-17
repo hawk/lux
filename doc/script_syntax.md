@@ -27,7 +27,8 @@ is treated as 8 space characters.
 A backslash at end of line implies line continuation and not a
 newline. This is syntactic sugar which makes it possible to split
 a long line into several shorter ones. Leading whitespaces on the
-following line are ignored.
+following line are ignored. If the intention is to keep the backslash
+at the end of the line, this can be achieved with two backslashes.
 
 Interacting with a shell
 ------------------------
