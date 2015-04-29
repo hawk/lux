@@ -682,6 +682,8 @@ parse_result(RawResult) ->
                 {error_line, RawLineNo, [Reason | Rest]};
             <<"ERROR ", Reason/binary>> ->
                 {error, [Reason | Rest]};
+            <<"INTERNAL_ERROR ", Reason/binary>> ->
+                {error, [Reason | Rest]};
             <<"FAIL at ", Fail/binary>> ->
                 [<<"expected">>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,

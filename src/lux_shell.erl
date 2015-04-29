@@ -945,7 +945,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   events = lists:reverse(C#cstate.events)},
     io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
               [Reason, Error, Res, erlang:get_stacktrace()]),
-    clog(C, internal_error, "\"~p@~p\"", [Why, Cmd#cmd.lineno]),
+    clog(C, 'INTERNAL_ERROR', "\"~p@~p\"", [Why, Cmd#cmd.lineno]),
     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
     C3 = close_logs(C2),
     send_reply(C3, C3#cstate.parent, {stop, self(), Res}),

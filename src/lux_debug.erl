@@ -63,20 +63,18 @@ loop(Ipid, PrevCmd, CmdState, N) ->
             exit(Reason);
         Cmd0 ->
             [$\n | Rest] = lists:reverse(Cmd0),
-            Cmd = lists:reverse(Rest),
-            case string:tokens(Cmd, " ") of
-                [] when Cmd =:= "" ->
-                    %% Repeat previous command
-                    NewCmdState = call(Ipid, PrevCmd, CmdState),
-                    loop(Ipid, PrevCmd, NewCmdState, N+1);
-                [] ->
-                    %% Ignore empty command
-                    loop(Ipid, Cmd, CmdState, N+1);
-                _ ->
-                    %% Execute new command
-                    NewCmdState = call(Ipid, Cmd, CmdState),
-                    loop(Ipid, Cmd, NewCmdState, N+1)
-            end
+            ChoppedCmd = lists:reverse(Rest),
+            NewCmd =
+                case string:tokens(ChoppedCmd, " ") of
+                    [] when ChoppedCmd =:= "" ->
+                        %% Repeat previous command
+                        PrevCmd;
+                    _ ->
+                        %% Execute new command
+                        ChoppedCmd
+                end,
+            NewCmdState = call(Ipid, NewCmd, CmdState),
+            loop(Ipid, NewCmd, NewCmdState, N+1)
     end.
 
 call(Ipid, Cmd, CmdState) when is_list(Cmd); is_function(Cmd, 2) ->
@@ -95,20 +93,28 @@ eval_cmd(I, Dpid, Cmd, CmdState) ->
     I2.
 
 do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
-    [CmdName | Args] = string:tokens(CmdStr, " "),
-    case select(CmdName) of
-        {ok, #debug_cmd{name = _Name, params = Params, callback = Fun}} ->
-            case parse_params(I, Params, Args, [], []) of
-                {ok, Args2} ->
-                    %% io:format("Eval: ~s ~p\n", [_Name, Args2]),
-                    Fun(I, Args2, CmdState);
+    case string:tokens(CmdStr, " ") of
+        [] ->
+            %% Ignore empty command
+            {CmdState, I};
+        [CmdName | Args] ->
+            case select(CmdName) of
+                {ok, #debug_cmd{name = _Name,
+                                params = Params,
+                                callback = Fun}} ->
+                    case parse_params(I, Params, Args, [], []) of
+                        {ok, Args2} ->
+                            %% io:format("Eval: ~s ~p\n", [_Name, Args2]),
+                            Fun(I, Args2, CmdState);
+                        {error, ReasonStr} ->
+                            io:format("\nERROR: ~s: ~s\n",
+                                      [CmdName, ReasonStr]),
+                            {CmdState, I}
+                    end;
                 {error, ReasonStr} ->
-                    io:format("\nERROR: ~s: ~s\n", [CmdName, ReasonStr]),
+                    io:format("\nERROR: ~s\n", [ReasonStr]),
                     {CmdState, I}
-            end;
-        {error, ReasonStr} ->
-            io:format("\nERROR: ~s\n", [ReasonStr]),
-            {CmdState, I}
+            end
     end;
 do_eval_cmd(I, Cmd, CmdState) when is_function(Cmd, 2) ->
     Cmd(CmdState, I).
