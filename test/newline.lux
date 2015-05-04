@@ -1,0 +1,5 @@
+[doc Handle variable assignment when value contains carriage return linefeed]
+[shell test]
+    !cat newline.txt
+    ?(a(.|\n|\r)*h)
+    [global bar=$1]
