@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.8.3 - 2015-03-17</p>
+<p>Version 1.8.4 - 2015-05-04</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -272,8 +272,8 @@ keywords are ignored. Variables are still substituted.</p>
 Like <code>??Template</code>, but more restricted as no variables are substituted.
 That is the string is matched as is.</p>
 
-<p><em>-</em>
-<em>-Regexp</em>
+<p><strong>-</strong> <br />
+<strong>-Regexp</strong> <br />
 Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
@@ -286,7 +286,7 @@ not including, the (successful) match are tried against the failure
 condition. In non-active shells the <code>RegExp</code> is tried when the shell
 produces new output.</p>
 
-<p><strong>+</strong>
+<p><strong>+</strong> <br />
 <strong>+Regexp</strong> <br />
 Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered a success
@@ -301,10 +301,10 @@ condition. In non-active shells the <code>RegExp</code> is tried when the shell
 produces new output.</p>
 
 <p><strong>[endshell]</strong> <br />
-<strong>[endshell RegExp]</strong>
+<strong>[endshell Regexp]</strong> <br />
 An <code>expect</code> operation like <code>?</code>, but it waits for the <code>stdout</code> stream
 of the shell to be closed. This means the shell has terminated. The
-<code>RegExp</code> may optionally be used to match on the exit status from the
+<code>Regexp</code> may optionally be used to match on the exit status from the
 ehell, such as <code>[endshell ^0$]</code>.</p>
 
 <h3>Meta statements</h3>
@@ -313,8 +313,8 @@ ehell, such as <code>[endshell ^0$]</code>.</p>
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a <code>]</code>.</p>
 
-<p><strong>[shell]</strong>
-<strong>[shell Name]</strong>
+<p><strong>[shell]</strong> <br />
+<strong>[shell Name]</strong> <br />
 Switches to the named shell, to make it active. In case there is no
 such shell started yet, a new shell named <code>Name</code> is created.  If
 <code>Name</code> is missing, the active shell is deactivated.</p>

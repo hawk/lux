@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.8.3 - 2015-03-17
+Version 1.8.4 - 2015-05-04
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -258,8 +258,8 @@ keywords are ignored. Variables are still substituted.
 Like `??Template`, but more restricted as no variables are substituted.
 That is the string is matched as is.
 
-*-*
-*-Regexp*
+**-**  
+**-Regexp**  
 Sets a failure condition regular expression [regular expression][]. If
 the given `Regexp` ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
@@ -272,7 +272,7 @@ not including, the (successful) match are tried against the failure
 condition. In non-active shells the `RegExp` is tried when the shell
 produces new output.
 
-**+**
+**+**  
 **+Regexp**  
 Sets a success condition regular expression [regular expression][]. If
 the given `Regexp` ever matches, the test case is considered a success
@@ -287,10 +287,10 @@ condition. In non-active shells the `RegExp` is tried when the shell
 produces new output.
 
 **\[endshell\]**  
-**\[endshell RegExp\]**
+**\[endshell Regexp\]**  
 An `expect` operation like `?`, but it waits for the `stdout` stream
 of the shell to be closed. This means the shell has terminated. The
-`RegExp` may optionally be used to match on the exit status from the
+`Regexp` may optionally be used to match on the exit status from the
 ehell, such as `[endshell ^0$]`.
 
 ### Meta statements ###
@@ -299,8 +299,8 @@ ehell, such as `[endshell ^0$]`.
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a `]`.
 
-**\[shell\]**
-**\[shell Name\]**
+**\[shell\]**  
+**\[shell Name\]**  
 Switches to the named shell, to make it active. In case there is no
 such shell started yet, a new shell named `Name` is created.  If
 `Name` is missing, the active shell is deactivated.
