@@ -154,7 +154,7 @@ mode_arg(Mode) ->
     end.
 
 html_arg(usage) ->
-    "enum(enable|success|skip|warning|fail|error|disabled)";
+    "enum(enable|success|skip|warning|fail|error|disable)";
 html_arg(Mode) ->
     case Mode of
         "enable"  -> enable;
