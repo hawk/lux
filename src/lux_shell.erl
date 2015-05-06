@@ -853,7 +853,7 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
     clog(C, stop, "~p", [Outcome]),
     Cmd = C#cstate.latest_cmd,
-    Expected = cmd_expected(Cmd),
+    Expected = lux_utils:cmd_expected(Cmd),
     {NewOutcome, Extra} = prepare_outcome(C, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
                   name = C#cstate.name,
@@ -914,19 +914,6 @@ prepare_outcome(C, Outcome, Actual) ->
     end,
     {NewOutcome, Extra}.
 
-cmd_expected(Cmd) ->
-    case Cmd of
-        #cmd{type = expect, arg = {verbatim, Expected}} ->
-            ok;
-        #cmd{type = expect, arg = {mp, Expected, _MP}} ->
-            ok;
-        #cmd{type = expect, arg = {endshell, Expected, _MP}} ->
-            ok;
-        #cmd{} ->
-            Expected = <<"">>
-    end,
-    Expected.
-
 close_and_exit(C, Reason, #result{}) ->
     lux:trace_me(40, C#cstate.name, close_and_exit, []),
     catch port_close(C#cstate.port),
@@ -938,7 +925,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   name = C#cstate.name,
                   latest_cmd = Cmd,
                   cmd_stack = C#cstate.cmd_stack,
-                  expected = cmd_expected(Cmd),
+                  expected = lux_utils:cmd_expected(Cmd),
                   extra = undefined,
                   actual = internal_error,
                   rest = C#cstate.actual,

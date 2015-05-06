@@ -17,7 +17,7 @@
          pretty_full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
-         cmd/2, chop_newline/1]).
+         cmd/2, chop_newline/1, cmd_expected/1]).
 
 -include("lux.hrl").
 
@@ -637,3 +637,16 @@ chop_newline(Line) ->
         "" -> Before;
         _  -> Line
     end.
+
+cmd_expected(Cmd) ->
+    case Cmd of
+        #cmd{type = expect, arg = {verbatim, Expected}} ->
+            ok;
+        #cmd{type = expect, arg = {mp, Expected, _MP}} ->
+            ok;
+        #cmd{type = expect, arg = {endshell, Expected, _MP}} ->
+            ok;
+        #cmd{} ->
+            Expected = <<"">>
+    end,
+    Expected.

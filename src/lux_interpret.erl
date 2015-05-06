@@ -1110,20 +1110,22 @@ prepare_result(#istate{latest_cmd = LatestCmd,
             #result{outcome = NewOutcome} ->
                 {NewOutcome, Res};
             {'EXIT', {error, FailReason}} ->
+                Expected = lux_utils:cmd_expected(LatestCmd),
                 {fail,
                  #result{outcome    = fail,
                          latest_cmd = LatestCmd,
                          cmd_stack  = CmdStack,
-                         expected   = <<"">>,
+                         expected   = Expected,
                          extra      = undefined,
                          actual     = FailReason,
                          rest       = fail}};
             {fail, FailReason} ->
+                Expected = lux_utils:cmd_expected(LatestCmd),
                 {fail,
                  #result{outcome    = fail,
                          latest_cmd = LatestCmd,
                          cmd_stack  = CmdStack,
-                         expected   = <<"">>,
+                         expected   = Expected,
                          extra      = undefined,
                          actual     = FailReason,
                          rest       = fail}}
@@ -1250,6 +1252,8 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
     receive
         {Expect, Pid} ->
             wait_for_reply(I, Pids, Expect, Fun, FlushTimeout);
+        {Expect, Pid, Expected} when Expect =:= expected, Pids =:= [] ->
+            Expected;
         {stop, SomePid, Res} ->
             I2 = prepare_stop(I, SomePid, Res),
             wait_for_reply(I2, [Pid|Pids], Expect, Fun, FlushTimeout);
@@ -1261,7 +1265,9 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
             I2 = premature_stop(I, TimeoutType, TimeoutMillis),
             wait_for_reply(I2, [], Expect, Fun, 500);
         IgnoreMsg when FlushTimeout =/= infinity ->
-            lux:trace_me(70, 'case', ignore_msg, [{interpreter_got, IgnoreMsg}])
+            lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
+            io:format("\nWARNING: Interpreter got: ~p\n", [IgnoreMsg]),
+            wait_for_reply(I, [Pid|Pids], Expect, Fun, FlushTimeout)
     after FlushTimeout ->
             I
     end;
