@@ -932,29 +932,29 @@ macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
 
 compile_regexp(_I, Cmd, reset) ->
     Cmd;
-compile_regexp(I, Cmd, {endshell, RegExp}) ->
-    Cmd2 = compile_regexp(I, Cmd, {regexp, RegExp}),
-    {mp, RegExp2, MP2} = Cmd2#cmd.arg,
-    Cmd2#cmd{arg = {endshell, RegExp2, MP2}};
-compile_regexp(_I, Cmd, {verbatim, _Verbatim}) ->
+compile_regexp(I, Cmd, {endshell, RegExpOper, RegExp}) ->
+    Cmd2 = compile_regexp(I, Cmd, {regexp, RegExpOper, RegExp}),
+    {mp, RegExpOper, RegExp2, MP2, _Multi} = Cmd2#cmd.arg,
+    Cmd2#cmd{arg = {endshell, RegExpOper, RegExp2, MP2}};
+compile_regexp(_I, Cmd, {verbatim, _RegExpOper, _Verbatim}) ->
     Cmd;
-compile_regexp(_I, Cmd, {mp, _RegExp, _MP}) ->
+compile_regexp(_I, Cmd, {mp, _RegExpOper, _RegExp, _MP, _Multi}) ->
     Cmd;
-compile_regexp(I, Cmd, {template, Template}) ->
+compile_regexp(I, Cmd, {template, RegExpOper, Template}) ->
     case safe_expand_vars(I, Template) of
         {ok, Verbatim} ->
-            Cmd#cmd{arg = {verbatim, Verbatim}};
+            Cmd#cmd{arg = {verbatim, RegExpOper, Verbatim}};
         {no_such_var, BadName} ->
             no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
     end;
-compile_regexp(I, Cmd, {regexp, RegExp}) ->
+compile_regexp(I, Cmd, {regexp, RegExpOper, RegExp}) ->
     case safe_expand_vars(I, RegExp) of
         {ok, RegExp2} ->
             RegExp3 = lux_utils:normalize_newlines(RegExp2),
             Opts = [multiline, {newline, anycrlf}],
             case re:compile(RegExp3, Opts) of
                 {ok, MP3} ->
-                    Cmd#cmd{arg = {mp, RegExp3, MP3}};
+                    Cmd#cmd{arg = {mp, RegExpOper, RegExp3, MP3, []}};
                 {error, {Reason, _Pos}} ->
                     BinErr = list_to_binary(["Syntax error: ", Reason,
                                              " in regexp '", RegExp3, "'"]),
@@ -1313,7 +1313,7 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
                 {ok, I4} ->
                     %% Wait for some shell output
                     Wait = Cmd#cmd{type = expect,
-                                   arg = {regexp, <<".+">>}},
+                                   arg = {regexp, single, <<".+">>}},
                     %% Set the prompt (after the rc files has ben run)
                     CmdStr = list_to_binary(I4#istate.shell_prompt_cmd),
                     Prompt = Cmd#cmd{type = send_lf,
@@ -1321,7 +1321,7 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
                     %% Wait for the prompt
                     CmdRegExp = list_to_binary(I4#istate.shell_prompt_regexp),
                     Sync = Cmd#cmd{type = expect,
-                                   arg = {regexp, CmdRegExp}},
+                                   arg = {regexp, single, CmdRegExp}},
                     Cmds = [Wait, Prompt, Sync | I4#istate.commands],
                     dlog(I4, ?dmore, "want_more=false (shell_start)", []),
                     I4#istate{commands = Cmds};

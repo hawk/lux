@@ -17,7 +17,7 @@
          pretty_full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
-         cmd/2, chop_newline/1, cmd_expected/1]).
+         cmd/2, chop_newline/1, cmd_expected/1, perms/1]).
 
 -include("lux.hrl").
 
@@ -640,13 +640,24 @@ chop_newline(Line) ->
 
 cmd_expected(Cmd) ->
     case Cmd of
-        #cmd{type = expect, arg = {verbatim, Expected}} ->
+        #cmd{type = expect, arg = {endshell, _RegexpOper, Expected, _MP}} ->
             ok;
-        #cmd{type = expect, arg = {mp, Expected, _MP}} ->
+        #cmd{type = expect, arg = {verbatim, _RegexpOper, Expected}} ->
             ok;
-        #cmd{type = expect, arg = {endshell, Expected, _MP}} ->
+        #cmd{type = expect, arg = {template, _RegexpOper, Expected}} ->
+            ok;
+        #cmd{type = expect, arg = {regexp, _RegexpOper, Expected}} ->
+            ok;
+        #cmd{type = expect, arg = {mp, _RegexpOper, Expected, _MP, _Multi}} ->
             ok;
         #cmd{} ->
             Expected = <<"">>
     end,
     Expected.
+
+%% Generate all permutations of the elements in a list
+perms([])->
+    [[]];
+perms(L) ->
+    [[H|T] || H <- L,
+              T <- perms(L--[H])].

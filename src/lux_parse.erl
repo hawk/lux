@@ -334,37 +334,47 @@ parse_single(#cmd{type = Type} = Cmd, Data) ->
     case Type of
         send_lf                    -> Cmd#cmd{arg = Data};
         send                       -> Cmd#cmd{arg = Data};
-        expect when Data =:= <<>>  -> parse_regexp(Cmd, reset);
-        expect                     -> parse_regexp(Cmd, Data);
-        fail when Data =:= <<>>    -> parse_regexp(Cmd, reset);
-        fail                       -> parse_regexp(Cmd, Data);
-        success when Data =:= <<>> -> parse_regexp(Cmd, reset);
-        success                    -> parse_regexp(Cmd, Data);
+        expect when Data =:= <<>>  -> parse_regexp(Cmd, reset, single);
+        expect                     -> parse_regexp(Cmd, Data, multi);
+        fail when Data =:= <<>>    -> parse_regexp(Cmd, reset, single);
+        fail                       -> parse_regexp(Cmd, Data, single);
+        success when Data =:= <<>> -> parse_regexp(Cmd, reset, single);
+        success                    -> parse_regexp(Cmd, Data, single);
 %%      meta                       -> Cmd;
 %%      multi_line                 -> Cmd;
         comment                    -> Cmd
     end.
 
-%% Arg :: reset                |
-%%        {endshell, binary()} |
-%%        {verbatim, binary()} |
-%%        {template, binary()} |
-%%        {regexp, binary}     |
-%%        {mp, binary(), mp()}   (compliled later)
-parse_regexp(Cmd, RegExp) when is_binary(RegExp) ->
-    case lux_utils:strip_trailing_whitespaces(RegExp) of
-        <<$?:8/integer, $?:8/integer, Stripped/binary>>
-          when Cmd#cmd.type =/= fail,
-               Cmd#cmd.type =/= success ->
-            Cmd#cmd{arg = {verbatim, Stripped}};
-        <<$?:8/integer, Stripped/binary>>
-          when Cmd#cmd.type =/= fail,
-               Cmd#cmd.type =/= success ->
-            Cmd#cmd{arg = {template, Stripped}};
-        Stripped ->
-            Cmd#cmd{arg = {regexp, Stripped}}
-    end;
-parse_regexp(Cmd, Value) when Value =:= reset ->
+%% Arg :: reset                               |
+%%        {endshell, single,        regexp()} |
+%%        {verbatim, regexp_oper(), regexp()} |
+%%        {template, regexp_oper(), regexp()} |
+%%        {regexp,   regexp_oper(), regexp()  |
+%%        {mp,       regexp_oper(), regexp(), mp(), multi()} (compliled later)
+%% regexp_oper() :: single | add | multi
+%% regexp()      :: binary()
+%% multi()       :: [{Name::binary(), regexp(), AlternateCmd::#cmd{}}]
+
+parse_regexp(Cmd, RegExp, RegExpOper0) when is_binary(RegExp) ->
+    {RegExpType, RegExpOper} =
+        case lux_utils:strip_trailing_whitespaces(RegExp) of
+            <<$?:8/integer, $?:8/integer, RegExp2/binary>>
+              when Cmd#cmd.type =/= fail,
+                   Cmd#cmd.type =/= success ->
+                {verbatim, RegExpOper0};
+            <<$?:8/integer, RegExp2/binary>>
+              when Cmd#cmd.type =/= fail,
+                   Cmd#cmd.type =/= success ->
+                {template, RegExpOper0};
+            <<$+:8/integer, $+:8/integer, RegExp2/binary>> ->
+                {regexp, expect_add_strict};
+            <<$+:8/integer, RegExp2/binary>> ->
+                {regexp, expect_add};
+            RegExp2 ->
+                {regexp, RegExpOper0}
+        end,
+    Cmd#cmd{arg = {RegExpType, RegExpOper, RegExp2}};
+parse_regexp(Cmd, Value, single) when Value =:= reset ->
     Cmd#cmd{arg = Value}.
 
 parse_var(P, Fd, Cmd, Scope, String) ->
@@ -534,7 +544,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 <<>>   -> RegExp = <<".*">>;
                 RegExp -> ok
             end,
-            Cmd#cmd{type = expect, arg = {endshell, RegExp}};
+            Cmd#cmd{type = expect, arg = {endshell, single, RegExp}};
         "config" ++ VarVal ->
             ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
