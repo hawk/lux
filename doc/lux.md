@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.8.4 - 2015-05-04
+Version 1.8.5 - 2015-06-26
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -257,6 +257,28 @@ keywords are ignored. Variables are still substituted.
 **???Verbatim**  
 Like `??Template`, but more restricted as no variables are substituted.
 That is the string is matched as is.
+
+**?+Regexp**  
+Like `?Regexp`, but has no immediate effect. It is used when the
+order of the output is undeterministic. Assume a case where the
+strings A, B and C occurs in the output but the order of them is
+unknown. Then we need to match all permutations of the strings.
+Such as ABC, ACB, BAC, BCA, CAB and CBA. It can be achieved by
+the relatively simple regexp `?(ABC)|(ACB)|(BAC)|(BCA)|CAB)|(CBA)`.
+But with larger regexps, possibly spanning multiple lines, it
+can be quite complex to just write the regexps. Performing the
+post mortem analyzis to determine which subpattern that is
+matching which part of the output will be even worse. In the
+following example `?+` is used to register a subpattern and `?`
+evaluates the permutations of all subpatterns (including the one
+specified with `?).
+
+    ?+A
+    ?+B
+    ?C
+
+will render matching of all permutatations of A, B and C. Note
+the usage of `?`. `?+` is always used together with `?`.
 
 **-**  
 **-Regexp**  

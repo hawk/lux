@@ -65,6 +65,28 @@ keywords are ignored. Variables are still substituted.
 Like `??Template`, but more restricted as no variables are substituted.
 That is the string is matched as is.
 
+**?+Regexp**  
+Like `?Regexp`, but has no immediate effect. It is used when the
+order of the output is undeterministic. Assume a case where the
+strings A, B and C occurs in the output but the order of them is
+unknown. Then we need to match all permutations of the strings.
+Such as ABC, ACB, BAC, BCA, CAB and CBA. It can be achieved by
+the relatively simple regexp `?(ABC)|(ACB)|(BAC)|(BCA)|CAB)|(CBA)`.
+But with larger regexps, possibly spanning multiple lines, it
+can be quite complex to just write the regexps. Performing the
+post mortem analyzis to determine which subpattern that is
+matching which part of the output will be even worse. In the
+following example `?+` is used to register a subpattern and `?`
+evaluates the permutations of all subpatterns (including the one
+specified with `?).
+
+    ?+A
+    ?+B
+    ?C
+
+will render matching of all permutatations of A, B and C. Note
+the usage of `?`. `?+` is always used together with `?`.
+
 **-**  
 **-Regexp**  
 Sets a failure condition regular expression [regular expression][]. If
@@ -76,7 +98,7 @@ cleanup). If no `Regexp` is given, the old failure condition is reset
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the failure
-condition. In non-active shells the `RegExp` is tried when the shell
+condition. In non-active shells the `Regexp` is tried when the shell
 produces new output.
 
 **+**  
@@ -90,11 +112,11 @@ cleanup). If no `Regexp` is given, the old success condition is reset
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the success
-condition. In non-active shells the `RegExp` is tried when the shell
+condition. In non-active shells the `Regexp` is tried when the shell
 produces new output.
 
 **\[endshell\]**  
-**\[endshell Regexp\]**  
+**\[endshell Regexp\]**
 An `expect` operation like `?`, but it waits for the `stdout` stream
 of the shell to be closed. This means the shell has terminated. The
 `Regexp` may optionally be used to match on the exit status from the

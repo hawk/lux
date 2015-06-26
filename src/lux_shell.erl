@@ -155,15 +155,15 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
             shell_loop(C3, C3)
         catch
             error:LoopReason ->
-                LoopBinErr = list_to_binary("Internal lux error: " ++
-                                                file:format_error(LoopReason)),
+                LoopBinErr = iolist_to_binary(["Internal lux error: ",
+                                               file:format_error(LoopReason)]),
                 io:format("~s\n~p\n", [LoopBinErr, erlang:get_stacktrace()]),
                 stop(C2, error, LoopBinErr)
-        end
+                     end
     catch
         error:InitReason ->
-            InitBinErr = list_to_binary(FlatExec ++ ": " ++
-                                            file:format_error(InitReason)),
+            InitBinErr = iolist_to_binary([FlatExec, ": ",
+                                           file:format_error(InitReason)]),
             io:format("~s\n~p\n", [InitBinErr, erlang:get_stacktrace()]),
             stop(C2, error, InitBinErr)
     end.
@@ -175,8 +175,8 @@ open_logfile(C, Slogan) ->
             {LogFile, Fd};
         {error, FileReason} ->
             String = file:format_error(FileReason),
-            BinErr = list_to_binary(["Failed to open logfile: ", LogFile,
-                                     " -> ", String]),
+            BinErr = iolist_to_binary(["Failed to open logfile: ", LogFile,
+                                       " -> ", String]),
             io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
             stop(C, error, BinErr)
     end.
@@ -458,7 +458,7 @@ shell_eval(#cstate{name = Name} = C0,
                 element(2, (hd(C#cstate.pre_expected))#cmd.arg) =/= Tag ->
                     Err = io_lib:format("Illegal syntax: "
                                         "?+ cannot be mixed with ?++\n", []),
-                    stop(C, error, list_to_binary(Err));
+                    stop(C, error, iolist_to_binary(Err));
                 true ->
                     C#cstate{pre_expected = [Cmd | C#cstate.pre_expected]}
             end;
@@ -549,7 +549,7 @@ shell_eval(#cstate{name = Name} = C0,
         Unexpected ->
             Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
                                 [Name, Unexpected, Arg]),
-            stop(C, error, list_to_binary(Err))
+            stop(C, error, iolist_to_binary(Err))
     end.
 
 send_to_port(C, Data) ->
@@ -993,6 +993,9 @@ add_skip(expect_add, [First|Rest]) ->
 add_skip(_PreExpected, Perms) ->
     Perms.
 
+stop(C, _Outcome, _Actual) when C#cstate.pre_expected =/= [] ->
+    Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
+    stop(C#cstate{pre_expected = []}, error, iolist_to_binary(Err));
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
