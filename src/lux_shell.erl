@@ -993,7 +993,9 @@ add_skip(expect_add, [First|Rest]) ->
 add_skip(_PreExpected, Perms) ->
     Perms.
 
-stop(C, _Outcome, _Actual) when C#cstate.pre_expected =/= [] ->
+stop(C, Outcome, _Actual) when C#cstate.pre_expected =/= [],
+                               Outcome =/= error,
+                               Outcome =/= fail ->
     Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
     stop(C#cstate{pre_expected = []}, error, iolist_to_binary(Err));
 stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
