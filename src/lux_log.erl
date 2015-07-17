@@ -7,7 +7,7 @@
 
 -module(lux_log).
 
--export([is_temporary/1, parse_summary_log/1, parse_run_summary/3,
+-export([is_temporary/1, parse_summary_log/1, parse_run_summary/4,
          open_summary_log/2, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2,
          write_results/4, print_results/4, parse_result/1, pick_result/2,
@@ -233,9 +233,9 @@ split_doc([H|T] = Rest, AccDoc) ->
             {lists:reverse(AccDoc), Rest}
     end.
 
-parse_run_summary(HtmlFile, SummaryLog, Res) ->
+parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
     try
-        do_parse_run_summary(HtmlFile, SummaryLog, Res)
+        do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts)
     catch
         error:Reason ->
             ReasonStr =
@@ -247,7 +247,7 @@ parse_run_summary(HtmlFile, SummaryLog, Res) ->
             {error, SummaryLog, ReasonStr}
     end.
 
-do_parse_run_summary(HtmlFile, SummaryLog, Res) ->
+do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
     HtmlDir = filename:dirname(HtmlFile),
     {ok, Cwd} = file:get_cwd(),
     CN0 = ?DEFAULT_CONFIG_NAME,
@@ -279,7 +279,13 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res) ->
             Ctime0 = FI#file_info.ctime,
             Ctime =  list_to_binary(lux_utils:datetime_to_string(Ctime0)),
             StartTime = find_config(<<"start time">>, Config, Ctime),
-            HostName = find_config(<<"hostname">>, Config, R#run.hostname),
+            case pick_opt(hostname, Opts, undefined) of
+                undefined ->
+                    HostName = find_config(<<"hostname">>, Config,
+                                           R#run.hostname);
+                HostName ->
+                    ok
+            end,
             ConfigName0 = find_config(<<"architecture">>, Config, CN0),
             ConfigName =
                 if
@@ -313,6 +319,13 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res) ->
         {error, SummaryLog, _ReasonStr} ->
             R
     end.
+
+pick_opt(Tag, [{Tag, NewVal} | Opts], _OldVal) ->
+    pick_opt(Tag, Opts, NewVal);
+pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
+    pick_opt(Tag, Opts, Val);
+pick_opt(_Tag, [], Val) ->
+    Val.
 
 parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName,
                Suite, RunId, ReposRev,

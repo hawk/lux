@@ -32,6 +32,7 @@
          run                        :: string(),
          extend_run = false         :: boolean(),
          revision = ""              :: string(),
+         hostname = real_hostname() :: string(),
          html = enable              :: enable | success | skip | warning |
                                        fail | error | disable,
          warnings = []              :: [{warning, string(),
@@ -245,6 +246,8 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{extend_run = Val});
         revision when is_list(Val) ->
             parse_ropts(T, R#rstate{revision = Val});
+        hostname when is_list(Val) ->
+            parse_ropts(T, R#rstate{hostname = Val});
         skip_skip when Val =:= true; Val =:= false ->
             parse_ropts(T, R#rstate{skip_skip = Val});
         mode when Val =:= list; Val =:= doc;
@@ -637,7 +640,7 @@ parse_config(R) ->
     %% Arch spec opts
     ActualConfigName = config_name(),
     {ConfigName, ConfigFile} =
-        config_file(ConfigDir, R2#rstate.config_name, ActualConfigName),
+        config_file(R2, ConfigDir, R2#rstate.config_name, ActualConfigName),
     ConfigOpts = parse_config_file(R2, ConfigFile),
     R3 = R2#rstate{config_name = ConfigName,
                    config_dir = ConfigDir,
@@ -653,7 +656,7 @@ builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
     [
      {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
-     {hostname, [string], hostname()},
+     {hostname, [string], R#rstate.hostname},
      {architecture, [string], ActualConfigName},
      {'system info', [string], sys_info()},
      {suite, [string], R#rstate.suite},
@@ -718,11 +721,11 @@ parse_error(ErrorStack, ErrorBin) ->
             {MainFile, FullLineNo, ErrorBin2}
     end.
 
-config_file(ConfigDir, UserConfigName, ActualConfigName) ->
+config_file(R, ConfigDir, UserConfigName, ActualConfigName) ->
     Ext = ".luxcfg",
     case UserConfigName of
         undefined ->
-            Host = hostname(),
+            Host = R#rstate.hostname,
             HostFile = filename:join([ConfigDir, Host ++ Ext]),
             case filelib:is_regular(HostFile) of
                 true  -> {Host, HostFile};
@@ -745,7 +748,7 @@ config_file2(ConfigDir, ConfigName, Ext) ->
 sys_info() ->
     lux_utils:chop_newline(os:cmd("uname -a")).
 
-hostname() ->
+real_hostname() ->
     case inet:gethostname() of
         {ok, Host} -> Host;
         _          -> "localhost"
@@ -885,7 +888,7 @@ tap_suite_begin(R, Scripts, Directive)
             ok = lux_tap:plan(TAP, length(Scripts), Directive),
             ok = lux_tap:diag(TAP, "\n"),
             %% ok = lux_tap:diag(TAP, "LUX - LUcid eXpect scripting"),
-            Host = hostname(),
+            Host = real_hostname(),
             ok = lux_tap:diag(TAP, "ssh " ++ Host),
             {ok, Cwd} = file:get_cwd(),
             ok = lux_tap:diag(TAP, "cd " ++ Cwd),

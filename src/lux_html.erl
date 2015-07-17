@@ -7,7 +7,7 @@
 
 -module(lux_html).
 
--export([annotate_log/2, history/2]).
+-export([annotate_log/2, history/3]).
 -export([keysplit/2, keysplit/3]).
 
  -include("lux.hrl").
@@ -654,10 +654,10 @@ html_opt_div(Op, Data) ->
 -record(row,   {res, iolist}).
 -record(cell,  {res, run, iolist}).
 
-history(TopDir, HtmlFile) ->
+history(TopDir, HtmlFile, Opts) ->
     TopDir2 = filename:absname(TopDir),
     AbsHtmlFile = filename:absname(HtmlFile),
-    AllRuns = parse_summary_logs(AbsHtmlFile, TopDir2, []),
+    AllRuns = parse_summary_logs(AbsHtmlFile, TopDir2, [], Opts),
     io:format("~p test runs", [length(AllRuns)]),
     SplitHosts = keysplit(#run.hostname, AllRuns),
     LatestRuns = latest_runs(SplitHosts),
@@ -1112,7 +1112,7 @@ multi_member([H | T], Files) ->
 multi_member([], _Files) ->
     false.
 
-parse_summary_logs(HtmlFile, Dir, Acc) ->
+parse_summary_logs(HtmlFile, Dir, Acc, Opts) ->
     Skip =
         ["lux.skip",
          "lux_summary.log",
@@ -1121,9 +1121,9 @@ parse_summary_logs(HtmlFile, Dir, Acc) ->
          "qmscript_summary.log",
          "qmscript_summary.log.tmp",
          "qmscript.summary.log"],
-    do_parse_summary_logs(HtmlFile, Dir, Acc, Skip).
+    do_parse_summary_logs(HtmlFile, Dir, Acc, Skip, Opts).
 
-do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
+do_parse_summary_logs(HtmlFile, Dir, Acc, Skip, Opts) ->
     %% io:format("~s\n", [Dir]),
     case file:list_dir(Dir) of
         {ok, Files} ->
@@ -1137,7 +1137,9 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
                             case lux_log:parse_summary_log(File) of
                                 {ok,_,_,_,_,_} = Res->
                                     R = lux_log:parse_run_summary(HtmlFile,
-                                                                  File, Res),
+                                                                  File,
+                                                                  Res,
+                                                                  Opts),
                                     [R | Acc];
                                 {error, _, _Reason} ->
                                     Acc
@@ -1155,7 +1157,8 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip) ->
                                 A;
                            (File, A) ->
                                 SubDir = filename:join([Dir, File]),
-                                do_parse_summary_logs(HtmlFile, SubDir, A, Skip)
+                                do_parse_summary_logs(HtmlFile, SubDir,
+                                                      A, Skip, Opts)
                         end,
                     lists:foldl(Fun, Acc, Files)
             end;

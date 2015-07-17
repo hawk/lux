@@ -7,7 +7,7 @@
 
 -module(lux).
 
--export([run/2, parse_file/4, interpret_commands/3, annotate_log/1, history/2]).
+-export([run/2, parse_file/4, interpret_commands/3, annotate_log/1, history/3]).
 -export([trace_me/4, trace_me/5]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -65,11 +65,11 @@ annotate_log(LogFile) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Assemble result history
 
--spec(history(dirname(), filename()) ->
+-spec(history(dirname(), filename(), opts()) ->
              ok | error()).
 
-history(LogDir, HtmlFile) ->
-    lux_html:history(LogDir, HtmlFile).
+history(LogDir, HtmlFile, Opts) ->
+    lux_html:history(LogDir, HtmlFile, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Enable simplified tracing and viewing it as a sequence chart

@@ -25,10 +25,10 @@ main(OrigArgs) ->
     Specs = specs(),
     Opts  = getopts(Args, Specs),
     %% io:format("Args: ~p\n", [Opts]),
-    ExitCode = run(Opts, OpModes, Specs, OrigArgs),
+    ExitCode = dispatch(Opts, OpModes, Specs, OrigArgs),
     safe_halt(ExitCode).
 
-run(Opts, OpModes, Specs, OrigArgs) ->
+dispatch(Opts, OpModes, Specs, OrigArgs) ->
     case select_op(Opts, OpModes) of
         {"--help"=Op, [_]}             -> help(Op, Specs);
         {"--markdown", [_]}            -> markdown();
@@ -41,8 +41,8 @@ run(Opts, OpModes, Specs, OrigArgs) ->
         {"--install"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
         {"--reltool"=Op, [_]}          -> reltool(Op, Opts);
         {"--annotate", [LogFile]}      -> annotate(LogFile);
-        {"--history", [LogDir]}        -> history(LogDir);
-        undefined                      -> test(Opts);
+        {"--history", [LogDir]}        -> history(LogDir, Opts);
+        undefined                      -> run(Opts);
         _                              -> usage(Specs)
     end.
 
@@ -112,6 +112,7 @@ specs() ->
      {"--run",                undefined,   string,                 mandatory},
      {"--extend_run",         false,       boolean,                none},
      {"--revision",           undefined,   string,                 mandatory},
+     {"--hostname",           undefined,   string,                 mandatory},
      {"--mode",               execute,     fun mode_arg/1,         mandatory},
      {"--progress",           brief,       fun progress_arg/1,     mandatory},
      {"--multiplier",         1000,        {integer, 0, infinity}, mandatory},
@@ -298,7 +299,7 @@ internal_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
     [dbg:tpl({M, '_', '_'}, [{'_', [], [{return_trace}]}]) || M <- Mods],
     Key = "--internal_trace",
     NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
-    run(NewOpts, OpModes, Specs, OrigArgs).
+    dispatch(NewOpts, OpModes, Specs, OrigArgs).
 
 event_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
@@ -317,7 +318,7 @@ event_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
             ViewerRef = erlang:monitor(process, ViewerPid),
             Key = "--event_trace",
             NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
-            run(NewOpts, OpModes, Specs, OrigArgs),
+            dispatch(NewOpts, OpModes, Specs, OrigArgs),
             receive
                 {'DOWN', ViewerRef, _Type, _Object, shutdown} ->
                     ok;
@@ -555,7 +556,6 @@ filter_apps(MainOp, AppConds, _IsCross, false) ->
 
 root_dir(Opts) ->
     case lists:keyfind("--root_dir", 1, Opts) of
-        false          -> {false, code:root_dir()};
         {_, []}        -> {false, code:root_dir()};
         {_, [RootDir]} -> {true, RootDir}
     end.
@@ -573,11 +573,12 @@ annotate(LogFile0) ->
             1
     end.
 
-history(LogDir0) ->
+history(LogDir0, Opts) ->
+    {Files, Opts2} = translate_opts(Opts),
     LogDir = filename:absname(LogDir0),
     io:format("Assembling history of logs in ~s...", [LogDir]),
     HtmlFile = filename:join([LogDir, "lux_history.html"]),
-    case lux:history(LogDir, HtmlFile) of
+    case lux:history(LogDir, HtmlFile, Opts2) of
         ok ->
             io:format("...ok\n", []),
             io:format("\nfile://~s\n", [HtmlFile]),
@@ -587,7 +588,26 @@ history(LogDir0) ->
             1
     end.
 
-test([
+run(Opts) ->
+    {Files, Opts2} = translate_opts(Opts),
+    case lux:run(Files, Opts2) of
+        {ok, Summary, _SummaryLog, _Results} ->
+            ok;
+        {error, File, ReasonBin} ->
+            io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
+            Summary = error
+    end,
+    exit_code(Summary).
+
+exit_code(Summary) ->
+    case Summary of
+        success -> 0;
+        skip    -> 0;
+        fail    -> 1;
+        error   -> 1
+    end.
+
+translate_opts([
      {?FILES,                 Files},
      {"--help",               _Help},
      {"--markdown",           _Markdown},
@@ -615,6 +635,7 @@ test([
      {"--run",                Run},
      {"--extend_run",         ExtendRun},
      {"--revision",           Revision},
+     {"--hostname",           Hostname},
      {"--mode",               Mode},
      {"--progress",           Progress},
      {"--multiplier",         Multiplier},
@@ -665,26 +686,11 @@ test([
          {run,                Run},
          {extend_run,         ExtendRun},
          {revision,           Revision},
+         {hostname,           Hostname},
          {file_pattern,       FilePattern},
          {tap,                Tap}
         ],
-    Opts2 = lists:zf(fun filter_arg/1, Opts),
-    case lux:run(Files, Opts2) of
-        {ok, Summary, _SummaryLog, _Results} ->
-            ok;
-        {error, File, ReasonBin} ->
-            io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
-            Summary = error
-    end,
-    exit_code(Summary).
-
-exit_code(Summary) ->
-    case Summary of
-        success -> 0;
-        skip    -> 0;
-        fail    -> 1;
-        error   -> 1
-    end.
+    {Files, lists:zf(fun filter_arg/1, Opts)}.
 
 filter_arg(KeyVal) ->
     case KeyVal of
