@@ -574,7 +574,7 @@ annotate(LogFile0) ->
     end.
 
 history(LogDir0, Opts) ->
-    {Files, Opts2} = translate_opts(Opts),
+    {_Files, Opts2} = translate_opts(Opts),
     LogDir = filename:absname(LogDir0),
     io:format("Assembling history of logs in ~s...", [LogDir]),
     HtmlFile = filename:join([LogDir, "lux_history.html"]),
