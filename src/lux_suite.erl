@@ -462,11 +462,13 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     Res = lux:interpret_commands(Script2, Cmds, Opts),
                     SkipReason = "",
                     case Res of
-                        {ok, _, CaseLogDir, Summary, FullLineNo, Events} ->
+                        {ok, _, CaseLogDir, Summary, FullLineNo,
+                         Events, FailBin} ->
                             lux:trace_me(70, 'case', suite, Summary,
                                   []),
                             tap_case_end(R2, CC, Script, Summary,
                                          FullLineNo, SkipReason),
+                            tap_case_fail(R2, FailBin),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             Res2 = {ok, Script, Summary, FullLineNo, Events},
                             NewResults = [Res2 | Results],
@@ -478,15 +480,17 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                                          [FullLineNo]),
                             tap_case_end(R2, CC, Script, Summary,
                                          FullLineNo, SkipReason),
+                            tap_case_fail(R2, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
                             NewScripts = [];
-                        {error, _, CaseLogDir, FullLineNo, _} ->
+                        {error, _, CaseLogDir, FullLineNo, ErrorMsg} ->
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
                                          [FullLineNo]),
                             tap_case_end(R2, CC, Script, Summary,
                                          FullLineNo, SkipReason),
+                            tap_case_fail(R2, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
                             NewScripts = Scripts
@@ -547,9 +551,14 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                         [?TAG("test case"), Script]),
             double_rlog(R2, "~sERROR ~s: ~s\n",
                         [?TAG("result"), MainFile, ErrorBin2]),
+            Summary = error,
+            tap_case_begin(R, RelScript),
+            lux:trace_me(70, 'case', suite, Summary, []),
+            tap_case_end(R, CC, Script, Summary,
+                         "0", ErrorBin),
+            tap_case_fail(R2, ErrorBin),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
-            Summary = error,
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Results2 = [{error, MainFile, FullLineNo, ErrorBin2} | Results],
             run_cases(R#rstate{warnings = AllWarnings},
@@ -920,11 +929,17 @@ tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results)
 tap_suite_end(_R, _Summary, _Results) ->
     ok.
 
-tap_case_begin(#rstate{tap = TAP}, Script)
-  when TAP =/= undefined ->
-    ok = lux_tap:diag(TAP, "lux " ++ Script);
-tap_case_begin(_R, _Script) ->
+%% tap_case_begin(#rstate{tap = TAP}, Script)
+%%   when TAP =/= undefined ->
+%%     ok = lux_tap:diag(TAP, "lux " ++ Script);
+tap_case_begin(#rstate{}, _Script) ->
     ok.
+
+tap_case_fail(#rstate{}, <<>>) ->
+    ok;
+tap_case_fail(#rstate{tap = TAP}, FailBin) ->
+    FailLines = binary:split(FailBin, <<"\n">>, [global]),
+    [ok = lux_tap:diag(TAP, binary_to_list(F)) || F <- FailLines].
 
 tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip},
              CaseCount, AbsScript, Result, FullLineNo, Reason)
@@ -947,5 +962,5 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip},
             success               -> {ok,     "",         "    " ++ Descr0}
         end,
     lux_tap:test(TAP, Outcome, Descr, Directive);
-tap_case_end(_R, _CaseCount, _Script, _Result, _FullLineNo, _Reason) ->
+tap_case_end(#rstate{}, _CaseCount, _Script, _Result, _FullLineNo, _Reason) ->
     ok.

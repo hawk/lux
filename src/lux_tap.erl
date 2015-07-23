@@ -71,27 +71,28 @@ plan(TAP, N, Dir) when is_integer(N), N >= 0 ->
 test(TAP, not_ok, Descr, Dir) ->
     test(TAP, 'not ok', Descr, Dir);
 test(TAP, Outcome, Descr, Dir)
-  when Outcome =:= ok; Outcome == 'not ok' ->
+  when is_list(Descr) andalso
+       (Outcome =:= ok orelse Outcome == 'not ok') ->
     write(TAP, [Outcome, descr(Descr), dir(Dir)]).
 
 diag(TAP, Descr) when Descr =:= "\n" ->
     write(TAP, []);
-diag(TAP, Descr) when Descr =/= "" ->
-    write(TAP, ["# ", Descr]).
+diag(TAP, Descr) when is_list(Descr), Descr =/= "" ->
+    write(TAP, ["    # ", Descr]).
 
-bail_out(TAP, Descr) ->
+bail_out(TAP, Descr) when is_list(Descr) ->
     return_worst([
                   write(TAP, ["Bail out!", descr(Descr)]),
                   close(TAP)
                  ]).
 
-descr(Descr) ->
+descr(Descr) when is_list(Descr) ->
     case Descr of
         "" -> Descr;
         _  -> " " ++ Descr
     end.
 
-dir(Dir) ->
+dir(Dir) when is_list(Dir) ->
     case Dir of
         ""          -> Dir;
         "SKIP" ++ _ -> " # " ++ Dir;

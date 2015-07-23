@@ -492,13 +492,13 @@ print_error(Fd, Results) ->
 
 pick_result(Results, Outcome) when Outcome =:= error ->
     [{Script, FullLineNo} ||
-        {error, Script, _LogDir, FullLineNo, _Reason} <- Results];
+        {error, Script, FullLineNo, _Reason} <- Results];
 pick_result(Warnings, Outcome) when Outcome =:= warning ->
     [{Script, FullLineNo} ||
         {warning, Script, FullLineNo, _Reason} <- Warnings];
 pick_result(Results, Outcome) ->
     [{Script, FullLineNo} ||
-        {ok, Script, O, FullLineNo, _Events} <- Results,
+        {ok, Script, O, FullLineNo, _Events, _FailBins} <- Results,
         O =:= Outcome].
 
 result_format({IsTmp, Fd}, Format, Args) ->

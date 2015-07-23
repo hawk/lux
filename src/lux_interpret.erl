@@ -312,7 +312,7 @@ print_success(I, File, Results) ->
     double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
-    {ok, File, I#istate.log_dir, success, FullLineNo, Results}.
+    {ok, File, I#istate.log_dir, success, FullLineNo, Results, <<>>}.
 
 print_fail(I0, File, Results,
            #result{outcome    = fail,
@@ -322,38 +322,36 @@ print_fail(I0, File, Results,
                    extra      = _Extra,
                    actual     = Actual,
                    rest       = Rest}) ->
+    {NewActual, NewRest} =
+        case Actual of
+            <<"fail pattern matched ",  _/binary>> ->
+                {Actual, Rest};
+            <<"success pattern matched ", _/binary>> ->
+                {Actual, Rest};
+            _ when is_atom(Actual) ->
+                {atom_to_list(Actual), Rest};
+            _ when is_binary(Actual) ->
+                {<<"error">>, Actual}
+        end,
     I = I0#istate{progress = silent},
     FullLineNo = full_lineno(I, LatestCmd, CmdStack),
     ResStr = double_ilog(I, "~sFAIL at ~s:~s\n",
                          [?TAG("result"), File, FullLineNo]),
+    FailBin =
+        iolist_to_binary(
+          [
+           io_lib:format("expected\n\t~s\n",
+                         [simple_to_string(Expected)]),
+           io_lib:format("actual ~s\n\t~s",
+                         [NewActual, simple_to_string(NewRest)])
+          ]),
     io:format("~s", [ResStr]),
-    io:format("expected\n\t~s\n",
-              [simple_to_string(Expected)]),
+    io:format("~s\n", [FailBin]),
     double_ilog(I, "expected\n\"~s\"\n",
                 [lux_utils:to_string(Expected)]),
-    case Actual of
-        <<"fail pattern matched ",    _/binary>> ->
-            io:format("actual ~s\n\t~s\n",
-                      [Actual, simple_to_string(Rest)]),
-            double_ilog(I, "actual ~s\n\"~s\"\n",
-                        [Actual, lux_utils:to_string(Rest)]);
-        <<"success pattern matched ", _/binary>> ->
-            io:format("actual ~s\n\t~s\n",
-                      [Actual, simple_to_string(Rest)]),
-            double_ilog(I, "actual ~s\n\"~s\"\n",
-                        [Actual, lux_utils:to_string(Rest)]);
-        _ when is_atom(Actual) ->
-            io:format("actual ~p\n\t~s\n",
-                      [Actual, simple_to_string(Rest)]),
-            double_ilog(I, "actual ~p\n\"~s\"\n",
-                        [Actual, lux_utils:to_string(Rest)]);
-        _ when is_binary(Actual) ->
-            io:format("actual error\n\t~s\n",
-                      [simple_to_string(Actual)]),
-            double_ilog(I, "actual error\n\"~s\"\n",
-                        [lux_utils:to_string(Actual)])
-    end,
-    {ok, File, I#istate.log_dir, fail, FullLineNo, Results}.
+    double_ilog(I, "actual ~s\n\"~s\"\n",
+                [NewActual, lux_utils:to_string(NewRest)]),
+    {ok, File, I#istate.log_dir, fail, FullLineNo, Results, FailBin}.
 
 full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),
