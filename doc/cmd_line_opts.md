@@ -78,4 +78,5 @@ by analyzing the `lux_summary.log` files located under `LogDir`. All
 sub directories that not have a `lux.skip` file will be searched. The
 file will be generated on the `LogDir` directory and is called
 `lux_history.html`. Its behavior can be customized by using the
-`--suite`, `--run` and `--revision` [configuration parameters](#config_params).
+`--suite`, `--run`, `--revision` and `--hostname`
+[configuration parameters](#config_params).

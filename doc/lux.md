@@ -1,6 +1,6 @@
 Lux - LUcid eXpect scripting
 ============================
-Version 1.8.5 - 2015-06-26
+Version 1.8.6 - 2015-07-24
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -291,7 +291,7 @@ cleanup). If no `Regexp` is given, the old failure condition is reset
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the failure
-condition. In non-active shells the `RegExp` is tried when the shell
+condition. In non-active shells the `Regexp` is tried when the shell
 produces new output.
 
 **+**  
@@ -305,11 +305,11 @@ cleanup). If no `Regexp` is given, the old success condition is reset
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the success
-condition. In non-active shells the `RegExp` is tried when the shell
+condition. In non-active shells the `Regexp` is tried when the shell
 produces new output.
 
 **\[endshell\]**  
-**\[endshell Regexp\]**  
+**\[endshell Regexp\]**
 An `expect` operation like `?`, but it waits for the `stdout` stream
 of the shell to be closed. This means the shell has terminated. The
 `Regexp` may optionally be used to match on the exit status from the
@@ -585,7 +585,8 @@ by analyzing the `lux_summary.log` files located under `LogDir`. All
 sub directories that not have a `lux.skip` file will be searched. The
 file will be generated on the `LogDir` directory and is called
 `lux_history.html`. Its behavior can be customized by using the
-`--suite`, `--run` and `--revision` [configuration parameters](#config_params).
+`--suite`, `--run`, `--revision` and `--hostname`
+[configuration parameters](#config_params).
 <a name="config_params"/>
 
 Configuration parameters
@@ -663,6 +664,12 @@ architecture specific file may be overridden by config settings in the
 script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
+
+**--hostname Hostname**  
+The `Hostname`overrides the hostname obtained from the operating
+system. It may be useful when testing config settings of other
+machines or faking the hostname in a test environment with multiple
+equivalent slaves.
 
 **--skip Var**  
 **--skip Var=Value**  
@@ -802,6 +809,12 @@ a suitable log directory.
 The `Revision` is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the [command line option](#cmd_line_opts) `--history`.
+
+**--hostname Hostname**  
+The `Hostname`overrides the hostnames extracted from the log files.
+It may for example be useful in a test environment where the test
+runs are distributed over multiple equivalent slaves. See the
+[command line option](#cmd_line_opts) `--history`.
 
 Debugging and tracing
 ---------------------

@@ -74,6 +74,12 @@ script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
 
+**--hostname Hostname**  
+The `Hostname`overrides the hostname obtained from the operating
+system. It may be useful when testing config settings of other
+machines or faking the hostname in a test environment with multiple
+equivalent slaves.
+
 **--skip Var**  
 **--skip Var=Value**  
 Skip execution of the script if the given variable is set. This
@@ -212,6 +218,12 @@ a suitable log directory.
 The `Revision` is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the [command line option](#cmd_line_opts) `--history`.
+
+**--hostname Hostname**  
+The `Hostname`overrides the hostnames extracted from the log files.
+It may for example be useful in a test environment where the test
+runs are distributed over multiple equivalent slaves. See the
+[command line option](#cmd_line_opts) `--history`.
 
 Debugging and tracing
 ---------------------

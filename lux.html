@@ -7,7 +7,7 @@
 
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.8.5 - 2015-06-26</p>
+<p>Version 1.8.6 - 2015-07-24</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -306,7 +306,7 @@ cleanup). If no <code>Regexp</code> is given, the old failure condition is reset
 <p>In the active shell, the <code>Regexp</code> is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the failure
-condition. In non-active shells the <code>RegExp</code> is tried when the shell
+condition. In non-active shells the <code>Regexp</code> is tried when the shell
 produces new output.</p>
 
 <p><strong>+</strong> <br />
@@ -320,11 +320,11 @@ cleanup). If no <code>Regexp</code> is given, the old success condition is reset
 <p>In the active shell, the <code>Regexp</code> is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the success
-condition. In non-active shells the <code>RegExp</code> is tried when the shell
+condition. In non-active shells the <code>Regexp</code> is tried when the shell
 produces new output.</p>
 
 <p><strong>[endshell]</strong> <br />
-<strong>[endshell Regexp]</strong> <br />
+<strong>[endshell Regexp]</strong>
 An <code>expect</code> operation like <code>?</code>, but it waits for the <code>stdout</code> stream
 of the shell to be closed. This means the shell has terminated. The
 <code>Regexp</code> may optionally be used to match on the exit status from the
@@ -603,7 +603,8 @@ by analyzing the <code>lux_summary.log</code> files located under <code>LogDir</
 sub directories that not have a <code>lux.skip</code> file will be searched. The
 file will be generated on the <code>LogDir</code> directory and is called
 <code>lux_history.html</code>. Its behavior can be customized by using the
-<code>--suite</code>, <code>--run</code> and <code>--revision</code> <a href="#config_params">configuration parameters</a>.
+<code>--suite</code>, <code>--run</code>, <code>--revision</code> and <code>--hostname</code>
+<a href="#config_params">configuration parameters</a>.
 <a name="config_params"/></p>
 
 <h1>Configuration parameters</h1>
@@ -682,6 +683,12 @@ architecture specific file may be overridden by config settings in the
 script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called <code>priv</code> in the <code>Lux</code> application.</p>
+
+<p><strong>--hostname Hostname</strong> <br />
+The <code>Hostname</code>overrides the hostname obtained from the operating
+system. It may be useful when testing config settings of other
+machines or faking the hostname in a test environment with multiple
+equivalent slaves.</p>
 
 <p><strong>--skip Var</strong> <br />
 <strong>--skip Var=Value</strong> <br />
@@ -819,6 +826,12 @@ a suitable log directory.</p>
 The <code>Revision</code> is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
+
+<p><strong>--hostname Hostname</strong> <br />
+The <code>Hostname</code>overrides the hostnames extracted from the log files.
+It may for example be useful in a test environment where the test
+runs are distributed over multiple equivalent slaves. See the
+<a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
 <h2>Debugging and tracing</h2>
 
