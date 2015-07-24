@@ -474,7 +474,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     Res = lux:interpret_commands(Script2, Cmds, Opts),
                     SkipReason = "",
                     case Res of
-                        {ok, Summary, FullLineNo, _, CaseLogDir,
+                        {ok, Summary, _, FullLineNo, CaseLogDir,
                          Events, FailBin} ->
                             lux:trace_me(70, 'case', suite, Summary,
                                   []),
