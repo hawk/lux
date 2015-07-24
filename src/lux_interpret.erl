@@ -111,7 +111,7 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     double_ilog(I, "~sERROR ~s\n",
                 [?TAG("result"),
                  binary_to_list(ReasonBin)]),
-    {error, I#istate.file, I#istate.log_dir, FullLineNo, ReasonBin}.
+    {error, I#istate.file, FullLineNo, I#istate.log_dir, ReasonBin}.
 
 parse_iopts(I, [{Name, Val} | T]) when is_atom(Name) ->
     case parse_iopt(I, Name, Val) of
@@ -142,9 +142,9 @@ parse_iopt(I, Name, Val) when is_atom(Name) ->
 
 config_type(Name) ->
     case Name of
-        debug  ->
+        debug ->
             {ok, #istate.debug, [{atom, [true, false]}]};
-        debug_file  ->
+        debug_file ->
             {ok, #istate.debug_file, [string, {atom, [undefined]}]};
         skip ->
             {ok, #istate.skip, [{env_list, [string]}]};
@@ -312,7 +312,7 @@ print_success(I, File, Results) ->
     double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
-    {ok, File, I#istate.log_dir, success, FullLineNo, Results, <<>>}.
+    {ok, success, File, FullLineNo, I#istate.log_dir, Results, <<>>}.
 
 print_fail(I0, File, Results,
            #result{outcome    = fail,
@@ -351,7 +351,7 @@ print_fail(I0, File, Results,
                 [lux_utils:to_string(Expected)]),
     double_ilog(I, "actual ~s\n\"~s\"\n",
                 [NewActual, lux_utils:to_string(NewRest)]),
-    {ok, File, I#istate.log_dir, fail, FullLineNo, Results, FailBin}.
+    {ok, fail, File, FullLineNo, I#istate.log_dir, Results, FailBin}.
 
 full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),
@@ -1457,10 +1457,8 @@ safe_cancel_timer(Timer) ->
 
 multiply(#istate{multiplier = Factor}, Timeout) ->
     case Timeout of
-        infinity ->
-            infinity;
-        _ ->
-            lux_utils:multiply(Timeout, Factor)
+        infinity -> infinity;
+        _        -> lux_utils:multiply(Timeout, Factor)
     end.
 
 default_istate(File) ->

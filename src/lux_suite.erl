@@ -207,9 +207,9 @@ initial_results(Groups) ->
         fun(Script, {result, Res}) ->
                 case Res of
                     success ->
-                        {ok, Script, Res, "0", []};
+                        {ok, Res, Script, "0", []};
                     skip ->
-                        {ok, Script, Res, "0", []};
+                        {ok, Res, Script, "0", []};
                     {error_line, RawLineNo, Reason} ->
                         {error, Script, RawLineNo, Reason};
                     {error, [Reason]} ->
@@ -222,7 +222,7 @@ initial_results(Groups) ->
                   {error, Reason} ->
                         {error, Script, "0", Reason};
                     {fail, _Script, RawLineNo, _Expected, _Actual, _Details} ->
-                        {ok, Script, fail, binary_to_list(RawLineNo), []}
+                        {ok, fail, Script, binary_to_list(RawLineNo), []}
                 end
         end,
     [Fun(Script, Res) ||
@@ -462,7 +462,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     Res = lux:interpret_commands(Script2, Cmds, Opts),
                     SkipReason = "",
                     case Res of
-                        {ok, _, CaseLogDir, Summary, FullLineNo,
+                        {ok, Summary, FullLineNo, _, CaseLogDir,
                          Events, FailBin} ->
                             lux:trace_me(70, 'case', suite, Summary,
                                   []),
@@ -470,10 +470,11 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                                          FullLineNo, SkipReason),
                             tap_case_fail(R2, FailBin),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
-                            Res2 = {ok, Script, Summary, FullLineNo, Events},
+                            Res2 = {ok, Summary, Script, FullLineNo,
+                                    CaseLogDir, Events, FailBin},
                             NewResults = [Res2 | Results],
                             NewScripts = Scripts;
-                        {error, _, CaseLogDir, FullLineNo, ErrorMsg}
+                        {error, _, FullLineNo, CaseLogDir, ErrorMsg}
                           when ErrorMsg =:= <<"suite_timeout" >> ->
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
@@ -484,7 +485,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
                             NewScripts = [];
-                        {error, _, CaseLogDir, FullLineNo, ErrorMsg} ->
+                        {error, _, FullLineNo, CaseLogDir, ErrorMsg} ->
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
                                          [FullLineNo]),
@@ -529,7 +530,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
             tap_case_end(R, CC, Script, Summary,
                          "0", binary_to_list(SkipReason)),
             NewSummary = lux_utils:summary(OldSummary, Summary),
-            Res = {ok, Script2, Summary, "0", []},
+            Res = {ok, Summary, Script2, "0", R2#rstate.log_dir, [], <<>>},
             Results2 = [Res | Results],
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
