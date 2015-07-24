@@ -8,10 +8,10 @@
 -module(lux_log).
 
 -export([is_temporary/1, parse_summary_log/1, parse_run_summary/4,
-         open_summary_log/2, close_summary_tmp_log/1, close_summary_log/2,
+         open_summary_log/3, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2,
-         write_results/4, print_results/4, parse_result/1, pick_result/2,
-         safe_format/3, safe_write/2, double_write/2,
+         write_results/5, print_results/5, parse_result/1, pick_result/2,
+         safe_format/3, safe_write/2, double_write/3,
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
          parse_events/2, parse_io_logs/2,
          open_config_log/3, close_config_log/2,
@@ -39,7 +39,7 @@ is_temporary(SummaryLog) ->
         _         -> false
     end.
 
-open_summary_log(SummaryLog, ExtendRun) ->
+open_summary_log(Progress, SummaryLog, ExtendRun) ->
     TmpSummaryLog = SummaryLog ++ ".tmp",
     {WriteMode, Exists} =
         case ExtendRun of
@@ -66,9 +66,16 @@ open_summary_log(SummaryLog, ExtendRun) ->
                                               [?TAG(?SUMMARY_TAG),
                                                ?SUMMARY_LOG_VERSION]),
                     safe_write(SummaryFd, LogIoList),
-                    StdoutIoList = io_lib:format("~s~s\n",
-                                            ["summary log", SummaryLog]),
-                    safe_write(undefined, StdoutIoList),
+                    case Progress of
+                        silent ->
+                            ok;
+                        _ ->
+                            StdoutIoList =
+                                io_lib:format("~s~s\n",
+                                              [?TAG("summary log"),
+                                               SummaryLog]),
+                            safe_write(undefined, StdoutIoList)
+                    end,
                     {ok, Exists, SummaryFd};
                 {error, Reason} ->
                     {error, Reason}
@@ -408,7 +415,7 @@ parse_summary_result(LogDir) ->
             {error, ResultLog, Reason}
     end.
 
-write_results(SummaryLog, Summary, Results, Warnings) ->
+write_results(Progress, SummaryLog, Summary, Results, Warnings) ->
     LogDir = filename:dirname(SummaryLog),
     ResultFile = filename:join([LogDir, "lux_result.log"]),
     TmpResultFile = ResultFile++".tmp",
@@ -418,7 +425,7 @@ write_results(SummaryLog, Summary, Results, Warnings) ->
                 safe_format(Fd, "~s~s\n",
                             [?TAG(?RESULT_TAG), ?RESULT_LOG_VERSION]),
                 IsTmp = is_temporary(SummaryLog),
-                print_results({IsTmp, Fd}, Summary, Results, Warnings),
+                print_results(Progress, {IsTmp,Fd}, Summary, Results, Warnings),
                 file:close(Fd),
                 ok = file:rename(TmpResultFile, ResultFile)
             catch
@@ -432,61 +439,63 @@ write_results(SummaryLog, Summary, Results, Warnings) ->
             erlang:error(ReasonStr)
     end.
 
-print_results(Fd, Summary, Results, Warnings) ->
+print_results(Progress, Fd, Summary, Results, Warnings) ->
     %% Display most important results last
-    result_format(Fd, "\n", []),
+    result_format(Progress, Fd, "\n", []),
     SuccessScripts = pick_result(Results, success),
-    result_format(Fd, "~s~p\n",
+    result_format(Progress, Fd, "~s~p\n",
                   [?TAG("successful"),
                    length(SuccessScripts)]),
-    print_skip(Fd, Results),
-    print_warning(Fd, Warnings),
-    print_fail(Fd, Results),
-    print_error(Fd, Results),
-    result_format(Fd, "~s~s\n",
+    print_skip(Progress, Fd, Results),
+    print_warning(Progress, Fd, Warnings),
+    print_fail(Progress, Fd, Results),
+    print_error(Progress, Fd, Results),
+    result_format(Progress, Fd, "~s~s\n",
                   [?TAG("summary"),
-                   [string:to_upper(Char) ||
-                       Char <- atom_to_list(Summary)]]).
+                   [string:to_upper(Char) || Char <- atom_to_list(Summary)]]).
 
-print_skip(Fd, Results) ->
+print_skip(Progress, Fd, Results) ->
     case pick_result(Results, skip) of
         [] ->
             ok;
         SkipScripts ->
-            result_format(Fd, "~s~p\n",
+            result_format(Progress, Fd, "~s~p\n",
                           [?TAG("skipped"), length(SkipScripts)]),
-            [result_format(Fd, "\t~s:~s\n", [F, L]) || {F, L} <- SkipScripts]
+            [result_format(Progress, Fd, "\t~s:~s\n",
+                           [F, L]) || {F, L} <- SkipScripts]
     end.
 
 
-print_warning(Fd, Warnings) ->
+print_warning(Progress, Fd, Warnings) ->
     case pick_result(Warnings, warning) of
         [] ->
             ok;
         WarnScripts ->
-            result_format(Fd, "~s~p\n",
+            result_format(Progress, Fd, "~s~p\n",
                           [?TAG("warnings"), length(WarnScripts)]),
-            [result_format(Fd, "\t~s:~s\n", [F, L]) || {F, L} <- WarnScripts]
+            [result_format(Progress, Fd, "\t~s:~s\n",
+                           [F, L]) || {F, L} <- WarnScripts]
     end.
 
-print_fail(Fd, Results) ->
+print_fail(Progress, Fd, Results) ->
     case pick_result(Results, fail) of
         [] ->
             ok;
         FailScripts ->
-            result_format(Fd, "~s~p\n",
+            result_format(Progress, Fd, "~s~p\n",
                           [?TAG("failed"),  length(FailScripts)]),
-            [result_format(Fd, "\t~s:~s\n", [F, L]) || {F, L} <- FailScripts]
+            [result_format(Progress, Fd, "\t~s:~s\n",
+                           [F, L]) || {F, L} <- FailScripts]
     end.
 
-print_error(Fd, Results) ->
+print_error(Progress, Fd, Results) ->
     case pick_result(Results, error) of
         [] ->
             ok;
         ErrorScripts ->
-            result_format(Fd, "~s~p\n",
+            result_format(Progress, Fd, "~s~p\n",
                           [?TAG("errors"), length(ErrorScripts)]),
-            [result_format(Fd, "\t~s:~s\n", [F, L]) ||
+            [result_format(Progress, Fd, "\t~s:~s\n", [F, L]) ||
                 {F, L} <- ErrorScripts]
     end.
 
@@ -501,12 +510,14 @@ pick_result(Results, Outcome) ->
         {ok, O, Script, FullLineNo, _LogDir, _Events, _FailBins} <- Results,
         O =:= Outcome].
 
-result_format({IsTmp, Fd}, Format, Args) ->
+result_format(Progress, {IsTmp, Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),
-    case Fd of
-        undefined     -> list_to_binary(IoList);
-        Fd when IsTmp -> double_write(Fd, IoList);
-        Fd            -> safe_write(Fd, IoList)
+    if
+        Fd =:= undefined    -> list_to_binary(IoList);
+        Fd =:= standard_io,
+        Progress =:= silent -> list_to_binary(IoList);
+        IsTmp               -> double_write(Progress, Fd, IoList);
+        true                -> safe_write(Fd, IoList)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -853,9 +864,12 @@ safe_write(OptFd, Bin) when is_binary(Bin) ->
             Bin
     end.
 
-double_write(Fd, IoList) when Fd =/= undefined ->
+double_write(Progress, Fd, IoList) when Fd =/= undefined ->
     Bin = safe_write(Fd, IoList),
-    safe_write(undefined, Bin).
+    case Progress of
+        silent -> Bin;
+        _      -> safe_write(undefined, Bin)
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

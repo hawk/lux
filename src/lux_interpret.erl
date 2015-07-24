@@ -345,8 +345,13 @@ print_fail(I0, File, Results,
            io_lib:format("actual ~s\n\t~s",
                          [NewActual, simple_to_string(NewRest)])
           ]),
-    io:format("~s", [ResStr]),
-    io:format("~s\n", [FailBin]),
+    case I0#istate.progress of
+        silent ->
+            ok;
+        _ ->
+            io:format("~s", [ResStr]),
+            io:format("~s\n", [FailBin])
+    end,
     double_ilog(I, "expected\n\"~s\"\n",
                 [lux_utils:to_string(Expected)]),
     double_ilog(I, "actual ~s\n\"~s\"\n",
@@ -367,13 +372,19 @@ flush_summary_log(#istate{summary_log_fd=undefined}) ->
 flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
     file:sync(SummaryFd).
 
-post_ilog(#istate{logs = Logs, config_log_fd = {_, ConfigFd}} = I, Docs) ->
+post_ilog(#istate{progress = Progress,
+                  logs = Logs,
+                  config_log_fd = {_, ConfigFd}} = I,
+          Docs) ->
     lux_log:close_config_log(ConfigFd, Logs),
     log_doc(I, Docs),
     ilog(I, "\n", []),
     LogFun =
         fun(Bin) ->
-                console_write(binary_to_list(Bin)),
+                case Progress of
+                    silent -> ok;
+                    _      -> console_write(binary_to_list(Bin))
+                end,
                 (I#istate.log_fun)(Bin),
                 Bin
         end,

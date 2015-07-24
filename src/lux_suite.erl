@@ -18,6 +18,7 @@
         {files                      :: [string()],
          mode = execute             :: run_mode(),
          skip_skip = false          :: boolean(),
+         progress = brief           :: silent | brief | doc | compact | verbose,
          config_dir                 :: string(),
          file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
          log_fd                     :: file:io_device(),
@@ -122,8 +123,8 @@ list_files(R, File) ->
             {error, Reason}
     end.
 
-do_run(R, SummaryLog) ->
-    case lux_log:open_summary_log(SummaryLog, R#rstate.extend_run) of
+do_run(#rstate{progress = Progress} = R, SummaryLog) ->
+    case lux_log:open_summary_log(Progress, SummaryLog, R#rstate.extend_run) of
         {ok, Exists, SummaryFd} ->
             TimerRef = start_suite_timer(R),
             try
@@ -147,7 +148,8 @@ do_run(R, SummaryLog) ->
                             ConfigLog = filename:join([LogDir,
                                                        "lux_config.log"]),
                             ok = lux_log:write_config_log(ConfigLog,ConfigData),
-                            lux_log:write_results(SummaryLog, skip, [], []),
+                            lux_log:write_results(R2#rstate.progress,
+                                                  SummaryLog, skip, [], []),
                             %% Generate initial html log
                             if
                                 SummaryPrio0 >= HtmlPrio,
@@ -168,8 +170,13 @@ do_run(R, SummaryLog) ->
                     SummaryPrio >= HtmlPrio, R5#rstate.mode =/= list ->
                         case lux_html:annotate_log(false, SummaryLog) of
                             ok ->
-                                io:format("\nfile://~s\n",
-                                          [SummaryLog ++ ".html"]),
+                                case R5#rstate.progress of
+                                    silent ->
+                                        ok;
+                                    _ ->
+                                        io:format("\nfile://~s\n",
+                                                  [SummaryLog ++ ".html"])
+                                end,
                                 {ok, Summary, SummaryLog, Results};
                             {error, _File, _ReasonStr} = Error ->
                                 Error
@@ -234,6 +241,12 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
         %% suite options
         file_pattern when is_list(Val) ->
             parse_ropts(T, R#rstate{file_pattern = Val});
+        progress when Val =:= silent; Val =:= brief;
+                      Val =:= doc; Val =:= compact;
+                      Val =:= verbose ->
+            UserOpts = [NameVal | R#rstate.user_opts],
+            parse_ropts(T, R#rstate{progress = Val,
+                                    user_opts = UserOpts});
         config_dir when is_list(Val) ->
             parse_ropts(T, R#rstate{config_dir = filename:absname(Val)});
         config_name when is_list(Val) ->
@@ -258,7 +271,6 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
                   Val =:= fail; Val =:= error;
                   Val =:= disable ->
             parse_ropts(T, R#rstate{html = Val});
-
         tap when Val =:= stdout; Val =:= stderr; is_list(Val) ->
             parse_ropts(T, R#rstate{tap_opts = [Val|R#rstate.tap_opts]});
 
@@ -591,13 +603,16 @@ write_results(#rstate{mode=Mode, summary_log=SummaryLog},
               Summary, Results)
   when Mode =:= list; Mode =:= doc ->
     {ok, Summary, SummaryLog, Results};
-write_results(#rstate{summary_log=SummaryLog, warnings=Warnings},
+write_results(#rstate{progress=Progress,
+                      summary_log=SummaryLog,
+                      warnings=Warnings},
               Summary, Results) when is_list(SummaryLog) ->
-    lux_log:write_results(SummaryLog, Summary, Results, Warnings),
+    lux_log:write_results(Progress, SummaryLog, Summary, Results, Warnings),
     {ok, Summary, SummaryLog, Results}.
 
-print_results(#rstate{warnings=Warnings}, Summary, Results) ->
-    lux_log:print_results({false,standard_io}, Summary, Results, Warnings).
+print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
+    lux_log:print_results(Progress, {false,standard_io},
+                          Summary, Results, Warnings).
 
 parse_script(R, SuiteFile, Script) ->
     Opts0 = config_opts(R),
@@ -777,11 +792,11 @@ log_dir(R, SuiteFile, Script) ->
             end
     end.
 
-double_rlog(#rstate{log_fd = Fd}, Format, Args) ->
+double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),
     case Fd of
         undefined -> list_to_binary(IoList);
-        _         -> lux_log:double_write(Fd, IoList)
+        _         -> lux_log:double_write(Progress, Fd, IoList)
     end.
 
 start_suite_timer(R) ->
