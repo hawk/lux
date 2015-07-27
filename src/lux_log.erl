@@ -483,7 +483,7 @@ print_fail(Progress, Fd, Results) ->
             ok;
         FailScripts ->
             result_format(Progress, Fd, "~s~p\n",
-                          [?TAG("failed"),  length(FailScripts)]),
+                          [?TAG("failed"), length(FailScripts)]),
             [result_format(Progress, Fd, "\t~s:~s\n",
                            [F, L]) || {F, L} <- FailScripts]
     end.

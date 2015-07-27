@@ -782,8 +782,10 @@ dispatch_cmd(I,
                     E = list_to_binary(["Variable $", BadName, " is not set"]),
                     ilog(I, "~s(~p): ~s\n",
                          [I#istate.active_name, LineNo, E]),
-                    OrigLine = Cmd#cmd.orig,
-                    throw_error(I, <<OrigLine/binary, " ", E/binary>>)
+                    OrigLine =
+                        lux_utils:strip_leading_whitespaces(Cmd#cmd.orig),
+                    throw_error(I, <<E/binary, ". Bad line: ",
+                                     OrigLine/binary>>)
             end;
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
@@ -985,8 +987,8 @@ expand_send(I, Cmd, Arg) ->
 no_such_var(I, Cmd, LineNo, BadName) ->
     E = list_to_binary(["Variable $", BadName, " is not set"]),
     ilog(I, "~s(~p): ~s\n", [I#istate.active_name, LineNo, E]),
-    OrigLine = Cmd#cmd.orig,
-    throw_error(I, <<OrigLine/binary, " ", E/binary>>).
+    OrigLine = lux_utils:strip_leading_whitespaces(Cmd#cmd.orig),
+    throw_error(I, <<E/binary, ". Bad line: ", OrigLine/binary>>).
 
 parse_int(I, Chars, Cmd) ->
     case safe_expand_vars(I, Chars) of

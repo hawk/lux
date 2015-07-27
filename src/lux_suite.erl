@@ -416,7 +416,7 @@ run_cases(R, [{SuiteFile, {error,Reason}}|Scripts], OldSummary, Results, CC) ->
     lux:trace_me(70, suite, 'case', SuiteFile, []),
     tap_case_begin(R, SuiteFile),
     lux:trace_me(70, 'case', suite, error, [Reason]),
-    tap_case_end(R, CC, SuiteFile, error, "0", Reason),
+    tap_case_end(R, CC, SuiteFile, error, "0", Reason, Reason),
     run_cases(R, Scripts, OldSummary, Results2, CC+1);
 run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
     RelScript = lux_utils:drop_prefix(Script),
@@ -479,8 +479,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                             lux:trace_me(70, 'case', suite, Summary,
                                   []),
                             tap_case_end(R2, CC, Script, Summary,
-                                         FullLineNo, SkipReason),
-                            tap_case_fail(R2, FailBin),
+                                         FullLineNo, SkipReason, FailBin),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             Res2 = {ok, Summary, Script, FullLineNo,
                                     CaseLogDir, Events, FailBin},
@@ -492,8 +491,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                             lux:trace_me(70, 'case', suite, Summary,
                                          [FullLineNo]),
                             tap_case_end(R2, CC, Script, Summary,
-                                         FullLineNo, SkipReason),
-                            tap_case_fail(R2, ErrorMsg),
+                                         FullLineNo, SkipReason, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
                             NewScripts = [];
@@ -502,8 +500,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                             lux:trace_me(70, 'case', suite, Summary,
                                          [FullLineNo]),
                             tap_case_end(R2, CC, Script, Summary,
-                                         FullLineNo, SkipReason),
-                            tap_case_fail(R2, ErrorMsg),
+                                         FullLineNo, SkipReason, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
                             NewScripts = Scripts
@@ -540,7 +537,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                 end,
             lux:trace_me(70, 'case', suite, Summary, [SkipReason]),
             tap_case_end(R, CC, Script, Summary,
-                         "0", binary_to_list(SkipReason)),
+                         "0", binary_to_list(SkipReason), <<>>),
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Res = {ok, Summary, Script2, "0", R2#rstate.log_dir, [], <<>>},
             Results2 = [Res | Results],
@@ -565,11 +562,10 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
             double_rlog(R2, "~sERROR ~s: ~s\n",
                         [?TAG("result"), MainFile, ErrorBin2]),
             Summary = error,
-            tap_case_begin(R, RelScript),
+            tap_case_begin(R2, RelScript),
             lux:trace_me(70, 'case', suite, Summary, []),
-            tap_case_end(R, CC, Script, Summary,
-                         "0", ErrorBin),
-            tap_case_fail(R2, ErrorBin),
+            tap_case_end(R2, CC, Script, Summary,
+                         "0", ErrorBin, ErrorBin),
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             NewSummary = lux_utils:summary(OldSummary, Summary),
@@ -920,7 +916,7 @@ tap_suite_begin(R, Scripts, Directive)
             RelFiles = [lux_utils:drop_prefix(F) || F <- R#rstate.files],
             ok = lux_tap:diag(TAP, "lux " ++ string:join(RelFiles, " ")),
             SummaryLog = lux_utils:drop_prefix(R#rstate.summary_log),
-            ok = lux_tap:diag(TAP, "$BROWSER " ++ SummaryLog ++ ".html"),
+            ok = lux_tap:diag(TAP, "open " ++ SummaryLog ++ ".html"),
             ok = lux_tap:diag(TAP, "\n"),
             {ok, R#rstate{tap = TAP, tap_opts = TapOpts}};
         {error, Reason} ->
@@ -951,32 +947,37 @@ tap_suite_end(_R, _Summary, _Results) ->
 tap_case_begin(#rstate{}, _Script) ->
     ok.
 
-tap_case_fail(#rstate{}, <<>>) ->
-    ok;
-tap_case_fail(#rstate{tap = TAP}, FailBin) ->
-    FailLines = binary:split(FailBin, <<"\n">>, [global]),
-    [ok = lux_tap:diag(TAP, binary_to_list(F)) || F <- FailLines].
-
 tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip},
-             CaseCount, AbsScript, Result, FullLineNo, Reason)
+             CaseCount, AbsScript, Result, FullLineNo, Reason, Details)
   when TAP =/= undefined ->
     RelScript = lux_utils:drop_prefix(AbsScript),
-    Descr0 = lists:concat([CaseCount, " ", RelScript]),
-    LineDescr = Descr0 ++ ":" ++ FullLineNo,
+    Descr = lists:concat([CaseCount, " ", RelScript]),
     TodoReason =
         case Reason of
             "" -> "";
             _  -> "TODO - " ++ Reason
         end,
-    {Outcome, Directive, Descr} =
+    {Outcome, Directive} =
         case Result of
-            error                 -> {not_ok, "",         LineDescr};
-            fail when SkipSkip    -> {not_ok, TodoReason, LineDescr};
-            fail                  -> {not_ok, "",         LineDescr};
-            skip                  -> {ok,     Reason,     "    " ++ Descr0};
-            success when SkipSkip -> {ok,     TodoReason, "    " ++ Descr0};
-            success               -> {ok,     "",         "    " ++ Descr0}
+            error                 -> {not_ok, ""};
+            fail when SkipSkip    -> {not_ok, TodoReason};
+            fail                  -> {not_ok, ""};
+            skip                  -> {ok,     Reason};
+            success when SkipSkip -> {ok,     TodoReason};
+            success               -> {ok,     ""}
         end,
-    lux_tap:test(TAP, Outcome, Descr, Directive);
-tap_case_end(#rstate{}, _CaseCount, _Script, _Result, _FullLineNo, _Reason) ->
+    lux_tap:test(TAP, Outcome, "    " ++ Descr, Directive),
+    case Details of
+        <<>> ->
+            ok;
+        _ ->
+            Prefix = string:to_upper(atom_to_list(Result)),
+            Lines = [
+                     iolist_to_binary([Prefix, " at line ", FullLineNo]) |
+                     binary:split(Details, <<"\n">>, [global])
+                    ],
+            [ok = lux_tap:diag(TAP, binary_to_list(F)) || F <- Lines]
+    end;
+tap_case_end(#rstate{}, _CaseCount, _Script, _Result, _FullLineNo,
+             _Reason, _Details) ->
     ok.

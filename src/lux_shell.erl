@@ -1080,8 +1080,13 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   actual = internal_error,
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
-    io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
-              [Reason, Error, Res, erlang:get_stacktrace()]),
+    if
+        element(2, Error) =/= interpreter_died ->
+            io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
+                      [Reason, Error, Res, erlang:get_stacktrace()]);
+        true ->
+            ok
+    end,
     clog(C, 'INTERNAL_ERROR', "\"~p@~p\"", [Why, Cmd#cmd.lineno]),
     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
     C3 = close_logs(C2),
