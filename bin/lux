@@ -691,18 +691,24 @@ translate_opts([
          {file_pattern,       FilePattern},
          {tap,                Tap}
         ],
-    {Files, lists:zf(fun filter_arg/1, Opts)}.
+    {Files, filter_args(Opts, [])}.
 
-filter_arg(KeyVal) ->
-    case KeyVal of
-        {_, []}          -> false;
-        {var, _Vals}     -> true;
-        {skip, _}        -> true;
-        {skip_unless, _} -> true;
-        {require, _}     -> true;
-        {shell_args, _}  -> true;
-        {Key, Vals}      -> {true, {Key, lists:last(Vals)}}
-    end.
+filter_args([{_Key, []} | Opts], Acc) ->
+    filter_args(Opts, Acc);
+filter_args([{Key, Val0} | Opts], Acc) ->
+    Val =
+        case Key of
+            var         -> Val0;
+            skip        -> Val0;
+            skip_unless -> Val0;
+            require     -> Val0;
+            shell_args  -> Val0;
+            tap         -> Val0;
+            _           -> [lists:last(Val0)]
+        end,
+    filter_args(Opts, [{Key, V} || V <- lists:reverse(Val)] ++ Acc);
+filter_args([], Acc) ->
+    lists:reverse(Acc).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Generic option handling

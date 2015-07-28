@@ -271,7 +271,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
                   Val =:= fail; Val =:= error;
                   Val =:= disable ->
             parse_ropts(T, R#rstate{html = Val});
-        tap when Val =:= stdout; Val =:= stderr; is_list(Val) ->
+        tap when is_list(Val) ->
             parse_ropts(T, R#rstate{tap_opts = [Val|R#rstate.tap_opts]});
 
         %% case options
