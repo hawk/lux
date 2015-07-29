@@ -5,9 +5,9 @@
 </head>
 <body>
 
-<h1>Lux - LUcid eXpect scripting</h1>
+<h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.8.6 - 2015-07-24</p>
+<p>Version 1.8.6 - 2015&#8211;07&#8211;29</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -25,7 +25,7 @@
 
 <p><a name="../README"/></p>
 
-<h1>Introduction</h1>
+<h1 id="introduction">Introduction</h1>
 
 <p>Lux (LUcid eXpect scripting) provides scripting with an
 <code>Expect</code>-style execution of commands in a powerful but simple
@@ -36,8 +36,8 @@ fashion. See <a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect home
 <ul>
 <li>simplify automated testing</li>
 <li>control interactive programs by sending textual input to them and
-using <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s to ensure that their output matches the
-expectations</li>
+ using <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s to ensure that their output matches the
+ expectations</li>
 <li>perform detailed post mortem analyzis of test suite results</li>
 <li>interactively debug and trace single test cases</li>
 <li>get editor support for editing scripts by using the <a href="http://www.gnu.org/software/emacs" title="Emacs text editor">Emacs</a> mode</li>
@@ -49,7 +49,7 @@ environment.</p>
 <p>See the file <strong>lux.html</strong> for the full documentation or view it online
 on <a href="https://github.com/hawk/lux/blob/master/doc/lux.md">GitHub</a>.</p>
 
-<h2>A sample script</h2>
+<h2 id="asamplescript">A sample script</h2>
 
 <p>Here is an example of a test script <code>(lux/examples/intro.lux)</code>. It
 starts couple of concurrent shells and sends text to them with the
@@ -62,39 +62,39 @@ starts couple of concurrent shells and sends text to them with the
 [global file=removeme.txt]
 
 [shell single]
-  # The terminal echoes all input
-  !echo foo
-  ?echo foo
+    # The terminal echoes all input
+    !echo foo
+    ?echo foo
 
 [shell multi]
-  # bar is indented 4 characters
-  !echo "foo"      &gt; $file
-  !echo "    bar" &gt;&gt; $file
-  !echo "fum"     &gt;&gt; $file
-  !cat $file
+    # bar is indented 4 characters
+    !echo &quot;foo&quot;      &gt; $file
+    !echo &quot;    bar&quot; &gt;&gt; $file
+    !echo &quot;fum&quot;     &gt;&gt; $file
+    !cat $file
 
-  # The first double quote char defines the
-  # first column of the multi line regexp
-  """?
-  foo
-      bar
-  fum
-  """
+    # The first double quote char defines the
+    # first column of the multi line regexp
+    &quot;&quot;&quot;?
+    foo
+        bar
+    fum
+    &quot;&quot;&quot;
 
 # Let single be the active shell again
 [shell single]
-  ?^foo
+    ?^foo
 
 # Cleanup is always executed, regardless of the script succeeds or fails
 [cleanup]
-  # Match of command exit status. Observe the double dollar sign.
-  !rm -f $file
-  !echo ==$$?==
-  ?^==0==
+    # Match of command exit status. Observe the double dollar sign.
+    !rm -f $file
+    !echo ==$$?==
+    ?^==0==
 </code></pre>
 </blockquote>
 
-<h2>How to run the script</h2>
+<h2 id="howtorunthescript">How to run the script</h2>
 
 <p>Run a single script like this:</p>
 
@@ -119,7 +119,7 @@ file:///home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log.html
 <p>In this run we got a (brief) progress report of the test case on
 stdout and a link to a summary log containing (lots of) details.</p>
 
-<h2>How to assemble the history of multiple runs</h2>
+<h2 id="howtoassemblethehistoryofmultipleruns">How to assemble the history of multiple runs</h2>
 
 <p>In a nightly build environment it might be difficult to pinpoint when
 a certain test case/suite started to fail. This process is greatly
@@ -141,7 +141,7 @@ file:///home/hm/lux_history.html
 <p><a name="main_concepts"/></p>
 </blockquote>
 
-<h2>Concepts</h2>
+<h2 id="concepts">Concepts</h2>
 
 <p>A Lux script may succeed or fail, meaning that the system under
 test is either conforming to or diverging from the expected
@@ -191,7 +191,7 @@ accessed in the following variable assignments. For example if the
 statement <code>?begin (.*) middle (.*) end</code> matches the actual shell output
 <code>begin abc middle def end</code>. The captured sub-patterns can be accessed
 as numbered variables: <code>[local foo=the vals are $1 and $2]</code> which will
-assign the variable <code>foo</code> to the value "<code>the vals are abc and def</code>".
+assign the variable <code>foo</code> to the value &#8220;<code>the vals are abc and def</code>&#8221;.
 As in any language <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s contains keywords. If the
 output of a shell contains such a keyword and we want to match that,
 the keyword must be escaped. Example of such keywords are any of
@@ -207,7 +207,7 @@ details about the regular expression dialect used in Lux. It is
 an extended subset of <a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE</a>.
 <a name="script_syntax"/></p>
 
-<h1>Script syntax</h1>
+<h1 id="scriptsyntax">Script syntax</h1>
 
 <p>The Lux script syntax is as follows. The <strong>first non whitespace</strong>
 character on each line determines how it will be processed. Lines
@@ -218,10 +218,10 @@ simplifies the indentation and makes scripts more easy to read as it
 provides different coloring for different types of language
 constructs.</p>
 
-<p>Lines beginning with <code>"""Char</code> are <strong>multi line quotes</strong>. The quote
-ends with the next line beginning with <code>"""</code>. The opening quote and
+<p>Lines beginning with <code>&quot;&quot;&quot;Char</code> are <strong>multi line quotes</strong>. The quote
+ends with the next line beginning with <code>&quot;&quot;&quot;</code>. The opening quote and
 closing quote must be in the same column of the script. The char right
-after the first <code>"""</code> determines how the multi line quote will be
+after the first <code>&quot;&quot;&quot;</code> determines how the multi line quote will be
 interpreted. The char is interpreted as a statement just like any of
 the single line statement characters (so it can be e.g. <code>?</code>, <code>!</code>, <code>~</code>,
 <code>#</code>, <code>-</code>, etc).</p>
@@ -238,22 +238,22 @@ a long line into several shorter ones. Leading whitespaces on the
 following line are ignored. If the intention is to keep the backslash
 at the end of the line, this can be achieved with two backslashes.</p>
 
-<h2>Interacting with a shell</h2>
+<h2 id="interactingwithashell">Interacting with a shell</h2>
 
-<p><strong>#String</strong> <br />
+<p><strong>#String</strong><br/>
 Inline style comment. The <code>#</code> must be the first non-whitespace
 character on the line.</p>
 
-<p><strong>!String</strong>  </p>
+<p><strong>!String</strong> </p>
 
 <p>A <code>send</code> operation. Sends a <code>String</code> to the <code>stdin</code> of the active
 shell. Adds a <code>LF</code> at the end of the string. <code>String</code> may contain
 references to variables using <code>$Var</code> or <code>${Var}</code>.</p>
 
-<p><strong>~String</strong> <br />
+<p><strong>~String</strong><br/>
 Same as <code>!String</code>, but it does NOT add a <code>LF</code> at the end.</p>
 
-<p><strong>?Regexp</strong> <br />
+<p><strong>?Regexp</strong><br/>
 An <code>expect</code> operation which waits for a string matching a
 <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a> to appear on the shell output (either <code>stdout</code>
 or <code>stderr</code>). If no matching output does appear within the timeout
@@ -264,15 +264,15 @@ received is discarded. See also the <code>--flush_timeout</code> and
 <code>--poll_timeout</code> configuration parameters about customizing the
 <code>?</code> behavior.</p>
 
-<p><strong>??Template</strong> <br />
+<p><strong>??Template</strong><br/>
 Like <code>?Regexp</code>, but more restricted as all regular expression
 keywords are ignored. Variables are still substituted.</p>
 
-<p><strong>???Verbatim</strong> <br />
+<p><strong>???Verbatim</strong><br/>
 Like <code>??Template</code>, but more restricted as no variables are substituted.
 That is the string is matched as is.</p>
 
-<p><strong>?+Regexp</strong> <br />
+<p><strong>?+Regexp</strong><br/>
 Like <code>?Regexp</code>, but has no immediate effect. It is used when the
 order of the output is undeterministic. Assume a case where the
 strings A, B and C occurs in the output but the order of them is
@@ -295,8 +295,8 @@ specified with `?).</p>
 <p>will render matching of all permutatations of A, B and C. Note
 the usage of <code>?</code>. <code>?+</code> is always used together with <code>?</code>.</p>
 
-<p><strong>-</strong> <br />
-<strong>-Regexp</strong> <br />
+<p><strong>-</strong><br/>
+<strong>-Regexp</strong><br/>
 Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
@@ -309,8 +309,8 @@ not including, the (successful) match are tried against the failure
 condition. In non-active shells the <code>Regexp</code> is tried when the shell
 produces new output.</p>
 
-<p><strong>+</strong> <br />
-<strong>+Regexp</strong> <br />
+<p><strong>+</strong><br/>
+<strong>+Regexp</strong><br/>
 Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered a success
 (no further processing of the script will be performed besides
@@ -323,23 +323,23 @@ not including, the (successful) match are tried against the success
 condition. In non-active shells the <code>Regexp</code> is tried when the shell
 produces new output.</p>
 
-<p><strong>[endshell]</strong> <br />
+<p><strong>[endshell]</strong><br/>
 <strong>[endshell Regexp]</strong>
 An <code>expect</code> operation like <code>?</code>, but it waits for the <code>stdout</code> stream
 of the shell to be closed. This means the shell has terminated. The
 <code>Regexp</code> may optionally be used to match on the exit status from the
 ehell, such as <code>[endshell ^0$]</code>.</p>
 
-<h3>Meta statements</h3>
+<h3 id="metastatements">Meta statements</h3>
 
-<p><strong>[</strong> <br />
+<p><strong>[</strong><br/>
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a <code>]</code>.</p>
 
-<p><strong>[shell]</strong> <br />
-<strong>[shell Name]</strong> <br />
+<p><strong>[shell]</strong><br/>
+<strong>[shell Name]</strong><br/>
 Switches to the named shell, to make it active. In case there is no
-such shell started yet, a new shell named <code>Name</code> is created.  If
+such shell started yet, a new shell named <code>Name</code> is created. If
 <code>Name</code> is missing, the active shell is deactivated.</p>
 
 <p>By default a <code>/bin/sh</code> shell (Bourne shell) is started. See
@@ -354,7 +354,7 @@ names beginning with <code>lux</code> and <code>cleanup</code> are reserved for 
 purposes. The <strong>environment variable</strong> <code>LUX_START_REASON</code> is
 initially set to <code>normal</code>. See also <code>[cleanup]</code>.</p>
 
-<p><strong>[cleanup]</strong> <br />
+<p><strong>[cleanup]</strong><br/>
 is the cleanup marker. If the script is prematurely aborted due to
 failure (or due to a matching success pattern) the remaining
 statements in the file are normally skipped. But if the there is a
@@ -388,7 +388,7 @@ directory is however not automatically created. It must be created
 by you in the test script if you want to use it. If you have created
 the directory, it will turn up as a link in the annotated event log.</p>
 
-<p><strong>[include FileName]</strong> <br />
+<p><strong>[include FileName]</strong><br/>
 Includes and runs the specified script at this point. The <code>FileName</code>
 is relative to the currently executing script, unless given as an
 absolute path. <code>.luxinc</code> is preferred as file extension. If the included
@@ -396,9 +396,9 @@ file contains a <code>[cleanup]</code> marker, the statements after that will be
 evaluated in order to clean up unwanted side effects. Variables in
 <code>FileName</code> are expanded.</p>
 
-<p><strong>[macro MacroName ArgName1 ArgName2 ...]</strong> <br />
-  ... <br />
-<strong>[endmacro]</strong> <br />
+<p><strong>[macro MacroName ArgName1 ArgName2 &#8230;]</strong><br/>
+ &#8230;<br/>
+<strong>[endmacro]</strong><br/>
 Declare a macro. The body of the macro consists of all lines up to
 the next <code>[endmacro]</code> line. The scope of the arguments are local
 within the macro. The arguments can be accessed via their names as
@@ -412,14 +412,14 @@ to the shell with <code>[shell $old]</code>. If the macro file contains a
 <code>[cleanup]</code> marker, the statements after that will be evaluated in order
 to clean up unwanted side effects.</p>
 
-<p><strong>[invoke MacroName ArgVal1 ArgVal ...]</strong> <br />
+<p><strong>[invoke MacroName ArgVal1 ArgVal &#8230;]</strong><br/>
 Invoke a macro. The arguments are separated with spaces. Arguments
-can be quoted with the double quote (<code>"</code>) character. Double quotes
+can be quoted with the double quote (<code>&quot;</code>) character. Double quotes
 and backslashes (<code>\</code>) must be escaped with a backslash.</p>
 
-<p><strong>[loop Var Item1 Item2 ...]</strong> <br />
-  ... <br />
-<strong>[endloop]</strong> <br />
+<p><strong>[loop Var Item1 Item2 &#8230;]</strong><br/>
+ &#8230;<br/>
+<strong>[endloop]</strong><br/>
 Declare a loop. The body of the loop consists of all lines up to the
 next <code>[endloop]</code> line. The commands within the loop are repeated for
 each item. For each iteration the loop variable <code>Var</code> is set to the
@@ -427,16 +427,16 @@ value of the current <code>Item</code>. The scope of the loop variable is the
 same as a macro variable (defined with my). The <code>Item list</code> may
 contain variables and these are expanded before the first
 iteration. Items in the expanded list are separated with spaces. For
-example <code>[loop colors blue red green]</code>.  When iterating over a set of
+example <code>[loop colors blue red green]</code>. When iterating over a set of
 consecutive integers, such as <code>[loop iter 4 5 6 7]</code>, this can be
 written as a range expression, like <code>[loop iter 4..7]</code>. In the logs
 the iteration counter is represented as a negative line number. For
-example "8:-2:10" would mean line 10 in the second loop iteration
+example &#8220;8:&#8211;2:10&#8221; would mean line 10 in the second loop iteration
 where the loop starts at line 8.</p>
 
-<h3>Variables</h3>
+<h3 id="variables">Variables</h3>
 
-<p><strong>[local Var=Value]</strong> <br />
+<p><strong>[local Var=Value]</strong><br/>
 assigns a value to a variable that is local to the current
 shell. <code>Value</code> may contain references to variables using <code>$Var</code>,
 <code>${Var}</code> or <code>$N</code>, where <code>N</code> is an integer. <code>$N</code> refers to a captured
@@ -444,21 +444,21 @@ substring from the most recent <code>expect</code> operation. Subsequent <code>s
 operations may refer to this new variable in the same manner as
 environment variables. In order to prevent variable substitutions and
 keep a <code>$Var</code> string literally it must be escaped as <code>$$Var</code>. For
-example this is needed when "true" environment variables needs to be
+example this is needed when &#8220;true&#8221; environment variables needs to be
 read. In order to read a variable like <code>$?</code> it must be written as
 <code>$$?</code>.</p>
 
-<p><strong>[global Var=Value]</strong> <br />
+<p><strong>[global Var=Value]</strong><br/>
 assigns a value to a global variable. Works like <code>[local]</code>, but the
 variable setting is propagated to all shells. Global variables
 may be set before any shell has been started.</p>
 
-<p><strong>[my Var=Value]</strong> <br />
+<p><strong>[my Var=Value]</strong><br/>
 assigns a value to a macro variable. Works like <code>[global]</code>, but can
 only be set and used in a macro. The variable setting is only valid
 within the macro that assigns the variable.</p>
 
-<h3>Builtin variables</h3>
+<h3 id="builtinvariables">Builtin variables</h3>
 
 <pre><code>_BS_      - backspace       (ASCII 8)
 _TAB_     - tab             (ASCII 9)
@@ -471,17 +471,17 @@ _CTRL_Z_  - control z       (ASCII 26)
 N         - where N is an integer refering to a captured substring
 </code></pre>
 
-<h3>Builtin environment variables</h3>
+<h3 id="builtinenvironmentvariables">Builtin environment variables</h3>
 
 <pre><code>LUX_SHELLNAME    - name of active Lux shell
 LUX_START_REASON - reason for starting a shell (normal|fail|success)
 PS1              - shell prompt variable set by Lux
 </code></pre>
 
-<h3>Miscellaneous statements##d</h3>
+<h3 id="miscellaneousstatementsd">Miscellaneous statements##d</h3>
 
-<p><strong>[doc String]</strong> <br />
-<strong>[docN String]</strong> <br />
+<p><strong>[doc String]</strong><br/>
+<strong>[docN String]</strong><br/>
 A test case slogan that will be displayed in the summary log. It
 is also possible to document parts of a test case by specifying a
 documentation level <code>N</code>. In that case the doc statement should look
@@ -489,7 +489,7 @@ like <code>[docN String]</code> where <code>N</code> is a integer. <code>doc2</c
 that the documentation is on level 2. Doc strings can be extracted
 from the scripts with the <code>--mode=doc</code> command line option.</p>
 
-<p><strong>[timeout Seconds]</strong> <br />
+<p><strong>[timeout Seconds]</strong><br/>
 sets the timeout for the current shell to the given number of
 seconds multiplied with a configurated factor. By default the
 multiplier is <code>1000</code>. For example, by setting the <code>--multiplier</code>
@@ -499,20 +499,20 @@ before reporting failure. If time is not specified <code>[timeout]</code>, it
 is reset to default the timeout specified with the <code>--timeout</code>
 configuration parameter. The timeout value <code>infinity</code> means infinity.</p>
 
-<p><strong>[sleep Seconds]</strong> <br />
+<p><strong>[sleep Seconds]</strong><br/>
 waits given number of seconds before proceeding in the script. No
 <code>multiplier</code> factor is applied.</p>
 
-<p><strong>[progress String]</strong> <br />
+<p><strong>[progress String]</strong><br/>
 Displays <code>String</code> on the <code>stdout</code> stream together with the rest of the
 progress info.</p>
 
-<p><strong>[config Var=Value]</strong> <br />
+<p><strong>[config Var=Value]</strong><br/>
 assigns a value to a <a href="#config_params">configuration parameter</a>. The
 assignment takes place during parsing of the script file. The
 configuration parameters in <strong>architecture specific files</strong> can be
 overridden by <strong>command line options</strong>. For example <code>[config
-timeout=2000]</code> can be overridden with <code>--timeout=4000</code>.  Explicit
+timeout=2000]</code> can be overridden with <code>--timeout=4000</code>. Explicit
 <code>[config Var=Value]</code> settings in scripts takes however precedence over
 settings in architecture specific files and command line options. See
 the section <em>Configuration parameters</em> about valid configuration
@@ -522,7 +522,7 @@ configuration parameter <code>--config_dir</code> about the location of the
 architecture specific files.
 <a name="cmd_line_opts"/></p>
 
-<h1>Command line options</h1>
+<h1 id="commandlineoptions">Command line options</h1>
 
 <p>By default Lux is executing test suites and most of the command line
 options affects that execution in different ways. There are however a
@@ -530,16 +530,16 @@ few auxiliary options that can be used to make Lux perform other
 tasks.</p>
 
 <ul>
-<li>--reltool</li>
-<li>--install</li>
-<li>--make</li>
-<li>--markdown</li>
-<li>--annotate</li>
-<li>--history</li>
-<li>--mode</li>
+<li>&#8211;reltool</li>
+<li>&#8211;install</li>
+<li>&#8211;make</li>
+<li>&#8211;markdown</li>
+<li>&#8211;annotate</li>
+<li>&#8211;history</li>
+<li>&#8211;mode</li>
 </ul>
 
-<h2>Script execution</h2>
+<h2 id="scriptexecution">Script execution</h2>
 
 <pre><code>lux [--mode Mode] [ConfigParam]... [File]...
 </code></pre>
@@ -549,7 +549,7 @@ tasks.</p>
 <p>See the section <a href="#config_params">Configuration parameters</a> about
 script execution.</p>
 
-<h2>Release management</h2>
+<h2 id="releasemanagement">Release management</h2>
 
 <pre><code>lux --reltool [--root_dir RootDir]
 lux --install [InstallDir] [--root_dir RootDir]
@@ -557,12 +557,12 @@ lux --make
 lux --markdown
 </code></pre>
 
-<p><strong>--reltool</strong> <br />
+<p><strong>&#8211;reltool</strong><br/>
 Starts the graphical tool <a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Reltool</a> which enables inspection of
 internal Lux application dependencies. It is disabled in the
 standalone installation.</p>
 
-<p><strong>--install [InstallDir]</strong> <br />
+<p><strong>&#8211;install [InstallDir]</strong><br/>
 See <a href="#../INSTALL">installation</a>. Installs the application as a
 standalone application on the <code>InstallDir</code> directory. <code>InstallDir</code>
 must exist. If <code>InstallDir</code> is omitted only a dry run is performed. A
@@ -571,33 +571,33 @@ contains a minimal Erlang runtime system. It is however not neccessary
 to install Lux as standalone. If Erlang already is installed on the
 system, Lux can make use of that runtime environment.</p>
 
-<p><strong>--root_dir <code>RootDir</code></strong> <br />
+<p><strong>&#8211;root_dir <code>RootDir</code></strong><br/>
 Directs <a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Reltool</a> to use an alternate Erlang root directory instead
 of the one that Lux currently executes. Affects <code>--install</code> and
 <code>--reltool</code>.</p>
 
-<p><strong>--make</strong> <br />
+<p><strong>&#8211;make</strong><br/>
 Simplified build that only relies on an installed Erlang/OTP system.
 To be used with care on obscure platforms. See
 <a href="#../INSTALL">installation</a>.</p>
 
-<p><strong>--markdown</strong> <br />
+<p><strong>&#8211;markdown</strong><br/>
 Generates documentation for the debugger on <a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a> format.
 This is used internally by doc/Makefile.</p>
 
-<h2>Log management</h2>
+<h2 id="logmanagement">Log management</h2>
 
 <pre><code>lux --annotate LogFile
 lux --history LogDir
 </code></pre>
 
-<p><strong>--annotate LogFile</strong> <br />
+<p><strong>&#8211;annotate LogFile</strong><br/>
 Transforms textual log files into HTML format and annotates Lux
 scripts code with log events. The generated HTML file will get the
 same name as <code>LogFile</code> but with a <code>.html</code> extension added. See also
 the <a href="#config_params">configuration parameter</a> <code>--html</code>.</p>
 
-<p><strong>--history LogDir</strong> <br />
+<p><strong>&#8211;history LogDir</strong><br/>
 Generates an HTML file which summarizes the history of all test runs,
 by analyzing the <code>lux_summary.log</code> files located under <code>LogDir</code>. All
 sub directories that not have a <code>lux.skip</code> file will be searched. The
@@ -607,7 +607,7 @@ file will be generated on the <code>LogDir</code> directory and is called
 <a href="#config_params">configuration parameters</a>.
 <a name="config_params"/></p>
 
-<h1>Configuration parameters</h1>
+<h1 id="configurationparameters">Configuration parameters</h1>
 
 <pre><code>lux [--mode Mode] [ConfigParam]... [File]...
 </code></pre>
@@ -639,33 +639,33 @@ directories) are called test suites and the derived files (actual Lux
 scripts) are called test cases. The configuration parameter <code>--skip</code>
 can be used to conditionally skip test cases.</p>
 
-<h2>Test case control</h2>
+<h2 id="testcasecontrol">Test case control</h2>
 
-<p><strong>--mode Mode</strong> <br />
+<p><strong>&#8211;mode Mode</strong><br/>
 Mode can be one of :</p>
 
 <ul>
-<li><code>execute</code>  - evaluates the test cases. This is default.</li>
+<li><code>execute</code> - evaluates the test cases. This is default.</li>
 <li><code>validate</code> - parse all script files and configuration files and
-           report syntax errors and warnings.</li>
-<li><code>list</code>     - display a list of all test cases. One filename on
-           each line.</li>
-<li><code>doc</code>      - extract all <code>[doc]</code> strings and display them on a
-           simple format. First the main file name is printed on
-           an own line ending with a colon, followed by all doc
-           strings, one on each line. The doc strings are indented
-           with a tab char for each doc level.</li>
+ report syntax errors and warnings.</li>
+<li><code>list</code> - display a list of all test cases. One filename on
+ each line.</li>
+<li><code>doc</code> - extract all <code>[doc]</code> strings and display them on a
+ simple format. First the main file name is printed on
+ an own line ending with a colon, followed by all doc
+ strings, one on each line. The doc strings are indented
+ with a tab char for each doc level.</li>
 </ul>
 
-<p><strong>--file_pattern</strong> <br />
+<p><strong>&#8211;file_pattern</strong><br/>
 Specify file pattern for scripts to be executed when a directory is
 given. Defaults to <code>.*.lux$</code>.</p>
 
-<p><strong>--var</strong> <br />
+<p><strong>&#8211;var</strong><br/>
 Overrides environment variable settings. Each entry must be of the
 form <code>var=value</code>.</p>
 
-<p><strong>--config_name ConfigName</strong> <br />
+<p><strong>&#8211;config_name ConfigName</strong><br/>
 Normally Lux figures out which system software/hardware it runs on,
 but it can explicitly be overridden with the <code>ConfigName</code> option. The
 <code>ConfigName</code> is used to read system architecture specific configuration
@@ -674,7 +674,7 @@ is obtained from <code>uname -sm</code> where <code>ConfigName is set to</code>K
 This behavior can be overridden by adding a file named after the name of
 the host (</code>hostname.luxcfg<code>) on the</code>ConfigDir` directory. </p>
 
-<p><strong>--config_dir ConfigDir</strong> <br />
+<p><strong>&#8211;config_dir ConfigDir</strong><br/>
 A directory where architecture specific connfiguration files may
 reside. The format of the architecture specific files a subset of the
 script format. Only <code>[config var=value]</code> statements are extracted from
@@ -684,14 +684,14 @@ script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called <code>priv</code> in the <code>Lux</code> application.</p>
 
-<p><strong>--hostname Hostname</strong> <br />
+<p><strong>&#8211;hostname Hostname</strong><br/>
 The <code>Hostname</code>overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
 equivalent slaves.</p>
 
-<p><strong>--skip Var</strong> <br />
-<strong>--skip Var=Value</strong> <br />
+<p><strong>&#8211;skip Var</strong><br/>
+<strong>&#8211;skip Var=Value</strong><br/>
 Skip execution of the script if the given variable is set. This
 option can be used multiple times, which means that it suffices
 that one of the given <code>Var</code>s is set in order to skip the test
@@ -701,8 +701,8 @@ or <code>[config skip=Var=Value]</code> statements within scripts. The
 construction <strong>Var=Value</strong> is little more restrictive as it requires
 that the variable is set to a certain value.</p>
 
-<p><strong>--skip_unless Var</strong> <br />
-<strong>--skip_unless Var=Value</strong> <br />
+<p><strong>&#8211;skip_unless Var</strong><br/>
+<strong>&#8211;skip_unless Var=Value</strong><br/>
 Skip execution of the script if the given variable NOT is set. This
 option can be used multiple times, which means that it suffices
 that one of the given <code>Var</code>s NOT is set in order to skip the test
@@ -713,12 +713,12 @@ variables. <code>--skip_unless</code> is intended to be used as
 more restrictive as it requires that the variable is set to a certain
 value.</p>
 
-<p><strong>--skip_skip</strong> <br />
-<strong>--skip_skip=true</strong> <br />
+<p><strong>&#8211;skip_skip</strong><br/>
+<strong>&#8211;skip_skip=true</strong><br/>
 Forces Lux to not care about <code>--skip</code> and <code>--skip_unless</code> settings.</p>
 
-<p><strong>--require Var</strong> <br />
-<strong>--require Var=Value</strong> <br />
+<p><strong>&#8211;require Var</strong><br/>
+<strong>&#8211;require Var=Value</strong><br/>
 Require that the given variable is set. The script will fail if
 the variable not is set. This option can be used multiple times,
 which means that all given Vars are required to be set.
@@ -728,12 +728,12 @@ or <code>[config require=Var=Value]</code> statements within scripts. The
 construction <strong>Var=Value</strong> is little more restrictive as it
 requires that the variable is set to a certain value.</p>
 
-<h2>Log control</h2>
+<h2 id="logcontrol">Log control</h2>
 
-<p><strong>--log_dir LogDir</strong> <br />
+<p><strong>&#8211;log_dir LogDir</strong><br/>
 A directory where log files will be written. Default is <code>./lux_logs</code>.</p>
 
-<p><strong>--html Html</strong> <br />
+<p><strong>&#8211;html Html</strong><br/>
 The <code>Html</code> option controls whether the logs should be converted to
 HTML or not. It is an enum that denotes the outcome of the tests.
 If the actual outcome is the same or higher than <code>Html</code> then the
@@ -746,15 +746,15 @@ values are as follows:</p>
 <p>The logs can be converted to HTML manually by using the command line
 option <code>--annotate</code>.</p>
 
-<p><strong>--tap LogFile</strong> <br />
+<p><strong>&#8211;tap LogFile</strong><br/>
 A file where <a href="http://testanything.org/" title="Test Anything Protocol">TAP</a> events should be written. The file names
 <code>stdout</code> and <code>stdin</code> are specially handled. They causes the log events
 to be written to standard output respective standard error. Multiple
-"files" can be given.</p>
+&#8220;files&#8221; can be given.</p>
 
-<h2>Timeouts</h2>
+<h2 id="timeouts">Timeouts</h2>
 
-<p><strong>--timeout Timeout</strong> <br />
+<p><strong>&#8211;timeout Timeout</strong><br/>
 The script expects the shell output to match given
 <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s. But the output must be received within a
 given time limit. The <code>Timeout</code> specifies how long it will wait before
@@ -762,12 +762,12 @@ the script fails. The <code>Timeout</code> defaults to <code>10000</code> milli 
 (<code>10</code> seconds). This <code>Timeout</code> can be overridden by the statement
 <code>[timeout Timeout]</code> in the script itself.</p>
 
-<p><strong>--cleanup_timeout CleanupTimeout</strong> <br />
+<p><strong>&#8211;cleanup_timeout CleanupTimeout</strong><br/>
 When the script reaches the <code>[cleanup]</code> marker, the ordinary
 <code>Timeout</code> will be set to <code>CleanupTimeout</code>. The <code>CleanupTimeout</code>
 defaults to <code>100000</code> milli seconds (<code>100</code> seconds).</p>
 
-<p><strong>--multiplier Multiplier</strong> <br />
+<p><strong>&#8211;multiplier Multiplier</strong><br/>
 In order to be able to run the tests on very slow hardware,
 the <code>Multiplier</code> can be used. Each time a timer is initiated
 (except sleep) its value is multiplied with the <code>Multiplier</code>
@@ -776,18 +776,18 @@ example, by setting the <code>Multiplier</code> to <code>2000</code> all timeout
 be doubled. <code>--multiplier</code> is intended to be set in architecture
 specific files to provide different settings on different systems.</p>
 
-<p><strong>--suite_timeout SuiteTimeout</strong> <br />
+<p><strong>&#8211;suite_timeout SuiteTimeout</strong><br/>
 If the duration of the execution exceeds the <code>SuiteTimeout</code>, it
 is aborted. The <code>SuiteTimeout</code> defaults to <code>infinity</code>, but can
 be any positive integer value in the unit of milli seconds.</p>
 
-<p><strong>--case_timeout CaseTimeout</strong> <br />
+<p><strong>&#8211;case_timeout CaseTimeout</strong><br/>
 If the the duration of a single test case exceeds the
 <code>CaseTimeout</code>, it is aborted. It can be any positive integer
 value in the unit of milli seconds or <code>infinity</code>. The default
 is <code>300000</code> (5 minutes).</p>
 
-<p><strong>--flush_timeout FlushTimeout</strong> <br />
+<p><strong>&#8211;flush_timeout FlushTimeout</strong><br/>
 All output from a shell is buffered and matched against
 <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s. It can however explicitly be flushed by
 the script. When this is done, the engine first waits a while
@@ -795,47 +795,47 @@ before it discards the output. How long it waits is controlled
 by <code>FlushTimeout</code>. It defaults to <code>0</code>. If you want to experiment
 with it, <code>1000</code> milli seconds (1 second) can be a resonable value.</p>
 
-<p><strong>--poll_timeout PollTimeout</strong> <br />
+<p><strong>&#8211;poll_timeout PollTimeout</strong><br/>
 When the Lux engine receives output from a shell it will
 wait in <code>PollTimeout</code> milli seconds for more output before it
 tries to match it against any <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s. It defaults
 to <code>0</code>. If you want to experiment with it, <code>100</code> milli seconds
 (1/10 second) can be a resonable value.</p>
 
-<h2>History control</h2>
+<h2 id="historycontrol">History control</h2>
 
-<p><strong>--suite Suite</strong>  </p>
+<p><strong>&#8211;suite Suite</strong> </p>
 
 <p>The Suite is used for bookkeeping a name which later is used for
 printing out the history of test runs. See the
  <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
-<p><strong>--run RunId</strong> <br />
+<p><strong>&#8211;run RunId</strong><br/>
 The <code>RunId</code> is used for bookkeeping a name which later is used for
 printing out the history of test runs. See the
  <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
-<p><strong>--extend_run</strong> <br />
-<strong>--extend_run=true</strong> <br />
+<p><strong>&#8211;extend_run</strong><br/>
+<strong>&#8211;extend_run=true</strong><br/>
 Combines two runs into one. The summary log of an earlier run is
 extended with the outcome of the new run. <code>--log_dir</code> can be given
 explicitly. If not, the symbolic <code>latest_run</code> link is used to find
 a suitable log directory.</p>
 
-<p><strong>--revision Revision</strong> <br />
+<p><strong>&#8211;revision Revision</strong><br/>
 The <code>Revision</code> is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
-<p><strong>--hostname Hostname</strong> <br />
+<p><strong>&#8211;hostname Hostname</strong><br/>
 The <code>Hostname</code>overrides the hostnames extracted from the log files.
 It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the
 <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
-<h2>Debugging and tracing</h2>
+<h2 id="debuggingandtracing">Debugging and tracing</h2>
 
-<p><strong>--progress ProgressLevel</strong> <br />
+<p><strong>&#8211;progress ProgressLevel</strong><br/>
 <code>ProgressLevel</code> can be one of <code>silent</code>, <code>brief</code>, <code>doc</code>, <code>compact</code> and
 <code>verbose</code>. It defaults to <code>brief</code> which means that single characters
 are printed to stdout. <code>doc</code> is like <code>brief</code> but in this mode doc
@@ -862,7 +862,7 @@ a failure or a potential failure.</p>
 
 <p>The <code>ProgressLevel</code> can also interactively be changed via the debugger.</p>
 
-<p><strong>--debug</strong> <br />
+<p><strong>&#8211;debug</strong><br/>
 The debugger is always available (even without this flag) and waiting
 for input on the <code>stdin</code> stream. With the <code>--debug</code> flag the debugger
 is attached to the script before the first line is executed and
@@ -872,17 +872,17 @@ debugger to the script and pauses its execution. The command
 and <code>verbose</code>. Use the debugger command <code>help</code> to get more info about
 the available commands. See also the section <a href="#debugging">debugging and tracing</a>.</p>
 
-<p><strong>--debug_file SavedFile</strong> <br />
+<p><strong>&#8211;debug_file SavedFile</strong><br/>
 Loads the commands in the <code>SavedFile</code> before the first line in the
 script is executed. See the debugger command <code>save</code> and <code>load</code> for
 more info. The format of the <code>SavedFile</code> is very simple and may be
 manually edited. For example <code>break</code> and <code>continue</code> may be convenient
 commands to add to such a file.</p>
 
-<h2>Miscellaneous</h2>
+<h2 id="miscellaneous">Miscellaneous</h2>
 
-<p><strong>--shell_cmd Cmd</strong> <br />
-<strong>--shell_args Arg</strong>  </p>
+<p><strong>&#8211;shell_cmd Cmd</strong><br/>
+<strong>&#8211;shell_args Arg</strong> </p>
 
 <p>These parameters controls which program that will be started when a
 script starts a shell. By default <strong><code>/bin/sh -i</code></strong> is started as
@@ -890,8 +890,8 @@ script starts a shell. By default <strong><code>/bin/sh -i</code></strong> is st
 respectively. <code>--shell_args</code> is a bit special in how this parameter
 is treated by Lux.</p>
 
-<p><strong>--shell_prompt_cmd PromptCmd</strong> <br />
-<strong>--shell_prompt_regexp PromptRegExp</strong>  </p>
+<p><strong>&#8211;shell_prompt_cmd PromptCmd</strong><br/>
+<strong>&#8211;shell_prompt_regexp PromptRegExp</strong> </p>
 
 <p>When Lux starts a shell the prompt is set to <strong><code>SH-PROMPT:</code></strong> by
 default. In Bourne shell, which is the default shell, the variable
@@ -901,7 +901,7 @@ using the regexp <code>^SH-PROMPT:</code>. This behavior can be overridden by
 using <code>--shell_prompt_cmd</code> and <code>--shell_prompt_regex</code> respectively
 when using more exotic shells.</p>
 
-<p><strong>--shell_wrapper [Executable]</strong>  </p>
+<p><strong>&#8211;shell_wrapper [Executable]</strong> </p>
 
 <p>In order to get the terminal settings to work properly in advanced
 interactive cases such as tab completion etc., the shell needs to be
@@ -917,14 +917,14 @@ properly). It is however possible to use a custom wrapper program by
 using the <code>--shell_wrapper</code> parameter.</p>
 
 <p>It is also possible to use no shell wrapper at all by omitting the
-<code>Executable</code> value (or simply set it to the empty string "").</p>
+<code>Executable</code> value (or simply set it to the empty string &quot;&quot;).</p>
 
-<p><strong>--line_term Chars</strong> <br />
+<p><strong>&#8211;line_term Chars</strong><br/>
 Specify the character sequence added to the end of lines sent to
 a shell. It defaults to <code>\n</code>.
 <a name="logs"/></p>
 
-<h1>Logs</h1>
+<h1 id="logs">Logs</h1>
 
 <p>Lux will create a new directory for each test run. By default the log
 files are generated under <code>./lux_logs/run_yyyy_mm_dd_hh_mm_ss</code> where
@@ -939,7 +939,7 @@ symbolic link will be created.</p>
 
 <ul>
 <li><strong>lux_summary.log</strong> which contains information about the outcome of
-each test case and paths to test case logs.</li>
+ each test case and paths to test case logs.</li>
 <li><strong>lux_config.log</strong> which contains all configuration settings common
 for the test suite.</li>
 <li><strong>lux_result.log</strong> which contains a condensed summary of the outcome.</li>
@@ -950,14 +950,14 @@ for the test suite.</li>
 
 <ul>
 <li><strong>$CASE.event.log</strong> contains every internal event. Such as which
-statements that has been executed, output from shells etc.  This is
-the main source for information for detailed information about the
-outcome of a test case.</li>
+ statements that has been executed, output from shells etc. This is
+ the main source for information for detailed information about the
+ outcome of a test case.</li>
 <li><strong>$CASE.config.log</strong> contains configuration settings for the test case.</li>
 <li><strong>$CASE.$SHELL.stdin.log</strong> contains the raw input to the
-shells. There is one such log per shell.</li>
+ shells. There is one such log per shell.</li>
 <li><strong>$CASE.$SHELL.stdout.log</strong> contains the raw output from the
-shells. There is one such log per shell.</li>
+ shells. There is one such log per shell.</li>
 <li><strong>$CASE.orig</strong> is a copy of the test script.</li>
 </ul>
 
@@ -977,13 +977,13 @@ customized by using the <code>--suite</code>, <code>--run</code> and <code>--rev
 <a href="#config_params">configuration parameters</a>.
 <a name="debug_cmds"/></p>
 
-<h1>Debugger for Lux scripts</h1>
+<h1 id="debuggerforluxscripts">Debugger for Lux scripts</h1>
 
 <p>When <code>lux</code> is started with the <code>--debug</code> option, the debugger
 will attach to the script before its execution has started. An
 optional file with saved commands may be processed at this stage.
 The debugger can also be attached to the script in the middle of
-the execution by entering the command "attach" (or an abbreviation
+the execution by entering the command &#8220;attach&#8221; (or an abbreviation
 of the command) and pressing the enter key.</p>
 
 <p>Several parameters has a lineno as parameter see <code>help lineno</code>.</p>
@@ -994,24 +994,24 @@ If no command has been entered yet, the command <code>help</code> is assumed.</p
 <p>Commands may be abbreviated. Use the help command (for example
 <code>help help</code> to get more detailed descriptions of the commands.</p>
 
-<h2>Available commands: </h2>
+<h2 id="availablecommands:">Available commands:</h2>
 
 <ul>
-<li>attach   - attach to script and pause its execution</li>
-<li>break    - set, delete and list breakpoints</li>
+<li>attach - attach to script and pause its execution</li>
+<li>break - set, delete and list breakpoints</li>
 <li>continue - continue script execution</li>
-<li>help     - display description of a command</li>
-<li>tail     - display log files</li>
-<li>list     - list script source</li>
-<li>load     - load file with debug commands</li>
-<li>next     - execute next command. A multiline command counts as one command.</li>
+<li>help - display description of a command</li>
+<li>tail - display log files</li>
+<li>list - list script source</li>
+<li>load - load file with debug commands</li>
+<li>next - execute next command. A multiline command counts as one command.</li>
 <li>progress - set verbosity level of progress</li>
-<li>quit     - exit lux in a controlled manner. Runs cleanup if applicable. </li>
-<li>save     - save debug state to file</li>
-<li>skip     - skip execution of one or more commands. A multiline command counts as one command.</li>
+<li>quit - exit lux in a controlled manner. Runs cleanup if applicable.</li>
+<li>save - save debug state to file</li>
+<li>skip - skip execution of one or more commands. A multiline command counts as one command.</li>
 </ul>
 
-<h2>lineno parameter</h2>
+<h2 id="linenoparameter">lineno parameter</h2>
 
 <p>Several commands has a lineno as parameter. It is a string which
 is divided in several components. The components are separated
@@ -1027,29 +1027,29 @@ inner at line 12.</p>
 <p>Here are a few examples of how lineno can be used:</p>
 
 <ul>
-<li>3       - line 3 in current file</li>
-<li>main    - line 1 in file main</li>
-<li>m:3     - line 3 in file main</li>
-<li>:3      - line 3 in file main</li>
-<li>inner   - line 1 in file inner</li>
-<li>outer   - line 1 in file outer</li>
-<li>o:12    - line 12 in file outer</li>
-<li>4:12:6  - line 6 in file inner if it is included
-        on line 12 in outer and outer is included
-        on line 4 in main.</li>
+<li>3 - line 3 in current file</li>
+<li>main - line 1 in file main</li>
+<li>m:3 - line 3 in file main</li>
+<li>:3 - line 3 in file main</li>
+<li>inner - line 1 in file inner</li>
+<li>outer - line 1 in file outer</li>
+<li>o:12 - line 12 in file outer</li>
+<li>4:12:6 - line 6 in file inner if it is included
+ on line 12 in outer and outer is included
+ on line 4 in main.</li>
 </ul>
 
-<h2>attach</h2>
+<h2 id="attach">attach</h2>
 
 <p>attach to script and pause its execution</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
 <li>no parameters</li>
 </ul>
 
-<h2>break [lineno] [duration]</h2>
+<h2 id="breaklinenoduration">break [lineno][duration]</h2>
 
 <p>set, delete and list breakpoints</p>
 
@@ -1061,34 +1061,34 @@ delete means that the breakpoint immediately is removed.</p>
 
 <p>Without parameters, all breakpoints are listed.</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>lineno   - lineno in source file; lineno  </li>
-<li>duration - controls the duration of the breakpoint; enum(normal|temporary|delete)  </li>
+<li>lineno - lineno in source file; lineno</li>
+<li>duration - controls the duration of the breakpoint; enum(normal|temporary|delete)</li>
 </ul>
 
-<h2>continue [lineno]</h2>
+<h2 id="lineno">continue</h2>
 
 <p>continue script execution</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>lineno - run to temporary breakpoint at lineno; lineno  </li>
+<li>lineno - run to temporary breakpoint at lineno; lineno</li>
 </ul>
 
-<h2>help [command]</h2>
+<h2 id="command">help</h2>
 
 <p>display description of a command</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>command - debugger command; string  </li>
+<li>command - debugger command; string</li>
 </ul>
 
-<h2>tail [index] [format] [n_lines]</h2>
+<h2 id="n_lines">tail [index][format]</h2>
 
 <p>display log files</p>
 
@@ -1096,123 +1096,126 @@ delete means that the breakpoint immediately is removed.</p>
 Each one is preceeded by its index number and optionally a
 star. Star means that the log has been updated since the
 previous status check. Use the index to display a particular
-log. Such as "t 5" for the event log. Press enter to
+log. Such as &#8220;t 5&#8221; for the event log. Press enter to
 display more lines. n_lines can be used to override that
 behavior andonly display a fixed number of lines regardless
 of the command is repeated or not.</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>index   - log number; 1 >= integer =&lt; infinity  </li>
-<li>format  - display format; enum(compact|verbose)  </li>
-<li>n_lines - fixed number of lines; 1 >= integer =&lt; infinity  </li>
+<li>index - log number; 1 &gt;= integer =&lt; infinity</li>
+<li>format - display format; enum(compact|verbose)</li>
+<li>n_lines - fixed number of lines; 1 &gt;= integer =&lt; infinity</li>
 </ul>
 
-<h2>list [n_lines] [lineno]</h2>
+<h2 id="listn_lineslineno">list <a href="#lineno">n_lines</a></h2>
 
 <p>list script source</p>
 
-<p>If no "lineno" is given, the listing will start from the
-current line or from the latest given "lineno" if no other
+<p>If no &#8220;lineno&#8221; is given, the listing will start from the
+current line or from the latest given &#8220;lineno&#8221; if no other
 commands have been given in between.</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>n_lines - number of lines; 1 >= integer =&lt; infinity  </li>
-<li>lineno  - start listing at lineno; lineno  </li>
+<li>n_lines - number of lines; 1 &gt;= integer =&lt; infinity</li>
+<li>lineno - start listing at lineno; lineno</li>
 </ul>
 
-<h2>load [file]</h2>
+<h2 id="file">load</h2>
 
 <p>load file with debug commands</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>file - file name. Default is "lux.debug".; string  </li>
+<li>file - file name. Default is &#8220;lux.debug&#8221;.; string</li>
 </ul>
 
-<h2>next</h2>
+<h2 id="next">next</h2>
 
 <p>execute next command. A multiline command counts as one command.</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
 <li>no parameters</li>
 </ul>
 
-<h2>progress [level]</h2>
+<h2 id="level">progress</h2>
 
 <p>set verbosity level of progress</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>level - verbosity level. Toggles between brief and verbose by default.; enum(silent|brief|doc|compact|verbose)  </li>
+<li>level - verbosity level. Toggles between brief and verbose by default.; enum(silent|brief|doc|compact|verbose)</li>
 </ul>
 
-<h2>quit</h2>
+<h2 id="quit">quit</h2>
 
 <p>exit lux in a controlled manner. Runs cleanup if applicable. </p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
 <li>no parameters</li>
 </ul>
 
-<h2>save [file]</h2>
+<h2 id="file">save</h2>
 
 <p>save debug state to file</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>file - file name. Default is "lux.debug".; string  </li>
+<li>file - file name. Default is &#8220;lux.debug&#8221;.; string</li>
 </ul>
 
-<h2>skip [n_commands]</h2>
+<h2 id="n_commands">skip</h2>
 
 <p>skip execution of one or more commands. A multiline command counts as one command.</p>
 
-<p><strong>Parameters:</strong>  </p>
+<p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>n_commands - number of commands; 1 >= integer =&lt; infinity  </li>
+<li>n_commands - number of commands; 1 &gt;= integer =&lt; infinity</li>
 </ul>
 
 <p><a name="examples"/></p>
 
-<h1>Examples</h1>
+<h1 id="examples">Examples</h1>
 
-<p>To be written...<a name="../INSTALL"/></p>
+<p>To be written&#8230;<a name="../INSTALL"/></p>
 
-<h1>Installation</h1>
+<h1 id="installation">Installation</h1>
 
-<h2>Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites</h2>
 
 <p>The following software is required:</p>
 
 <ul>
 <li><p>The tool <strong>Lux</strong> is implemented with <strong><a href="http://www.erlang.org/" title="Erlang programming language">Erlang/OTP</a></strong> and its
-runtime system must be installed in order to build the tool. Install
-<code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">pre-built packages</a>:</p>
+ runtime system must be installed in order to build the tool. Install
+ <code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">pre-built packages</a>:</p>
 
 <blockquote>
 <pre><code>sudo apt-get install erlang
 </code></pre>
-</blockquote>
-
-<p>Once <code>Lux</code> has been installed, it will be self-contained and does
-not need a separate <code>Erlang/OTP</code> runtime system any more.</p></li>
-<li><p>The documentation is pre-built. Re-generation of the documentation
-requires <strong><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></strong>.</p></li>
+</blockquote></li>
 </ul>
 
-<h2>Instructions</h2>
+<p>Once <code>Lux</code> has been installed, it will be self-contained and does
+ not need a separate <code>Erlang/OTP</code> runtime system any more.</p>
+
+<ul>
+<li>The documentation is pre-built. Re-generation of the documentation
+ requires <strong><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></strong>.</li>
+</ul>
+
+<h2 id="instructions">Instructions</h2>
 
 <p>If you have cloned the source from <code>github.com</code> and want to build the
 tool using <code>configure</code> and <code>make</code> there is no <code>configure</code> script. Then
@@ -1273,9 +1276,9 @@ make install
 </code></pre>
 </blockquote>
 
-<h2>Obscure platforms</h2>
+<h2 id="obscureplatforms">Obscure platforms</h2>
 
-<p>On "obscure platforms" which have <code>Erlang/OTP</code> but lacks
+<p>On &#8220;obscure platforms&#8221; which have <code>Erlang/OTP</code> but lacks
 <code>autotools</code>, make etc. it is still possible to build with</p>
 
 <blockquote>
@@ -1302,7 +1305,7 @@ re-installation.</p>
 </code></pre>
 </blockquote>
 
-<h2>Re-build the documentation</h2>
+<h2 id="re-buildthedocumentation">Re-build the documentation</h2>
 
 <p>Simply do</p>
 
@@ -1330,18 +1333,18 @@ firefox ../lux.html
 <a name="references"/></li>
 </ul>
 
-<h1>References</h1>
+<h1 id="references">References</h1>
 
 <ol>
-<li><a href="https://github.com/hawk/lux" title="LUcid eXpect scripting">Lux - LUcid eXpect scripting</a>  </li>
-<li><a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect homepage</a>  </li>
-<li><a href="http://www.erlang.org/" title="Erlang programming language">Erlang programming language</a>  </li>
-<li><a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">Pre-built Erlang packages</a>  </li>
-<li><a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">Erlang style regular expressions (re)</a>  </li>
-<li><a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE - Perl Compatible Regular Expressions</a>  </li>
-<li><a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Erlang release management tool</a>  </li>
-<li><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a>  </li>
-<li><a href="http://testanything.org/" title="Test Anything Protocol">TAP - Test Anything Protocol</a>  </li>
+<li><a href="https://github.com/hawk/lux" title="LUcid eXpect scripting">Lux - LUcid eXpect scripting</a></li>
+<li><a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect homepage</a></li>
+<li><a href="http://www.erlang.org/" title="Erlang programming language">Erlang programming language</a></li>
+<li><a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">Pre-built Erlang packages</a></li>
+<li><a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">Erlang style regular expressions (re)</a></li>
+<li><a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE - Perl Compatible Regular Expressions</a></li>
+<li><a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Erlang release management tool</a></li>
+<li><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></li>
+<li><a href="http://testanything.org/" title="Test Anything Protocol">TAP - Test Anything Protocol</a></li>
 </ol>
 
 </body>

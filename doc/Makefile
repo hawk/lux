@@ -45,30 +45,31 @@ $(HTML): \
 	cat html.header > $(HTML).tmp
 	cat $(GEN_TOC).md >> $(MD_TMP)
 	@for f in $(CHAPTERS); do \
-		echo "<a name=\"$$f\"/>" >> $(MD_TMP); \
-		echo >> $(MD_TMP); \
+		/bin/echo "<a name=\"$$f\"/>" >> $(MD_TMP); \
+		/bin/echo >> $(MD_TMP); \
 		cat $$f.md >> $(MD_TMP); \
 	done
 	$(MARKDOWN) $(MD_TMP) >> $(HTML).tmp
 	cat html.footer >> $(HTML).tmp
 	mv $(HTML).tmp $(HTML)
-	echo "\nRead the documentation in the browser:\n\n\tfile://$(PWD)/$(HTML)"
+	/bin/echo "\nRead the documentation in the browser:\n\n\tfile://$(PWD)/$(HTML)"
 
 $(GEN_TOC).md: Makefile $(MARKDOWNS)
 	rm -f $@ $@.tmp
-	echo "Lux - LUcid eXpect scripting" > $@.tmp
-	echo "============================" >> $@.tmp
-	echo -n "Version $(LUX_VSN) - " >> $@.tmp
+	/bin/echo "Lux - LUcid eXpect scripting" > $@.tmp
+	/bin/echo "============================" >> $@.tmp
+	/bin/echo "" >> $@.tmp
+	/bin/echo -n "Version $(LUX_VSN) - " >> $@.tmp
 	date "+%F" >> $@.tmp
-	echo >> $@.tmp
-	echo $(CHAPTERS)
+	/bin/echo >> $@.tmp
+	/bin/echo $(CHAPTERS)
 	@for f in $(CHAPTERS); do \
-		echo -n "* [" >> $@.tmp; \
+		/bin/echo -n "* [" >> $@.tmp; \
 		head -1 "$$f.md" | tr -d '\n' >> $@.tmp; \
-		echo -n "]" >> $@.tmp; \
-		echo "(#$$f)" >> $@.tmp; \
+		/bin/echo -n "]" >> $@.tmp; \
+		/bin/echo "(#$$f)" >> $@.tmp; \
 	done
-	echo >> $@.tmp
+	/bin/echo >> $@.tmp
 	mv $@.tmp $@
 
 $(GEN_DBG_CMDS).md: ../ebin/lux_debug.beam Makefile
