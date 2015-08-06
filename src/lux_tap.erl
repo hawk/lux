@@ -80,12 +80,14 @@ plan(TAP, N, Dir) when is_integer(N), N >= 0 ->
                   write(TAP, ["1..", N, dir(Dir)])
                  ]).
 
-test(TAP, not_ok, Descr, Dir) ->
-    test(TAP, 'not ok', Descr, Dir);
-test(TAP, Outcome, Descr, Dir)
-  when is_list(Descr) andalso
-       (Outcome =:= ok orelse Outcome == 'not ok') ->
-    write(TAP, [Outcome, descr(Descr), dir(Dir)]).
+test(TAP, Outcome, Descr, Dir) ->
+    Outcome2 =
+        case Outcome of
+            ok       -> "ok    ";
+            not_ok   -> "not ok";
+            'not ok' -> "not ok"
+        end,
+    write(TAP, [Outcome2, descr(Descr), dir(Dir)]).
 
 diag(TAP, Descr) when Descr =:= "\n" ->
     write(TAP, []);

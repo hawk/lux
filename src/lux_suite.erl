@@ -914,7 +914,7 @@ tap_suite_begin(R, Scripts, Directive)
             {ok, Cwd} = file:get_cwd(),
             ok = lux_tap:diag(TAP, "cd " ++ Cwd),
             RelFiles = [lux_utils:drop_prefix(F) || F <- R#rstate.files],
-            ok = lux_tap:diag(TAP, "lux " ++ string:join(RelFiles, " ")),
+            ok = lux_tap:diag(TAP, "lux -t " ++ string:join(RelFiles, " ")),
             SummaryLog = lux_utils:drop_prefix(R#rstate.summary_log),
             ok = lux_tap:diag(TAP, "open " ++ SummaryLog ++ ".html"),
             ok = lux_tap:diag(TAP, "\n"),
