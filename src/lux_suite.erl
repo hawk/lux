@@ -356,7 +356,8 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{user_opts = UserOpts})
     end;
 parse_ropts([], R) ->
-    {ok, adjust_log_dir(R)}.
+    R2 = R#rstate{user_opts = lists:reverse(R#rstate.user_opts)},
+    {ok, adjust_log_dir(R2)}.
 
 adjust_log_dir(R) ->
     Now = lux_utils:timestamp(),
@@ -463,7 +464,7 @@ check_file({Tag, File}) ->
                 false ->
                     BinErr =
                         lux_log:safe_format(undefined,
-                                            "ERROR: ~p ~s: ~s \n",
+                                            "ERROR: ~p ~s: ~s\n",
                                             [Tag,
                                              File,
                                              file:format_error(enoent)]),
@@ -728,13 +729,15 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
                           Summary, Results, Warnings).
 
 parse_script(R, _SuiteFile, Script) ->
-    Opts0 = config_opts(R),
+    Opts0 = lists:reverse(config_opts(R)),
     case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, Opts0) of
         {ok, Script2, Cmds, FileOpts} ->
-            FileOpts2 = merge_opts(FileOpts, R#rstate.file_opts),
+            FileOpts2 = lux_utils:split_args(FileOpts, []),
+            FileOpts3 = merge_opts(FileOpts2, R#rstate.file_opts),
             R2 = R#rstate{internal_opts = [],
-                          file_opts = FileOpts2},
+                          file_opts = FileOpts3},
             LogDir = pick_val(log_dir, R, undefined),
+            %% LogDir = log_dir(R2, SuiteFile, Script2),
             LogFd = R#rstate.log_fd,
             LogFun = fun(Bin) -> lux_log:safe_write(LogFd, Bin) end,
             InternalOpts = [{log_dir, LogDir},
@@ -746,12 +749,12 @@ parse_script(R, _SuiteFile, Script) ->
                                [
                                 R2#rstate.default_opts,
                                 R2#rstate.config_opts,
-                                FileOpts2,
+                                FileOpts3,
                                 UserOpts,
                                 InternalOpts
                                ]),
             R3 = R2#rstate{user_opts = UserOpts,
-                           file_opts = FileOpts2,
+                           file_opts = FileOpts3,
                            internal_opts = InternalOpts},
             {ok, R3, Script2, Cmds, Opts};
         {skip, ErrorStack, ErrorBin} ->
@@ -766,10 +769,11 @@ parse_config(R) ->
     DefaultDir = filename:absname(code:lib_dir(?APPLICATION, priv)),
     DefaultFile = filename:join([DefaultDir, DefaultBase]),
     DefaultOpts = parse_config_file(R, DefaultFile),
-    R2 = R#rstate{default_opts = DefaultOpts},
+    DefaultOpts2 = lux_utils:split_args(DefaultOpts, []),
+    R2 = R#rstate{default_opts = DefaultOpts2},
 
     %% Config dir
-    case pick_val(config_dir, R2, R#rstate.config_dir) of
+    case pick_val(config_dir, R2, R2#rstate.config_dir) of
         undefined -> ConfigDir = code:lib_dir(?APPLICATION, priv);
         ConfigDir -> ok
     end,
@@ -780,10 +784,11 @@ parse_config(R) ->
     {ConfigName, ConfigFile} =
         config_file(R2, ConfigDir, R2#rstate.config_name, ActualConfigName),
     ConfigOpts = parse_config_file(R2, ConfigFile),
+    ConfigOpts2 = lux_utils:split_args(ConfigOpts, []),
     R3 = R2#rstate{config_name = ConfigName,
                    config_dir = ConfigDir,
                    config_file = ConfigFile,
-                   config_opts = ConfigOpts},
+                   config_opts = ConfigOpts2},
     ConfigData =
         builtins(R, ActualConfigName) ++
         [{'default file', [string], DefaultFile}] ++ DefaultOpts ++
@@ -975,7 +980,7 @@ opts_dicts(#rstate{internal_opts = I,
     [I, U, F, C, D].
 
 merge_opts(KeyVals, Acc) ->
-    merge_opts(KeyVals, Acc, []).
+    merge_opts(lists:reverse(KeyVals), Acc, []).
 
 merge_opts([{Key, Val} | KeyVals] = AllKeyVals, Acc, Updated) ->
     case lists:keyfind(Key, 1, Acc) of
@@ -993,9 +998,13 @@ merge_opts([{Key, Val} | KeyVals] = AllKeyVals, Acc, Updated) ->
             Val2 = OldVal ++ Val,
             Acc2 = lists:keystore(Key, 1, Acc, {Key, Val2}),
             merge_opts(KeyVals, Acc2, Updated2);
+        pred ->
+            %% Multi - Append new val
+            Acc2 = [{Key, Val} | Acc],
+            merge_opts(KeyVals, Acc2, Updated2);
         env ->
             %% Multi - handle settings with KEY=VAL syntax
-            Val2 = merge_env_opt(Val, OldVal),
+            Val2 = merge_env_opt([Val], OldVal),
             Acc2 = lists:keystore(Key, 1, Acc, {Key, Val2}),
             merge_opts(KeyVals, Acc2, Updated2);
         replace ->
@@ -1008,6 +1017,8 @@ merge_opts([], Acc, _) ->
 
 merge_oper(Key, Updated) ->
     case lux_interpret:config_type(Key) of
+        {ok, _Pos, [{pred_list, _}]} ->
+            pred;
         {ok, _Pos, [{env_list, _}]} ->
             env;
         {ok, _Pos, [{reset_list, _}]} ->
@@ -1028,7 +1039,6 @@ merge_env_opt(Val, OldVal) ->
              end,
     Merged = lists:foldl(Insert, Old, New),
     [string:join(tuple_to_list(T), "=") || T <- lists:keysort(1, Merged)].
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

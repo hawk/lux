@@ -77,6 +77,8 @@ parse_config(I0, Config) ->
     Fun =
         fun({Name, Vals}, {ok, I}) ->
                 case lux_interpret:config_type(Name) of
+                    {ok, Pos, Types = [{pred_list, _}]} ->
+                        lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
                     {ok, Pos, Types = [{env_list, _}]} ->
                         lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
                     {ok, Pos, Types = [{reset_list, _}]} ->

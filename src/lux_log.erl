@@ -842,6 +842,8 @@ try_format_val(Tag, Val, Type) ->
             [integer_to_list(Val)];
         {integer, _Min, _Max} when Val =:= infinity ->
             [atom_to_list(Val)];
+        {pred_list, SubTypes} ->
+            [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];
         {env_list, SubTypes} ->
             [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];
         {reset_list, SubTypes} when is_list(SubTypes) ->

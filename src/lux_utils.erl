@@ -16,7 +16,8 @@
          pretty_full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
-         cmd/2, chop_newline/1, cmd_expected/1, perms/1, pick_opt/3]).
+         cmd/2, chop_newline/1, cmd_expected/1, perms/1,
+         pick_opt/3, split_args/2]).
 
 -include("lux.hrl").
 
@@ -681,3 +682,9 @@ pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
     pick_opt(Tag, Opts, Val);
 pick_opt(_Tag, [], Val) ->
     Val.
+
+split_args([{Key, Val} | Opts], Acc) ->
+    Split = [{Key, V} || V <- Val],
+    split_args(Opts, Split ++ Acc);
+split_args([], Acc) ->
+    Acc.

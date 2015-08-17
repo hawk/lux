@@ -182,11 +182,11 @@ config_type(Name) ->
         debug_file ->
             {ok, #istate.debug_file, [string, {atom, [undefined]}]};
         skip ->
-            {ok, #istate.skip, [{env_list, [string]}]};
+            {ok, #istate.skip, [{pred_list, [string]}]};
         skip_unless ->
-            {ok, #istate.skip_unless, [{env_list, [string]}]};
+            {ok, #istate.skip_unless, [{pred_list, [string]}]};
         require ->
-            {ok, #istate.require, [{env_list, [string]}]};
+            {ok, #istate.require, [{pred_list, [string]}]};
         case_prefix ->
             {ok, #istate.case_prefix, [string]};
         config_dir ->
@@ -232,7 +232,7 @@ config_type(Name) ->
         var ->
             {ok, #istate.global_dict, [{env_list, [string]}]};
         _ ->
-            {error, lists:concat(["Bad argument: ", Name])}
+            {error, iolist_to_binary(lists:concat(["Bad argument: ", Name]))}
     end.
 
 set_config_val(Name, Val, [Type | Types], Pos, I) ->
@@ -268,6 +268,8 @@ set_config_val(Name, Val, [Type | Types], Pos, I) ->
                 {ok, setelement(Pos, I, Val)};
             {integer, _Min, _Max} when is_list(Val) ->
                 set_config_val(Name, list_to_integer(Val), [Type], Pos, I);
+            {pred_list, SubTypes} when is_list(SubTypes) ->
+                set_config_val(Name, Val, SubTypes, Pos, I);
             {env_list, SubTypes} when is_list(SubTypes) ->
                 set_config_val(Name, Val, SubTypes, Pos, I);
             {reset_list, SubTypes} when is_list(SubTypes) ->
@@ -277,13 +279,15 @@ set_config_val(Name, Val, [Type | Types], Pos, I) ->
         end
     catch
         throw:{no_such_var, BadName} ->
-            {error, lists:concat(["Bad argument: ", Name, "=", Val,
-                                  "; $", BadName, " is not set"])};
+            {error, iolist_to_binary(lists:concat(["Bad argument: ",
+                                                   Name, "=", Val,
+                                                   "; $", BadName,
+                                                   " is not set"]))};
         _:_ ->
             set_config_val(Name, Val, Types, Pos, I)
     end;
 set_config_val(Name, Val, [], _Pos, _I) ->
-    {error, lists:concat(["Bad argument: ", Name, "=", Val])}.
+    {error, iolist_to_binary(lists:concat(["Bad argument: ", Name, "=", Val]))}.
 
 wait_for_done(I, Pid, Docs) ->
     receive
