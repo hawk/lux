@@ -473,7 +473,7 @@ run_cases(R, [{_SuiteFile,{error,_Reason}}|Scripts], OldSummary, Results, CC)
   when R#rstate.mode =:= list ->
     run_cases(R, Scripts, OldSummary, Results, CC+1);
 run_cases(R, [{SuiteFile, {error,Reason}}|Scripts], OldSummary, Results, CC) ->
-    double_rlog(R, "\n~s~s\n", [?TAG("test case"), SuiteFile]),
+    init_case_rlog(R, SuiteFile),
     ListErr =
         double_rlog(R, "~s~s: ~s\n",
                     [?TAG("error"), SuiteFile, file:format_error(Reason)]),
@@ -513,8 +513,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                     run_cases(R#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, Results2, CC+1);
                 validate ->
-                    double_rlog(R2, "\n~s~s\n",
-                                [?TAG("test case"), Script]),
+                    init_case_rlog(R2, Script),
                     case NewWarnings of
                         [] ->
                             Summary = success,
@@ -534,8 +533,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                 execute ->
                     lux:trace_me(70, suite, 'case', RelScript, []),
                     tap_case_begin(R, RelScript),
-                    double_rlog(R2, "\n~s~s\n",
-                                [?TAG("test case"), Script]),
+                    init_case_rlog(R2, Script),
                     Res = lux:interpret_commands(Script2, Cmds, Opts),
                     SkipReason = "",
                     case Res of
@@ -591,8 +589,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
             {Script2, _, _} = lists:last(ErrorStack),
             lux:trace_me(70, suite, 'case', RelScript, []),
             tap_case_begin(R, RelScript),
-            double_rlog(R2, "\n~s~s\n",
-                        [?TAG("test case"), Script]),
+            init_case_rlog(R2, Script),
             double_rlog(R2, "~s~s\n",
                         [?TAG("result"), SkipReason]),
             Summary =
@@ -622,8 +619,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
         {error, R2, ErrorStack, ErrorBin} ->
             {MainFile, FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
-            double_rlog(R2, "\n~s~s\n",
-                        [?TAG("test case"), Script]),
+            init_case_rlog(R2, Script),
             double_rlog(R2, "~sERROR ~s: ~s\n",
                         [?TAG("result"), MainFile, ErrorBin2]),
             Summary = error,
@@ -748,7 +744,7 @@ builtins(R, ActualConfigName) ->
      {suite, [string], R#rstate.suite},
      {run, [string], R#rstate.run},
      {revision, [string], R#rstate.revision},
-     {workdir, [string], Cwd},
+     {run_dir, [string], Cwd},
      {'config name', [string], R#rstate.config_name},
      {config_dir, [string], R#rstate.config_dir}
     ].
@@ -858,6 +854,25 @@ double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
     case Fd of
         undefined -> list_to_binary(IoList);
         _         -> lux_log:double_write(Progress, Fd, IoList)
+    end.
+
+init_case_rlog(#rstate{progress = Progress, log_fd = Fd}, AbsScript) ->
+    Tag = ?TAG("test case"),
+    AbsIoList = io_lib:format("\n~s~s\n", [Tag, AbsScript]),
+    case Fd of
+        undefined ->
+            list_to_binary(AbsIoList);
+        _ ->
+            AbsBin = lux_log:safe_write(Fd, AbsIoList),
+            case Progress of
+                silent ->
+                    ok;
+                _ ->
+                    RelScript = lux_utils:drop_prefix(AbsScript),
+                    RelIoList = io_lib:format("\n~s~s\n", [Tag, RelScript]),
+                    lux_log:safe_write(undefined, list_to_binary(RelIoList))
+            end,
+            AbsBin
     end.
 
 start_suite_timer(R) ->

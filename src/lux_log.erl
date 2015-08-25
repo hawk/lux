@@ -305,7 +305,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
             Suite = find_config(<<"suite">>, Config, R#run.test),
             RunId = find_config(<<"run">>, Config, R#run.id),
             ReposRev = find_config(<<"revision">>, Config, R#run.repos_rev),
-            RunDir = binary_to_list(find_config(<<"workdir">>,
+            RunDir = binary_to_list(find_config(<<"run_dir">>,
                                                 Config,
                                                 list_to_binary(Cwd))),
             HtmlDir = filename:dirname(HtmlFile),
@@ -333,7 +333,6 @@ pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
     pick_opt(Tag, Opts, Val);
 pick_opt(_Tag, [], Val) ->
     Val.
-
 parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, Name, Log, _Doc, _HtmlLog, CaseRes}) ->
