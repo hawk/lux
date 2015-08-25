@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.9 - 2015&#8211;10&#8211;06</p>
+<p>Version 1.9.1 - 2015&#8211;10&#8211;06</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -706,7 +706,7 @@ script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called <code>priv</code> in the <code>Lux</code> application.</p>
 
-<p><strong>&#8211;hostname Hostname</strong>
+<p><strong>&#8211;hostname Hostname</strong><br/>
 The <code>Hostname</code>overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
@@ -776,6 +776,11 @@ to be written to standard output respective standard error. Multiple
 
 <p><strong>-t</strong><br/>
 A shortcut for <code>--progress=silent --tap=stdout</code>.</p>
+
+<p><strong>&#8211;case_prefix CasePrefix</strong><br/>
+A prefix string which is prepended to the script names in the user
+friendly log files (TAP and HTML). With this the log files can provide
+the context for the test case(s), such as subsystem or test suite.</p>
 
 <h2 id="timeouts">Timeouts</h2>
 
@@ -852,7 +857,7 @@ The <code>Revision</code> is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
-<p><strong>&#8211;hostname Hostname</strong>
+<p><strong>&#8211;hostname Hostname</strong><br/>
 The <code>Hostname</code>overrides the hostnames extracted from the log files.
 It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the

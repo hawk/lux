@@ -52,7 +52,10 @@ $(HTML): \
 	$(MARKDOWN) $(MD_TMP) >> $(HTML).tmp
 	cat html.footer >> $(HTML).tmp
 	mv $(HTML).tmp $(HTML)
-	/bin/echo "\nRead the documentation in the browser:\n\n\tfile://$(PWD)/$(HTML)"
+	@/bin/echo
+	@/bin/echo "Read the documentation in the browser:"
+	@/bin/echo
+	@/bin/echo "file://$(PWD)/$(HTML)"
 
 $(GEN_TOC).md: Makefile $(MARKDOWNS)
 	rm -f $@ $@.tmp

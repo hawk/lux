@@ -17,7 +17,7 @@
          pretty_full_lineno/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
-         cmd/2, chop_newline/1, cmd_expected/1, perms/1]).
+         cmd/2, chop_newline/1, cmd_expected/1, perms/1, pick_opt/3]).
 
 -include("lux.hrl").
 
@@ -30,7 +30,7 @@ builtin_dict() ->
     [
      "_DEL_=" ++ [127], % delete
      "_LF_="  ++ [10],  % line feed
-     "_TAB_=" ++ [9]   % tab
+     "_TAB_=" ++ [9]    % tab
     ].
 
 ctrl_dict() -> % From a-z
@@ -661,3 +661,10 @@ perms([])->
 perms(L) ->
     [[H|T] || H <- L,
               T <- perms(L--[H])].
+
+pick_opt(Tag, [{Tag, NewVal} | Opts], _OldVal) ->
+    pick_opt(Tag, Opts, NewVal);
+pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
+    pick_opt(Tag, Opts, Val);
+pick_opt(_Tag, [], Val) ->
+    Val.

@@ -166,6 +166,11 @@ to be written to standard output respective standard error. Multiple
 **-t**  
 A shortcut for `--progress=silent --tap=stdout`.
 
+**--case_prefix CasePrefix**  
+A prefix string which is prepended to the script names in the user
+friendly log files (TAP and HTML). With this the log files can provide
+the context for the test case(s), such as subsystem or test suite.
+
 Timeouts
 --------
 

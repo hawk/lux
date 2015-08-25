@@ -152,6 +152,8 @@ config_type(Name) ->
             {ok, #istate.skip_unless, [{env_list, [string]}]};
         require ->
             {ok, #istate.require, [{env_list, [string]}]};
+        case_prefix ->
+            {ok, #istate.case_prefix, [string]};
         config_dir ->
             {ok, #istate.config_dir, [string]};
         progress ->
@@ -434,6 +436,7 @@ config_data(I) ->
      {skip,                                    I#istate.skip},
      {skip_unless,                             I#istate.skip_unless},
      {require,                                 I#istate.require},
+     {case_prefix,                             I#istate.case_prefix},
      {progress,                                I#istate.progress},
      {log_dir,                                 I#istate.log_dir},
      {multiplier,                              I#istate.multiplier},

@@ -286,7 +286,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
             Ctime0 = FI#file_info.ctime,
             Ctime =  list_to_binary(lux_utils:datetime_to_string(Ctime0)),
             StartTime = find_config(<<"start time">>, Config, Ctime),
-            case pick_opt(hostname, Opts, undefined) of
+            case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
                     HostName = find_config(<<"hostname">>, Config,
                                            R#run.hostname);
@@ -327,12 +327,6 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
             R
     end.
 
-pick_opt(Tag, [{Tag, NewVal} | Opts], _OldVal) ->
-    pick_opt(Tag, Opts, NewVal);
-pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
-    pick_opt(Tag, Opts, Val);
-pick_opt(_Tag, [], Val) ->
-    Val.
 parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, Name, Log, _Doc, _HtmlLog, CaseRes}) ->

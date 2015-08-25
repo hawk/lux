@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.9 - 2015-10-06
+Version 1.9.1 - 2015-10-06
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -687,7 +687,7 @@ script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
 
-**--hostname Hostname**
+**--hostname Hostname**  
 The `Hostname`overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
@@ -757,6 +757,11 @@ to be written to standard output respective standard error. Multiple
 
 **-t**  
 A shortcut for `--progress=silent --tap=stdout`.
+
+**--case_prefix CasePrefix**  
+A prefix string which is prepended to the script names in the user
+friendly log files (TAP and HTML). With this the log files can provide
+the context for the test case(s), such as subsystem or test suite.
 
 Timeouts
 --------
@@ -835,7 +840,7 @@ The `Revision` is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the [command line option](#cmd_line_opts) `--history`.
 
-**--hostname Hostname**
+**--hostname Hostname**  
 The `Hostname`overrides the hostnames extracted from the log files.
 It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the

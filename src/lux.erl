@@ -7,7 +7,7 @@
 
 -module(lux).
 
--export([run/2, parse_file/4, interpret_commands/3, annotate_log/1, history/3]).
+-export([run/2, parse_file/4, interpret_commands/3, annotate_log/2, history/3]).
 -export([trace_me/4, trace_me/5]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -56,11 +56,11 @@ interpret_commands(File, Cmds, Opts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate log file(s)
 
--spec(annotate_log(filename()) ->
+-spec(annotate_log(filename(), opts()) ->
              ok | error()).
 
-annotate_log(LogFile) ->
-    lux_html:annotate_log(true, LogFile).
+annotate_log(LogFile, Opts) ->
+    lux_html:annotate_log(true, LogFile, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Assemble result history

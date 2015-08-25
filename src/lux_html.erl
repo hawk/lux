@@ -7,18 +7,22 @@
 
 -module(lux_html).
 
--export([annotate_log/2, history/3]).
+-export([annotate_log/3, history/3]).
 -export([keysplit/2, keysplit/3]).
 
  -include("lux.hrl").
 
--record(astate, {log_dir, log_file, source_file}).
+-record(astate, {log_dir, log_file, source_file, case_prefix, opts}).
 
-annotate_log(IsRecursive, LogFile) ->
+annotate_log(IsRecursive, LogFile, Opts) ->
     AbsLogFile = filename:absname(LogFile),
     IsEventLog = lists:suffix("event.log", AbsLogFile),
     LogDir = filename:dirname(AbsLogFile),
-    A = #astate{log_dir = LogDir, log_file = AbsLogFile},
+    CasePrefix = lux_utils:pick_opt(case_prefix, Opts, ""),
+    A = #astate{log_dir = LogDir,
+                log_file = AbsLogFile,
+                case_prefix = CasePrefix,
+                opts = Opts},
     Res =
         case IsEventLog of
             true  -> annotate_event_log(A);
@@ -61,9 +65,10 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
             Html = html_groups(A, AbsSummaryLog, Result, Groups, ArchConfig),
             case IsRecursive of
                 true ->
+                    O = A#astate.opts,
                     AnnotateEventLog =
                         fun(EventLog) ->
-                                case annotate_log(IsRecursive, EventLog) of
+                                case annotate_log(IsRecursive, EventLog, O) of
                                     ok ->
                                         ok;
                                     {error, _, Reason} ->
@@ -150,8 +155,9 @@ html_summary_file(A, {file, File, LineNo}, Groups) ->
             {test_group, _Group, Cases} <- Groups,
             {test_case, Name, _Log, _Doc, HtmlLog, _Res} <- Cases,
             File =:= Name],
+    RelScript = rel_script(A, File),
     RelFile = drop_prefix(A, File),
-    Label = [RelFile, ":", LineNo],
+    Label = [RelScript, ":", LineNo],
     case Files of
         [] ->
             [html_href("", "#" ++ RelFile, Label), "\n"];
@@ -169,13 +175,14 @@ html_groups2(_A, []) ->
 
 html_cases(A, [{test_case, Name, _EventLog, Doc, HtmlLog, Res} | Cases]) ->
     Tag = "a",
+    RelScript = rel_script(A, Name),
     RelFile = drop_prefix(A, Name),
     RelHtmlLog = drop_prefix(A, HtmlLog),
     %% RelEventLog = drop_prefix(A, EventLog),
     [
      html_anchor(RelFile, ""),
      "\n",
-     html_href("h2", "Test case: ", "", RelHtmlLog, RelFile),
+     html_href("h2", "Test case: ", "", RelHtmlLog, RelScript),
      "\n<div class=case><pre>",
      html_doc(Tag, Doc),
      %% html_href(Tag, "Raw event log: ", "", RelEventLog, RelEventLog),
@@ -187,10 +194,11 @@ html_cases(A, [{test_case, Name, _EventLog, Doc, HtmlLog, Res} | Cases]) ->
     ];
 html_cases(A, [{result_case, Name, Reason, Details} | Cases]) ->
     Tag = "a",
-    File = drop_prefix(A, Name),
+    RelScript = rel_script(A, Name),
+    RelFile = drop_prefix(A, Name),
     [
-     html_anchor(File, ""),
-     html_href("h3", "Test case: ", "", File, File),
+     html_anchor(RelFile, ""),
+     html_href("h3", "Test case: ", "", RelFile, RelScript),
      "\n<div class=case><pre>",
      "\n<", Tag, ">Result: <strong>", Reason, "</strong></", Tag, ">\n",
      "\n",
@@ -357,7 +365,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
         end,
     [
      html_header(["Lux event log (", Dir, ")"]),
-     "\n", html_href("h2", "", "", "#annotate", drop_prefix(A, Script)),
+     "\n", html_href("h2", "", "", "#annotate", rel_script(A, Script)),
      html_result("h2", Result, ""),
      html_href("h3", "", "", "#config", "Script configuration"),
      html_href("h3", "", "", "#cleanup", "Cleanup"),
@@ -1227,6 +1235,10 @@ html_files(A, [{file, Path, OrigPath} | Files]) ->
     ];
 html_files(_A, []) ->
     [].
+
+rel_script(A, AbsScript) ->
+    RelScript = drop_prefix(A, AbsScript),
+    A#astate.case_prefix ++ RelScript.
 
 drop_prefix(#astate{log_dir=LogDir}, File) ->
     drop_prefix(LogDir, File);

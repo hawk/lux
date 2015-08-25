@@ -101,6 +101,7 @@ updated_opts(I, DefaultI) ->
          {require, #istate.require},
          {config_dir, #istate.config_dir},
          {progress, #istate.progress},
+         {case_prefix, #istate.case_prefix},
          {log_dir, #istate.log_dir},
          {log_fun, #istate.log_fun},
          {multiplier, #istate.multiplier},

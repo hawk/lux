@@ -40,7 +40,7 @@ dispatch(Opts, OpModes, Specs, OrigArgs) ->
         {"--make"=Op, [_]}             -> make(Op);
         {"--install"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
         {"--reltool"=Op, [_]}          -> reltool(Op, Opts);
-        {"--annotate", [LogFile]}      -> annotate(LogFile);
+        {"--annotate", [LogFile]}      -> annotate(LogFile, Opts);
         {"--history", [LogDir]}        -> history(LogDir, Opts);
         undefined                      -> run(Opts);
         _                              -> usage(Specs)
@@ -108,6 +108,7 @@ specs() ->
      {"--skip_unless",        undefined,   string,                 mandatory},
      {"--skip_skip",          false,       boolean,                none},
      {"--require",            undefined,   string,                 mandatory},
+     {"--case_prefix",        undefined,   string,                 mandatory},
      {"--log_dir",            undefined,   string,                 mandatory},
      {"--config_dir",         undefined,   string,                 mandatory},
      {"--config_name",        undefined,   string,                 mandatory},
@@ -563,10 +564,11 @@ root_dir(Opts) ->
         {_, [RootDir]} -> {true, RootDir}
     end.
 
-annotate(LogFile0) ->
+annotate(LogFile0, Opts) ->
+    {_Files, Opts2} = translate_opts(Opts),
     LogFile = filename:absname(LogFile0),
     io:format("Annotating logs ~s...", [LogFile]),
-    case lux:annotate_log(LogFile) of
+    case lux:annotate_log(LogFile, Opts2) of
         ok ->
             io:format("...ok\n", []),
             io:format("\nfile://~s\n", [LogFile ++ ".html"]),
@@ -632,6 +634,7 @@ translate_opts([
      {"--skip_unless",        SkipUnless},
      {"--skip_skip",          SkipSkip},
      {"--require",            Require},
+     {"--case_prefix",        CasePrefix},
      {"--log_dir",            LogDir},
      {"--config_dir",         ConfigDir},
      {"--config_name",        ConfigName},
@@ -683,6 +686,7 @@ translate_opts([
          {skip_unless,        SkipUnless},
          {skip_skip,          SkipSkip},
          {require,            Require},
+         {case_prefix,        CasePrefix},
          {var,                Var},
          {mode,               Mode},
          {config_dir,         ConfigDir},
