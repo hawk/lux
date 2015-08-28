@@ -90,7 +90,9 @@ test(TAP, Outcome, Descr, Dir) ->
     write(TAP, [Outcome2, descr(Descr), dir(Dir)]).
 
 diag(TAP, Descr) when Descr =:= "\n" ->
-    write(TAP, []);
+    write(TAP, "");
+diag(TAP, Descr) when Descr =:= "" ->
+    write(TAP, ["    #", ""]);
 diag(TAP, Descr) when is_list(Descr), Descr =/= "" ->
     write(TAP, ["    # ", Descr]).
 

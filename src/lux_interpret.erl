@@ -9,15 +9,19 @@
 
 -include("lux.hrl").
 
--export([interpret_commands/4,
+-export([
+         interpret_commands/4,
          default_istate/1,
          parse_iopts/2,
          config_type/1,
-         set_config_val/5
+         set_config_val/5,
+         set_config_vals/5
         ]).
--export([opt_dispatch_cmd/1,
+-export([
+         opt_dispatch_cmd/1,
          lookup_macro/2,
-         flush_logs/1]).
+         flush_logs/1
+        ]).
 
 interpret_commands(Script, Cmds, Opts, Opaque) ->
     I = default_istate(Script),
@@ -64,10 +68,9 @@ interpret_commands(Script, Cmds, Opts, Opaque) ->
                 internal_error(I2, ParseReason)
         end
     catch
-        error:FatalReason ->
-            internal_error(I2, {'EXIT', FatalReason});
         Class:Reason ->
-            internal_error(I2, {'EXIT', {fatal_error, Class, Reason}})
+            Stack = erlang:get_stacktrace(),
+            internal_error(I2, {'EXIT', {fatal_error, Class, Reason, Stack}})
     end.
 
 case_log_dir(SuiteLogDir, AbsScript) ->
@@ -269,25 +272,42 @@ set_config_val(Name, Val, [Type | Types], Pos, I) ->
             {integer, _Min, _Max} when is_list(Val) ->
                 set_config_val(Name, list_to_integer(Val), [Type], Pos, I);
             {pred_list, SubTypes} when is_list(SubTypes) ->
-                set_config_val(Name, Val, SubTypes, Pos, I);
+                append_config_val(Name, Val, SubTypes, Pos, I);
             {env_list, SubTypes} when is_list(SubTypes) ->
-                set_config_val(Name, Val, SubTypes, Pos, I);
+                append_config_val(Name, Val, SubTypes, Pos, I);
             {reset_list, SubTypes} when is_list(SubTypes) ->
-                set_config_val(Name, Val, SubTypes, Pos, I);
+                append_config_val(Name, Val, SubTypes, Pos, I);
             io_device ->
                 {ok, setelement(Pos, I, Val)}
         end
     catch
         throw:{no_such_var, BadName} ->
-            {error, iolist_to_binary(lists:concat(["Bad argument: ",
-                                                   Name, "=", Val,
-                                                   "; $", BadName,
-                                                   " is not set"]))};
-        _:_ ->
+            Msg = ["Bad argument: ", Name, "=", Val,
+                   "; $", BadName, " is not set"],
+            {error, iolist_to_binary(lists:concat(Msg))};
+        _Class:_Reason ->
             set_config_val(Name, Val, Types, Pos, I)
     end;
 set_config_val(Name, Val, [], _Pos, _I) ->
     {error, iolist_to_binary(lists:concat(["Bad argument: ", Name, "=", Val]))}.
+
+set_config_vals(Name, Vals, Types, Pos, I) ->
+    Fun = fun(Val, {ok, AccI}) ->
+                  set_config_val(Name, Val, Types, Pos, AccI);
+             (_Val, {error, Reason}) ->
+                  {error, Reason}
+          end,
+    lists:foldl(Fun, {ok, I}, Vals).
+
+append_config_val(Name, Val, SubTypes, Pos, OldI) ->
+    case set_config_val(Name, Val, SubTypes, Pos, OldI) of
+        {ok, NewI} ->
+            OldVals = element(Pos, OldI),
+            NewVal = element(Pos, NewI),
+            {ok, setelement(Pos, NewI, OldVals ++ [NewVal])};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 wait_for_done(I, Pid, Docs) ->
     receive
@@ -495,7 +515,7 @@ config_data(I) ->
      {shell_args,                              I#istate.shell_args},
      {shell_prompt_cmd,                        I#istate.shell_prompt_cmd},
      {shell_prompt_regexp,                     I#istate.shell_prompt_regexp},
-     {var,                                     I#istate.global_dict},
+     {var,             [{env_list, [string]}], I#istate.global_dict},
      {builtin,         [{env_list, [string]}], I#istate.builtin_dict},
      {system_env,      [{env_list, [string]}], I#istate.system_dict}
     ].

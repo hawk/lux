@@ -37,6 +37,7 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                             mode = RunMode,
                             skip_skip = SkipSkip,
                             dicts = Dicts},
+                test_user_config(P, I),
                 {_FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 garbage_collect(),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
@@ -76,19 +77,19 @@ extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
 parse_config(I0, Config) ->
     Fun =
         fun({Name, Vals}, {ok, I}) ->
-                case lux_interpret:config_type(Name) of
-                    {ok, Pos, Types = [{pred_list, _}]} ->
-                        lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
-                    {ok, Pos, Types = [{env_list, _}]} ->
-                        lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
-                    {ok, Pos, Types = [{reset_list, _}]} ->
-                        lux_interpret:set_config_val(Name, Vals, Types, Pos, I);
-                    {ok, Pos, Types} ->
-                        Val = lists:last(Vals),
-                        lux_interpret:set_config_val(Name, Val, Types, Pos, I);
-                    {error, Reason} ->
-                        {error, Reason}
-                end;
+            case lux_interpret:config_type(Name) of
+                {ok, Pos, Types = [{pred_list, _}]} ->
+                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I);
+                {ok, Pos, Types = [{env_list, _}]} ->
+                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I);
+                {ok, Pos, Types = [{reset_list, _}]} ->
+                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I);
+                {ok, Pos, Types} ->
+                    Val = lists:last(Vals),
+                    lux_interpret:set_config_val(Name, Val, Types, Pos, I);
+                {error, Reason} ->
+                    {error, Reason}
+            end;
            (_, {error, Reason}) ->
                 {error, Reason}
         end,
@@ -626,6 +627,19 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                          Bad, "'"])
     end.
 
+test_user_config(P, I) ->
+    T =
+        fun(Var, NameVal) ->
+                Cmd = #cmd{type = config,
+                           arg = {config, Var, NameVal},
+                           lineno = 0,
+                           orig = <<>>},
+                test_skip(P, eof, Cmd)
+        end,
+    lists:foreach(fun(Val) -> T("skip", Val) end,        I#istate.skip),
+    lists:foreach(fun(Val) -> T("skip_unless", Val) end, I#istate.skip_unless),
+    lists:foreach(fun(Val) -> T("require", Val) end,     I#istate.require).
+
 test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
           #cmd{lineno = LineNo, arg = {config, Var, NameVal}} = Cmd) ->
     case Var of
@@ -636,7 +650,7 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
                     Cmd;
                 true ->
                     Reason = "SKIP as variable ~s is set",
-                    parse_skip(P, Fd, LineNo,?FF(Reason, [Name]))
+                    parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
             end;
         "skip_unless" when not SkipSkip ->
             {IsSet, Name} = test_variable(P, NameVal),
@@ -647,7 +661,7 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
                     Reason = "SKIP as variable ~s is not set",
                     parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
             end;
-        "require" when not SkipSkip, RunMode =:= execute ->
+        "require" when RunMode =:= execute ->
             {IsSet, Name} = test_variable(P, NameVal),
             case IsSet of
                 true ->

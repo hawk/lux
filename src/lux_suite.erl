@@ -63,21 +63,29 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
             R2 = compute_files(R, LogDir, LogBase),
-            R3 = R2#rstate{log_fd = undefined, summary_log = undefined},
-            {_ConfigData, R4} = parse_config(R3),
-            {R5, Summary, Results} =
-                run_suite(R4, R4#rstate.files, success, []),
-            write_results(R5, Summary, Results);
+            doc_run(R2);
         {ok, R} ->
+            TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
-            R2 = compute_files(R, LogDir, LogBase),
             SummaryLog = filename:join([LogDir, LogBase]),
-            case ensure_log_dir(R2, SummaryLog) of
-                {ok, R3} ->
-                    do_run(R3, SummaryLog);
-                {error, File, DirErr} ->
-                    {error, File, DirErr}
+            try
+                {ConfigData, R2} = parse_config(R), % May throw error
+                R3 = compute_files(R2, LogDir, LogBase),
+                R4 = ensure_log_dir(R3, SummaryLog),
+                full_run(R4, ConfigData, SummaryLog)
+            catch
+                throw:{error, FileErr, ReasonStr} ->
+                    {error, FileErr, ReasonStr};
+                Class:Reason ->
+                    ReasonStr =
+                        lists:flatten(io_lib:format("~p:~p ~p",
+                                                    [Class,
+                                                     Reason,
+                                                     erlang:get_stacktrace()])),
+                    {error, SummaryLog, ReasonStr}
+            after
+                cancel_timer(TimerRef)
             end;
         {error, {badarg, Name, Val}} ->
             ArgErr =
@@ -87,6 +95,17 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
             {error, hd(Files), ArgErr};
         {error, File, ArgErr} ->
             {error, File, ArgErr}
+    end.
+
+doc_run(R) ->
+    R2 = R#rstate{log_fd = undefined, summary_log = undefined},
+    try
+        {_ConfigData, R3} = parse_config(R2),
+        {R4, Summary, Results} = run_suite(R3, R3#rstate.files, success, []),
+        write_results(R4, Summary, Results)
+    catch
+        throw:{error, MainFile, ErrorBin} ->
+            {error, MainFile, ErrorBin}
     end.
 
 run_suite(R0, SuiteFiles, Summary, Results) ->
@@ -139,86 +158,69 @@ list_files(R, File) ->
             {error, Reason}
     end.
 
-do_run(#rstate{progress = Progress} = R, SummaryLog) ->
-    Opts = [{case_prefix, R#rstate.case_prefix}],
-    case lux_log:open_summary_log(Progress, SummaryLog, R#rstate.extend_run) of
+full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
+    ExtendRun = R#rstate.extend_run,
+    case lux_log:open_summary_log(Progress, SummaryLog, ExtendRun) of
         {ok, Exists, SummaryFd} ->
-            TimerRef = start_suite_timer(R),
-            try
-                R2 = R#rstate{log_fd = SummaryFd, summary_log = SummaryLog},
-                {ConfigData, R3} = parse_config(R2),
-                HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
-                InitialSummary = success,
-                SummaryPrio0 = lux_utils:summary_prio(InitialSummary),
-                InitialRes =
-                    case Exists of
-                        true ->
-                            TmpLog = SummaryLog ++ ".tmp",
-                            case lux_log:parse_summary_log(TmpLog) of
-                                {ok, _, Groups, _, _, _} ->
-                                    initial_results(Groups);
-                                {error, _, _} ->
-                                    []
-                            end;
-                        false ->
-                            LogDir = filename:dirname(SummaryLog),
-                            ConfigLog = filename:join([LogDir,
-                                                       "lux_config.log"]),
-                            ok = lux_log:write_config_log(ConfigLog,
-                                                          ConfigData),
-                            lux_log:write_results(R2#rstate.progress,
-                                                  SummaryLog, skip, [], []),
-                            %% Generate initial html log
-                            if
-                                SummaryPrio0 >= HtmlPrio,
-                                R3#rstate.mode =/= list,
-                                R3#rstate.mode =/= list_dir ->
-                                    annotate_summary_log(R3, skip, []);
-                                true ->
-                                    ok
-                            end,
-                            []
-                    end,
-                {R5, Summary, Results} =
-                    run_suite(R3, R3#rstate.files, InitialSummary, InitialRes),
-                print_results(R5, Summary, Results),
-                _ = write_results(R5, Summary, Results),
-                lux_log:close_summary_log(SummaryFd, SummaryLog),
-                SummaryPrio = lux_utils:summary_prio(Summary),
-                if
-                    SummaryPrio >= HtmlPrio,
-                    R5#rstate.mode =/= list,
-                    R5#rstate.mode =/= list_dir ->
-                        case lux_html:annotate_log(false, SummaryLog, Opts) of
-                            ok ->
-                                case R5#rstate.progress of
-                                    silent ->
-                                        ok;
-                                    _ ->
-                                        io:format("\nfile://~s\n",
-                                                  [SummaryLog ++ ".html"])
-                                end,
-                                {ok, Summary, SummaryLog, Results};
-                            {error, _File, _ReasonStr} = Error ->
-                                Error
-                        end;
+            R2 = R#rstate{log_fd = SummaryFd, summary_log = SummaryLog},
+            HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
+            InitialSummary = success,
+            SummaryPrio0 = lux_utils:summary_prio(InitialSummary),
+            InitialRes =
+                case Exists of
                     true ->
-                        {ok, Summary, SummaryLog, Results}
-                end
-            catch
-                throw:{error, File, ReasonStr} ->
-                    lux_log:close_summary_tmp_log(SummaryFd),
-                    {error, File, ReasonStr};
-                Class:Reason ->
-                    lux_log:close_summary_tmp_log(SummaryFd),
-                    ReasonStr =
-                        lists:flatten(io_lib:format("~p:~p ~p",
-                                                    [Class,
-                                                     Reason,
-                                                     erlang:get_stacktrace()])),
-                    {error, SummaryLog, ReasonStr}
-            after
-                cancel_timer(TimerRef)
+                        TmpLog = SummaryLog ++ ".tmp",
+                        case lux_log:parse_summary_log(TmpLog) of
+                            {ok, _, Groups, _, _, _} ->
+                                initial_results(Groups);
+                            {error, _, _} ->
+                                []
+                        end;
+                    false ->
+                        LogDir = filename:dirname(SummaryLog),
+                        ConfigLog = filename:join([LogDir,
+                                                   "lux_config.log"]),
+                        ok = lux_log:write_config_log(ConfigLog,
+                                                      ConfigData),
+                        lux_log:write_results(R2#rstate.progress,
+                                              SummaryLog, skip, [], []),
+                        %% Generate initial html log
+                        if
+                            SummaryPrio0 >= HtmlPrio,
+                            R2#rstate.mode =/= list,
+                            R2#rstate.mode =/= list_dir ->
+                                annotate_summary_log(R2, skip, []);
+                            true ->
+                                ok
+                        end,
+                        []
+                end,
+            {R3, Summary, Results} =
+                run_suite(R2, R2#rstate.files, InitialSummary, InitialRes),
+            print_results(R3, Summary, Results),
+            _ = write_results(R3, Summary, Results),
+            lux_log:close_summary_log(SummaryFd, SummaryLog),
+            SummaryPrio = lux_utils:summary_prio(Summary),
+            if
+                SummaryPrio >= HtmlPrio,
+                R3#rstate.mode =/= list,
+                R3#rstate.mode =/= list_dir ->
+                    Opts = [{case_prefix, R#rstate.case_prefix}],
+                    case lux_html:annotate_log(false, SummaryLog, Opts) of
+                        ok ->
+                            case R3#rstate.progress of
+                                silent ->
+                                    ok;
+                                _ ->
+                                    io:format("\nfile://~s\n",
+                                              [SummaryLog ++ ".html"])
+                            end,
+                            {ok, Summary, SummaryLog, Results};
+                        {error, _File, _ReasonStr} = Error ->
+                            Error
+                    end;
+                true ->
+                    {ok, Summary, SummaryLog, Results}
             end;
         {error, FileReason} ->
             FileErr =
@@ -398,6 +400,10 @@ adjust_log_dir(R) ->
 
 ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
                SummaryLog) ->
+    RelFiles = R#rstate.files,
+    TagFiles = [{config_dir, R#rstate.config_dir} |
+                [{file, F} || F <- RelFiles]],
+    lists:foreach(fun check_file/1, TagFiles), % May throw error
     case opt_ensure_dir(ExtendRun, SummaryLog) of
         ok ->
             ParentDir = filename:dirname(AbsLogDir),
@@ -405,32 +411,23 @@ ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
             Base = filename:basename(AbsLogDir),
             _ = file:delete(Link),
             _ = file:make_symlink(Base, Link),
-
-            RelFiles = R#rstate.files,
             AbsFiles = [normalize(F) || F <- RelFiles],
-            TagFiles = [{config_dir, R#rstate.config_dir} |
-                        [{file, F} || F <- RelFiles]],
-            try
-                lists:foreach(fun check_file/1, TagFiles),
-                {ok, R#rstate{files = AbsFiles}}
-            catch
-                throw:{error, File, Reason} ->
-                    {error, File, Reason}
-            end;
+            R#rstate{files = AbsFiles};
         summary_log_exists ->
-            {error,
-             AbsLogDir,
-             lux_log:safe_format(undefined,
-                                 "ERROR: Summary log file already exists:"
-                                 " ~s\n",
-                                 [SummaryLog])};
+            throw({error,
+                   AbsLogDir,
+                   lux_log:safe_format(undefined,
+                                       "ERROR: Summary log file already exists:"
+                                       " ~s\n",
+                                       [SummaryLog])});
         {error, FileReason} ->
-            {error,
-             AbsLogDir,
-             lux_log:safe_format(undefined,
-                                 "ERROR: Failed to create log directory:"
-                                 " ~s -> ~s\n",
-                                 [AbsLogDir, file:format_error(FileReason)])}
+            throw({error,
+                   AbsLogDir,
+                   lux_log:safe_format(undefined,
+                                       "ERROR: Failed to create log directory:"
+                                       " ~s -> ~s\n",
+                                       [AbsLogDir,
+                                        file:format_error(FileReason)])})
     end.
 
 normalize(File) ->
@@ -462,12 +459,10 @@ check_file({Tag, File}) ->
                 true ->
                     ok;
                 false ->
-                    BinErr =
-                        lux_log:safe_format(undefined,
-                                            "ERROR: ~p ~s: ~s\n",
-                                            [Tag,
-                                             File,
-                                             file:format_error(enoent)]),
+                    BinErr = io_lib:format("~p ~s: ~s\n",
+                                           [Tag,
+                                            File,
+                                            file:format_error(enoent)]),
                     throw({error, File, BinErr})
             end;
         file ->
@@ -475,11 +470,9 @@ check_file({Tag, File}) ->
                 true ->
                     ok;
                 false ->
-                    BinErr =
-                        lux_log:safe_format(undefined,
-                                            "ERROR: ~s: ~s \n",
-                                            [File,
-                                             file:format_error(enoent)]),
+                    BinErr = io_lib:format("~s: ~s \n",
+                                           [File,
+                                            file:format_error(enoent)]),
                     throw({error, File, BinErr})
             end
     end.
@@ -654,14 +647,14 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
                       CC+1, [Script|List], Opaque);
         {error, _R2, ErrorStack, ErrorBin} when RunMode =:= doc ->
             {MainFile, _FullLineNo, ErrorBin2} =
-                parse_error(ErrorStack, ErrorBin),
+                stack_error(ErrorStack, ErrorBin),
             io:format("~s:\n\tERROR: ~s: ~s\n",
                       [Script, MainFile, ErrorBin2]),
             run_cases(R, Scripts, OldSummary, Results,
                       CC+1, List, Opaque);
         {error, R2, ErrorStack, ErrorBin} ->
             {MainFile, FullLineNo, ErrorBin2} =
-                parse_error(ErrorStack, ErrorBin),
+                stack_error(ErrorStack, ErrorBin),
             init_case_rlog(R2, RelScript, Script),
             double_rlog(R2, "~sERROR ~s: ~s\n",
                         [?TAG("result"), MainFile, ErrorBin2]),
@@ -781,19 +774,25 @@ parse_config(R) ->
 
     %% Arch spec opts
     ActualConfigName = config_name(),
+    DefaultData =
+        builtins(R, ActualConfigName) ++
+        [{'default file', [string], DefaultFile}] ++ DefaultOpts,
     {ConfigName, ConfigFile} =
         config_file(R2, ConfigDir, R2#rstate.config_name, ActualConfigName),
-    ConfigOpts = parse_config_file(R2, ConfigFile),
-    ConfigOpts2 = lux_utils:split_args(ConfigOpts, []),
+    if
+        ConfigFile =/= DefaultFile ->
+            ConfigOpts = parse_config_file(R2, ConfigFile),
+            ConfigOpts2 = lux_utils:split_args(ConfigOpts, []),
+            ConfigData = [{'config file', [string], ConfigFile}] ++ ConfigOpts;
+        true ->
+            ConfigOpts2 = [],
+            ConfigData = []
+        end,
     R3 = R2#rstate{config_name = ConfigName,
                    config_dir = ConfigDir,
                    config_file = ConfigFile,
                    config_opts = ConfigOpts2},
-    ConfigData =
-        builtins(R, ActualConfigName) ++
-        [{'default file', [string], DefaultFile}] ++ DefaultOpts ++
-        [{'config file', [string], ConfigFile}] ++ ConfigOpts,
-    {ConfigData, R3}.
+    {DefaultData ++ ConfigData, R3}.
 
 builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
@@ -823,9 +822,10 @@ config_name() ->
             erlang:system_info(system_architecture)
     end.
 
-parse_config_file(R, ConfigFile) ->
+parse_config_file(R, AbsConfigFile) ->
     Opts0 = config_opts(R),
-    case lux:parse_file(ConfigFile, R#rstate.mode, false, Opts0) of
+    SkipSkip = true,
+    case lux:parse_file(AbsConfigFile, R#rstate.mode, SkipSkip, Opts0) of
         {ok, _File, _Cmds, Opts} ->
             Key = config_dir,
             Opts2 =
@@ -833,30 +833,29 @@ parse_config_file(R, ConfigFile) ->
                     false ->
                         Opts;
                     {_, Dir} ->
-                        Top = filename:dirname(ConfigFile),
+                        Top = filename:dirname(AbsConfigFile),
                         Dir2 = filename:absname(Dir, Top),
                         lists:keystore(Key, 1, Opts, {Key, Dir2})
                 end,
             lists:keydelete(log_dir, 1, Opts2);
+        {skip, _ErrorStack, _SkipBin} ->
+            [];
         {error, ErrorStack, ErrorBin} ->
             Enoent = list_to_binary(file:format_error(enoent)),
             if
                 ErrorBin =:= Enoent ->
-                    ok;
+                    [];
                 true ->
-                    {MainFile, FullLineNo, ErrorBin2} =
-                        parse_error(ErrorStack, ErrorBin),
-                    double_rlog(R, "~s~s: ~s: ~s\n",
-                                [?TAG("error"), MainFile,
-                                 ErrorBin2, FullLineNo])
-            end,
-            []
+                    {MainFile, _FullLineNo, ErrorBin2} =
+                        stack_error(ErrorStack, ErrorBin),
+                    throw({error, MainFile, ErrorBin2})
+            end
     end.
 
 config_opts(R) ->
     lists:append(lists:reverse(opts_dicts(R))).
 
-parse_error(ErrorStack, ErrorBin) ->
+stack_error(ErrorStack, ErrorBin) ->
     {MainFile, _, _} = hd(ErrorStack),
     {ErrorFile, _, _} = lists:last(ErrorStack),
     FullLineNo = lux_utils:pretty_full_lineno(ErrorStack),
@@ -980,7 +979,7 @@ opts_dicts(#rstate{internal_opts = I,
     [I, U, F, C, D].
 
 merge_opts(KeyVals, Acc) ->
-    merge_opts(lists:reverse(KeyVals), Acc, []).
+    merge_opts(KeyVals, Acc, []).
 
 merge_opts([{Key, Val} | KeyVals] = AllKeyVals, Acc, Updated) ->
     case lists:keyfind(Key, 1, Acc) of
@@ -1000,13 +999,19 @@ merge_opts([{Key, Val} | KeyVals] = AllKeyVals, Acc, Updated) ->
             merge_opts(KeyVals, Acc2, Updated2);
         pred ->
             %% Multi - Append new val
-            Acc2 = [{Key, Val} | Acc],
+            Acc2 = Acc ++ [{Key, Val}],
             merge_opts(KeyVals, Acc2, Updated2);
         env ->
-            %% Multi - handle settings with KEY=VAL syntax
-            Val2 = merge_env_opt([Val], OldVal),
-            Acc2 = lists:keystore(Key, 1, Acc, {Key, Val2}),
+            %% Multi - Append new val
+            Acc2 = Acc ++ [{Key, Val}],
             merge_opts(KeyVals, Acc2, Updated2);
+%%        env ->
+%%            %% Multi - handle settings with KEY=VAL syntax
+%%            Val2 = merge_env_opt([Val], OldVal),
+%%            Acc2 = lists:keystore(Key, 1, Acc, {Key, Val2}),
+%%            io:format("\nNEW ~p\n", [Acc2]),
+%%            io:format("\nOLD ~p\n", [Acc]),
+%%            merge_opts(KeyVals, Acc2, Updated2);
         replace ->
             %% Single - replace old val
             Acc2 = lists:keystore(Key, 1, Acc, {Key, Val}),
@@ -1030,15 +1035,15 @@ merge_oper(Key, Updated) ->
             replace
     end.
 
-merge_env_opt(Val, OldVal) ->
-    New = [list_to_tuple(string:tokens(V, "=")) || V <- lists:reverse(Val)],
-    Old = [list_to_tuple(string:tokens(V, "=")) || V <- OldVal],
-    Insert = fun(Tuple, Acc) ->
-                     SubKey = element(1, Tuple),
-                     lists:keystore(SubKey, 1, Acc, Tuple)
-             end,
-    Merged = lists:foldl(Insert, Old, New),
-    [string:join(tuple_to_list(T), "=") || T <- lists:keysort(1, Merged)].
+%% merge_env_opt(Val, OldVal) ->
+%%     New = [list_to_tuple(string:tokens(V, "=")) || V <- Val],
+%%     Old = [list_to_tuple(string:tokens(V, "=")) || V <- OldVal],
+%%     Insert = fun(Tuple, Acc) ->
+%%                      SubKey = element(1, Tuple),
+%%                      lists:keystore(SubKey, 1, Acc, Tuple)
+%%              end,
+%%     Merged = lists:foldl(Insert, Old, New),
+%%     [string:join(tuple_to_list(T), "=") || T <- lists:keysort(1, Merged)].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1121,7 +1126,8 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip} = R,
                      iolist_to_binary([Prefix, " at line ", FullLineNo]) |
                      binary:split(Details, <<"\n">>, [global])
                     ],
-            [ok = lux_tap:diag(TAP, binary_to_list(F)) || F <- Lines]
+            [ok = lux_tap:diag(TAP, binary_to_list(F)) ||
+                F <- Lines, F =/= <<>>]
     end;
 tap_case_end(#rstate{}, _CaseCount, _Script, _Result, _FullLineNo,
              _Reason, _Details) ->
