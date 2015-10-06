@@ -34,6 +34,8 @@
          extend_run = false         :: boolean(),
          revision = ""              :: string(),
          hostname = real_hostname() :: string(),
+         rerun = disable            :: enable | success | skip | warning |
+                                       fail | error | disable,
          html = enable              :: enable | success | skip | warning |
                                        fail | error | disable,
          warnings = []              :: [{warning, string(),
@@ -53,23 +55,29 @@
 
 run(Files, Opts) when is_list(Files) ->
     case parse_ropts(Opts, #rstate{files = Files}) of
-        {ok, _R} when Files =:= [] ->
-            FileErr = lux_log:safe_format(undefined,
-                                          "ERROR: Mandatory script files "
-                                          "are missing\n",
-                                          []),
-            {error, "", FileErr};
         {ok, R} when R#rstate.mode =:= list; R#rstate.mode =:= doc ->
-            R2 = R#rstate{log_fd = undefined, summary_log = undefined},
-            {_ConfigData, R3} = parse_config(R2),
-            {R4, Summary, Results} =
-                run_suite(R3, R3#rstate.files, success, []),
-            write_results(R4, Summary, Results);
+            if
+                Files =:= [] ->
+                    FileErr = lux_log:safe_format(undefined,
+                                                  "ERROR: Mandatory script "
+                                                  "files are missing\n",
+                                                  []),
+                    {error, "", FileErr};
+                true ->
+                    R2 = R#rstate{log_fd = undefined, summary_log = undefined},
+                    {_ConfigData, R3} = parse_config(R2),
+                    {R4, Summary, Results} =
+                        run_suite(R3, R3#rstate.files, success, []),
+                    write_results(R4, Summary, Results)
+            end;
         {ok, R} ->
-            SummaryLog = filename:join([R#rstate.log_dir, "lux_summary.log"]),
-            case ensure_log_dir(R, SummaryLog) of
-                {ok, R2} ->
-                    do_run(R2, SummaryLog);
+            LogDir = R#rstate.log_dir,
+            LogBase = "lux_summary.log",
+            R2 = compute_files(R, LogDir, LogBase),
+            SummaryLog = filename:join([LogDir, LogBase]),
+            case ensure_log_dir(R2, SummaryLog) of
+                {ok, R3} ->
+                    do_run(R3, SummaryLog);
                 {error, File, DirErr} ->
                     {error, File, DirErr}
             end;
@@ -88,11 +96,16 @@ run_suite(R0, SuiteFiles, Summary, Results) ->
     lux:trace_me(80, suite, string:join(SuiteFiles, " "), []),
     {ok, R} = tap_suite_begin(R0, Scripts, ""),
     try
-        Res = {NewR, NewSummary, NewResults} =
+        {NewR, NewSummary0, NewResults} =
             run_cases(R, Scripts, Summary, Results, 1),
+        NewSummary =
+            case NewResults of
+                [] -> error;
+                _  -> NewSummary0
+                end,
         lux:trace_me(80, suite, NewSummary, []),
         tap_suite_end(NewR, NewSummary, NewResults),
-        Res
+        {NewR, NewSummary, NewResults}
     catch Class:Reason ->
             lux:trace_me(80, suite, Class, [Reason]),
             lux_tap:bail_out(R#rstate.tap, "Internal error"),
@@ -209,6 +222,53 @@ do_run(#rstate{progress = Progress} = R, SummaryLog) ->
             {error, SummaryLog, FileErr}
     end.
 
+
+compute_files(R, _LogDir, _LogBase) when R#rstate.rerun =:= disable ->
+    R;
+compute_files(R, _LogDir, LogBase) when R#rstate.files =/= [] ->
+    OldLogDirs = R#rstate.files,
+    compute_files(R, OldLogDirs, LogBase, []);
+compute_files(R, LogDir, LogBase) ->
+    OldLogDirs = [filename:join([filename:dirname(LogDir), "latest_run"])],
+    compute_files(R, OldLogDirs, LogBase, []).
+
+compute_files(R, [LogDir|LogDirs], LogBase, Acc) ->
+    OldLog = filename:join([LogDir, LogBase]),
+    LatestRes =
+        case lux_log:parse_summary_log(OldLog) of
+            {ok, _, Groups, _, _, _} ->
+                initial_results(Groups);
+            {error, _, _} ->
+                []
+        end,
+    Files = compute_files(R, LatestRes),
+    compute_files(R, LogDirs, LogBase, Files ++ Acc);
+compute_files(R, [], _LogBase, Acc) ->
+    R#rstate{files = lists:usort(Acc)}.
+
+compute_files(R, InitialRes) ->
+    MinCond = lux_utils:summary_prio(R#rstate.rerun),
+    Return = fun(Res, Script) ->
+                     Cond = lux_utils:summary_prio(Res),
+                     if
+                         Cond >= MinCond ->
+                             RelScript = lux_utils:drop_prefix(Script),
+                             {true, binary_to_list(RelScript)};
+                         true ->
+                             false
+                     end
+             end,
+    Filter =
+        fun(Res) ->
+                case Res of
+                    {ok, ScriptRes, Script, _RawLineNo, _} ->
+                        Return(ScriptRes, Script);
+                    {error, Script, _RawLineNo, _Reason} ->
+                        Return(error, Script)
+                end
+        end,
+    lists:zf(Filter, InitialRes).
+
 initial_results(Groups) ->
     Fun =
         fun(Script, {result, Res}) ->
@@ -266,6 +326,11 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
         mode when Val =:= list; Val =:= doc;
                   Val =:= validate; Val =:= execute ->
             parse_ropts(T, R#rstate{mode = Val});
+        rerun when Val =:= enable; Val =:= success;
+                   Val =:= skip; Val =:= warning;
+                   Val =:= fail; Val =:= error;
+                   Val =:= disable ->
+            parse_ropts(T, R#rstate{rerun = Val});
         html when Val =:= enable; Val =:= success;
                   Val =:= skip; Val =:= warning;
                   Val =:= fail; Val =:= error;

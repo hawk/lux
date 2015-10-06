@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.8.6 - 2015&#8211;08&#8211;06</p>
+<p>Version 1.9 - 2015&#8211;10&#8211;06</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -657,6 +657,28 @@ Mode can be one of :</p>
  with a tab char for each doc level.</li>
 </ul>
 
+<p><strong>&#8211;rerun Result</strong><br/>
+Rerun old test cases. The test case candidates are found by parsing
+old log summary files. If any <code>File</code> is explicitly given on command
+line these files are interpreted as log directories possibly
+containing summary log files. If no <code>File</code> is given the log directory
+referred to by the <code>latest_run</code> link is used.</p>
+
+<p>For each found test case its result must have the same outcome or
+higher (worse) than <code>Result</code>.<code>Result</code> is an enum whose names and
+relative values are as follows:</p>
+
+<pre><code>enable &lt; success &lt; skip &lt; warning &lt; fail &lt; error &lt; disable
+</code></pre>
+
+<p>For example <code>--rerun=fail</code> implies that all old test cases whose
+outcome is fail or error will be rerun.</p>
+
+<p>Default is <code>disabled</code>, which means that this behavior is disabled.</p>
+
+<p><strong>-r</strong><br/>
+A shortcut for <code>--rerun=fail</code>.</p>
+
 <p><strong>&#8211;file_pattern</strong><br/>
 Specify file pattern for scripts to be executed when a directory is
 given. Defaults to <code>.*.lux$</code>.</p>
@@ -684,7 +706,7 @@ script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called <code>priv</code> in the <code>Lux</code> application.</p>
 
-<p><strong>&#8211;hostname Hostname</strong><br/>
+<p><strong>&#8211;hostname Hostname</strong>
 The <code>Hostname</code>overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
@@ -740,17 +762,20 @@ If the actual outcome is the same or higher than <code>Html</code> then the
 logs will be converted. The possible outcome and their relative
 values are as follows:</p>
 
-<pre><code>success &lt; skip &lt; warning &lt; fail &lt; error &lt; never
+<pre><code>enable &lt; success &lt; skip &lt; warning &lt; fail &lt; error &lt; disable
 </code></pre>
 
-<p>The logs can be converted to HTML manually by using the command line
-option <code>--annotate</code>.</p>
+<p>Default is <code>enable</code>. The logs can be converted to HTML manually by
+using the command line option <code>--annotate</code>.</p>
 
 <p><strong>&#8211;tap LogFile</strong><br/>
 A file where <a href="http://testanything.org/" title="Test Anything Protocol">TAP</a> events should be written. The file names
 <code>stdout</code> and <code>stdin</code> are specially handled. They causes the log events
 to be written to standard output respective standard error. Multiple
 &#8220;files&#8221; can be given.</p>
+
+<p><strong>-t</strong><br/>
+A shortcut for <code>--progress=silent --tap=stdout</code>.</p>
 
 <h2 id="timeouts">Timeouts</h2>
 
@@ -827,7 +852,7 @@ The <code>Revision</code> is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
-<p><strong>&#8211;hostname Hostname</strong><br/>
+<p><strong>&#8211;hostname Hostname</strong>
 The <code>Hostname</code>overrides the hostnames extracted from the log files.
 It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the
@@ -861,6 +886,15 @@ a failure or a potential failure.</p>
 <p><code>[progress String]</code> can also be used to display progress info.</p>
 
 <p>The <code>ProgressLevel</code> can also interactively be changed via the debugger.</p>
+
+<p><strong>-c</strong><br/>
+A shortcut for <code>--progress=compact</code>.</p>
+
+<p><strong>-v</strong><br/>
+A shortcut for <code>--progress=verbose</code>.</p>
+
+<p><strong>-t</strong><br/>
+A shortcut for <code>--progress=silent --tap=stdout</code>.</p>
 
 <p><strong>&#8211;debug</strong><br/>
 The debugger is always available (even without this flag) and waiting

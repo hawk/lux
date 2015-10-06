@@ -79,6 +79,7 @@ select_op(_Opts, []) ->
 specs() ->
     [
      {"-h",                   ["--help"]},
+     {"-r",                   ["--rerun=fail"]},
      {"-c",                   ["--progress=compact"]},
      {"-v",                   ["--progress=verbose"]},
      {"-t",                   ["--progress=silent", "--tap=stdout"]},
@@ -99,7 +100,8 @@ specs() ->
      {"--reltool",            false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
-     {"--html",               enable,      fun html_arg/1,         mandatory},
+     {"--rerun",              enable,      fun prio_arg/1,         mandatory},
+     {"--html",               enable,      fun prio_arg/1,         mandatory},
      {"--debug",              false,       boolean,                none},
      {"--debug_file",         undefined,   string,                 mandatory},
      {"--skip",               undefined,   string,                 mandatory},
@@ -155,9 +157,9 @@ mode_arg(Mode) ->
         "execute"  -> execute
     end.
 
-html_arg(usage) ->
+prio_arg(usage) ->
     "enum(enable|success|skip|warning|fail|error|disable)";
-html_arg(Mode) ->
+prio_arg(Mode) ->
     case Mode of
         "enable"  -> enable;
         "success" -> success;
@@ -622,6 +624,7 @@ translate_opts([
      {"--reltool",            _Reltool},
      {"--annotate",           _LogFile},
      {"--history",            _LogDir},
+     {"--rerun",              ReRun},
      {"--html",               Html},
      {"--debug",              Debug},
      {"--debug_file",         DebugFile},
@@ -661,6 +664,7 @@ translate_opts([
          {debug,              Debug},
          {debug_file,         DebugFile},
          {progress,           Progress},
+         {rerun,              ReRun},
          {html,               Html},
          {case_timeout,       CaseTimeout},
          {flush_timeout,      FlushTimeout},

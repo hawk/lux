@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.8.6 - 2015-08-06
+Version 1.9 - 2015-10-06
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -639,6 +639,27 @@ Mode can be one of :
                strings, one on each line. The doc strings are indented
                with a tab char for each doc level.
 
+**--rerun Result**  
+Rerun old test cases. The test case candidates are found by parsing
+old log summary files. If any `File` is explicitly given on command
+line these files are interpreted as log directories possibly
+containing summary log files. If no `File` is given the log directory
+referred to by the `latest_run` link is used.
+
+For each found test case its result must have the same outcome or
+higher (worse) than `Result`.`Result` is an enum whose names and
+relative values are as follows:
+
+    enable < success < skip < warning < fail < error < disable
+
+For example `--rerun=fail` implies that all old test cases whose
+outcome is fail or error will be rerun.
+
+Default is `disabled`, which means that this behavior is disabled.
+
+**-r**  
+A shortcut for `--rerun=fail`.
+
 **--file\_pattern**  
 Specify file pattern for scripts to be executed when a directory is
 given. Defaults to `.*.lux$`.
@@ -666,7 +687,7 @@ script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
 
-**--hostname Hostname**  
+**--hostname Hostname**
 The `Hostname`overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
@@ -723,16 +744,19 @@ If the actual outcome is the same or higher than `Html` then the
 logs will be converted. The possible outcome and their relative
 values are as follows:
 
-    success < skip < warning < fail < error < never
+    enable < success < skip < warning < fail < error < disable
 
-The logs can be converted to HTML manually by using the command line
-option `--annotate`.
+Default is `enable`. The logs can be converted to HTML manually by
+using the command line option `--annotate`.
 
 **--tap LogFile**  
 A file where [TAP][TAP] events should be written. The file names
 `stdout` and `stdin` are specially handled. They causes the log events
 to be written to standard output respective standard error. Multiple
 "files" can be given.
+
+**-t**  
+A shortcut for `--progress=silent --tap=stdout`.
 
 Timeouts
 --------
@@ -811,7 +835,7 @@ The `Revision` is used for bookkeeping a repository revision
 (changeset) which later is used for printing out the history of test
 runs. See the [command line option](#cmd_line_opts) `--history`.
 
-**--hostname Hostname**  
+**--hostname Hostname**
 The `Hostname`overrides the hostnames extracted from the log files.
 It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the
@@ -830,7 +854,7 @@ to the `event log`. verbose contains the same info as compact but is
 more readable (the newlines are expanded). `silent` means that no
 progress at all is printed. The `brief` characters have the following
 meanings:
-   
+
        . - a new row in the script is being interpreted
        : - output is being received from a shell
        c - the cleanup marker
@@ -845,6 +869,15 @@ a failure or a potential failure.
 `[progress String]` can also be used to display progress info.
 
 The `ProgressLevel` can also interactively be changed via the debugger.
+
+**-c**  
+A shortcut for `--progress=compact`.
+
+**-v**  
+A shortcut for `--progress=verbose`.
+
+**-t**  
+A shortcut for `--progress=silent --tap=stdout`.
 
 **--debug**  
 The debugger is always available (even without this flag) and waiting
