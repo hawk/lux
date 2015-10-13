@@ -72,7 +72,7 @@ open_summary_log(Progress, SummaryLog, ExtendRun) ->
                         _ ->
                             StdoutIoList =
                                 io_lib:format("~s~s\n",
-                                              [?TAG("summary log"),
+                                              [?TAG(?SUMMARY_TAG),
                                                SummaryLog]),
                             safe_write(undefined, StdoutIoList)
                     end,
@@ -850,7 +850,7 @@ safe_write(OptFd, IoList) when is_list(IoList) ->
 safe_write(OptFd, Bin) when is_binary(Bin) ->
     case OptFd of
         undefined ->
-            ok = io:format(Bin),
+            ok = io:format("~s", [Bin]),
             Bin;
         Fd ->
             ok = file:write(Fd, Bin),
