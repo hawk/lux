@@ -101,7 +101,7 @@ run_suite(R0, SuiteFiles, Summary, Results) ->
             run_cases(R, Scripts, Summary, Results, 1),
         NewSummary =
             case NewResults of
-                [] -> error;
+                [] -> warning;
                 _  -> NewSummary0
                 end,
         lux:trace_me(80, suite, NewSummary, []),

@@ -608,6 +608,7 @@ exit_code(Summary) ->
     case Summary of
         success -> 0;
         skip    -> 0;
+        warning -> 0;
         fail    -> 1;
         error   -> 1
     end.
