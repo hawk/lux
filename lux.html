@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.9.1 - 2015&#8211;10&#8211;06</p>
+<p>Version 1.9.2 - 2015&#8211;10&#8211;19</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -648,8 +648,10 @@ Mode can be one of :</p>
 <li><code>execute</code> - evaluates the test cases. This is default.</li>
 <li><code>validate</code> - parse all script files and configuration files and
  report syntax errors and warnings.</li>
-<li><code>list</code> - display a list of all test cases. One filename on
- each line.</li>
+<li><code>list</code> - display a list of all (non-skipped) test cases.
+ One file per line.</li>
+<li><code>list_dir</code> - display a list of all directories with non-skipped
+ test cases. One directory per line.</li>
 <li><code>doc</code> - extract all <code>[doc]</code> strings and display them on a
  simple format. First the main file name is printed on
  an own line ending with a colon, followed by all doc

@@ -160,7 +160,7 @@ do_file_open( File, RM) when RM =:= validate; RM =:= execute ->
         {error, FileReason} ->
             {error, FileReason}
     end;
-do_file_open(File, RM) when RM =:= doc; RM =:= list ->
+do_file_open(File, RM) when RM =:= doc; RM =:= list; RM =:= list_dir ->
     %% Read lines on demand
     case file:open(File, [raw, binary, read_ahead]) of
         {ok, Io} ->
@@ -310,7 +310,7 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
         RunMode =:= validate; RunMode =:= execute ->
             Cmd2 = parse_single(Cmd, Data),
             parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
-        RunMode =:= list; RunMode =:= doc ->
+        RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Skip command
             parse(P, Fd, LineNo+Incr+1, Tokens)
     end.
@@ -420,9 +420,11 @@ parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                         [NewCmd | Tokens];
                     NewType =:= include  ->
                         [NewCmd | Tokens];
-                    NewType =:= doc, P#pstate.mode =/= list ->
+                    NewType =:= doc,
+                    P#pstate.mode =/= list,
+                    P#pstate.mode =/= list_dir ->
                         [NewCmd | Tokens];
-                    RunMode =:= list; RunMode =:= doc ->
+                    RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
                         %% Skip command
                         Tokens;
                     RunMode =:= validate; RunMode =:= execute ->
@@ -451,7 +453,7 @@ parse_body(#pstate{mode = RunMode} = P,
                          integer_to_list(LineNo),
                          ": [" ++ EndKeyword ++ "] expected"]);
         {line, _EndMacro, NewFd, Incr}
-          when RunMode =:= list; RunMode =:= doc ->
+          when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Do not parse body
             BodyLen = length(BodyLines)+BodyIncr,
             LastLineNo = LineNo+Incr+BodyLen+1,
@@ -755,7 +757,7 @@ parse_multi(#pstate{mode = RunMode} = P,
                          ": multi line block must end in same column as"
                          " it started on line ", integer_to_list(LineNo)]);
         {line, _EndOfMulti, NewFd, Incr}
-          when RunMode =:= list; RunMode =:= doc ->
+          when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Skip command
             LastLineNo = LastLineNo0+Incr,
             parse(P, NewFd, LastLineNo+1, Tokens);

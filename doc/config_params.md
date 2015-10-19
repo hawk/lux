@@ -39,8 +39,10 @@ Mode can be one of :
 * `execute`  - evaluates the test cases. This is default.
 * `validate` - parse all script files and configuration files and
                report syntax errors and warnings.
-* `list`     - display a list of all test cases. One filename on
-               each line.
+* `list`     - display a list of all (non-skipped) test cases.
+               One file per line.
+* `list_dir` - display a list of all directories with non-skipped
+               test cases. One directory per line.
 * `doc`      - extract all `[doc]` strings and display them on a
                simple format. First the main file name is printed on
                an own line ending with a colon, followed by all doc

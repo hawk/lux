@@ -56,7 +56,9 @@
 
 run(Files, Opts) when is_list(Files) ->
     case parse_ropts(Opts, #rstate{files = Files}) of
-        {ok, R} when R#rstate.mode =:= list; R#rstate.mode =:= doc ->
+        {ok, R} when R#rstate.mode =:= list;
+                     R#rstate.mode =:= list_dir;
+                     R#rstate.mode =:= doc ->
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
             R2 = compute_files(R, LogDir, LogBase),
@@ -92,7 +94,7 @@ run_suite(R0, SuiteFiles, Summary, Results) ->
     {ok, R} = tap_suite_begin(R0, Scripts, ""),
     try
         {NewR, NewSummary0, NewResults} =
-            run_cases(R, Scripts, Summary, Results, 1),
+            run_cases(R, Scripts, Summary, Results, 1, []),
         NewSummary =
             case NewResults of
                 [] -> warning;
@@ -103,7 +105,12 @@ run_suite(R0, SuiteFiles, Summary, Results) ->
         {NewR, NewSummary, NewResults}
     catch Class:Reason ->
             lux:trace_me(80, suite, Class, [Reason]),
-            lux_tap:bail_out(R#rstate.tap, "Internal error"),
+            if
+                R#rstate.tap =/= undefined ->
+                    lux_tap:bail_out(R#rstate.tap, "Internal error");
+                true ->
+                    ok
+            end,
             erlang:raise(Class, Reason, erlang:get_stacktrace())
     end.
 
@@ -162,7 +169,8 @@ do_run(#rstate{progress = Progress} = R, SummaryLog) ->
                             %% Generate initial html log
                             if
                                 SummaryPrio0 >= HtmlPrio,
-                                R3#rstate.mode =/= list ->
+                                R3#rstate.mode =/= list,
+                                R3#rstate.mode =/= list_dir ->
                                     annotate_summary_log(R3, skip, []);
                                 true ->
                                     ok
@@ -176,7 +184,9 @@ do_run(#rstate{progress = Progress} = R, SummaryLog) ->
                 lux_log:close_summary_log(SummaryFd, SummaryLog),
                 SummaryPrio = lux_utils:summary_prio(Summary),
                 if
-                    SummaryPrio >= HtmlPrio, R5#rstate.mode =/= list ->
+                    SummaryPrio >= HtmlPrio,
+                    R5#rstate.mode =/= list,
+                    R5#rstate.mode =/= list_dir ->
                         case lux_html:annotate_log(false, SummaryLog, Opts) of
                             ok ->
                                 case R5#rstate.progress of
@@ -323,7 +333,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{hostname = Val});
         skip_skip when Val =:= true; Val =:= false ->
             parse_ropts(T, R#rstate{skip_skip = Val});
-        mode when Val =:= list; Val =:= doc;
+        mode when Val =:= list; Val =:= list_dir; Val =:= doc;
                   Val =:= validate; Val =:= execute ->
             parse_ropts(T, R#rstate{mode = Val});
         rerun when Val =:= enable; Val =:= success;
@@ -469,10 +479,12 @@ r2(Int) when is_integer(Int) ->
 r2(String) when is_list(String) ->
     string:right(String, 2, $0).
 
-run_cases(R, [{_SuiteFile,{error,_Reason}}|Scripts], OldSummary, Results, CC)
-  when R#rstate.mode =:= list ->
-    run_cases(R, Scripts, OldSummary, Results, CC+1);
-run_cases(R, [{SuiteFile, {error,Reason}}|Scripts], OldSummary, Results, CC) ->
+run_cases(R, [{_SuiteFile,{error,_Reason}}|Scripts],
+          OldSummary, Results, CC, List)
+  when R#rstate.mode =:= list; R#rstate.mode =:= list_dir ->
+    run_cases(R, Scripts, OldSummary, Results, CC+1, List);
+run_cases(R, [{SuiteFile, {error,Reason}}|Scripts],
+          OldSummary, Results, CC, List) ->
     RelSuiteFile = rel_script(R, SuiteFile),
     init_case_rlog(R, RelSuiteFile, SuiteFile),
     ListErr =
@@ -483,8 +495,9 @@ run_cases(R, [{SuiteFile, {error,Reason}}|Scripts], OldSummary, Results, CC) ->
     tap_case_begin(R, SuiteFile),
     lux:trace_me(70, 'case', suite, error, [Reason]),
     tap_case_end(R, CC, SuiteFile, error, "0", Reason, Reason),
-    run_cases(R, Scripts, OldSummary, Results2, CC+1);
-run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
+    run_cases(R, Scripts, OldSummary, Results2, CC+1, List);
+run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
+          OldSummary, Results, CC, List) ->
     RelScript = rel_script(R, Script),
     RunMode = R#rstate.mode,
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
@@ -493,12 +506,15 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             case RunMode of
                 list ->
-                    io:format("~s\n", [Script]),
-                    run_cases(R2, Scripts, OldSummary, Results, CC+1);
+                    run_cases(R2, Scripts, OldSummary, Results,
+                              CC+1, [Script|List]);
+                list_dir ->
+                    run_cases(R2, Scripts, OldSummary, Results,
+                              CC+1, [Script|List]);
                 doc ->
                     Docs = extract_doc(Script2, Cmds),
                     io:format("~s:\n",
-                              [lux_utils:drop_prefix(Script)]),
+                              [lux_utils:drop_prefix(Script2)]),
                     [io:format("~s~s\n", [lists:duplicate(Level, $\t), Str]) ||
                         #cmd{arg = {Level, Str}} <- Docs],
                     case NewWarnings of
@@ -512,7 +528,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                                         Results]
                     end,
                     run_cases(R#rstate{warnings = AllWarnings},
-                              Scripts, NewSummary, Results2, CC+1);
+                              Scripts, NewSummary, Results2, CC+1, List);
                 validate ->
                     init_case_rlog(R2, RelScript, Script),
                     case NewWarnings of
@@ -530,7 +546,7 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                                 [?TAG("result"),
                                  string:to_upper(atom_to_list(Summary))]),
                     run_cases(R#rstate{warnings = AllWarnings},
-                              Scripts, NewSummary, Results2, CC+1);
+                              Scripts, NewSummary, Results2, CC+1, List);
                 execute ->
                     lux:trace_me(70, suite, 'case', RelScript, []),
                     tap_case_begin(R, Script),
@@ -582,10 +598,12 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
                         true ->
                             ignore
                     end,
-                    run_cases(R3, NewScripts, NewSummary, NewResults, CC+1)
+                    run_cases(R3, NewScripts, NewSummary, NewResults,
+                              CC+1, List)
             end;
-        {skip, R2, _ErrorStack, _SkipReason} when RunMode =:= list ->
-            run_cases(R2, Scripts, OldSummary, Results, CC+1);
+        {skip, R2, _ErrorStack, _SkipReason}
+          when RunMode =:= list; RunMode =:= list_dir ->
+            run_cases(R2, Scripts, OldSummary, Results, CC+1, List);
         {skip, R2, ErrorStack, SkipReason} ->
             {Script2, _, _} = lists:last(ErrorStack),
             lux:trace_me(70, suite, 'case', RelScript, []),
@@ -607,16 +625,16 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             run_cases(R2#rstate{warnings = AllWarnings},
-                      Scripts, NewSummary, Results2, CC+1);
-        {error, _R2, _ErrorStack, _ErrorBin} when RunMode =:= list ->
-            io:format("~s\n", [Script]),
-            run_cases(R, Scripts, OldSummary, Results, CC+1);
+                      Scripts, NewSummary, Results2, CC+1, List);
+        {error, _R2, _ErrorStack, _ErrorBin}
+          when RunMode =:= list; RunMode =:= list_dir ->
+            run_cases(R, Scripts, OldSummary, Results, CC+1, [Script|List]);
         {error, _R2, ErrorStack, ErrorBin} when RunMode =:= doc ->
             {MainFile, _FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
             io:format("~s:\n\tERROR: ~s: ~s\n",
                       [Script, MainFile, ErrorBin2]),
-            run_cases(R, Scripts, OldSummary, Results, CC+1);
+            run_cases(R, Scripts, OldSummary, Results, CC+1, List);
         {error, R2, ErrorStack, ErrorBin} ->
             {MainFile, FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
@@ -633,9 +651,21 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts], OldSummary, Results, CC) ->
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Results2 = [{error, MainFile, FullLineNo, ErrorBin2} | Results],
             run_cases(R#rstate{warnings = AllWarnings},
-                      Scripts, NewSummary, Results2, CC+1)
+                      Scripts, NewSummary, Results2, CC+1, List)
     end;
-run_cases(R, [], Summary, Results, _CC) ->
+run_cases(R, [], Summary, Results, _CC, List) ->
+    List2 = [lux_utils:drop_prefix(File) || File <- List],
+    case R#rstate.mode of
+        list ->
+            [io:format("~s\n", [File]) ||
+                File <- lists:usort(List2)];
+        list_dir ->
+            List3 = [filename:dirname(File) || File <- List2],
+            [io:format("~s\n", [File]) ||
+                File <- lists:usort(List3)];
+        _ ->
+            ok
+    end,
     {R, Summary, lists:reverse(Results)}.
 
 annotate_summary_log(R, NewSummary, NewResults) ->
@@ -660,7 +690,7 @@ extract_doc(File, Cmds) ->
 
 write_results(#rstate{mode=Mode, summary_log=SummaryLog},
               Summary, Results)
-  when Mode =:= list; Mode =:= doc ->
+  when Mode =:= list; Mode =:= list_dir; Mode =:= doc ->
     {ok, Summary, SummaryLog, Results};
 write_results(#rstate{progress=Progress,
                       summary_log=SummaryLog,
@@ -987,7 +1017,9 @@ merge_env_opt(Val, OldVal) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 tap_suite_begin(R, Scripts, Directive)
-  when R#rstate.mode =/= list, R#rstate.mode =/= doc ->
+  when R#rstate.mode =/= list,
+       R#rstate.mode =/= list_dir,
+       R#rstate.mode =/= doc ->
     TapLog = filename:join([R#rstate.log_dir, "lux.tap"]),
     TapOpts = [TapLog | R#rstate.tap_opts],
     case lux_tap:open(TapOpts) of

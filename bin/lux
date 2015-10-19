@@ -153,6 +153,7 @@ mode_arg(usage) ->
 mode_arg(Mode) ->
     case Mode of
         "list"     -> list;
+        "list_dir" -> list_dir;
         "doc"      -> doc;
         "validate" -> validate;
         "execute"  -> execute
