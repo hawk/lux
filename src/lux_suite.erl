@@ -57,20 +57,14 @@
 run(Files, Opts) when is_list(Files) ->
     case parse_ropts(Opts, #rstate{files = Files}) of
         {ok, R} when R#rstate.mode =:= list; R#rstate.mode =:= doc ->
-            if
-                Files =:= [] ->
-                    FileErr = lux_log:safe_format(undefined,
-                                                  "ERROR: Mandatory script "
-                                                  "files are missing\n",
-                                                  []),
-                    {error, "", FileErr};
-                true ->
-                    R2 = R#rstate{log_fd = undefined, summary_log = undefined},
-                    {_ConfigData, R3} = parse_config(R2),
-                    {R4, Summary, Results} =
-                        run_suite(R3, R3#rstate.files, success, []),
-                    write_results(R4, Summary, Results)
-            end;
+            LogDir = R#rstate.log_dir,
+            LogBase = "lux_summary.log",
+            R2 = compute_files(R, LogDir, LogBase),
+            R3 = R2#rstate{log_fd = undefined, summary_log = undefined},
+            {_ConfigData, R4} = parse_config(R3),
+            {R5, Summary, Results} =
+                run_suite(R4, R4#rstate.files, success, []),
+            write_results(R5, Summary, Results);
         {ok, R} ->
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
