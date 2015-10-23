@@ -758,7 +758,7 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables,
     [
      html_header(["Lux history ", Section, " (", Dir, ")"]),
      "<h1>Lux history ", Section, " (", Dir, ") generated at ",
-     lux_utils:now_to_string(erlang:now()),
+     lux_utils:now_to_string(erlang:timestamp()),
      "</h1>",
 
      "<h3>", N, " runs within this range of repository revisions</h3>\n",

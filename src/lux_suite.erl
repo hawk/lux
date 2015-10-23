@@ -358,7 +358,7 @@ parse_ropts([], R) ->
     {ok, adjust_log_dir(R)}.
 
 adjust_log_dir(R) ->
-    Now = erlang:now(),
+    Now = lux_utils:timestamp(),
     UniqStr = uniq_str(Now),
     UniqRun = "run_" ++ UniqStr,
     Run =

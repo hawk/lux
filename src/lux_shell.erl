@@ -643,7 +643,7 @@ expect(#cstate{state_changed = true,
                     %% timeout - waited enough for more input
                     C2 =  match_patterns(C, Actual),
                     Earlier = C2#cstate.timer_started_at,
-                    Diff = timer:now_diff(erlang:now(), Earlier),
+                    Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
                     clog(C2, timer, "fail (~p seconds)", [Diff div ?micros]),
                     stop(C2, fail, timeout);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
@@ -915,13 +915,13 @@ do_flush_port(Port, Timeout, N, Acc) ->
 
 start_timer(#cstate{timer = undefined, timeout = infinity} = C) ->
     clog(C, timer, "start (infinity)", []),
-    C#cstate{timer = infinity, timer_started_at = erlang:now()};
+    C#cstate{timer = infinity, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{timer = undefined} = C) ->
     Seconds = C#cstate.timeout div timer:seconds(1),
     Multiplier = C#cstate.multiplier / 1000,
     clog(C, timer, "start (~p seconds * ~.3f)", [Seconds, Multiplier]),
     Timer = safe_send_after(C, C#cstate.timeout, self(), timeout),
-    C#cstate{timer = Timer, timer_started_at = erlang:now()};
+    C#cstate{timer = Timer, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{} = C) ->
     clog(C, timer, "keep", []),
     C.
@@ -930,7 +930,7 @@ cancel_timer(#cstate{timer = undefined} = C) ->
     C;
 cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
     clog(C, timer, "cancel (~p seconds)",
-        [timer:now_diff(erlang:now(), Earlier) div ?micros]),
+        [timer:now_diff(lux_utils:timestamp(), Earlier) div ?micros]),
     case Timer of
         infinity -> ok;
         _        -> erlang:cancel_timer(Timer)
