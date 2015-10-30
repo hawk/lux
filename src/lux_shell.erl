@@ -519,7 +519,7 @@ shell_eval(#cstate{name = Name} = C0,
             true = is_list(Arg), % Assert
             String = Arg,
             clog(C, progress, "\"~s\"", [String]),
-            io:format("~s", [String]),
+            io:format("~s", [dequote(String)]),
             C;
         change_timeout ->
             Millis = Arg,
@@ -551,6 +551,17 @@ shell_eval(#cstate{name = Name} = C0,
                                 [Name, Unexpected, Arg]),
             stop(C, error, iolist_to_binary(Err))
     end.
+
+dequote([$\\,$\\|T]) ->
+    [$\\|dequote(T)];
+dequote([$\\,$n|T]) ->
+    [$\n|dequote(T)];
+dequote([$\\,$t|T]) ->
+    [$\t|dequote(T)];
+dequote([H|T]) ->
+    [H|dequote(T)];
+dequote([]) ->
+    [].
 
 send_to_port(C, Data) ->
     lux_log:safe_write(C#cstate.progress,
