@@ -193,8 +193,10 @@ drop_prefix(Prefix, File) ->
 
 do_drop_prefix([H | Prefix], [H | File]) ->
     do_drop_prefix(Prefix, File);
-do_drop_prefix(_, File) ->
-    File.
+do_drop_prefix([], Suffix) ->
+    Suffix;
+do_drop_prefix(_, _File) ->
+    [].
 
 strip_leading_whitespaces(Bin) when is_binary(Bin) ->
     re:replace(Bin, "^[\s\t]+", "", [{return, binary}]).
