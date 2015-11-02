@@ -6,6 +6,8 @@ options affects that execution in different ways. There are however a
 few auxiliary options that can be used to make Lux perform other
 tasks.
 
+* --help
+* --version
 * --reltool
 * --install
 * --make
@@ -27,10 +29,18 @@ script execution.
 Release management
 ------------------
 
+    lux --help
+    lux --version
     lux --reltool [--root_dir RootDir]
     lux --install [InstallDir] [--root_dir RootDir]
     lux --make
     lux --markdown
+
+**--help**  
+Displays help info about lux.
+
+**--version**  
+Prints out the actual lux version
 
 **--reltool**  
 Starts the graphical tool [Reltool][] which enables inspection of

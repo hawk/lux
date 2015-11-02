@@ -163,7 +163,8 @@ do_run(#rstate{progress = Progress} = R, SummaryLog) ->
                             LogDir = filename:dirname(SummaryLog),
                             ConfigLog = filename:join([LogDir,
                                                        "lux_config.log"]),
-                            ok = lux_log:write_config_log(ConfigLog,ConfigData),
+                            ok = lux_log:write_config_log(ConfigLog,
+                                                          ConfigData),
                             lux_log:write_results(R2#rstate.progress,
                                                   SummaryLog, skip, [], []),
                             %% Generate initial html log
@@ -769,6 +770,7 @@ parse_config(R) ->
 builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
     [
+     {version, [string], lux_utils:version()},
      {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
      {hostname, [string], R#rstate.hostname},
      {architecture, [string], ActualConfigName},

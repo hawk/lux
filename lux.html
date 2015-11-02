@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.9.3 - 2015&#8211;10&#8211;23</p>
+<p>Version 1.9.6 - 2015&#8211;11&#8211;02</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -530,6 +530,8 @@ few auxiliary options that can be used to make Lux perform other
 tasks.</p>
 
 <ul>
+<li>&#8211;help</li>
+<li>&#8211;version</li>
 <li>&#8211;reltool</li>
 <li>&#8211;install</li>
 <li>&#8211;make</li>
@@ -551,11 +553,19 @@ script execution.</p>
 
 <h2 id="releasemanagement">Release management</h2>
 
-<pre><code>lux --reltool [--root_dir RootDir]
+<pre><code>lux --help
+lux --version
+lux --reltool [--root_dir RootDir]
 lux --install [InstallDir] [--root_dir RootDir]
 lux --make
 lux --markdown
 </code></pre>
+
+<p><strong>&#8211;help</strong><br/>
+Displays help info about lux.</p>
+
+<p><strong>&#8211;version</strong><br/>
+Prints out the actual lux version</p>
 
 <p><strong>&#8211;reltool</strong><br/>
 Starts the graphical tool <a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Reltool</a> which enables inspection of

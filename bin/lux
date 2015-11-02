@@ -17,33 +17,42 @@
 -spec(main([string()]) -> no_return()).
 main(OrigArgs) ->
     ensure_lux_app_dir(true),
-    OpModes = ["--help", "--markdown",
+    LuxAppDir = require_app(undefined, ?APPLICATION),
+    OpModes = ["--help", "--version", "--markdown",
                "--internal_debug", "--event_trace", "--internal_trace",
                "--make", "--install", "--reltool",
                "--annotate", "--history"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
-    Opts  = getopts(Args, Specs),
+    Opts  = getopts(Args, Specs, LuxAppDir),
     %% io:format("Args: ~p\n", [Opts]),
-    ExitCode = dispatch(Opts, OpModes, Specs, OrigArgs),
+    ExitCode = dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs),
     safe_halt(ExitCode).
 
-dispatch(Opts, OpModes, Specs, OrigArgs) ->
+dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs) ->
     case select_op(Opts, OpModes) of
-        {"--help"=Op, [_]}             -> help(Op, Specs);
-        {"--markdown", [_]}            -> markdown();
-        {"--internal_debug"=Op, [_]}   -> internal_debug(Op, OrigArgs);
-        {"--event_trace"=Op, [_]}      -> event_trace(Op, Opts, OpModes,
-                                                      Specs, OrigArgs);
-        {"--internal_trace"=Op, [_]}   -> internal_trace(Op, Opts, OpModes,
-                                                         Specs, OrigArgs);
-        {"--make"=Op, [_]}             -> make(Op);
-        {"--install"=Op, [InstallDir]} -> install(Op, InstallDir, Opts);
-        {"--reltool"=Op, [_]}          -> reltool(Op, Opts);
-        {"--annotate", [LogFile]}      -> annotate(LogFile, Opts);
-        {"--history", [LogDir]}        -> history(LogDir, Opts);
-        undefined                      -> run(Opts);
-        _                              -> usage(Specs)
+        {Op, Args} ->
+            do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs);
+        undefined ->
+            run(Opts)
+        end.
+
+do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
+    case {Op, Args} of
+        {"--help", [_]}             -> help(LuxAppDir, Specs);
+        {"--version", [_]}          -> version();
+        {"--markdown", [_]}         -> markdown();
+        {"--internal_debug", [_]}   -> internal_debug(Op, OrigArgs);
+        {"--event_trace", [_]}      -> event_trace(Op, LuxAppDir, Opts,
+                                                   OpModes, Specs, OrigArgs);
+        {"--internal_trace", [_]}   -> internal_trace(Op, LuxAppDir, Opts,
+                                                      OpModes, Specs, OrigArgs);
+        {"--make", [_]}             -> make(Op, LuxAppDir);
+        {"--install", [InstallDir]} -> install(Op, LuxAppDir, InstallDir, Opts);
+        {"--reltool", [_]}          -> reltool(Op, LuxAppDir, Opts);
+        {"--annotate", [LogFile]}   -> annotate(LogFile, Opts);
+        {"--history", [LogDir]}     -> history(LogDir, Opts);
+        _                           -> usage(Specs, LuxAppDir)
     end.
 
 expand_flags(Args, OpModes) ->
@@ -89,6 +98,7 @@ specs() ->
      {"-T",                   ["--internal_trace"]},
      {?FILES,                 "",          string,                 mandatory},
      {"--help",               false,       boolean,                none},
+     {"--version",            false,       boolean,                none},
      {"--markdown",           false,       boolean,                none},
      {"--internal_debug",     false,       boolean,                none},
      {"--event_trace",        false,       boolean,                none},
@@ -183,11 +193,11 @@ progress_arg(Level) ->
         "verbose" -> verbose
     end.
 
-usage(Specs) ->
-    do_usage(Specs),
+usage(Specs, LuxAppDir) ->
+    do_usage(Specs, LuxAppDir),
     1.
 
-do_usage(Specs) ->
+do_usage(Specs, LuxAppDir) ->
     io:format("usage: ~s [OPTION]... [FILE]...\n", [script_base_name()]),
     P = fun(Atom) -> [H | T] = atom_to_list(Atom), [string:to_upper(H) | T] end,
     PrettyType = fun(Type) ->
@@ -211,50 +221,23 @@ do_usage(Specs) ->
                      end
              end,
     [Pretty(S) || S <- Specs, element(1, S) =/= ?FILES],
-    info_doc().
+    info_doc(LuxAppDir).
 
-info_doc() ->
-    LuxAppDir = require_app(undefined, ?APPLICATION),
+info_doc(LuxAppDir) ->
     Url = doc_url(LuxAppDir),
     io:format("\nRead the full documentation in the browser:\n\n\t~s\n", [Url]).
-
-help(MainOp, Specs) ->
-    AppDir = require_app(MainOp, ?APPLICATION),
-    Url = doc_url(AppDir),
-    io:format("\nTrying to automatically launch the"
-              " default browser with file...\n\n\t~s\n",
-              [Url]),
-    WxOpts =
-        case app_has_feature(MainOp, wx, "1.0") of
-            true  -> [{silent_start, true}]; % Avoid spurious printouts
-            false -> []
-        end,
-    try
-        wx:new(WxOpts),
-        true = wx_misc:launchDefaultBrowser(Url),
-        timer:sleep(timer:seconds(1)),
-        wx:destroy()
-    catch
-        error:{load_driver,"No driver found"} ->
-            case os:getenv("BROWSER") of
-                false ->
-                    io:format("\n...failed since wxWidgets is"
-                              " not properly installed."
-                              " Browser needs to be manually"
-                              " started in order to read"
-                              " the full documentation.\n",
-                              []);
-                Browser ->
-                    lux_utils:cmd(Browser ++ " " ++ Url, "")
-            end;
-        _Class:_Reason ->
-            do_usage(Specs)
-    end,
-    0.
 
 doc_url(AppDir) ->
     UsersGuide = filename:join([AppDir, "lux.html"]),
     "file://" ++ filename:absname(UsersGuide).
+
+help(LuxAppDir, Specs) ->
+    do_usage(Specs, LuxAppDir),
+    0.
+
+version() ->
+    io:format("~s\n", [lux_utils:version()]),
+    0.
 
 markdown() ->
     lux_debug:markdown(),
@@ -279,9 +262,8 @@ internal_debug(MainOp, Args) ->
     spawn_link(fun() -> forward_stdin(Port, 1) end),
     forward_stdout(Port).
 
-internal_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
+internal_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
-    LuxAppDir = require_app(undefined, ?APPLICATION),
     AppFile = filename:join([LuxAppDir, "ebin", "lux.app"]),
     Mods =
         case file:consult(AppFile) of
@@ -304,9 +286,9 @@ internal_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
     [dbg:tpl({M, '_', '_'}, [{'_', [], [{return_trace}]}]) || M <- Mods],
     Key = "--internal_trace",
     NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
-    dispatch(NewOpts, OpModes, Specs, OrigArgs).
+    dispatch(NewOpts, LuxAppDir, OpModes, Specs, OrigArgs).
 
-event_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
+event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
     require_app(MainOp, et),
     require_app(MainOp, wx),
@@ -323,7 +305,7 @@ event_trace(MainOp, Opts, OpModes, Specs, OrigArgs) ->
             ViewerRef = erlang:monitor(process, ViewerPid),
             Key = "--event_trace",
             NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
-            dispatch(NewOpts, OpModes, Specs, OrigArgs),
+            dispatch(NewOpts, LuxAppDir, OpModes, Specs, OrigArgs),
             receive
                 {'DOWN', ViewerRef, _Type, _Object, shutdown} ->
                     ok;
@@ -379,10 +361,9 @@ forward_stdout(Port) ->
             forward_stdout(Port)
     end.
 
-make(MainOp) ->
+make(MainOp, LuxAppDir) ->
     io:format("Making ~p...\n", [?APPLICATION]),
     require_app(MainOp, tools),
-    LuxAppDir = require_app(undefined, ?APPLICATION),
     SrcDir = filename:join([LuxAppDir, "src"]),
     EbinDir = filename:join([LuxAppDir, "ebin"]),
     {ok, SrcDir} = {file:set_cwd(SrcDir), SrcDir},
@@ -395,11 +376,11 @@ make(MainOp) ->
         {file:copy(SrcAppFile, DestAppFile), SrcAppFile, DestAppFile},
     0.
 
-install(MainOp, InstallDir, Opts) ->
+install(MainOp, LuxAppDir, InstallDir, Opts) ->
     InstallProf = reltool_profile(Opts),
     io:format("Installing ~p as a ~p system... ~s\n",
               [?APPLICATION, InstallProf, InstallDir]),
-    {RootDir, ReltoolOpts} = reltool_opts(MainOp, Opts),
+    {RootDir, ReltoolOpts} = reltool_opts(MainOp, LuxAppDir, Opts),
     case reltool:start_server(ReltoolOpts) of
         {ok, ServerPid} ->
             case reltool:get_status(ServerPid) of
@@ -441,10 +422,10 @@ do_install(ServerPid, InstallDir, RootDir) ->
             1
     end.
 
-reltool(MainOp, Opts) ->
+reltool(MainOp, LuxAppDir, Opts) ->
     io:format("Starting reltool...\n", []),
     process_flag(trap_exit, true),
-    {_RootDir, ReltoolOpts} = reltool_opts(MainOp, Opts),
+    {_RootDir, ReltoolOpts} = reltool_opts(MainOp, LuxAppDir, Opts),
     case reltool:start(ReltoolOpts) of
         {ok, Pid} ->
             link(Pid),
@@ -458,10 +439,9 @@ reltool(MainOp, Opts) ->
             1
     end.
 
-reltool_opts(MainOp, Opts) ->
+reltool_opts(MainOp, LuxAppDir, Opts) ->
     require_app(MainOp, reltool),
     {IsCross, RootDir} = root_dir(Opts),
-    LuxAppDir = require_app(undefined, ?APPLICATION),
     ThisEscript = escript:script_name(),
     %% Include some extra files beside the default files
     AppFilters =
@@ -470,7 +450,7 @@ reltool_opts(MainOp, Opts) ->
          {excl_archive_filters, ["^LICENSE", "^lux.html",
                                  "^priv", "^examples.*", "^emacs.*"]},
          {excl_app_filters, [".*empty$"]}],
-    HasAppLibDir = app_has_feature(MainOp, reltool, "0.6"),
+    HasAppLibDir = app_has_feature(MainOp, reltool, "0.6", mandatory),
     LuxApps =
         case HasAppLibDir of
             true ->
@@ -481,7 +461,7 @@ reltool_opts(MainOp, Opts) ->
                 [{app, ?APPLICATION, AppFilters},
                  {lib_dirs, [filename:dirname(LuxAppDir)]}]
         end,
-    HasRelaxedExclusion = app_has_feature(MainOp, reltool, "0.6.4"),
+    HasRelaxedExclusion = app_has_feature(MainOp, reltool, "0.6.4", mandatory),
     {AppCondsWx, AppCondsCross} =
         case {IsCross, HasRelaxedExclusion} of
             {true, false} ->
@@ -530,16 +510,18 @@ reltool_profile(Opts) ->
         {_, Profile} -> lists:last(Profile)
     end.
 
-app_has_feature(MainOp, AppName, LowestVersion) ->
+app_has_feature(MainOp, AppName, LowestVersion, Require) ->
     LoadedApps = application:loaded_applications(),
     case lists:keyfind(AppName, 1, LoadedApps) of
         {_Name, _Slogan, Version} when Version >= LowestVersion ->
             true;
         {_Name, _Slogan, _Version} ->
             false;
-        false ->
+        false when Require =:= optional ->
+            false;
+        false when Require =:= mandatory ->
             require_app(MainOp, AppName), % Halt upon failure
-            app_has_feature(MainOp, AppName, LowestVersion)
+            app_has_feature(MainOp, AppName, LowestVersion, Require)
     end.
 
 filter_apps(_MainOp, AppConds, _IsCross, true) ->
@@ -617,6 +599,7 @@ exit_code(Summary) ->
 translate_opts([
      {?FILES,                 Files},
      {"--help",               _Help},
+     {"--version",            _Version},
      {"--markdown",           _Markdown},
      {"--internal_debug",     _InternalDebug},
      {"--event_trace",        _EventTrace},
@@ -739,11 +722,11 @@ filter_args([], Acc) ->
 -type spec()     :: {name(), [opt()]} | % alias
                     {name(), default(), type(), presence()}.
 -type val()      :: term().
--spec getopts([opt()], [spec()]) -> [[val()]].
+-spec getopts([opt()], [spec()], string()) -> [[val()]].
 
 %% Parse options and validate their values.
 %% All options in the specs are returned and they keep that order.
-getopts(Args, Specs) ->
+getopts(Args, Specs, LuxAppDir) ->
     try
         Opts = do_getopts(Args, Specs, []),
         expand_opts(Opts, Specs)
@@ -751,16 +734,16 @@ getopts(Args, Specs) ->
         throw:{badarg, Bad} ->
             io:format("~s: ~p is an illegal argument.\n\n",
                       [script_base_name(), Bad]),
-            safe_halt(usage(Specs));
+            safe_halt(usage(Specs, LuxAppDir));
         throw:{badarg, Bad, Type} ->
             io:format("~s: ~p is an illegal argument. ~p expected.\n\n",
                       [script_base_name(), Bad, Type]),
-            safe_halt(usage(Specs));
+            safe_halt(usage(Specs, LuxAppDir));
         throw:{badarg, Name, Bad, Type} ->
             io:format("~s: ~p is an illegal value of argument ~s."
                       " ~p expected.\n\n",
                       [script_base_name(), Bad, Name, Type]),
-            safe_halt(usage(Specs))
+            safe_halt(usage(Specs, LuxAppDir))
     end.
 
 do_getopts([], _Specs, Acc) ->

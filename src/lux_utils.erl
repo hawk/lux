@@ -7,7 +7,7 @@
 
 -module(lux_utils).
 -compile(export_all).
--export([timestamp/0, builtin_dict/0, system_dict/0, expand_vars/3,
+-export([version/0, timestamp/0, builtin_dict/0, system_dict/0, expand_vars/3,
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
@@ -20,6 +20,11 @@
          cmd/2, chop_newline/1, cmd_expected/1, perms/1, pick_opt/3]).
 
 -include("lux.hrl").
+
+version() ->
+    LoadedApps = application:loaded_applications(),
+    {_Name, _Slogan, Version} = lists:keyfind(?APPLICATION, 1, LoadedApps),
+    Version.
 
 timestamp() ->
     try
