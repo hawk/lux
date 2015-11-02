@@ -7,7 +7,7 @@
 
 -module(lux).
 
--export([run/2, parse_file/4, interpret_commands/3, annotate_log/2, history/3]).
+-export([run/3, parse_file/4, interpret_commands/3, annotate_log/2, history/3]).
 -export([trace_me/4, trace_me/5]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -29,11 +29,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Run a test suite
 
--spec(run(filename(), opts()) ->
+-spec(run(filename(), opts(), [string()]) ->
              {ok, summary(), filename(), [result()]} | error()).
 
-run(File, Opts) ->
-    lux_suite:run(File, Opts).
+run(File, Opts, OrigArgs) ->
+    lux_suite:run(File, Opts, OrigArgs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file

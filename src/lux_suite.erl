@@ -7,7 +7,7 @@
 
 -module(lux_suite).
 
--export([run/2]).
+-export([run/3]).
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -16,6 +16,7 @@
 
 -record(rstate,
         {files                      :: [string()],
+         orig_args                  :: [string()],
          mode = execute             :: run_mode(),
          skip_skip = false          :: boolean(),
          progress = brief           :: silent | brief | doc | compact | verbose,
@@ -54,8 +55,8 @@
          tap                        :: term() % #tap{}
         }).
 
-run(Files, Opts) when is_list(Files) ->
-    case parse_ropts(Opts, #rstate{files = Files}) of
+run(Files, Opts, OrigArgs) when is_list(Files) ->
+    case parse_ropts(Opts, #rstate{files = Files, orig_args = OrigArgs}) of
         {ok, R} when R#rstate.mode =:= list;
                      R#rstate.mode =:= list_dir;
                      R#rstate.mode =:= doc ->
@@ -770,8 +771,12 @@ parse_config(R) ->
 builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
     [
-     {version, [string], lux_utils:version()},
      {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
+     {version, [string], lux_utils:version()},
+     {root_dir, [string], code:root_dir()},
+     {work_dir, [string], Cwd},
+     {command, [string], hd(R#rstate.orig_args)},
+     {arguments, [string], string:join(tl(R#rstate.orig_args), " ")},
      {hostname, [string], R#rstate.hostname},
      {architecture, [string], ActualConfigName},
      {'system info', [string], sys_info()},

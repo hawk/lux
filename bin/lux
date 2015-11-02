@@ -34,7 +34,7 @@ dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs) ->
         {Op, Args} ->
             do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs);
         undefined ->
-            run(Opts)
+            run(Opts, OrigArgs)
         end.
 
 do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
@@ -576,9 +576,10 @@ history(LogDir0, Opts) ->
             1
     end.
 
-run(Opts) ->
+run(Opts, OrigArgs) ->
     {Files, Opts2} = translate_opts(Opts),
-    case lux:run(Files, Opts2) of
+    ThisEscript = escript:script_name(),
+    case lux:run(Files, Opts2, [ThisEscript | OrigArgs]) of
         {ok, Summary, _SummaryLog, _Results} ->
             ok;
         {error, File, ReasonBin} ->
