@@ -6,7 +6,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_utils).
--compile(export_all).
 -export([version/0, timestamp/0, builtin_dict/0, system_dict/0, expand_vars/3,
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
@@ -187,21 +186,21 @@ drop_prefix(File) ->
     {ok, Cwd} = file:get_cwd(),
     lux_utils:drop_prefix(Cwd, File).
 
-drop_prefix(Prefix, File) ->
-    case do_drop_prefix(filename:split(Prefix),
-                        filename:split(File)) of
-        [] ->
-            File;
-        Suffix ->
-            filename:join(Suffix)
-    end.
+drop_prefix(Prefix, File) when is_binary(Prefix) ->
+    drop_prefix(binary_to_list(Prefix), File);
+drop_prefix(Prefix, File) when is_binary(File) ->
+    list_to_binary(drop_prefix(Prefix, binary_to_list(File)));
+drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
+    do_drop_prefix(filename:split(Prefix), filename:split(File), File).
 
-do_drop_prefix([H | Prefix], [H | File]) ->
-    do_drop_prefix(Prefix, File);
-do_drop_prefix([], Suffix) ->
-    Suffix;
-do_drop_prefix(_, _File) ->
-    [].
+do_drop_prefix([H | Prefix], [H | File], OrigFile) ->
+    do_drop_prefix(Prefix, File, OrigFile);
+do_drop_prefix([], [], _OrigFile) ->
+    ".";
+do_drop_prefix([], Rest, _OrigFile) ->
+    filename:join(Rest);
+do_drop_prefix(_Prefix, _Rest, OrigFile) ->
+    OrigFile.
 
 strip_leading_whitespaces(Bin) when is_binary(Bin) ->
     re:replace(Bin, "^[\s\t]+", "", [{return, binary}]).

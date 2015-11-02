@@ -35,7 +35,9 @@ annotate_log(IsRecursive, LogFile, Opts) ->
             Error
     end.
 
-safe_write_file(File, IoList) ->
+safe_write_file(File, IoList) when is_binary(File) ->
+    safe_write_file(binary_to_list(File), IoList);
+safe_write_file(File, IoList) when is_list(File) ->
     Res = filelib:ensure_dir(File),
     if
         Res =:= ok; Res =:= {error, eexist} ->
@@ -90,10 +92,10 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
 
 html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
     Dir = filename:basename(filename:dirname(SummaryLog)),
-    RelSummaryLog = drop_prefix(A, SummaryLog),
-    RelResultLog = drop_prefix(A, "lux_result.log"),
-    RelConfigLog = drop_prefix(A, "lux_config.log"),
-    RelTapLog = drop_prefix(A, "lux.tap"),
+    RelSummaryLog = drop_log_prefix(A, SummaryLog),
+    RelResultLog = drop_log_prefix(A, "lux_result.log"),
+    RelConfigLog = drop_log_prefix(A, "lux_config.log"),
+    RelTapLog = drop_log_prefix(A, "lux.tap"),
     IsTmp = lux_log:is_temporary(SummaryLog),
     LogFun =
         fun(L, S) ->
@@ -156,13 +158,13 @@ html_summary_file(A, {file, File, LineNo}, Groups) ->
             {test_case, Name, _Log, _Doc, HtmlLog, _Res} <- Cases,
             File =:= Name],
     RelScript = rel_script(A, File),
-    RelFile = drop_prefix(A, File),
+    RelFile = drop_work_prefix(A, File),
     Label = [RelScript, ":", LineNo],
     case Files of
         [] ->
             [html_href("", "#" ++ RelFile, Label), "\n"];
         [HtmlLog|_] ->
-            [html_href("", drop_prefix(A, HtmlLog), Label), "\n"]
+            [html_href("", drop_log_prefix(A, HtmlLog), Label), "\n"]
     end.
 
 html_groups2(A, [{test_group, _Group, Cases} | Groups]) ->
@@ -176,9 +178,9 @@ html_groups2(_A, []) ->
 html_cases(A, [{test_case, Name, _EventLog, Doc, HtmlLog, Res} | Cases]) ->
     Tag = "a",
     RelScript = rel_script(A, Name),
-    RelFile = drop_prefix(A, Name),
-    RelHtmlLog = drop_prefix(A, HtmlLog),
-    %% RelEventLog = drop_prefix(A, EventLog),
+    RelFile = drop_work_prefix(A, Name),
+    RelHtmlLog = drop_log_prefix(A, HtmlLog),
+    %% RelEventLog = drop_log_prefix(A, EventLog),
     [
      html_anchor(RelFile, ""),
      "\n",
@@ -195,7 +197,7 @@ html_cases(A, [{test_case, Name, _EventLog, Doc, HtmlLog, Res} | Cases]) ->
 html_cases(A, [{result_case, Name, Reason, Details} | Cases]) ->
     Tag = "a",
     RelScript = rel_script(A, Name),
-    RelFile = drop_prefix(A, Name),
+    RelFile = drop_work_prefix(A, Name),
     [
      html_anchor(RelFile, ""),
      html_href("h3", "Test case: ", "", RelFile, RelScript),
@@ -269,7 +271,7 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files) ->
         {ok, ScriptBin} ->
             %% Save original script file
             OrigScript = orig_script(A, Script),
-            case file:write_file(OrigScript, ScriptBin) of
+            case safe_write_file(OrigScript, ScriptBin) of
                 ok ->
                     ok;
                 {error, FileReason} ->
@@ -360,7 +362,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
     LogFun =
         fun(L, S) ->
                 ["    <td><strong>",
-                 html_href("", drop_prefix(A, L), S),
+                 html_href("", drop_log_prefix(A, L), S),
                  "</strong></td>\n"]
         end,
     [
@@ -547,10 +549,10 @@ html_logs(A, [{log, Shell, Stdin, Stdout} | Logs]) ->
      "\n<tr>\n    ",
      "<td><strong>Shell ", Shell, "</strong></td>",
      "<td><strong>",
-     html_href("", drop_prefix(A, Stdin), "Stdin"),
+     html_href("", drop_log_prefix(A, Stdin), "Stdin"),
      "</strong></td>",
      "<td><strong>",
-     html_href("", drop_prefix(A, Stdout), "Stdout"),
+     html_href("", drop_log_prefix(A, Stdout), "Stdout"),
      "</strong></td>",
      "\n</tr>\n",
      html_logs(A, Logs)
@@ -600,7 +602,7 @@ html_code2(A, [Ann | Annotated], Prev) ->
             ];
         {body_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
             FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
-            RelSubScript = drop_prefix(A, SubScript),
+            RelSubScript = drop_work_prefix(A, SubScript),
             if
                 SubScript =/= A#astate.source_file ->
                     [
@@ -776,7 +778,7 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables,
      html_history_legend(),
 
      "<h3>",
-     html_href("", [drop_prefix(HtmlDir,HtmlFile), "#content"], "Overview"),
+     html_href("", [drop_log_prefix(HtmlDir,HtmlFile), "#content"], "Overview"),
      "</h3>\n\n",
 
      "<h3>",
@@ -1047,7 +1049,7 @@ html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
                     Log ->
                         HtmlDir = filename:dirname(HtmlFile),
                         html_href("",
-                                  [drop_prefix(HtmlDir, Log), ".html"],
+                                  [drop_log_prefix(HtmlDir, Log), ".html"],
                                   FailCount)
                 end,
             OrigRes =
@@ -1230,32 +1232,29 @@ html_cleanup(List) ->
 html_files(A, [{file, Path, OrigPath} | Files]) ->
     [
      "\n<br>",
-     html_href("", drop_prefix(A, OrigPath), drop_prefix(A, Path)),
+     html_href("", drop_log_prefix(A, OrigPath), drop_work_prefix(A, Path)),
      html_files(A, Files)
     ];
 html_files(_A, []) ->
     [].
 
 rel_script(A, AbsScript) ->
-    RelScript = drop_prefix(A, AbsScript),
+    RelScript = drop_work_prefix(A, AbsScript),
     A#astate.case_prefix ++ RelScript.
 
-drop_prefix(#astate{log_dir=LogDir}, File) ->
-    drop_prefix(LogDir, File);
-drop_prefix(LogDir, File) when is_binary(File) ->
-    list_to_binary(drop_prefix(LogDir, binary_to_list(File)));
-drop_prefix(LogDir, File) when is_binary(LogDir) ->
-    drop_prefix(binary_to_list(LogDir), File);
-drop_prefix(LogDir, File) when is_list(LogDir), is_list(File) ->
+drop_work_prefix(_A, File) ->
+    {ok, Cwd} = file:get_cwd(),
+    lux_utils:drop_prefix(Cwd, File).
+
+drop_log_prefix(#astate{log_dir=LogDir}, File) ->
+    lux_utils:drop_prefix(LogDir, File);
+drop_log_prefix(LogDir, File) ->
     lux_utils:drop_prefix(LogDir, File).
 
 orig_script(A, Script) ->
-    orig_script(A, A#astate.log_file, Script).
-
-orig_script(A, LogFile, Script) ->
-    Dir = filename:dirname(drop_prefix(A, LogFile)),
+    RelDir = filename:dirname(drop_work_prefix(A, Script)),
     Base = filename:basename(binary_to_list(Script)),
-    filename:join([A#astate.log_dir, Dir, Base ++ ".orig"]).
+    filename:join([A#astate.log_dir, RelDir, Base ++ ".orig"]).
 
 html_suffix_href(HtmlFile, Protocol, Name, Label, Suffix) ->
     Name2 = insert_html_suffix(HtmlFile, Name, Suffix),

@@ -230,7 +230,6 @@ do_run(#rstate{progress = Progress} = R, SummaryLog) ->
             {error, SummaryLog, FileErr}
     end.
 
-
 compute_files(R, _LogDir, _LogBase) when R#rstate.rerun =:= disable ->
     R;
 compute_files(R, _LogDir, LogBase) when R#rstate.files =/= [] ->
@@ -407,7 +406,7 @@ ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
             _ = file:make_symlink(Base, Link),
 
             RelFiles = R#rstate.files,
-            AbsFiles = [filename:absname(F) || F <- RelFiles],
+            AbsFiles = [normalize(F) || F <- RelFiles],
             TagFiles = [{config_dir, R#rstate.config_dir} |
                         [{file, F} || F <- RelFiles]],
             try
@@ -432,6 +431,20 @@ ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
                                  " ~s -> ~s\n",
                                  [AbsLogDir, file:format_error(FileReason)])}
     end.
+
+normalize(File) ->
+    do_normalize(filename:split(filename:absname(File)), []).
+
+do_normalize([H|T], Acc) ->
+    Acc2 =
+        case H of
+            "."  -> Acc;
+            ".." -> tl(Acc);
+            _    -> [H|Acc]
+        end,
+    do_normalize(T, Acc2);
+do_normalize([], Acc) ->
+    filename:join(lists:reverse(Acc)).
 
 opt_ensure_dir(ExtendRun, SummaryLog) ->
     case not ExtendRun andalso filelib:is_dir(SummaryLog) of
@@ -705,14 +718,14 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
     lux_log:print_results(Progress, {false,standard_io},
                           Summary, Results, Warnings).
 
-parse_script(R, SuiteFile, Script) ->
+parse_script(R, _SuiteFile, Script) ->
     Opts0 = config_opts(R),
     case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, Opts0) of
         {ok, Script2, Cmds, FileOpts} ->
             FileOpts2 = merge_opts(FileOpts, R#rstate.file_opts),
             R2 = R#rstate{internal_opts = [],
                           file_opts = FileOpts2},
-            LogDir = log_dir(R2, SuiteFile, Script2),
+            LogDir = pick_val(log_dir, R, undefined),
             LogFd = R#rstate.log_fd,
             LogFun = fun(Bin) -> lux_log:safe_write(LogFd, Bin) end,
             InternalOpts = [{log_dir, LogDir},
@@ -873,19 +886,6 @@ real_hostname() ->
     case inet:gethostname() of
         {ok, Host} -> Host;
         _          -> "localhost"
-    end.
-
-log_dir(R, SuiteFile, Script) ->
-    LogDir = pick_val(log_dir, R, undefined),
-    case Script =:= SuiteFile of
-        true ->
-            LogDir;
-        false ->
-            Suffix = lux_utils:drop_prefix(SuiteFile, Script),
-            case filename:dirname(Suffix) of
-                "."    -> LogDir;
-                SubDir -> filename:join([LogDir, SubDir])
-            end
     end.
 
 double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
