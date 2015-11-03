@@ -9,7 +9,7 @@
 
 -export([is_temporary/1, parse_summary_log/1, parse_run_summary/4,
          open_summary_log/3, close_summary_tmp_log/1, close_summary_log/2,
-         write_config_log/2,
+         write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/3,
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
@@ -111,11 +111,13 @@ do_parse_summary_log(SummaryLog) ->
             LogDir = filename:dirname(SummaryLog),
             ConfigLog = filename:join([LogDir, "lux_config.log"]),
             {ok, RawConfig} = scan_config(ConfigLog),
-            ArchConfig = parse_config(RawConfig),
+            SummaryConfig = parse_config(RawConfig),
             {ok, Result} = parse_summary_result(LogDir),
             {Cases, EventLogs} = split_cases(Sections, [], []),
             {ok, FI} = file:read_file_info(SummaryLog),
-            {ok, Result, [{test_group, "", Cases}], ArchConfig, FI, EventLogs};
+            {ok,
+             Result,
+             [{test_group, "", Cases}], SummaryConfig, FI, EventLogs};
         {ok, Version, _Sections} ->
             {error, SummaryLog,
              "Illegal summary log version: " ++ binary_to_list(Version)};
@@ -269,44 +271,34 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
              repos_rev = ?DEFAULT_REV,
              details = []},
     case Res of
-        {ok, Result, Groups, ArchConfig, FI, _EventLogs} ->
-            Split =
-                fun(Config) ->
-                        case binary:split(Config, <<": ">>, []) of
-                            [Key, Val] ->
-                                {true,
-                                 {lux_utils:strip_trailing_whitespaces(Key),
-                                  Val}};
-                            _  ->
-                                false
-                        end
-                end,
-            Config = lists:zf(Split,
-                              binary:split(ArchConfig, <<"\n">>, [global])),
+        {ok, Result, Groups, SummaryConfig, FI, _EventLogs} ->
+            ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
+            ConfigProps = split_config(ConfigBins),
             Ctime0 = FI#file_info.ctime,
             Ctime =  list_to_binary(lux_utils:datetime_to_string(Ctime0)),
-            StartTime = find_config(<<"start time">>, Config, Ctime),
+            StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
             case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
-                    HostName = find_config(<<"hostname">>, Config,
+                    HostName = find_config(<<"hostname">>, ConfigProps,
                                            R#run.hostname);
                 HostName ->
                     ok
             end,
-            ConfigName0 = find_config(<<"architecture">>, Config, CN0),
+            ConfigName0 = find_config(<<"architecture">>, ConfigProps, CN0),
             ConfigName =
                 if
                     ConfigName0 =/= CN0,
                     ConfigName0 =/= <<"undefined">> ->
                         ConfigName0;
                     true ->
-                        find_config(<<"config name">>, Config, CN0)
+                        find_config(<<"config name">>, ConfigProps, CN0)
                 end,
-            Suite = find_config(<<"suite">>, Config, R#run.test),
-            RunId = find_config(<<"run">>, Config, R#run.id),
-            ReposRev = find_config(<<"revision">>, Config, R#run.repos_rev),
+            Suite = find_config(<<"suite">>, ConfigProps, R#run.test),
+            RunId = find_config(<<"run">>, ConfigProps, R#run.id),
+            ReposRev =
+                find_config(<<"revision">>, ConfigProps, R#run.repos_rev),
             RunDir = binary_to_list(find_config(<<"run_dir">>,
-                                                Config,
+                                                ConfigProps,
                                                 list_to_binary(Cwd))),
             HtmlDir = filename:dirname(HtmlFile),
             Cases = [parse_run_case(HtmlDir, RunDir, StartTime,
@@ -326,6 +318,20 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
         {error, SummaryLog, _ReasonStr} ->
             R
     end.
+
+split_config(ConfigBins) ->
+    Split =
+        fun(Config) ->
+                case binary:split(Config, <<": ">>, []) of
+                    [Key, Val] ->
+                        {true,
+                         {lux_utils:strip_trailing_whitespaces(Key),
+                          Val}};
+                    _  ->
+                        false
+                end
+        end,
+    lists:zf(Split, ConfigBins).
 
 parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName,
                Suite, RunId, ReposRev,
@@ -384,8 +390,8 @@ drop_some_dirs(File) when is_binary(File) -> % BUGBUG: Temporary solution
 
 find_config(Key, Tuples, Default) ->
     case lists:keyfind(Key, 1, Tuples) of
-        false         -> Default;
-        {_, Hostname} -> Hostname
+        false    -> Default;
+        {_, Val} -> Val
     end.
 
 write_config_log(ConfigLog, ConfigData) ->
@@ -566,14 +572,14 @@ do_scan_events(EventLog, EventSections) ->
     case scan_config(ConfigLog) of
         {ok, [ConfigSection]} ->
             LogBins = [],
-            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
+            ConfigProps = binary:split(ConfigSection, <<"\n">>, [global]),
             {ok, EventLog, ConfigLog,
-             Script, EventBins, ConfigBins, LogBins, ResultBins};
+             Script, EventBins, ConfigProps, LogBins, ResultBins};
         {ok, [ConfigSection,LogSection]} ->
-            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
+            ConfigProps = binary:split(ConfigSection, <<"\n">>, [global]),
             LogBins = binary:split(LogSection, <<"\n">>, [global]),
             {ok, EventLog, ConfigLog,
-             Script, EventBins, ConfigBins, LogBins, ResultBins};
+             Script, EventBins, ConfigProps, LogBins, ResultBins};
         {ok, Version, _Sections} ->
             {error, ConfigLog,
              "Illegal config log version: " ++ binary_to_list(Version)};

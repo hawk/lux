@@ -12,7 +12,7 @@
 
  -include("lux.hrl").
 
--record(astate, {log_dir, log_file, source_file, case_prefix, opts}).
+-record(astate, {log_dir, log_file, work_dir, orig_file, case_prefix, opts}).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
     AbsLogFile = filename:absname(LogFile),
@@ -231,16 +231,20 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
     try
         case lux_log:scan_events(EventLog) of
             {ok, EventLog2, ConfigLog,
-             Script, RawEvents, RawConfig, RawLogs, RawResult} ->
-                A2 = A#astate{source_file = Script},
-                Events = lux_log:parse_events(RawEvents, []),
+             Script, EventBins, ConfigBins, LogBins, ResultBins} ->
+                ConfigProps = lux_log:split_config(ConfigBins),
+                WorkDir = work_dir(ConfigProps),
+                A2 = A#astate{work_dir = WorkDir},
+                OrigScript = orig_script(A2, Script),
+                A3 = A2#astate{orig_file = OrigScript},
+                Events = lux_log:parse_events(EventBins, []),
                 %% io:format("Events: ~p\n", [Events]),
-                Logs = lux_log:parse_io_logs(RawLogs, []),
-                Result = lux_log:parse_result(RawResult),
+                Logs = lux_log:parse_io_logs(LogBins, []),
+                Result = lux_log:parse_result(ResultBins),
                 {Annotated, Files} =
-                    interleave_code(A2, Events, Script, 1, 999999, [], []),
-                Html = html_events(A2, EventLog2, ConfigLog, Script, Result,
-                                   Files, Logs, Annotated, RawConfig),
+                    interleave_code(A3, Events, Script, 1, 999999, [], []),
+                Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
+                                   Files, Logs, Annotated, ConfigBins),
                 {ok, Html};
             {error, _File, _ReasonStr} = Error ->
                 Error
@@ -256,21 +260,11 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
             {error, EventLog, ReasonStr}
     end.
 
-%% interleave_code(A, Events, Script, FirstLineNo, MaxLineNo,
-%%                 [{_F,SyntheticLineNo, _T}|_] = CmdStack, Files)
-%%   when is_integer(SyntheticLineNo), SyntheticLineNo < 0 ->
-%%     %% A synthetic command stack level
-%%     ScriptComps = lux_utils:filename_split(Script),
-%%     CodeLines = [],
-%%     Acc = [],
-%%     do_interleave_code(A, Events, ScriptComps, CodeLines,
-%%                        FirstLineNo, MaxLineNo, Acc, CmdStack, Files);
 interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files) ->
     ScriptComps = lux_utils:filename_split(Script),
-    case file:read_file(Script) of
+    OrigScript = A#astate.orig_file,
+    case file:read_file(OrigScript) of
         {ok, ScriptBin} ->
-            %% Save original script file
-            OrigScript = orig_script(A, Script),
             CodeLines = binary:split(ScriptBin, <<"\n">>, [global]),
             CodeLines2 =
                 try
@@ -321,11 +315,13 @@ do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) ->
     CmdStack2 = [{ScriptComps, InvokeLineNo, undefined} | CmdStack],
-    SubA = A#astate{source_file = SubScript},
+    OrigSubScript = orig_script(A, SubScript),
+    SubA = A#astate{orig_file = OrigSubScript},
     {SubAnnotated, Files2} =
         interleave_code(SubA, SubEvents, SubScript, FirstLineNo, LastLineNo,
                         CmdStack2, Files),
-    Event = {body_html, CmdStack2, FirstLineNo, SubScript, SubAnnotated},
+    Event = {body_html, CmdStack2, FirstLineNo, SubScript,
+             OrigSubScript, SubAnnotated},
     do_interleave_code(A, Events, ScriptComps, CodeLines, CodeLineNo,
                        MaxLineNo, [Event | Acc], CmdStack, Files2);
 do_interleave_code(_A, [], ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
@@ -346,7 +342,7 @@ pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _CmdStack) ->
 %% Return event log as HTML
 
 html_events(A, EventLog, ConfigLog, Script, Result, Files,
-            Logs, Annotated, RawConfig) ->
+            Logs, Annotated, ConfigBins) ->
     EventLogDir = filename:dirname(EventLog),
     EventLogBase = filename:join([EventLogDir, filename:basename(Script)]),
     ExtraLogs = <<EventLogBase/binary, ".extra.logs">>,
@@ -385,7 +381,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      "<div class=code><pre><a name=\"cleanup\"></a></pre></div>\n",
 
      html_anchor("h2", "", "config", "Script configuration:"),
-     html_config(RawConfig),
+     html_config(ConfigBins),
      html_footer()
     ].
 
@@ -592,11 +588,12 @@ html_code2(A, [Ann | Annotated], Prev) ->
              "</br>",
              html_code2(A, Annotated, event)
             ];
-        {body_html, LineNoStack, _MacroLineNo, SubScript, SubAnnotated} ->
+        {body_html, LineNoStack, _MacroLineNo, SubScript,
+         OrigSubScript, SubAnnotated} ->
             FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
             RelSubScript = drop_work_prefix(A, SubScript),
             if
-                SubScript =/= A#astate.source_file ->
+                OrigSubScript =/= A#astate.orig_file ->
                     [
                      html_toggle_div(code, Prev),
                      html_toggle_div(event, code),
@@ -1243,9 +1240,14 @@ drop_log_prefix(#astate{log_dir=LogDir}, File) ->
 drop_log_prefix(LogDir, File) ->
     lux_utils:drop_prefix(LogDir, File).
 
-orig_script(A, Script) ->
-    Base = filename:basename(binary_to_list(Script)),
-    filename:join([A#astate.log_dir, Base ++ ".orig"]).
+work_dir(ConfigProps) ->
+    lux_log:find_config(<<"work_dir">>, ConfigProps, undefined).
+
+orig_script(A, BinScript) ->
+    Script = binary_to_list(BinScript),
+    RelScript = lux_utils:drop_prefix(A#astate.work_dir, Script),
+    Base = filename:basename(RelScript),
+    list_to_binary(filename:join([A#astate.log_dir, Base ++ ".orig"])).
 
 html_suffix_href(HtmlFile, Protocol, Name, Label, Suffix) ->
     Name2 = insert_html_suffix(HtmlFile, Name, Suffix),

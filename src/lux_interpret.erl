@@ -26,28 +26,28 @@ interpret_commands(Script, Cmds, Opts) ->
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
                 LogDir = case_log_dir(I3#istate.log_dir, Script),
-                Base = filename:basename(Script),
-                ExtraLogs = filename:join([LogDir, Base ++ ".extra.logs"]),
-                ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
-                GlobalDict = [ExtraDict | I3#istate.global_dict],
-                I4 = I3#istate{global_dict = GlobalDict,
-                              log_dir = LogDir},
-                Config = config_data(I4),
-                case copy_orig(LogDir, Script, Base) of
-                    ok ->
+                I4 = I3#istate{log_dir = LogDir},
+                case copy_orig(LogDir, Script) of
+                    {ok, Base} ->
+                        ExtraLogs = filename:join([LogDir,
+                                                   Base ++ ".extra.logs"]),
+                        ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
+                        GlobalDict = [ExtraDict | I4#istate.global_dict],
+                        I5 = I4#istate{global_dict = GlobalDict},
+                        Config = config_data(I5),
                         ConfigFd =
                             lux_log:open_config_log(LogDir, Script, Config),
-                        Progress = I4#istate.progress,
-                        LogFun = I4#istate.log_fun,
+                        Progress = I5#istate.progress,
+                        LogFun = I5#istate.log_fun,
                         Verbose = true,
                         case lux_log:open_event_log(LogDir, Script, Progress,
                                                     LogFun, Verbose) of
                             {ok, EventLog, EventFd} ->
-                                Docs = docs(I4#istate.orig_file, Cmds),
-                                eval(I4, Progress, Verbose, LogFun,
+                                Docs = docs(I5#istate.orig_file, Cmds),
+                                eval(I5, Progress, Verbose, LogFun,
                                      EventLog, EventFd, ConfigFd, Docs);
                             {error, FileReason} ->
-                                internal_error(I4,
+                                internal_error(I5,
                                                file:format_error(FileReason))
                         end;
                     {error, FileReason} ->
@@ -73,13 +73,14 @@ case_log_dir(TopLogDir, Script) ->
     RelDir = filename:dirname(RelScript),
     filename:join([TopLogDir, RelDir]).
 
-copy_orig(LogDir, Script, Base) ->
+copy_orig(LogDir, Script) ->
+    Base = filename:basename(Script),
     OrigScript = filename:join([LogDir, Base ++ ".orig"]),
     case filelib:ensure_dir(OrigScript) of % Ensure LogDir
         ok ->
             case file:copy(Script, OrigScript) of
                 {ok, _} ->
-                    ok;
+                    {ok, Base};
                 {error, FileReason} ->
                     {error, FileReason}
             end;
@@ -454,8 +455,10 @@ simple_to_string([]) ->
     [].
 
 config_data(I) ->
+    {ok, Cwd} = file:get_cwd(),
     [
      {script,          [string],               I#istate.file},
+     {work_dir,        [string],               Cwd},
      {debug,                                   I#istate.debug},
      {debug_file,                              I#istate.debug_file},
      {skip,                                    I#istate.skip},
@@ -798,8 +801,17 @@ dispatch_cmd(I,
             {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
             ilog(I, "~s(~p): include_file \"~s\"\n",
                  [I#istate.active_name, LineNo, InclFile]),
-            eval_include(I, LineNo, FirstLineNo, LastLineNo,
-                         InclFile, InclCmds, Cmd);
+            LogDir = I#istate.log_dir,
+            case copy_orig(LogDir, InclFile) of
+                {ok, _} ->
+                    eval_include(I, LineNo, FirstLineNo, LastLineNo,
+                                 InclFile, InclCmds, Cmd);
+                {error, FileReason} ->
+                    Reason =
+                        ["Cannot copy file ", InclFile, " to ", LogDir,
+                         ": ", file:format_error(FileReason)],
+                    throw_error(I, iolist_to_binary(Reason))
+            end;
         macro ->
             I;
         invoke ->
