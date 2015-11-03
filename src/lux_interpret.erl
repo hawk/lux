@@ -25,14 +25,15 @@ interpret_commands(Script, Cmds, Opts) ->
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
-                LogDir = I3#istate.log_dir,
+                LogDir = case_log_dir(I3#istate.log_dir, Script),
                 Base = filename:basename(Script),
                 ExtraLogs = filename:join([LogDir, Base ++ ".extra.logs"]),
                 ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
                 GlobalDict = [ExtraDict | I3#istate.global_dict],
-                I4 = I3#istate{global_dict = GlobalDict},
+                I4 = I3#istate{global_dict = GlobalDict,
+                              log_dir = LogDir},
                 Config = config_data(I4),
-                case filelib:ensure_dir(LogDir) of
+                case copy_orig(LogDir, Script, Base) of
                     ok ->
                         ConfigFd =
                             lux_log:open_config_log(LogDir, Script, Config),
@@ -60,6 +61,30 @@ interpret_commands(Script, Cmds, Opts) ->
             internal_error(I2, {'EXIT', FatalReason});
         Class:Reason ->
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason}})
+    end.
+
+case_log_dir(TopLogDir, Script) ->
+    RelScript0 = lux_utils:drop_prefix(Script),
+    RelScript =
+        case filename:pathtype(RelScript0) of
+            absolute -> tl(RelScript0);
+            _Type    -> RelScript0
+        end,
+    RelDir = filename:dirname(RelScript),
+    filename:join([TopLogDir, RelDir]).
+
+copy_orig(LogDir, Script, Base) ->
+    OrigScript = filename:join([LogDir, Base ++ ".orig"]),
+    case filelib:ensure_dir(OrigScript) of % Ensure LogDir
+        ok ->
+            case file:copy(Script, OrigScript) of
+                {ok, _} ->
+                    ok;
+                {error, FileReason} ->
+                    {error, FileReason}
+            end;
+        {error, FileReason} ->
+            {error, FileReason}
     end.
 
 eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->

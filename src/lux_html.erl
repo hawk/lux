@@ -271,14 +271,6 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files) ->
         {ok, ScriptBin} ->
             %% Save original script file
             OrigScript = orig_script(A, Script),
-            case safe_write_file(OrigScript, ScriptBin) of
-                ok ->
-                    ok;
-                {error, FileReason} ->
-                    ReasonStr = binary_to_list(Script) ++ ": " ++
-                        file:format_error(FileReason),
-                    erlang:error(ReasonStr)
-            end,
             CodeLines = binary:split(ScriptBin, <<"\n">>, [global]),
             CodeLines2 =
                 try
@@ -1252,9 +1244,8 @@ drop_log_prefix(LogDir, File) ->
     lux_utils:drop_prefix(LogDir, File).
 
 orig_script(A, Script) ->
-    RelDir = filename:dirname(drop_work_prefix(A, Script)),
     Base = filename:basename(binary_to_list(Script)),
-    filename:join([A#astate.log_dir, RelDir, Base ++ ".orig"]).
+    filename:join([A#astate.log_dir, Base ++ ".orig"]).
 
 html_suffix_href(HtmlFile, Protocol, Name, Label, Suffix) ->
     Name2 = insert_html_suffix(HtmlFile, Name, Suffix),
