@@ -858,8 +858,7 @@ cmd_tail(#istate{suite_log_dir=SuiteLogDir,
     io:format("Log files at ~s:\n\n",
               [lux_utils:drop_prefix(Cwd, CaseLogDir)]),
     {I2, Logs} = all_logs(I),
-    Print = fun({LogDir, Base}, Index) ->
-                    Abs = filename:join([LogDir, Base]),
+    Print = fun(Abs, Index) ->
                     Rel = lux_utils:drop_prefix(SuiteLogDir, Abs),
                     {Curr, Display} =
                         case file:read_file_info(Abs) of
@@ -915,19 +914,20 @@ all_logs(#istate{orig_file=Script,
                  case_log_dir=CaseLogDir,
                  logs=StdLogs} = I) ->
     I2 = lux_interpret:flush_logs(I),
-    Split = fun({_Name, Stdin, Stdout}, Acc) -> [Stdout, Stdin | Acc] end,
+    Split = fun({_Name, Stdin, Stdout}, Acc) ->
+                    [Stdout, Stdin | Acc]
+            end,
     Logs = lists:reverse(lists:foldl(Split, [], StdLogs)),
     Base = filename:basename(Script),
-    EventLog = {CaseLogDir, Base ++ ".event.log"},
-    ConfigLog = {CaseLogDir, Base ++ ".config.log"},
-    SuiteConfigLog = {SuiteLogDir, "lux_config.log"},
-    SummaryLog = {SuiteLogDir, "lux_summary.log.tmp"},
-    ResultLog = {SuiteLogDir, "lux_result.log"},
+    EventLog = filename:join([CaseLogDir, Base ++ ".event.log"]),
+    ConfigLog = filename:join([CaseLogDir, Base ++ ".config.log"]),
+    SuiteConfigLog = filename:join([SuiteLogDir, "lux_config.log"]),
+    SummaryLog = filename:join([SuiteLogDir, "lux_summary.log.tmp"]),
+    ResultLog = filename:join([SuiteLogDir, "lux_result.log"]),
     {I2, [SuiteConfigLog, SummaryLog, ResultLog, ConfigLog, EventLog | Logs]}.
 
 tail(#istate{suite_log_dir=SuiteLogDir} = I,
-     {LogDir,Base}, CmdState, Format, UserN) ->
-    AbsFile = filename:join([LogDir, Base]),
+     AbsFile, CmdState, Format, UserN) ->
     RelFile = lux_utils:drop_prefix(SuiteLogDir, AbsFile),
     case file:read_file(AbsFile) of
         {ok, Bin} ->
