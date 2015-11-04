@@ -95,7 +95,7 @@ run_suite(R0, SuiteFiles, Summary, Results) ->
     {ok, R} = tap_suite_begin(R0, Scripts, ""),
     try
         {NewR, NewSummary0, NewResults} =
-            run_cases(R, Scripts, Summary, Results, 1, []),
+            run_cases(R, Scripts, Summary, Results, 1, [], []),
         NewSummary =
             case NewResults of
                 [] -> warning;
@@ -495,11 +495,11 @@ r2(String) when is_list(String) ->
     string:right(String, 2, $0).
 
 run_cases(R, [{_SuiteFile,{error,_Reason}}|Scripts],
-          OldSummary, Results, CC, List)
+          OldSummary, Results, CC, List, Opaque)
   when R#rstate.mode =:= list; R#rstate.mode =:= list_dir ->
-    run_cases(R, Scripts, OldSummary, Results, CC+1, List);
+    run_cases(R, Scripts, OldSummary, Results, CC+1, List, Opaque);
 run_cases(R, [{SuiteFile, {error,Reason}}|Scripts],
-          OldSummary, Results, CC, List) ->
+          OldSummary, Results, CC, List, Opaque) ->
     RelSuiteFile = rel_script(R, SuiteFile),
     init_case_rlog(R, RelSuiteFile, SuiteFile),
     ListErr =
@@ -510,9 +510,9 @@ run_cases(R, [{SuiteFile, {error,Reason}}|Scripts],
     tap_case_begin(R, SuiteFile),
     lux:trace_me(70, 'case', suite, error, [Reason]),
     tap_case_end(R, CC, SuiteFile, error, "0", Reason, Reason),
-    run_cases(R, Scripts, OldSummary, Results2, CC+1, List);
+    run_cases(R, Scripts, OldSummary, Results2, CC+1, List, Opaque);
 run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
-          OldSummary, Results, CC, List) ->
+          OldSummary, Results, CC, List, Opaque) ->
     RelScript = rel_script(R, Script),
     RunMode = R#rstate.mode,
     case parse_script(R#rstate{warnings = []}, SuiteFile, Script) of
@@ -522,10 +522,10 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
             case RunMode of
                 list ->
                     run_cases(R2, Scripts, OldSummary, Results,
-                              CC+1, [Script|List]);
+                              CC+1, [Script|List], Opaque);
                 list_dir ->
                     run_cases(R2, Scripts, OldSummary, Results,
-                              CC+1, [Script|List]);
+                              CC+1, [Script|List], Opaque);
                 doc ->
                     Docs = extract_doc(Script2, Cmds),
                     io:format("~s:\n",
@@ -543,7 +543,8 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
                                         Results]
                     end,
                     run_cases(R#rstate{warnings = AllWarnings},
-                              Scripts, NewSummary, Results2, CC+1, List);
+                              Scripts, NewSummary, Results2,
+                              CC+1, List, Opaque);
                 validate ->
                     init_case_rlog(R2, RelScript, Script),
                     case NewWarnings of
@@ -561,23 +562,24 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
                                 [?TAG("result"),
                                  string:to_upper(atom_to_list(Summary))]),
                     run_cases(R#rstate{warnings = AllWarnings},
-                              Scripts, NewSummary, Results2, CC+1, List);
+                              Scripts, NewSummary, Results2,
+                              CC+1, List, Opaque);
                 execute ->
                     lux:trace_me(70, suite, 'case', RelScript, []),
                     tap_case_begin(R, Script),
                     init_case_rlog(R2, RelScript, Script),
-                    Res = lux:interpret_commands(Script2, Cmds, Opts),
+                    Res = lux:interpret_commands(Script2, Cmds, Opts, Opaque),
                     SkipReason = "",
                     case Res of
                         {ok, Summary, _, FullLineNo, CaseLogDir,
-                         Events, FailBin} ->
+                         Events, FailBin, NewOpaque} ->
                             lux:trace_me(70, 'case', suite, Summary,
                                   []),
                             tap_case_end(R2, CC, Script, Summary,
                                          FullLineNo, SkipReason, FailBin),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             Res2 = {ok, Summary, Script, FullLineNo,
-                                    CaseLogDir, Events, FailBin},
+                                    CaseLogDir, Events, FailBin, Opaque},
                             NewResults = [Res2 | Results],
                             NewScripts = Scripts;
                         {error, _, FullLineNo, CaseLogDir, ErrorMsg}
@@ -589,7 +591,8 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
                                          FullLineNo, SkipReason, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
-                            NewScripts = [];
+                            NewScripts = [],
+                            NewOpaque  = Opaque;
                         {error, _, FullLineNo, CaseLogDir, ErrorMsg} ->
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
@@ -598,7 +601,8 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
                                          FullLineNo, SkipReason, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res | Results],
-                            NewScripts = Scripts
+                            NewScripts = Scripts,
+                            NewOpaque  = Opaque
                     end,
                     HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
                     SummaryPrio = lux_utils:summary_prio(NewSummary),
@@ -614,11 +618,12 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
                             ignore
                     end,
                     run_cases(R3, NewScripts, NewSummary, NewResults,
-                              CC+1, List)
+                              CC+1, List, NewOpaque)
             end;
         {skip, R2, _ErrorStack, _SkipReason}
           when RunMode =:= list; RunMode =:= list_dir ->
-            run_cases(R2, Scripts, OldSummary, Results, CC+1, List);
+            run_cases(R2, Scripts, OldSummary, Results,
+                      CC+1, List, Opaque);
         {skip, R2, ErrorStack, SkipReason} ->
             {Script2, _, _} = lists:last(ErrorStack),
             lux:trace_me(70, suite, 'case', RelScript, []),
@@ -640,16 +645,19 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
             NewWarnings = R2#rstate.warnings,
             AllWarnings = R#rstate.warnings ++ NewWarnings,
             run_cases(R2#rstate{warnings = AllWarnings},
-                      Scripts, NewSummary, Results2, CC+1, List);
+                      Scripts, NewSummary, Results2,
+                      CC+1, List, Opaque);
         {error, _R2, _ErrorStack, _ErrorBin}
           when RunMode =:= list; RunMode =:= list_dir ->
-            run_cases(R, Scripts, OldSummary, Results, CC+1, [Script|List]);
+            run_cases(R, Scripts, OldSummary, Results,
+                      CC+1, [Script|List], Opaque);
         {error, _R2, ErrorStack, ErrorBin} when RunMode =:= doc ->
             {MainFile, _FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
             io:format("~s:\n\tERROR: ~s: ~s\n",
                       [Script, MainFile, ErrorBin2]),
-            run_cases(R, Scripts, OldSummary, Results, CC+1, List);
+            run_cases(R, Scripts, OldSummary, Results,
+                      CC+1, List, Opaque);
         {error, R2, ErrorStack, ErrorBin} ->
             {MainFile, FullLineNo, ErrorBin2} =
                 parse_error(ErrorStack, ErrorBin),
@@ -666,9 +674,10 @@ run_cases(R, [{SuiteFile,{ok,Script}} | Scripts],
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Results2 = [{error, MainFile, FullLineNo, ErrorBin2} | Results],
             run_cases(R#rstate{warnings = AllWarnings},
-                      Scripts, NewSummary, Results2, CC+1, List)
+                      Scripts, NewSummary, Results2,
+                      CC+1, List, Opaque)
     end;
-run_cases(R, [], Summary, Results, _CC, List) ->
+run_cases(R, [], Summary, Results, _CC, List, _Opaque) ->
     List2 = [lux_utils:drop_prefix(File) || File <- List],
     case R#rstate.mode of
         list ->
@@ -787,7 +796,7 @@ builtins(R, ActualConfigName) ->
      {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
      {version, [string], lux_utils:version()},
      {root_dir, [string], code:root_dir()},
-     {work_dir, [string], Cwd},
+     {run_dir, [string], Cwd},
      {command, [string], hd(R#rstate.orig_args)},
      {arguments, [string], string:join(tl(R#rstate.orig_args), " ")},
      {hostname, [string], R#rstate.hostname},
@@ -796,7 +805,6 @@ builtins(R, ActualConfigName) ->
      {suite, [string], R#rstate.suite},
      {run, [string], R#rstate.run},
      {revision, [string], R#rstate.revision},
-     {run_dir, [string], Cwd},
      {'config name', [string], R#rstate.config_name},
      {config_dir, [string], R#rstate.config_dir}
     ].

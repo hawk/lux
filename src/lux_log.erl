@@ -506,7 +506,8 @@ pick_result(Warnings, Outcome) when Outcome =:= warning ->
         {warning, Script, FullLineNo, _Reason} <- Warnings];
 pick_result(Results, Outcome) ->
     [{Script, FullLineNo} ||
-        {ok, O, Script, FullLineNo, _LogDir, _Events, _FailBins} <- Results,
+        {ok, O, Script, FullLineNo, _LogDir,
+         _Events, _FailBins, _Opaque} <- Results,
         O =:= Outcome].
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->

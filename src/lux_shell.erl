@@ -73,7 +73,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
     OrigFile = I#istate.orig_file,
     Self = self(),
     Base = filename:basename(OrigFile),
-    Prefix = filename:join([I#istate.log_dir, Base ++ "." ++ Name]),
+    Prefix = filename:join([I#istate.case_log_dir, Base ++ "." ++ Name]),
     C = #cstate{orig_file = OrigFile,
                 parent = Self,
                 name = Name,

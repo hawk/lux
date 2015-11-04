@@ -12,7 +12,7 @@
 
  -include("lux.hrl").
 
--record(astate, {log_dir, log_file, work_dir, orig_file, case_prefix, opts}).
+-record(astate, {log_dir, log_file, run_dir, orig_file, case_prefix, opts}).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
     AbsLogFile = filename:absname(LogFile),
@@ -233,8 +233,8 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
             {ok, EventLog2, ConfigLog,
              Script, EventBins, ConfigBins, LogBins, ResultBins} ->
                 ConfigProps = lux_log:split_config(ConfigBins),
-                WorkDir = work_dir(ConfigProps),
-                A2 = A#astate{work_dir = WorkDir},
+                WorkDir = run_dir(ConfigProps),
+                A2 = A#astate{run_dir = WorkDir},
                 OrigScript = orig_script(A2, Script),
                 A3 = A2#astate{orig_file = OrigScript},
                 Events = lux_log:parse_events(EventBins, []),
@@ -1240,12 +1240,12 @@ drop_log_prefix(#astate{log_dir=LogDir}, File) ->
 drop_log_prefix(LogDir, File) ->
     lux_utils:drop_prefix(LogDir, File).
 
-work_dir(ConfigProps) ->
-    lux_log:find_config(<<"work_dir">>, ConfigProps, undefined).
+run_dir(ConfigProps) ->
+    lux_log:find_config(<<"run_dir">>, ConfigProps, undefined).
 
 orig_script(A, BinScript) ->
     Script = binary_to_list(BinScript),
-    RelScript = lux_utils:drop_prefix(A#astate.work_dir, Script),
+    RelScript = lux_utils:drop_prefix(A#astate.run_dir, Script),
     Base = filename:basename(RelScript),
     list_to_binary(filename:join([A#astate.log_dir, Base ++ ".orig"])).
 

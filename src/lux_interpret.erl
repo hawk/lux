@@ -9,7 +9,7 @@
 
 -include("lux.hrl").
 
--export([interpret_commands/3,
+-export([interpret_commands/4,
          default_istate/1,
          parse_iopts/2,
          config_type/1,
@@ -19,28 +19,35 @@
          lookup_macro/2,
          flush_logs/1]).
 
-interpret_commands(Script, Cmds, Opts) ->
+interpret_commands(Script, Cmds, Opts, Opaque) ->
     I = default_istate(Script),
-    I2 = I#istate{commands = Cmds, orig_commands = shrinked},
+    case lists:keyfind(stopped_by_user, 1, Opaque) of
+        {_, Context = suite} -> ok;
+        _                    -> Context = undefined
+    end,
+    I2 = I#istate{commands = Cmds,
+                  orig_commands = shrinked,
+                  stopped_by_user = Context},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
-                LogDir = case_log_dir(I3#istate.log_dir, Script),
-                I4 = I3#istate{log_dir = LogDir},
-                case copy_orig(LogDir, Script) of
+                CaseLogDir = case_log_dir(I3#istate.suite_log_dir, Script),
+                I4 = I3#istate{case_log_dir = CaseLogDir},
+                case copy_orig(CaseLogDir, Script) of
                     {ok, Base} ->
-                        ExtraLogs = filename:join([LogDir,
+                        ExtraLogs = filename:join([CaseLogDir,
                                                    Base ++ ".extra.logs"]),
                         ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
                         GlobalDict = [ExtraDict | I4#istate.global_dict],
                         I5 = I4#istate{global_dict = GlobalDict},
                         Config = config_data(I5),
                         ConfigFd =
-                            lux_log:open_config_log(LogDir, Script, Config),
+                            lux_log:open_config_log(CaseLogDir, Script, Config),
                         Progress = I5#istate.progress,
                         LogFun = I5#istate.log_fun,
                         Verbose = true,
-                        case lux_log:open_event_log(LogDir, Script, Progress,
+                        case lux_log:open_event_log(CaseLogDir, Script,
+                                                    Progress,
                                                     LogFun, Verbose) of
                             {ok, EventLog, EventFd} ->
                                 Docs = docs(I5#istate.orig_file, Cmds),
@@ -63,15 +70,15 @@ interpret_commands(Script, Cmds, Opts) ->
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason}})
     end.
 
-case_log_dir(TopLogDir, Script) ->
-    RelScript0 = lux_utils:drop_prefix(Script),
+case_log_dir(SuiteLogDir, AbsScript) ->
+    RelScript0 = lux_utils:drop_prefix(AbsScript),
     RelScript =
         case filename:pathtype(RelScript0) of
             absolute -> tl(RelScript0);
             _Type    -> RelScript0
         end,
     RelDir = filename:dirname(RelScript),
-    filename:join([TopLogDir, RelDir]).
+    filename:join([SuiteLogDir, RelDir]).
 
 copy_orig(LogDir, Script) ->
     Base = filename:basename(Script),
@@ -137,7 +144,7 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     double_ilog(I, "~sERROR ~s\n",
                 [?TAG("result"),
                  binary_to_list(ReasonBin)]),
-    {error, I#istate.file, FullLineNo, I#istate.log_dir, ReasonBin}.
+    {error, I#istate.file, FullLineNo, I#istate.case_log_dir, ReasonBin}.
 
 parse_iopts(I, [{Name, Val} | T]) when is_atom(Name) ->
     case parse_iopt(I, Name, Val) of
@@ -152,10 +159,12 @@ parse_iopts(I, []) ->
         "" -> ShellWrapper = undefined;
         ShellWrapper -> ok
     end,
+    SuiteLogDir = filename:absname(I#istate.suite_log_dir),
     I2 = I#istate{file = File,
                   orig_file = File,
                   shell_wrapper = ShellWrapper,
-                  log_dir = filename:absname(I#istate.log_dir)},
+                  suite_log_dir = SuiteLogDir,
+                  case_log_dir = SuiteLogDir},
     {ok, I2}.
 
 parse_iopt(I, Name, Val) when is_atom(Name) ->
@@ -186,7 +195,7 @@ config_type(Name) ->
             {ok, #istate.progress,
              [{atom, [silent, brief, doc, compact, verbose]}]};
         log_dir ->
-            {ok, #istate.log_dir, [string]};
+            {ok, #istate.suite_log_dir, [string]};
         log_fun->
             {ok, #istate.log_fun, [{function, 1}]};
         log_fd->
@@ -304,22 +313,24 @@ wait_for_done(I, Pid, Docs) ->
             internal_error(I2, {'EXIT', Reason})
     end.
 
-handle_done(I, I2, Docs) ->
-    I3 = post_ilog(I2, Docs),
-    File = I3#istate.file,
-    Results = I3#istate.results,
+handle_done(OldI, NewI0, Docs) ->
+    NewI = post_ilog(NewI0, Docs),
+    File = NewI#istate.file,
+    Results = NewI#istate.results,
     case lists:keyfind('EXIT', 1, Results) of
         false ->
             case lists:keyfind(fail, #result.outcome, Results) of
+                #result{outcome = fail} = Fail ->
+                    print_fail(OldI, NewI, File, Results, Fail);
                 false ->
-                    Reason = I3#istate.cleanup_reason,
+                    Reason = NewI#istate.cleanup_reason,
                     if
                         Reason =:= normal;
                         Reason =:= success ->
-                            print_success(I3, File, Results);
+                            print_success(NewI, File, Results);
                         true ->
-                            LatestCmd = I3#istate.latest_cmd,
-                            CmdStack = I3#istate.cmd_stack,
+                            LatestCmd = NewI#istate.latest_cmd,
+                            CmdStack = NewI#istate.cmd_stack,
                             R = #result{outcome    = fail,
                                         latest_cmd = LatestCmd,
                                         cmd_stack  = CmdStack,
@@ -327,22 +338,21 @@ handle_done(I, I2, Docs) ->
                                         extra      = undefined,
                                         actual     = Reason,
                                         rest       = fail},
-                            print_fail(I, File, Results, R)
-                    end;
-                #result{outcome = fail} = Fail ->
-                    print_fail(I, File, Results, Fail)
+                            print_fail(OldI, NewI, File, Results, R)
+                    end
             end;
         {'EXIT', Reason} ->
-            internal_error(I3, {'EXIT', Reason})
+            internal_error(NewI, {'EXIT', Reason})
     end.
 
 print_success(I, File, Results) ->
     double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
-    {ok, success, File, FullLineNo, I#istate.log_dir, Results, <<>>}.
+    {ok, success, File, FullLineNo, I#istate.case_log_dir,
+     Results, <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
-print_fail(I0, File, Results,
+print_fail(OldI0, NewI, File, Results,
            #result{outcome    = fail,
                    latest_cmd = LatestCmd,
                    cmd_stack  = CmdStack,
@@ -361,9 +371,9 @@ print_fail(I0, File, Results,
             _ when is_binary(Actual) ->
                 {<<"error">>, Actual}
         end,
-    I = I0#istate{progress = silent},
-    FullLineNo = full_lineno(I, LatestCmd, CmdStack),
-    ResStr = double_ilog(I, "~sFAIL at ~s:~s\n",
+    OldI = OldI0#istate{progress = silent},
+    FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
+    ResStr = double_ilog(OldI, "~sFAIL at ~s:~s\n",
                          [?TAG("result"), File, FullLineNo]),
     FailBin =
         iolist_to_binary(
@@ -373,18 +383,20 @@ print_fail(I0, File, Results,
            io_lib:format("actual ~s\n\t~s",
                          [NewActual, simple_to_string(NewRest)])
           ]),
-    case I0#istate.progress of
+    case OldI0#istate.progress of
         silent ->
             ok;
         _ ->
             io:format("~s", [ResStr]),
             io:format("~s\n", [FailBin])
     end,
-    double_ilog(I, "expected\n\"~s\"\n",
+    double_ilog(OldI, "expected\n\"~s\"\n",
                 [lux_utils:to_string(Expected)]),
-    double_ilog(I, "actual ~s\n\"~s\"\n",
+    double_ilog(OldI, "actual ~s\n\"~s\"\n",
                 [NewActual, lux_utils:to_string(NewRest)]),
-    {ok, fail, File, FullLineNo, I#istate.log_dir, Results, FailBin}.
+    Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
+    {ok, fail, File, FullLineNo, NewI#istate.case_log_dir,
+     Results, FailBin, Opaque}.
 
 full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),
@@ -458,7 +470,7 @@ config_data(I) ->
     {ok, Cwd} = file:get_cwd(),
     [
      {script,          [string],               I#istate.file},
-     {work_dir,        [string],               Cwd},
+     {run_dir,         [string],               Cwd},
      {debug,                                   I#istate.debug},
      {debug_file,                              I#istate.debug_file},
      {skip,                                    I#istate.skip},
@@ -466,7 +478,7 @@ config_data(I) ->
      {require,                                 I#istate.require},
      {case_prefix,                             I#istate.case_prefix},
      {progress,                                I#istate.progress},
-     {log_dir,                                 I#istate.log_dir},
+     {log_dir,                                 I#istate.suite_log_dir},
      {multiplier,                              I#istate.multiplier},
      {suite_timeout,                           I#istate.suite_timeout},
      {case_timeout,                            I#istate.case_timeout},
@@ -496,15 +508,18 @@ interpret_init(I) ->
                  old_want_more = undefined,
                  orig_commands = OrigCmds},
     I4 =
-        case I2#istate.debug orelse I2#istate.debug_file =/= undefined of
-            false ->
-                I2;
-            true ->
+        if
+            I2#istate.stopped_by_user =:= suite ->
+                stopped_by_user(I2#istate{commands = []},
+                                I2#istate.stopped_by_user);
+            I2#istate.debug orelse I2#istate.debug_file =/= undefined ->
                 DebugState = {attach, temporary},
                 {_, I3} = lux_debug:cmd_attach(I2, [], DebugState),
                 io:format("\nDebugger for lux. Try help or continue.\n",
                           []),
-                I3
+                I3;
+            true ->
+                I2
         end,
     try
         Res = interpret_loop(I4),
@@ -548,11 +563,9 @@ interpret_loop(I) ->
         {debug_call, Pid, Cmd, CmdState} ->
             I2 = lux_debug:eval_cmd(I, Pid, Cmd, CmdState),
             interpret_loop(I2);
-        stopped_by_user ->
+        {stopped_by_user, Context} ->
             %% Ordered to stop by user
-            ilog(I, "~s(~p): stopped_by_user\n",
-                 [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno]),
-            I2 = prepare_stop(I, dummy_pid, {fail, stopped_by_user}),
+            I2 = stopped_by_user(I, Context),
             interpret_loop(I2);
         {stop, Pid, Res} ->
             %% One shell has finished. Stop the others if needed
@@ -593,6 +606,13 @@ interpret_loop(I) ->
             I2 = opt_dispatch_cmd(I),
             interpret_loop(I2)
     end.
+
+stopped_by_user(I, Context) ->
+    %% Ordered to stop by user
+    ilog(I, "~s(~p): stopped_by_user\n",
+         [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno]),
+    I2 = prepare_stop(I, dummy_pid, {fail, stopped_by_user}),
+    I2#istate{stopped_by_user = Context, cleanup_reason = fail}.
 
 timeout(I) ->
     if
@@ -801,14 +821,14 @@ dispatch_cmd(I,
             {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
             ilog(I, "~s(~p): include_file \"~s\"\n",
                  [I#istate.active_name, LineNo, InclFile]),
-            LogDir = I#istate.log_dir,
-            case copy_orig(LogDir, InclFile) of
+            CaseLogDir = I#istate.case_log_dir,
+            case copy_orig(CaseLogDir, InclFile) of
                 {ok, _} ->
                     eval_include(I, LineNo, FirstLineNo, LastLineNo,
                                  InclFile, InclCmds, Cmd);
                 {error, FileReason} ->
                     Reason =
-                        ["Cannot copy file ", InclFile, " to ", LogDir,
+                        ["Cannot copy file ", InclFile, " to ", CaseLogDir,
                          ": ", file:format_error(FileReason)],
                     throw_error(I, iolist_to_binary(Reason))
             end;

@@ -383,12 +383,16 @@ cmds() ->
                                                       "compact", "verbose"]},
                                        presence = optional,
                                        help = "verbosity level. "
-                                       "Toggles between brief and "
+                                       "Toggle between brief and "
                                        "verbose by default."}],
                 help = "set verbosity level of progress",
                 callback = fun cmd_progress/3},
      #debug_cmd{name = "quit",
-                params = [],
+                params = [#debug_param{name = "context",
+                                       type = {enum, ["case","suite"]},
+                                       presence = optional,
+                                       help = "quit a single test case"
+                                       " or the entire test suite."}],
                 help = "exit lux in a controlled manner. "
                 "Runs cleanup if applicable. ",
                 callback = fun cmd_quit/3},
@@ -845,12 +849,18 @@ longest2([], Longest) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-cmd_tail(#istate{log_dir=LogDir, tail_status=Status} = I, [], CmdState) ->
+cmd_tail(#istate{suite_log_dir=SuiteLogDir,
+                 case_log_dir=CaseLogDir,
+                 tail_status=Status} = I,
+         [],
+         CmdState) ->
     {ok, Cwd} =  file:get_cwd(),
-    io:format("Log files at ~s:\n\n", [lux_utils:drop_prefix(Cwd, LogDir)]),
+    io:format("Log files at ~s:\n\n",
+              [lux_utils:drop_prefix(Cwd, CaseLogDir)]),
     {I2, Logs} = all_logs(I),
-    Print = fun(Abs, Index) ->
-                    Rel = lux_utils:drop_prefix(LogDir, Abs),
+    Print = fun({LogDir, Base}, Index) ->
+                    Abs = filename:join([LogDir, Base]),
+                    Rel = lux_utils:drop_prefix(SuiteLogDir, Abs),
                     {Curr, Display} =
                         case file:read_file_info(Abs) of
                             {ok, #file_info{size=Size}} ->
@@ -900,20 +910,25 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             tail(I2, LogFile, CmdState, Format, UserN)
     end.
 
-all_logs(#istate{orig_file=Script, log_dir=LogDir, logs=StdLogs} = I) ->
+all_logs(#istate{orig_file=Script,
+                 suite_log_dir=SuiteLogDir,
+                 case_log_dir=CaseLogDir,
+                 logs=StdLogs} = I) ->
     I2 = lux_interpret:flush_logs(I),
     Split = fun({_Name, Stdin, Stdout}, Acc) -> [Stdout, Stdin | Acc] end,
     Logs = lists:reverse(lists:foldl(Split, [], StdLogs)),
     Base = filename:basename(Script),
-    EventLog = filename:join([LogDir, Base ++ ".event.log"]),
-    ConfigLog = filename:join([LogDir, Base ++ ".config.log"]),
-    SuiteConfigLog = filename:join([LogDir, "lux_config.log"]),
-    SummaryLog = filename:join([LogDir, "lux_summary.log.tmp"]),
-    ResultLog = filename:join([LogDir, "lux_result.log"]),
+    EventLog = {CaseLogDir, Base ++ ".event.log"},
+    ConfigLog = {CaseLogDir, Base ++ ".config.log"},
+    SuiteConfigLog = {SuiteLogDir, "lux_config.log"},
+    SummaryLog = {SuiteLogDir, "lux_summary.log.tmp"},
+    ResultLog = {SuiteLogDir, "lux_result.log"},
     {I2, [SuiteConfigLog, SummaryLog, ResultLog, ConfigLog, EventLog | Logs]}.
 
-tail(#istate{log_dir=LogDir} = I, AbsFile, CmdState, Format, UserN) ->
-    RelFile = lux_utils:drop_prefix(LogDir, AbsFile),
+tail(#istate{suite_log_dir=SuiteLogDir} = I,
+     {LogDir,Base}, CmdState, Format, UserN) ->
+    AbsFile = filename:join([LogDir, Base]),
+    RelFile = lux_utils:drop_prefix(SuiteLogDir, AbsFile),
     case file:read_file(AbsFile) of
         {ok, Bin} ->
             AllRows = binary:split(Bin, <<"\n">>, [global]),
@@ -1121,12 +1136,19 @@ cmd_progress(I, Args, CmdState) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-cmd_quit(I, _Args, _CmdState) ->
-    io:format("\nWARNING: Stopped by user.\n", []),
+cmd_quit(I, Args, _CmdState) ->
+    case Args of
+        [{"context", ContextStr}] ->
+            ok;
+        [] ->
+            ContextStr = "case"
+        end,
+    Context = list_to_atom(ContextStr),
+    io:format("\nWARNING: Test ~s stopped by user\n", [ContextStr]),
     {_, I2} = opt_unblock(I),
     InterpreterPid = self(),
-    InterpreterPid ! stopped_by_user,
-    {undefined, I2}.
+    InterpreterPid ! {stopped_by_user, Context},
+    {undefined, I2 }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

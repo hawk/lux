@@ -66,7 +66,8 @@
          case_prefix = ""           :: string(),
          config_dir = undefined     :: undefined | string(),
          progress = brief           :: silent | brief | doc | compact | verbose,
-         log_dir = "lux_logs"       :: string(),
+         suite_log_dir = "lux_logs" :: string(),
+         case_log_dir               :: string(),
          log_fun                    :: function(),
          config_log_fd              :: {true, file:io_device()},
          event_log_fd               :: {true, file:io_device()},
@@ -106,7 +107,8 @@
          builtin_dict               :: [string()],   % ["name=val"]
          system_dict                :: [string()],   % ["name=val"]
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
-                                    :: #cmd{}}).
+                                    :: #cmd{},
+         stopped_by_user            :: undefined | 'case' | suite}).
 
 
 -record(run,
