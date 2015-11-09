@@ -3,11 +3,11 @@
 [doc2 Show examples of config settings]
 
 [config skip=FOO_BAR]
-[config require=HOME]
+[config require=SHELL]
 [config var=FUM=xxx]
 
 [shell vars]
-    !echo $HOME yyy \$HOME zzz $$HOME
+    !echo $SHELL yyy \$SHELL zzz $$SHELL
     !echo ==\$==
     ?==0==
 

@@ -2,7 +2,7 @@
 
 [doc2 Show examples of config settings]
 
-[config skip=HOME]
+[config skip=SHELL]
 
 [shell foo]
     ?bar

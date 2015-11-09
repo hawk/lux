@@ -797,6 +797,7 @@ builtins(R, ActualConfigName) ->
      {version, [string], lux_utils:version()},
      {root_dir, [string], code:root_dir()},
      {run_dir, [string], Cwd},
+     {log_dir, [string], R#rstate.log_dir},
      {command, [string], hd(R#rstate.orig_args)},
      {arguments, [string], string:join(tl(R#rstate.orig_args), " ")},
      {hostname, [string], R#rstate.hostname},

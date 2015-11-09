@@ -61,10 +61,14 @@ safe_write_file(File, IoList) when is_list(File) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate a summary log and all its event logs
 
-annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
+annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0) ->
     case lux_log:parse_summary_log(AbsSummaryLog) of
-        {ok, Result, Groups, ArchConfig, _FileInfo, EventLogs} ->
-            Html = html_groups(A, AbsSummaryLog, Result, Groups, ArchConfig),
+        {ok, Result, Groups, ConfigSection, _FileInfo, EventLogs} ->
+            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
+            ConfigProps = lux_log:split_config(ConfigBins),
+            RunLogDir = log_dir(ConfigProps),
+            A = A0#astate{log_dir = RunLogDir},
+            Html = html_groups(A, AbsSummaryLog, Result, Groups, ConfigSection),
             case IsRecursive of
                 true ->
                     O = A#astate.opts,
@@ -90,7 +94,7 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog}=A) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Return summary log as HTML
 
-html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
+html_groups(A, SummaryLog, Result, Groups, ConfigSection) ->
     Dir = filename:basename(filename:dirname(SummaryLog)),
     RelSummaryLog = drop_log_prefix(A, SummaryLog),
     RelResultLog = drop_log_prefix(A, "lux_result.log"),
@@ -105,7 +109,7 @@ html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
      html_header(["Lux summary log (", Dir, ")"]),
      "<table border=1>\n",
      "  <tr>\n",
-     "    <td><strong>Log files:</strong></td>",
+     "    <td><strong>Log files:</strong></td>\n",
      LogFun(RelSummaryLog, "Summary"),
      LogFun(RelResultLog, "Result"),
      LogFun(RelConfigLog, "Config"),
@@ -116,7 +120,7 @@ html_groups(A, SummaryLog, Result, Groups, ArchConfig) ->
      html_summary_result(A, Result, Groups, IsTmp),
      html_groups2(A, Groups),
      html_anchor("h2", "", "suite_config", "Suite configuration:"),
-     html_div(<<"annotate">>, ArchConfig),
+     html_div(<<"annotate">>, ConfigSection),
      html_footer()
     ].
 
@@ -233,8 +237,9 @@ annotate_event_log(#astate{log_file=EventLog} = A) ->
             {ok, EventLog2, ConfigLog,
              Script, EventBins, ConfigBins, LogBins, ResultBins} ->
                 ConfigProps = lux_log:split_config(ConfigBins),
-                WorkDir = run_dir(ConfigProps),
-                A2 = A#astate{run_dir = WorkDir},
+                RunDir = run_dir(ConfigProps),
+                RunLogDir = log_dir(ConfigProps),
+                A2 = A#astate{log_dir = RunLogDir, run_dir = RunDir},
                 OrigScript = orig_script(A2, Script),
                 A3 = A2#astate{orig_file = OrigScript},
                 Events = lux_log:parse_events(EventBins, []),
@@ -279,7 +284,7 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files) ->
             do_interleave_code(A, Events, ScriptComps, CodeLines2,
                                FirstLineNo, MaxLineNo, Acc, CmdStack, Files2);
         {error, FileReason} ->
-            ReasonStr = binary_to_list(Script) ++ ": " ++
+            ReasonStr = binary_to_list(OrigScript) ++ ": " ++
                 file:format_error(FileReason),
             io:format("ERROR(lux): ~s\n", [ReasonStr]),
             CodeLines = [],
@@ -1241,13 +1246,15 @@ drop_log_prefix(LogDir, File) ->
     lux_utils:drop_prefix(LogDir, File).
 
 run_dir(ConfigProps) ->
-    lux_log:find_config(<<"run_dir">>, ConfigProps, undefined).
+    binary_to_list(lux_log:find_config(<<"run_dir">>, ConfigProps, undefined)).
+
+log_dir(ConfigProps) ->
+    binary_to_list(lux_log:find_config(<<"log_dir">>, ConfigProps, undefined)).
 
 orig_script(A, BinScript) ->
     Script = binary_to_list(BinScript),
     RelScript = lux_utils:drop_prefix(A#astate.run_dir, Script),
-    Base = filename:basename(RelScript),
-    list_to_binary(filename:join([A#astate.log_dir, Base ++ ".orig"])).
+    list_to_binary(filename:join([A#astate.log_dir, RelScript ++ ".orig"])).
 
 html_suffix_href(HtmlFile, Protocol, Name, Label, Suffix) ->
     Name2 = insert_html_suffix(HtmlFile, Name, Suffix),

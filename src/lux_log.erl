@@ -573,9 +573,9 @@ do_scan_events(EventLog, EventSections) ->
     case scan_config(ConfigLog) of
         {ok, [ConfigSection]} ->
             LogBins = [],
-            ConfigProps = binary:split(ConfigSection, <<"\n">>, [global]),
+            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
             {ok, EventLog, ConfigLog,
-             Script, EventBins, ConfigProps, LogBins, ResultBins};
+             Script, EventBins, ConfigBins, LogBins, ResultBins};
         {ok, [ConfigSection,LogSection]} ->
             ConfigProps = binary:split(ConfigSection, <<"\n">>, [global]),
             LogBins = binary:split(LogSection, <<"\n">>, [global]),

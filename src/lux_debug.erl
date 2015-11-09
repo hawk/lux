@@ -388,7 +388,7 @@ cmds() ->
                 help = "set verbosity level of progress",
                 callback = fun cmd_progress/3},
      #debug_cmd{name = "quit",
-                params = [#debug_param{name = "context",
+                params = [#debug_param{name = "scope",
                                        type = {enum, ["case","suite"]},
                                        presence = optional,
                                        help = "quit a single test case"
@@ -1138,16 +1138,16 @@ cmd_progress(I, Args, CmdState) ->
 
 cmd_quit(I, Args, _CmdState) ->
     case Args of
-        [{"context", ContextStr}] ->
+        [{"scope", ScopeStr}] ->
             ok;
         [] ->
-            ContextStr = "case"
+            ScopeStr = "case"
         end,
-    Context = list_to_atom(ContextStr),
-    io:format("\nWARNING: Test ~s stopped by user\n", [ContextStr]),
+    Scope = list_to_atom(ScopeStr),
+    io:format("\nWARNING: Test ~s stopped by user\n", [ScopeStr]),
     {_, I2} = opt_unblock(I),
     InterpreterPid = self(),
-    InterpreterPid ! {stopped_by_user, Context},
+    InterpreterPid ! {stopped_by_user, Scope},
     {undefined, I2 }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

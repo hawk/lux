@@ -471,6 +471,7 @@ config_data(I) ->
     [
      {script,          [string],               I#istate.file},
      {run_dir,         [string],               Cwd},
+     {log_dir,                                 I#istate.suite_log_dir},
      {debug,                                   I#istate.debug},
      {debug_file,                              I#istate.debug_file},
      {skip,                                    I#istate.skip},
@@ -478,7 +479,6 @@ config_data(I) ->
      {require,                                 I#istate.require},
      {case_prefix,                             I#istate.case_prefix},
      {progress,                                I#istate.progress},
-     {log_dir,                                 I#istate.suite_log_dir},
      {multiplier,                              I#istate.multiplier},
      {suite_timeout,                           I#istate.suite_timeout},
      {case_timeout,                            I#istate.case_timeout},
@@ -510,8 +510,7 @@ interpret_init(I) ->
     I4 =
         if
             I2#istate.stopped_by_user =:= suite ->
-                stopped_by_user(I2#istate{commands = []},
-                                I2#istate.stopped_by_user);
+                stopped_by_user(I2, I2#istate.stopped_by_user);
             I2#istate.debug orelse I2#istate.debug_file =/= undefined ->
                 DebugState = {attach, temporary},
                 {_, I3} = lux_debug:cmd_attach(I2, [], DebugState),
@@ -563,9 +562,9 @@ interpret_loop(I) ->
         {debug_call, Pid, Cmd, CmdState} ->
             I2 = lux_debug:eval_cmd(I, Pid, Cmd, CmdState),
             interpret_loop(I2);
-        {stopped_by_user, Context} ->
+        {stopped_by_user, Scope} ->
             %% Ordered to stop by user
-            I2 = stopped_by_user(I, Context),
+            I2 = stopped_by_user(I, Scope),
             interpret_loop(I2);
         {stop, Pid, Res} ->
             %% One shell has finished. Stop the others if needed
@@ -607,12 +606,19 @@ interpret_loop(I) ->
             interpret_loop(I2)
     end.
 
-stopped_by_user(I, Context) ->
+stopped_by_user(I, Scope) ->
     %% Ordered to stop by user
     ilog(I, "~s(~p): stopped_by_user\n",
          [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno]),
-    I2 = prepare_stop(I, dummy_pid, {fail, stopped_by_user}),
-    I2#istate{stopped_by_user = Context, cleanup_reason = fail}.
+    I2 =
+        if
+            I#istate.commands =:= I#istate.orig_commands ->
+                I#istate{commands = []}; % Nothing to cleanup
+            true ->
+                I
+        end,
+    I3 = prepare_stop(I2, dummy_pid, {fail, stopped_by_user}),
+    I3#istate{stopped_by_user = Scope, cleanup_reason = fail}.
 
 timeout(I) ->
     if
