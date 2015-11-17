@@ -683,8 +683,10 @@ pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
 pick_opt(_Tag, [], Val) ->
     Val.
 
-split_args([{Key, Val} | Opts], Acc) ->
+split_args([{Key, Val} | Opts], Acc) when is_list(Val) ->
     Split = [{Key, V} || V <- Val],
     split_args(Opts, Split ++ Acc);
 split_args([], Acc) ->
-    Acc.
+    Acc;
+split_args([{Key, Val} | Opts], Acc)  ->
+    split_args(Opts, [{Key, Val} | Acc]).
