@@ -8,7 +8,7 @@
 -module(lux_utils).
 -export([version/0, timestamp/0, builtin_vars/0, system_vars/0, expand_vars/3,
          summary/2, summary_prio/1,
-         multiply/2, drop_prefix/1, drop_prefix/2,
+         multiply/2, drop_prefix/1, drop_prefix/2, normalize/1,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
          normalize_newlines/1, expand_lines/1,
          to_string/1, tag_prefix/2,
@@ -17,7 +17,7 @@
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
          cmd/2, chop_newline/1, cmd_expected/1, perms/1,
-         pick_opt/3, split_args/2]).
+         pick_opt/3]).
 
 -include("lux.hrl").
 
@@ -192,7 +192,9 @@ drop_prefix(Prefix, File) when is_binary(Prefix) ->
 drop_prefix(Prefix, File) when is_binary(File) ->
     list_to_binary(drop_prefix(Prefix, binary_to_list(File)));
 drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
-    do_drop_prefix(filename:split(Prefix), filename:split(File), File).
+    SplitPrefix = filename:split(Prefix),
+    SplitFile = filename:split(File),
+    do_drop_prefix(SplitPrefix, SplitFile, SplitFile).
 
 do_drop_prefix([H | Prefix], [H | File], OrigFile) ->
     do_drop_prefix(Prefix, File, OrigFile);
@@ -201,7 +203,24 @@ do_drop_prefix([], [], _OrigFile) ->
 do_drop_prefix([], Rest, _OrigFile) ->
     filename:join(Rest);
 do_drop_prefix(_Prefix, _Rest, OrigFile) ->
-    OrigFile.
+    filename:join(OrigFile).
+
+normalize(File) when is_binary(File) ->
+    list_to_binary(normalize(binary_to_list(File)));
+normalize(File) ->
+    do_normalize(filename:split(filename:absname(File)), []).
+
+do_normalize([H|T], Acc) ->
+    Acc2 =
+        case H of
+            "."                  -> Acc;
+            ".." when Acc =:= [] -> Acc;
+            ".."                 -> tl(Acc);
+            _                    -> [H|Acc]
+        end,
+    do_normalize(T, Acc2);
+do_normalize([], Acc) ->
+    filename:join(lists:reverse(Acc)).
 
 strip_leading_whitespaces(Bin) when is_binary(Bin) ->
     re:replace(Bin, "^[\s\t]+", "", [{return, binary}]).
@@ -682,11 +701,3 @@ pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
     pick_opt(Tag, Opts, Val);
 pick_opt(_Tag, [], Val) ->
     Val.
-
-split_args([{Key, Val} | Opts], Acc) when is_list(Val) ->
-    Split = [{Key, V} || V <- Val],
-    split_args(Opts, Split ++ Acc);
-split_args([], Acc) ->
-    Acc;
-split_args([{Key, Val} | Opts], Acc)  ->
-    split_args(Opts, [{Key, Val} | Acc]).

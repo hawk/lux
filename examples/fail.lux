@@ -3,6 +3,7 @@
 [doc2 Show examples of config settings]
 
 [config skip=FOO_BAR]
+[config skip=BAZ]
 [config require=SHELL]
 [config var=FUM=xxx]
 

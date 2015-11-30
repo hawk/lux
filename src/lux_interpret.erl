@@ -14,8 +14,8 @@
          default_istate/1,
          parse_iopts/2,
          config_type/1,
-         set_config_val/5,
-         set_config_vals/5
+         set_config_val/6,
+         set_config_vals/6
         ]).
 -export([
          opt_dispatch_cmd/1,
@@ -149,33 +149,37 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
                  binary_to_list(ReasonBin)]),
     {error, I#istate.file, FullLineNo, I#istate.case_log_dir, ReasonBin}.
 
-parse_iopts(I, [{Name, Val} | T]) when is_atom(Name) ->
-    case parse_iopt(I, Name, Val) of
-        {ok, I2} ->
-            parse_iopts(I2, T);
-        {error, Reason} ->
-            {error, Reason}
+parse_iopts(I, Opts) ->
+    {Res, _U} = do_parse_iopts(I, Opts, []),
+    Res.
+
+do_parse_iopts(I, [{Name, Val} | T], U) when is_atom(Name) ->
+    case parse_iopt(I, Name, Val, U) of
+        {{ok, I2}, U2} ->
+            do_parse_iopts(I2, T, U2);
+        {{error, _Reason}, _U2} = Res ->
+            Res
     end;
-parse_iopts(I, []) ->
-    File = filename:absname(I#istate.file),
+do_parse_iopts(I, [], U) ->
+    File = lux_utils:normalize(I#istate.file),
     case I#istate.shell_wrapper of
         "" -> ShellWrapper = undefined;
         ShellWrapper -> ok
     end,
-    SuiteLogDir = filename:absname(I#istate.suite_log_dir),
+    SuiteLogDir = lux_utils:normalize(I#istate.suite_log_dir),
     I2 = I#istate{file = File,
                   orig_file = File,
                   shell_wrapper = ShellWrapper,
                   suite_log_dir = SuiteLogDir,
                   case_log_dir = SuiteLogDir},
-    {ok, I2}.
+    {{ok, I2}, U}.
 
-parse_iopt(I, Name, Val) when is_atom(Name) ->
+parse_iopt(I, Name, Val, U) when is_atom(Name) ->
     case config_type(Name) of
         {ok, Pos, Types} ->
-            set_config_val(Name, Val, Types, Pos, I);
+            set_config_val(Name, Val, Types, Pos, I, U);
         {error, Reason} ->
-            {error, Reason}
+            {{error, Reason}, U}
     end.
 
 config_type(Name) ->
@@ -185,11 +189,11 @@ config_type(Name) ->
         debug_file ->
             {ok, #istate.debug_file, [string, {atom, [undefined]}]};
         skip ->
-            {ok, #istate.skip, [{pred_list, [string]}]};
+            {ok, #istate.skip, [{std_list, [string]}]};
         skip_unless ->
-            {ok, #istate.skip_unless, [{pred_list, [string]}]};
+            {ok, #istate.skip_unless, [{std_list, [string]}]};
         require ->
-            {ok, #istate.require, [{pred_list, [string]}]};
+            {ok, #istate.require, [{std_list, [string]}]};
         case_prefix ->
             {ok, #istate.case_prefix, [string]};
         config_dir ->
@@ -238,75 +242,81 @@ config_type(Name) ->
             {error, iolist_to_binary(lists:concat(["Bad argument: ", Name]))}
     end.
 
-set_config_val(Name, Val, [Type | Types], Pos, I) ->
+set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
+    U2 = [Name | U],
     try
         case Type of
             string when is_list(Val) ->
                 Val2 = expand_vars(I, Val, error),
-                {ok, setelement(Pos, I, Val2)};
+                {{ok, setelement(Pos, I, Val2)}, U2};
             binary when is_binary(Val) ->
                 Val2 = expand_vars(I, Val, error),
-                {ok, setelement(Pos, I, Val2)};
+                {{ok, setelement(Pos, I, Val2)}, U2};
             binary when is_list(Val) ->
                 Val2 = expand_vars(I, Val, error),
-                set_config_val(Name, list_to_binary(Val2), [Type], Pos, I);
+                set_config_val(Name, list_to_binary(Val2), [Type], Pos, I, U);
             {atom, Atoms} when is_atom(Val) ->
                 true = lists:member(Val, Atoms),
-                {ok, setelement(Pos, I, Val)};
+                {{ok, setelement(Pos, I, Val)}, U2};
             {atom, _Atoms} when is_list(Val) ->
-                set_config_val(Name, list_to_atom(Val), [Type], Pos, I);
+                set_config_val(Name, list_to_atom(Val), [Type], Pos, I, U);
             {function, Arity} when is_function(Val, Arity) ->
-                {ok, setelement(Pos, I, Val)};
+                {{ok, setelement(Pos, I, Val)}, U2};
             {integer, infinity, infinity} when is_integer(Val) ->
-                {ok, setelement(Pos, I, Val)};
+                {{ok, setelement(Pos, I, Val)}, U2};
             {integer, infinity, Max}
               when is_integer(Val), is_integer(Max), Val =< Max ->
-                {ok, setelement(Pos, I, Val)};
+                {{ok, setelement(Pos, I, Val)}, U2};
             {integer, Min, infinity}
               when is_integer(Val), is_integer(Min), Val >= Min ->
-                {ok, setelement(Pos, I, Val)};
+                {{ok, setelement(Pos, I, Val)}, U2};
             {integer, Min, Max}
               when is_integer(Val), is_integer(Min), is_integer(Max),
                    Val >= Min, Val =< Max ->
-                {ok, setelement(Pos, I, Val)};
+                {{ok, setelement(Pos, I, Val)}, U2};
             {integer, _Min, _Max} when is_list(Val) ->
-                set_config_val(Name, list_to_integer(Val), [Type], Pos, I);
-            {pred_list, SubTypes} when is_list(SubTypes) ->
-                append_config_val(Name, Val, SubTypes, Pos, I);
-            {env_list, SubTypes} when is_list(SubTypes) ->
-                append_config_val(Name, Val, SubTypes, Pos, I);
+                set_config_val(Name, list_to_integer(Val), [Type], Pos, I, U);
+            {std_list, SubTypes} when is_list(SubTypes) ->
+                append_config_val(Name, Val, append, SubTypes, Pos, I, U);
             {reset_list, SubTypes} when is_list(SubTypes) ->
-                append_config_val(Name, Val, SubTypes, Pos, I);
+                append_config_val(Name, Val, reset, SubTypes, Pos, I, U);
             io_device ->
-                {ok, setelement(Pos, I, Val)}
+                {{ok, setelement(Pos, I, Val)}, U2}
         end
     catch
         throw:{no_such_var, BadName} ->
             Msg = ["Bad argument: ", Name, "=", Val,
                    "; $", BadName, " is not set"],
-            {error, iolist_to_binary(lists:concat(Msg))};
+            {{error, iolist_to_binary(lists:concat(Msg))}, U};
         _Class:_Reason ->
-            set_config_val(Name, Val, Types, Pos, I)
+            set_config_val(Name, Val, Types, Pos, I, U)
     end;
-set_config_val(Name, Val, [], _Pos, _I) ->
-    {error, iolist_to_binary(lists:concat(["Bad argument: ", Name, "=", Val]))}.
+set_config_val(Name, Val, [], _Pos, _I, Updated) ->
+    {{error, iolist_to_binary(lists:concat(["Bad argument: ",
+                                            Name, "=", Val]))},
+     [Name | Updated]}.
 
-set_config_vals(Name, Vals, Types, Pos, I) ->
-    Fun = fun(Val, {ok, AccI}) ->
-                  set_config_val(Name, Val, Types, Pos, AccI);
-             (_Val, {error, Reason}) ->
-                  {error, Reason}
+set_config_vals(Name, Vals, Types, Pos, I, U) ->
+    Fun = fun(Val, {{ok, AccI}, AccU}) ->
+                  set_config_val(Name, Val, Types, Pos, AccI, AccU);
+             (_Val, {{error, _Reason}, _Updated} = Res) ->
+                  Res
           end,
-    lists:foldl(Fun, {ok, I}, Vals).
+    lists:foldl(Fun, {{ok, I}, U}, Vals).
 
-append_config_val(Name, Val, SubTypes, Pos, OldI) ->
-    case set_config_val(Name, Val, SubTypes, Pos, OldI) of
-        {ok, NewI} ->
+append_config_val(Name, Val, Oper, SubTypes, Pos, OldI, OldU) ->
+    case set_config_val(Name, Val, SubTypes, Pos, OldI, OldU) of
+        {{ok, NewI}, NewU} ->
             OldVals = element(Pos, OldI),
             NewVal = element(Pos, NewI),
-            {ok, setelement(Pos, NewI, OldVals ++ [NewVal])};
+            NewVals =
+                case Oper =:= reset andalso not lists:member(Name, OldU) of
+                    true  -> [NewVal];
+                    false -> OldVals ++ [NewVal]
+                end,
+            {{ok, setelement(Pos, NewI, NewVals)}, NewU};
         {error, Reason} ->
-            {error, Reason}
+            {{error, Reason}, OldU}
     end.
 
 wait_for_done(I, Pid, Docs) ->
@@ -1565,7 +1575,7 @@ multiply(#istate{multiplier = Factor}, Timeout) ->
     end.
 
 default_istate(File) ->
-    #istate{file = filename:absname(File),
+    #istate{file = lux_utils:normalize(File),
             log_fun = fun(Bin) -> console_write(binary_to_list(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),

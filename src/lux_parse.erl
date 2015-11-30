@@ -25,7 +25,7 @@
 
 parse_file(RelFile, RunMode, SkipSkip, Opts) ->
     try
-        File = filename:absname(RelFile),
+        File = lux_utils:normalize(RelFile),
         DefaultI = lux_interpret:default_istate(File),
         case lux_interpret:parse_iopts(DefaultI, Opts) of
             {ok, I} ->
@@ -45,7 +45,6 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                 case parse_config(I, lists:reverse(Config)) of
                     {ok, I2} ->
                         UpdatedOpts = updated_opts(I2, I),
-                        %%io:format("PARSE: ~s\n\t~p\n", [RelFile,UpdatedOpts]),
                         {ok, I2#istate.file, Cmds, UpdatedOpts};
                     {error, Reason} ->
                         {error, [{File, 0, main}], Reason}
@@ -68,7 +67,7 @@ extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
                 false ->
                     [{Name, [Val]} | Acc];
                 {_, OldVals} ->
-                    [{Name, OldVals ++ [Val]} | Acc]
+                    lists:keyreplace(Name, 1, Acc, {Name, OldVals ++ [Val]})
             end;
         #cmd{} ->
             Acc
@@ -76,24 +75,23 @@ extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
 
 parse_config(I0, Config) ->
     Fun =
-        fun({Name, Vals}, {ok, I}) ->
+        fun({Name, Vals}, {{ok, I}, U}) ->
             case lux_interpret:config_type(Name) of
-                {ok, Pos, Types = [{pred_list, _}]} ->
-                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I);
-                {ok, Pos, Types = [{env_list, _}]} ->
-                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I);
+                {ok, Pos, Types = [{std_list, _}]} ->
+                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I, U);
                 {ok, Pos, Types = [{reset_list, _}]} ->
-                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I);
+                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I, U);
                 {ok, Pos, Types} ->
                     Val = lists:last(Vals),
-                    lux_interpret:set_config_val(Name, Val, Types, Pos, I);
+                    lux_interpret:set_config_val(Name, Val, Types, Pos, I, U);
                 {error, Reason} ->
-                    {error, Reason}
+                    {{error, Reason}, U}
             end;
-           (_, {error, Reason}) ->
-                {error, Reason}
+           (_, {{error, _Reason}, _U} = Res) ->
+                Res
         end,
-    lists:foldl(Fun, {ok, I0}, Config).
+    Res = lists:foldl(Fun, {{ok, I0}, []}, Config),
+    element(1, Res).
 
 updated_opts(I, DefaultI) ->
     Candidates =
@@ -130,7 +128,8 @@ updated_opts(I, DefaultI) ->
                          true  -> {true, {Tag, New}}
                      end
              end,
-    lists:zf(Filter, Candidates).
+    Opts = lists:zf(Filter, Candidates),
+    lux_suite:split_args(Opts, case_style, []).
 
 parse_file2(P) ->
     case file_open(P) of
@@ -570,14 +569,15 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "progress" ++ String ->
             Cmd#cmd{type = progress, arg = string:strip(String)};
         "include" ++ File ->
-            File2 = expand_vars(P, Fd, File, LineNo),
-            InclFile = filename:absname(string:strip(File2),
+            File2 = string:strip(expand_vars(P, Fd, File, LineNo)),
+            InclFile = filename:absname(File2,
                                         filename:dirname(P#pstate.file)),
+            InclFile2 = lux_utils:normalize(InclFile),
             try
                 {FirstLineNo, LastLineNo, InclCmds} =
-                    parse_file2(P#pstate{file=InclFile}),
+                    parse_file2(P#pstate{file = InclFile2}),
                 Cmd#cmd{type = include,
-                        arg = {include,InclFile,FirstLineNo,
+                        arg = {include,InclFile2,FirstLineNo,
                                LastLineNo,InclCmds}}
             catch
                 throw:{skip, ErrorStack, Reason} ->

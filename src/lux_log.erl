@@ -531,7 +531,7 @@ open_event_log(LogDir, Script, Progress, LogFun, Verbose) ->
             safe_format(Progress, LogFun, {Verbose, EventFd},
                         "~s~s\n", [?TAG(?EVENT_TAG), ?EVENT_LOG_VERSION]),
             safe_format(Progress, LogFun, {Verbose, EventFd},
-                        "\n~s\n\n", [filename:absname(Script)]),
+                        "\n~s\n\n", [lux_utils:normalize(Script)]),
             {ok, EventLog, EventFd};
         {error, Reason} ->
             {error, Reason}
@@ -789,14 +789,6 @@ format_config(Config) ->
     lists:map(Fun, Config).
 
 format_config(Tag, Val, Types) ->
-    if
-        Tag =:= builtin ->
-            ok;
-        Tag =:= system_env ->
-            ok;
-        true ->
-            ok
-    end,
     case format_val_choice(Tag, Val, Types) of
         [] ->
             io_lib:format("~s\n", [?TAG(Tag)]);
@@ -826,7 +818,7 @@ format_val_choice(Tag, Val, [Type | Types]) ->
             format_val_choice(Tag, Val, Types)
     end;
 format_val_choice(Tag, Val, []) ->
-    io_lib:format("~s~p\n", [?TAG(Tag), Val]).
+    [lists:flatten(io_lib:format("~s~w\n", [?TAG(Tag), Val]))].
 
 try_format_val(_Tag, Val = undefined, _Type) ->
     [atom_to_list(Val)];
@@ -842,9 +834,7 @@ try_format_val(Tag, Val, Type) ->
             [integer_to_list(Val)];
         {integer, _Min, _Max} when Val =:= infinity ->
             [atom_to_list(Val)];
-        {pred_list, SubTypes} ->
-            [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];
-        {env_list, SubTypes} ->
+        {std_list, SubTypes} ->
             [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];
         {reset_list, SubTypes} when is_list(SubTypes) ->
             [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val]

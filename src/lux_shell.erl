@@ -487,7 +487,6 @@ shell_eval(#cstate{name = Name} = C0,
                                cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, fail = Pattern};
         fail ->
-            single = element(2, Arg), % Assert
             RegExp = extract_regexp(Arg),
             clog(C, fail, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
@@ -498,7 +497,6 @@ shell_eval(#cstate{name = Name} = C0,
                                cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
         success ->
-            single = element(2, Arg), % Assert
             RegExp = extract_regexp(Arg),
             clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},

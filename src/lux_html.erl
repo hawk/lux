@@ -15,7 +15,7 @@
 -record(astate, {log_dir, log_file, run_dir, orig_file, case_prefix, opts}).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
-    AbsLogFile = filename:absname(LogFile),
+    AbsLogFile = lux_utils:normalize(LogFile),
     IsEventLog = lists:suffix("event.log", AbsLogFile),
     LogDir = filename:dirname(AbsLogFile),
     CasePrefix = lux_utils:pick_opt(case_prefix, Opts, ""),
@@ -658,9 +658,9 @@ html_opt_div(Op, Data) ->
 -record(row,   {res, iolist}).
 -record(cell,  {res, run, iolist}).
 
-history(TopDir, HtmlFile, Opts) ->
-    TopDir2 = filename:absname(TopDir),
-    AbsHtmlFile = filename:absname(HtmlFile),
+history(TopDir, RelHtmlFile, Opts) ->
+    TopDir2 = lux_utils:normalize(TopDir),
+    AbsHtmlFile = lux_utils:normalize(RelHtmlFile),
     AllRuns = parse_summary_logs(AbsHtmlFile, TopDir2, [], Opts),
     io:format("~p test runs", [length(AllRuns)]),
     SplitHosts = keysplit(#run.hostname, AllRuns),
@@ -668,11 +668,11 @@ history(TopDir, HtmlFile, Opts) ->
     HostTables = html_history_table_hosts(SplitHosts, AbsHtmlFile),
     SplitConfigs = keysplit(#run.config_name, AllRuns, fun compare_run/2),
     ConfigTables = html_history_table_configs(SplitConfigs, AbsHtmlFile),
-    HtmlDir = filename:dirname(HtmlFile),
+    HtmlDir = filename:dirname(RelHtmlFile),
     OverviewIoList =
         [
          html_history_header("overview", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, HtmlFile),
+                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
          html_history_table_latest(LatestRuns, AbsHtmlFile),
          html_history_table_all(AllRuns, AbsHtmlFile),
          html_footer()
@@ -680,14 +680,14 @@ history(TopDir, HtmlFile, Opts) ->
     CurrentIoList =
         [
          html_history_header("current failures", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, HtmlFile),
+                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
          html_history_table_current(AllRuns, AbsHtmlFile),
          html_footer()
         ],
     ConfigIoList =
         [
          html_history_header("config", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, HtmlFile),
+                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
          "</a name=\"#content\">",
          [T#table.iolist || T <- ConfigTables],
          html_footer()
@@ -695,21 +695,21 @@ history(TopDir, HtmlFile, Opts) ->
     HostIoList =
         [
          html_history_header("host", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, HtmlFile),
+                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
          "</a name=\" #content\">",
          [T#table.iolist || T <- HostTables],
          html_footer()
         ],
     CurrentHtmlFile =
         filename:join(HtmlDir,
-                      insert_html_suffix(HtmlFile, "", ?CURRENT_SUFFIX)),
+                      insert_html_suffix(RelHtmlFile, "", ?CURRENT_SUFFIX)),
     ConfigHtmlFile =
         filename:join(HtmlDir,
-                      insert_html_suffix(HtmlFile, "", ?CONFIG_SUFFIX)),
+                      insert_html_suffix(RelHtmlFile, "", ?CONFIG_SUFFIX)),
     HostHtmlFile =
         filename:join(HtmlDir,
-                      insert_html_suffix(HtmlFile, "", ?HOST_SUFFIX)),
-    safe_write_file(HtmlFile, OverviewIoList),
+                      insert_html_suffix(RelHtmlFile, "", ?HOST_SUFFIX)),
+    safe_write_file(RelHtmlFile, OverviewIoList),
     safe_write_file(CurrentHtmlFile, CurrentIoList),
     safe_write_file(ConfigHtmlFile, ConfigIoList),
     safe_write_file(HostHtmlFile, HostIoList).
