@@ -399,7 +399,7 @@ assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
                     Cmd, process_info(From)});
 assert_eval(C, Cmd, _From)
   when C#cstate.no_more_output andalso
-       (Cmd#cmd.type =:= send_lf orelse Cmd#cmd.type =:= send) ->
+       Cmd#cmd.type =:= send ->
     ErrBin = <<"The command must be executed",
                " in context of a running shell">>,
     C2 = C#cstate{latest_cmd = Cmd},
@@ -424,9 +424,6 @@ shell_eval(#cstate{name = Name} = C0,
     C = C0#cstate{latest_cmd = Cmd, waiting = false},
     dlog(C, ?dmore,"waiting=false (eval ~p)", [Cmd#cmd.type]),
     case Type of
-        send_lf ->
-            true = is_binary(Arg), % Assert
-            send_to_port(C, Arg); % newline already added
         send ->
             true = is_binary(Arg), % Assert
             send_to_port(C, Arg);

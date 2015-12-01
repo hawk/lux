@@ -779,8 +779,6 @@ dispatch_cmd(I,
                 {no_such_var, BadName} ->
                     no_such_var(I, Cmd, LineNo, BadName)
             end;
-        send_lf when is_binary(Arg) ->
-            expand_send(I, Cmd, <<Arg/binary, "\n">>);
         send when is_binary(Arg) ->
             expand_send(I, Cmd, Arg);
         expect when is_atom(Arg) ->
@@ -1431,8 +1429,9 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
                     Wait = Cmd#cmd{type = expect,
                                    arg = {regexp, single, <<".+">>}},
                     %% Set the prompt (after the rc files has ben run)
-                    CmdStr = list_to_binary(I4#istate.shell_prompt_cmd),
-                    Prompt = Cmd#cmd{type = send_lf,
+                    CmdStr = iolist_to_binary([I4#istate.shell_prompt_cmd,
+                                               "\n"]),
+                    Prompt = Cmd#cmd{type = send,
                                      arg = CmdStr},
                     %% Wait for the prompt
                     CmdRegExp = list_to_binary(I4#istate.shell_prompt_regexp),

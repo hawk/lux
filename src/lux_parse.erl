@@ -306,50 +306,59 @@ parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens) ->
     parse(P, Fd, LineNo+Incr+1, [Token | Tokens]);
 parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
     RunMode = P#pstate.mode,
-    <<Op:8/integer, Data/binary>> = Line,
-    Type = parse_oper(P, Fd, Op, LineNo, Line),
-    Cmd = #cmd{type = Type, lineno = LineNo, orig = OrigLine},
+    {Type, SubType, Raw} = parse_oper(P, Fd, LineNo, Line),
+    Stripped = lux_utils:strip_trailing_whitespaces(Raw),
+    Cmd = #cmd{lineno = LineNo,
+               type = Type,
+               arg = SubType,
+               orig = OrigLine},
     if
         Type =:= meta ->
-            parse_meta(P, Fd, Data, Cmd, Tokens);
-        Type =:= multi_line ->
-            parse_multi(P, Fd, Data, Cmd, Tokens);
+            parse_meta(P, Fd, Stripped, Cmd, Tokens);
+        Type =:= multi ->
+            parse_multi(P, Fd, Stripped, Cmd, Tokens);
         RunMode =:= validate; RunMode =:= execute ->
-            Cmd2 = parse_single(Cmd, Data),
+            Cmd2 = parse_single(Cmd, Stripped),
             parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
         RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Skip command
             parse(P, Fd, LineNo+Incr+1, Tokens)
     end.
 
-parse_oper(P, Fd, Op, LineNo, OrigLine) ->
-    case Op of
-        $!  -> send_lf;
-        $~  -> send;
-        $?  -> expect;
-        $-  -> fail;
-        $+  -> success;
-        $[  -> meta;
-        $"  -> multi_line;
-        $#  -> comment;
-        _   ->
+parse_oper(P, Fd, LineNo, OrigLine) ->
+    case OrigLine of
+        <<"!",      D/binary>> -> {send,              lf,        D};
+        <<"~",      D/binary>> -> {send,              nolf,      D};
+        <<"?++",    D/binary>> -> {expect_add_strict, regexp,    D};
+        <<"?+",     D/binary>> -> {expect_add,        regexp,    D};
+        <<"???",    D/binary>> -> {expect,            verbatim,  D};
+        <<"??",     D/binary>> -> {expect,            template,  D};
+        <<"?",      D/binary>> -> {expect,            regexp,    D};
+        <<"-",      D/binary>> -> {fail,              regexp,    D};
+        <<"+",      D/binary>> -> {success,           regexp,    D};
+        <<"[",      D/binary>> -> {meta,              undefined, D};
+        <<"\"\"\"", D/binary>> -> {multi,             undefined, D};
+        <<"#",      D/binary>> -> {comment,           undefined, D};
+        _ ->
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": '", OrigLine, "'"])
     end.
 
-parse_single(#cmd{type = Type} = Cmd, Data) ->
+parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
     case Type of
-        send_lf                    -> Cmd#cmd{arg = Data};
-        send                       -> Cmd#cmd{arg = Data};
-        expect when Data =:= <<>>  -> parse_regexp(Cmd, reset, single);
-        expect                     -> parse_regexp(Cmd, Data, multi);
-        fail when Data =:= <<>>    -> parse_regexp(Cmd, reset, single);
-        fail                       -> parse_regexp(Cmd, Data, single);
-        success when Data =:= <<>> -> parse_regexp(Cmd, reset, single);
-        success                    -> parse_regexp(Cmd, Data, single);
+        send when SubType =:= lf   -> Cmd#cmd{arg = <<Data/binary, "\n">>};
+        send when SubType =:= nolf -> Cmd#cmd{arg = Data};
+        expect when Data =:= <<>>  -> parse_regexp(Cmd, SubType, reset, single);
+        expect                     -> parse_regexp(Cmd, SubType, Data,  multi);
+        expect_add                 -> parse_regexp(Cmd, SubType, Data,  multi);
+        expect_add_strict          -> parse_regexp(Cmd, SubType, Data,  multi);
+        fail when Data =:= <<>>    -> parse_regexp(Cmd, SubType, reset, single);
+        fail                       -> parse_regexp(Cmd, SubType, Data,  single);
+        success when Data =:= <<>> -> parse_regexp(Cmd, SubType, reset, single);
+        success                    -> parse_regexp(Cmd, SubType, Data,  single);
 %%      meta                       -> Cmd;
-%%      multi_line                 -> Cmd;
+%%      multi                      -> Cmd;
         comment                    -> Cmd
     end.
 
@@ -359,31 +368,19 @@ parse_single(#cmd{type = Type} = Cmd, Data) ->
 %%        {template, regexp_oper(), regexp()} |
 %%        {regexp,   regexp_oper(), regexp()  |
 %%        {mp,       regexp_oper(), regexp(), mp(), multi()} (compliled later)
-%% regexp_oper() :: single | add | multi
+%% regexp_oper() :: single | multi | expect_add | expect_add_strict
 %% regexp()      :: binary()
 %% multi()       :: [{Name::binary(), regexp(), AlternateCmd::#cmd{}}]
 
-parse_regexp(Cmd, RegExp, RegExpOper0) when is_binary(RegExp) ->
-    {RegExpType, RegExpOper} =
-        case lux_utils:strip_trailing_whitespaces(RegExp) of
-            <<$?:8/integer, $?:8/integer, RegExp2/binary>>
-              when Cmd#cmd.type =/= fail,
-                   Cmd#cmd.type =/= success ->
-                {verbatim, RegExpOper0};
-            <<$?:8/integer, RegExp2/binary>>
-              when Cmd#cmd.type =/= fail,
-                   Cmd#cmd.type =/= success ->
-                {template, RegExpOper0};
-            <<$+:8/integer, $+:8/integer, RegExp2/binary>> ->
-                {regexp, expect_add_strict};
-            <<$+:8/integer, RegExp2/binary>> ->
-                {regexp, expect_add};
-            RegExp2 ->
-                {regexp, RegExpOper0}
-        end,
-    Cmd#cmd{arg = {RegExpType, RegExpOper, RegExp2}};
-parse_regexp(Cmd, Value, single) when Value =:= reset ->
-    Cmd#cmd{arg = Value}.
+parse_regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
+    if
+        RegExp =:= reset, RegExpOper =:= single ->
+            Cmd#cmd{arg = reset};
+        Type =:= expect_add_strict; Type =:= expect_add ->
+            Cmd#cmd{type = expect, arg = {RegExpType, Type, RegExp}};
+        true ->
+            Cmd#cmd{arg = {RegExpType, RegExpOper, RegExp}}
+    end.
 
 parse_var(P, Fd, Cmd, Scope, String) ->
     case split_var(String, []) of
@@ -405,9 +402,8 @@ split_var([], _Var) ->
     false.
 
 parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
-    ChoppedData = lux_utils:strip_trailing_whitespaces(Data),
-    MetaSize = byte_size(ChoppedData) - 1,
-    case ChoppedData of
+    MetaSize = byte_size(Data) - 1,
+    case Data of
         <<Meta:MetaSize/binary, "]">> ->
             MetaCmd = parse_meta_token(P, Fd, Cmd, Meta, LineNo),
             {NewFd, NewLineNo, NewCmd} =
@@ -757,11 +753,13 @@ split_invoke_args(P, Fd, LineNo, [H | T], quoted = Mode, Arg, Args) ->
             split_invoke_args(P, Fd, LineNo, T, Mode, [Char | Arg], Args)
     end.
 
-parse_multi(#pstate{mode = RunMode} = P,
-            Fd,
-            <<$":8/integer, $":8/integer, Chars/binary>>,
-            #cmd{lineno = LineNo, orig = OrigLine},
-            Tokens) ->
+parse_multi(P, Fd, <<>>,
+            #cmd{lineno = LineNo}, _Tokens) ->
+    parse_error(P, Fd, LineNo,
+                ["Syntax error at line ", integer_to_list(LineNo),
+                 ": '\"\"\"' command expected"]);
+parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
+            #cmd{lineno = LineNo, orig = OrigLine}, Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
     {RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
         scan_multi(Fd, PrefixLen, [], 0),
@@ -804,11 +802,7 @@ parse_multi(#pstate{mode = RunMode} = P,
             {NewFd, Tokens2} =
                 parse_cmd(P, Fd2, MultiLine, LastLineNo, 0, OrigLine, Tokens),
             parse(P, NewFd, LastLineNo+1, Tokens2)
-    end;
-parse_multi(P, Fd, _, #cmd{lineno = LineNo}, _Tokens) ->
-    parse_error(P, Fd, LineNo,
-                ["Syntax error at line ", integer_to_list(LineNo),
-                 ": '\"\"\"' command expected"]).
+    end.
 
 count_prefix_len([H | T], N) ->
     case H of
