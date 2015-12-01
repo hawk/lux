@@ -1,0 +1,19 @@
+[doc Test premature success in suspended shell]
+
+[shell a]
+    +aaabbbccc
+    !/bin/echo -n aaa > removeme
+    ?SH-PROMPT
+    !/bin/echo -n bbb >> removeme
+    ?SH-PROMPT
+    !/bin/echo -n ccc >> removeme
+    ?SH-PROMPT
+    !sleep 2 && cat removeme
+
+[shell b]
+    !sleep 6
+    ?THIS-SHOULD-NEVER-MATCH
+
+[cleanup]
+    !rm removeme
+    ?SH-PROMPT
