@@ -35,9 +35,9 @@ interpret_commands(Script, Cmds, Opts, Opaque) ->
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
-                CaseLogDir = case_log_dir(I3#istate.suite_log_dir, Script),
+                CaseLogDir = case_log_dir(I3, Script),
                 I4 = I3#istate{case_log_dir = CaseLogDir},
-                case copy_orig(CaseLogDir, Script) of
+                case copy_orig(I4, Script) of
                     {ok, Base} ->
                         ExtraLogs = filename:join([CaseLogDir,
                                                    Base ++ ".extra.logs"]),
@@ -73,7 +73,7 @@ interpret_commands(Script, Cmds, Opts, Opaque) ->
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason, Stack}})
     end.
 
-case_log_dir(SuiteLogDir, AbsScript) ->
+case_log_dir(#istate{suite_log_dir = SuiteLogDir}, AbsScript) ->
     RelScript0 = lux_utils:drop_prefix(AbsScript),
     RelScript =
         case filename:pathtype(RelScript0) of
@@ -83,9 +83,10 @@ case_log_dir(SuiteLogDir, AbsScript) ->
     RelDir = filename:dirname(RelScript),
     filename:join([SuiteLogDir, RelDir]).
 
-copy_orig(LogDir, Script) ->
+copy_orig(I, Script) ->
+    CaseLogDir = case_log_dir(I, Script),
     Base = filename:basename(Script),
-    OrigScript = filename:join([LogDir, Base ++ ".orig"]),
+    OrigScript = filename:join([CaseLogDir, Base ++ ".orig"]),
     case filelib:ensure_dir(OrigScript) of % Ensure LogDir
         ok ->
             case file:copy(Script, OrigScript) of
@@ -861,12 +862,12 @@ dispatch_cmd(I,
             {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
             ilog(I, "~s(~p): include_file \"~s\"\n",
                  [I#istate.active_name, LineNo, InclFile]),
-            CaseLogDir = I#istate.case_log_dir,
-            case copy_orig(CaseLogDir, InclFile) of
+            case copy_orig(I, InclFile) of
                 {ok, _} ->
                     eval_include(I, LineNo, FirstLineNo, LastLineNo,
                                  InclFile, InclCmds, Cmd);
                 {error, FileReason} ->
+                    CaseLogDir = I#istate.case_log_dir,
                     Reason =
                         ["Cannot copy file ", InclFile, " to ", CaseLogDir,
                          ": ", file:format_error(FileReason)],

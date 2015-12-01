@@ -122,7 +122,7 @@ do_parse_summary_log(SummaryLog) ->
             {error, SummaryLog,
              "Illegal summary log version: " ++ binary_to_list(Version)};
         {error, FileReason, _} ->
-            {error, SummaryLog, file:format_error(FileReason)}
+            {error, SummaryLog, FileReason}
     end.
 
 read_log(Log, ExpectedTag) ->
@@ -557,7 +557,7 @@ scan_events(EventLog) ->
             {error, EventLog,
              "Illegal event log version: " ++ binary_to_list(Version)};
         {error, FileReason, _} ->
-            {error, EventLog, file:format_error(FileReason)}
+            {error, EventLog, FileReason}
     end.
 
 do_scan_events(EventLog, EventSections) ->
@@ -670,7 +670,7 @@ scan_config(ConfigLog) ->
             {error, ConfigLog,
              "Illegal config log version: " ++ binary_to_list(Version)};
         {error, FileReason, _} ->
-            {error, ConfigLog, file:format_error(FileReason)}
+            {error, ConfigLog, FileReason}
     end.
 
 parse_config([ConfigSection|_]) when is_binary(ConfigSection) ->

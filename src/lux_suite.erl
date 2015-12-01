@@ -595,7 +595,11 @@ run_cases(R0, [{SuiteFile,{ok,Script}} | Scripts],
                             Base = filename:basename(Script),
                             EventLog = filename:join([CaseLogDir,
                                                       Base ++ ".event.log"]),
-                            lux_html:annotate_log(false, EventLog, Opts),
+                            SuiteLogDir = R3#rstate.log_dir,
+                            lux_html:annotate_log(false,
+                                                  EventLog,
+                                                  SuiteLogDir,
+                                                  Opts),
                             annotate_summary_log(R3, NewSummary, NewResults);
                         true ->
                             ignore
