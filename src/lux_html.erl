@@ -329,7 +329,10 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
     {CodeLines2, CodeLineNo2, Code} =
         pick_code(ScriptComps, CodeLines, CodeLineNo, SingleLineNo,
                   [], CmdStack),
-    CmdStack2 = [{ScriptComps, SingleLineNo, undefined} | CmdStack],
+    SinglePos = #cmd_pos{rev_file = ScriptComps,
+                         lineno = SingleLineNo,
+                         type = undefined},
+    CmdStack2 = [SinglePos | CmdStack],
     Acc2 = [{event_html, CmdStack2, _Op, Shell, Data}] ++ Code ++ Acc,
     do_interleave_code(A, Events, ScriptComps, CodeLines2, CodeLineNo2,
                        MaxLineNo, Acc2, CmdStack, Files);
@@ -337,7 +340,10 @@ do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
                         SubScript, SubEvents} | Events],
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) ->
-    CmdStack2 = [{ScriptComps, InvokeLineNo, undefined} | CmdStack],
+    InvokePos = #cmd_pos{rev_file = ScriptComps,
+                         lineno = InvokeLineNo,
+                         type = undefined},
+    CmdStack2 = [InvokePos | CmdStack],
     OrigSubScript = orig_script(A, SubScript),
     SubA = A#astate{script_file = OrigSubScript},
     {SubAnnotated, Files2} =
@@ -355,7 +361,10 @@ do_interleave_code(_A, [], ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
 
 pick_code(ScriptComps, [Line | Lines], CodeLineNo, LineNo, Acc, CmdStack)
   when LineNo >= CodeLineNo ->
-    CmdStack2 = [{ScriptComps, CodeLineNo, undefined} | CmdStack],
+    CodePos = #cmd_pos{rev_file = ScriptComps,
+                       lineno = CodeLineNo,
+                       type = undefined},
+    CmdStack2 = [CodePos | CmdStack],
     pick_code(ScriptComps, Lines, CodeLineNo+1, LineNo,
               [{code_html, CmdStack2, Line} | Acc], CmdStack);
 pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _CmdStack) ->
@@ -582,8 +591,8 @@ html_code(A, Annotated) ->
 
 html_code2(A, [Ann | Annotated], Prev) ->
     case Ann of
-        {code_html, LineNoStack, Code} ->
-            FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
+        {code_html, CmdStack, Code} ->
+            FullLineNo = lux_utils:pretty_full_lineno(CmdStack),
             [
              html_toggle_div(code, Prev),
              case Code of
@@ -595,7 +604,7 @@ html_code2(A, [Ann | Annotated], Prev) ->
              "\n",
              html_code2(A, Annotated, code)
             ];
-        {event_html, LineNoStack, Op, Shell, Data0} ->
+        {event_html, CmdStack, Op, Shell, Data0} ->
             Data =
                 case Op of
                     <<"expect">> ->
@@ -604,7 +613,7 @@ html_code2(A, [Ann | Annotated], Prev) ->
                     _ ->
                         Data0
                 end,
-            FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
+            FullLineNo = lux_utils:pretty_full_lineno(CmdStack),
             Html = [Shell, "(", FullLineNo, "): ", Op, " "],
             [
              html_toggle_div(event, Prev),
@@ -613,9 +622,9 @@ html_code2(A, [Ann | Annotated], Prev) ->
              "</br>",
              html_code2(A, Annotated, event)
             ];
-        {body_html, LineNoStack, _MacroLineNo, SubScript,
+        {body_html, CmdStack, _MacroLineNo, SubScript,
          OrigSubScript, SubAnnotated} ->
-            FullLineNo = lux_utils:pretty_full_lineno(LineNoStack),
+            FullLineNo = lux_utils:pretty_full_lineno(CmdStack),
             RelSubScript = drop_run_dir_prefix(A, SubScript),
             if
                 OrigSubScript =/= A#astate.script_file ->

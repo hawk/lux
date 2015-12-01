@@ -484,7 +484,9 @@ cmd_attach(I, _, CmdState) ->
                 CurrentPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
                 io:format("\nBreak at \"~s\"\n",
                           [pretty_break_pos(CurrentPos)]),
-                [{RevFile, LineNo, Type} | CmdStack] = CurrentFullLineNo,
+                [#cmd_pos{rev_file = RevFile,
+                          lineno = LineNo,
+                          type = Type} | CmdStack] = CurrentFullLineNo,
                 {LineNo2, Type2} =
                     if
                         LineNo > 3 ->
@@ -496,7 +498,10 @@ cmd_attach(I, _, CmdState) ->
                         true->
                             {LineNo, Type}
                     end,
-                FullLineNo = [{RevFile, LineNo2, Type2} | CmdStack],
+                CmdPos2 = #cmd_pos{rev_file = RevFile,
+                                  lineno = LineNo2,
+                                  type = Type2},
+                FullLineNo = [CmdPos2 | CmdStack],
                 BreakPos = full_lineno_to_static_break_pos(FullLineNo),
                 [{"n_lines", 10}, {"lineno", BreakPos}]
         end,
@@ -667,8 +672,8 @@ check_break(I, LineNo) ->
     end.
 
 lookup_break(I, LineNo, Breaks) when is_integer(LineNo) ->
-    {RevFile, _, Type} = current(I),
-    FullLineNo = [{RevFile, LineNo, Type} | I#istate.cmd_stack],
+    CurrentPos = current(I),
+    FullLineNo = [CurrentPos#cmd_pos{lineno = LineNo} | I#istate.cmd_stack],
     do_lookup_break(FullLineNo, Breaks).
 
 do_lookup_break(FullLineNo, [Break | Breaks]) ->
@@ -682,20 +687,28 @@ do_lookup_break(FullLineNo, [Break | Breaks]) ->
 do_lookup_break(_FullLineNo, []) ->
     false.
 
-match_break([{CurrRevFile, 0, _Type} | _], {BreakRevFile, _LineNo}, _Prec) ->
+match_break([#cmd_pos{rev_file = CurrRevFile, lineno = CurrLineNo} | _],
+            {BreakRevFile, _BreakLineNo},
+            _Prec)
+  when CurrLineNo =:= 0 ->
     match_break_file(CurrRevFile, BreakRevFile);
-match_break([{CurrRevFile, LineNo, _Type} | _], {BreakRevFile, LineNo},_Prec) ->
+match_break([#cmd_pos{rev_file = CurrRevFile, lineno = CurrLineNo} | _],
+            {BreakRevFile, BreakLineNo},
+            _Prec)
+  when CurrLineNo =:= BreakLineNo ->
     match_break_file(CurrRevFile, BreakRevFile);
 match_break(FullLineNo, Dynamic, Prec) when is_list(Dynamic) ->
     match_break_dynamic(FullLineNo, Dynamic, Prec);
 match_break(_FullLineNo, _Static, _Prec) ->
     false.
 
-match_break_dynamic([{_CurrRevFile, 0, _Type} | Curr],
-                    [_LineNo | Dynamic], Prec = fuzzy) ->
+match_break_dynamic([#cmd_pos{lineno = CurrLineNo} | Curr],
+                    [_BreakLineNo | Dynamic], Prec = fuzzy)
+  when CurrLineNo =:= 0 ->
     match_break_dynamic(Curr, Dynamic, Prec);
-match_break_dynamic([{_CurrRevFile, LineNo, _Type} | Curr],
-                    [LineNo | Dynamic], Prec) ->
+match_break_dynamic([{_CurrRevFile, CurrLineNo, _Type} | Curr],
+                    [BreakLineNo | Dynamic], Prec)
+  when CurrLineNo =:= BreakLineNo ->
     match_break_dynamic(Curr, Dynamic, Prec);
 match_break_dynamic([], [], _Prec) ->
     true;
@@ -973,7 +986,8 @@ cmd_list(I, Args, CmdState) ->
             PrevRevFile = OldRevFile,
             ok;
         _ ->
-            [{OldRevFile, OldLineNo, _} | _] = CurrentFullLineNo,
+            [#cmd_pos{rev_file = OldRevFile,
+                      lineno = OldLineNo} | _] = CurrentFullLineNo,
             OldN = 10,
             PrevRevFile = []
     end,
@@ -985,7 +999,7 @@ cmd_list(I, Args, CmdState) ->
                     io:format("\nERROR: No such lineno: ~p\n",
                               [pretty_break_pos(BreakPos)]),
                     {undefined, I};
-                [{RevFile, First, _} | _] ->
+                [#cmd_pos{rev_file = RevFile, lineno = First} | _] ->
                     do_list(I, PrevRevFile, RevFile,
                             First, N, CurrentFullLineNo)
             end;
@@ -995,7 +1009,7 @@ cmd_list(I, Args, CmdState) ->
                     io:format("\nERROR: No such lineno: ~p\n",
                               [pretty_break_pos(BreakPos)]),
                     {undefined, I};
-                [{RevFile, First0, _} | _] ->
+                [#cmd_pos{rev_file = RevFile, lineno = First0} | _] ->
                     if
                         N0 < 0 ->
                             N = abs(N0),
@@ -1029,13 +1043,15 @@ cmd_list(I, Args, CmdState) ->
                     First, N, CurrentFullLineNo)
     end.
 
-do_list(I, PrevRevFile, RevFile, First, N, [{CurrRevFile,CurrLineNo,_} | _]) ->
+do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
+        PrevRevFile, RevFile, First, N,
+        [#cmd_pos{rev_file = CurrRevFile, lineno = CurrLineNo} | _]) ->
     Last = First+N-1,
     %% io:format("List source lines ~p..~p of file ~s\n",
-    %%          [First, Last, pretty_file(RevFile)]),
+    %%          [First, Last, lux_utils:pretty_filename(RevFile)]),
     if
         PrevRevFile =/= RevFile ->
-            io:format("\nFile ~s:\n", [pretty_file(RevFile)]);
+            io:format("\nFile ~s:\n", [lux_utils:pretty_filename(RevFile)]);
         true ->
             ignore
     end,
@@ -1066,13 +1082,7 @@ do_list(I, PrevRevFile, RevFile, First, N, [{CurrRevFile,CurrLineNo,_} | _]) ->
                         Acc
                 end
         end,
-    PosList =
-        lux_utils:foldl_cmds(Print,
-                             [],
-                             I#istate.orig_file,
-                             [],
-                             I#istate.orig_commands,
-                             static),
+    PosList = lux_utils:foldl_cmds(Print, [], OrigFile, [], OrigCmds, static),
     case PosList of
         [] ->
             io:format("\nWrap file.\n", []),
@@ -1229,10 +1239,10 @@ current(#istate{file = File,
             ok
         end,
     RevFile = lux_utils:filename_split(File), % optimize later
-    {RevFile, LineNo, Type}.
+    #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type}.
 
 full_lineno_to_static_break_pos(FullLineNo) ->
-    {RevFile, LineNo, _Type} = hd(FullLineNo),
+    #cmd_pos{rev_file = RevFile, lineno = LineNo} = hd(FullLineNo),
     {RevFile, LineNo}.
 
 %% full_lineno_to_dynamic_break_pos(FullLineNo) ->
@@ -1259,7 +1269,10 @@ break_to_depth(I, BreakPos) ->
 
 collect_break(#cmd{type = Type, lineno = LineNo},
               RevFile, CmdStack, Acc, BreakPos) ->
-    FullLineNo = [{RevFile, LineNo, Type} | CmdStack],
+    CmdPos = #cmd_pos{rev_file = RevFile,
+                      lineno = LineNo,
+                      type = Type},
+    FullLineNo = [CmdPos | CmdStack],
     case match_break(FullLineNo, BreakPos, fuzzy) of
         true  -> [FullLineNo | Acc];
         false -> Acc
@@ -1267,7 +1280,8 @@ collect_break(#cmd{type = Type, lineno = LineNo},
 
 pretty_break_pos({RevFile, LineNo}) when is_integer(LineNo) ->
     %% Static
-    lists:flatten([pretty_file(RevFile), ":", integer_to_list(LineNo)]);
+    lists:flatten([lux_utils:pretty_filename(RevFile),
+                   ":", integer_to_list(LineNo)]);
 %% pretty_break_pos([LineNo]) when is_integer(LineNo) ->
 %%     %% Dynamic
 %%     integer_to_list(LineNo);
@@ -1276,6 +1290,3 @@ pretty_break_pos(RevLineNoList) when length(RevLineNoList) > 1 ->
     [LineNo | LineNoList] = lists:reverse(RevLineNoList),
     lists:flatten([integer_to_list(LineNo),
                    [[":", integer_to_list(L)] || L <- LineNoList]]).
-
-pretty_file(RevFile) ->
-    filename:join(lists:reverse(RevFile)).

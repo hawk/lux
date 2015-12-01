@@ -435,7 +435,8 @@ print_fail(OldI0, NewI, File, Results,
 
 full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),
-    FullStack = [{RevFile, LineNo, Type} | CmdStack],
+    CmdPos = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type},
+    FullStack = [CmdPos | CmdStack],
     lux_utils:pretty_full_lineno(FullStack).
 
 flush_logs(I) ->
@@ -936,8 +937,11 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                      [InvokeLineNo, FirstLineNo, LastLineNo, CmdFile])
         end,
     OldStack = OldI#istate.cmd_stack,
-    Current = {lux_utils:filename_split(CmdFile), InvokeLineNo, Type},
-    NewStack = [Current | OldStack],
+    CurrentPos =
+        #cmd_pos{rev_file = lux_utils:filename_split(CmdFile),
+                 lineno = InvokeLineNo,
+                 type = Type},
+    NewStack = [CurrentPos | OldStack],
     BeforeI = OldI#istate{call_level = call_level(OldI) + 1,
                           file = CmdFile,
                           latest_cmd = Cmd,
@@ -1279,8 +1283,8 @@ goto_cleanup(OldI, CleanupReason) ->
 
 do_goto_cleanup(I, CleanupReason, LineNo) ->
     case I#istate.cmd_stack of
-        []                    -> Context = main;
-        [{_, _, Context} | _] -> ok
+        []                             -> Context = main;
+        [#cmd_pos{type = Context} | _] -> ok
     end,
     %% Fast forward to (optional) cleanup command
     CleanupFun = fun(#cmd{type = Type}) -> Type =/= cleanup end,

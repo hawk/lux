@@ -612,7 +612,8 @@ run_cases(R0, [{SuiteFile,{ok,Script}} | Scripts],
             run_cases(R2, Scripts, OldSummary, Results,
                       CC+1, List, Opaque);
         {skip, R2, ErrorStack, SkipReason} ->
-            {Script2, _, _} = lists:last(ErrorStack),
+            #cmd_pos{rev_file = RevScript2} = lists:last(ErrorStack),
+            Script2 = lux_utils:pretty_filename(RevScript2),
             lux:trace_me(70, suite, 'case', RelScript, []),
             tap_case_begin(R, Script),
             init_case_rlog(R2, RelScript, Script),
@@ -639,15 +640,19 @@ run_cases(R0, [{SuiteFile,{ok,Script}} | Scripts],
             run_cases(R, Scripts, OldSummary, Results,
                       CC+1, [Script|List], Opaque);
         {error, _R2, ErrorStack, ErrorBin} when RunMode =:= doc ->
-            {MainFile, _FullLineNo, ErrorBin2} =
+            #cmd_pos{rev_file = RevMainFile, type = ErrorBin2} =
                 stack_error(ErrorStack, ErrorBin),
+            MainFile = lux_utils:pretty_filename(RevMainFile),
             io:format("~s:\n\tERROR: ~s: ~s\n",
                       [Script, MainFile, ErrorBin2]),
             run_cases(R, Scripts, OldSummary, Results,
                       CC+1, List, Opaque);
         {error, R2, ErrorStack, ErrorBin} ->
-            {MainFile, FullLineNo, ErrorBin2} =
+            #cmd_pos{rev_file = RevMainFile,
+                     lineno = FullLineNo,
+                     type = ErrorBin2} =
                 stack_error(ErrorStack, ErrorBin),
+            MainFile = lux_utils:pretty_filename(RevMainFile),
             init_case_rlog(R2, RelScript, Script),
             double_rlog(R2, "~sERROR ~s: ~s\n",
                         [?TAG("result"), MainFile, ErrorBin2]),
@@ -845,7 +850,8 @@ parse_config_file(R, AbsConfigFile) ->
                 ErrorBin =:= Enoent ->
                     [];
                 true ->
-                    {MainFile, _FullLineNo, ErrorBin2} =
+                    #cmd_pos{rev_file = MainFile,
+                             type = ErrorBin2} =
                         stack_error(ErrorStack, ErrorBin),
                     throw({error, MainFile, ErrorBin2})
             end
@@ -859,16 +865,21 @@ all_config_opts(R) ->
     lists:append(lists:reverse(opts_dicts(R))).
 
 stack_error(ErrorStack, ErrorBin) ->
-    {MainFile, _, _} = hd(ErrorStack),
-    {ErrorFile, _, _} = lists:last(ErrorStack),
+    #cmd_pos{rev_file = RevMainFile} = hd(ErrorStack),
+    #cmd_pos{rev_file = RevErrorFile} = lists:last(ErrorStack),
     FullLineNo = lux_utils:pretty_full_lineno(ErrorStack),
     if
-        ErrorFile =:= MainFile ->
-            {MainFile, FullLineNo, ErrorBin};
+        RevErrorFile =:= RevMainFile ->
+            #cmd_pos{rev_file = RevMainFile,
+                     lineno = FullLineNo,
+                     type = ErrorBin};
         true ->
+            ErrorFile = lux_utils:pretty_filename(RevErrorFile),
             FileBin = list_to_binary(ErrorFile),
             ErrorBin2 = <<FileBin/binary, ": ", ErrorBin/binary>>,
-            {MainFile, FullLineNo, ErrorBin2}
+            #cmd_pos{rev_file = RevMainFile,
+                     lineno = FullLineNo,
+                     type = ErrorBin2}
     end.
 
 config_file(R, ConfigDir, UserConfigName, ActualConfigName) ->

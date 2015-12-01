@@ -13,7 +13,7 @@
          normalize_newlines/1, expand_lines/1,
          to_string/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
-         pretty_full_lineno/1, filename_split/1, dequote/1,
+         pretty_full_lineno/1, pretty_filename/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
          cmd/2, chop_newline/1, cmd_expected/1, perms/1,
@@ -344,7 +344,7 @@ foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, OptI})
 do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
               [#cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd | Cmds],
               {Depth, OptI} = FullDepth) ->
-    Pos = {RevFile, LineNo, Type},
+    CmdPos = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type},
     SubFun =
         fun(SubFile, SubCmds, SubStack) ->
                 SubAcc = Fun(Cmd, RevFile, SubStack, Acc),
@@ -356,16 +356,19 @@ do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
                          Depth =:= static;
                          Depth =:= dynamic ->
                 {include, SubFile, _FirstLineNo, _LastFileNo, SubCmds} = Arg,
-                SubFun(SubFile, SubCmds, [Pos | CmdStack]);
+                SubFun(SubFile, SubCmds, [CmdPos | CmdStack]);
             macro when Depth =:= static;
                        Depth =:= dynamic ->
                 {macro, _Name, _ArgNames, _FirstLineNo, _LastLineNo, Body} =
                     Arg,
-                SubFun(File, Body, [Pos | CmdStack]);
+                SubFun(File, Body, [CmdPos | CmdStack]);
             loop when Depth =:= static;
                       Depth =:= dynamic ->
                 {loop, _Name, _ItemStr, _FirstLineNo, _LastLineNo, Body} = Arg,
-                SubStack = [{RevFile, 0, iteration}, Pos | CmdStack],
+                LoopPos = #cmd_pos{rev_file = RevFile,
+                                   lineno = LineNo,
+                                   type = iteration},
+                SubStack = [LoopPos, CmdPos | CmdStack],
                 SubFun(File, Body, SubStack);
             invoke when Depth =:= dynamic ->
                 case lux_interpret:lookup_macro(OptI, Cmd) of
@@ -374,7 +377,7 @@ do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
                         {macro, _Name, _ArgNames,
                          _FirstLineNo, _LastLineNo, Body} =
                             MacroArg,
-                        SubFun(MacroFile, Body, [Pos | CmdStack]);
+                        SubFun(MacroFile, Body, [CmdPos | CmdStack]);
                 _NoMatch ->
                         %% Ignore non-existent macro
                         Acc
@@ -387,14 +390,17 @@ do_foldl_cmds(_Fun, Acc, _File, _RevFile, _CmdStack, [], {_Depth, _OptI}) ->
     Acc.
 
 pretty_full_lineno(FullStack) ->
-    Pick = fun({_F, L,_T}) when is_integer(L) -> L;
-              (L)          when is_integer(L) -> L
+    Pick = fun(#cmd_pos{lineno=L}) when is_integer(L) -> L;
+              (L)                  when is_integer(L) -> L
            end,
     FullStack2 = lists:dropwhile(fun(FL) -> Pick(FL) < 0 end, FullStack),
     [FileLine | Incl] = lists:reverse(FullStack2),
     LineNo = Pick(FileLine),
     LineNoSuffix = [[":", integer_to_list(Pick(FL))] || FL <- Incl],
     lists:flatten([integer_to_list(LineNo), LineNoSuffix]).
+
+pretty_filename(RevFile) ->
+    filename:join(lists:reverse(RevFile)).
 
 filename_split(FileName) ->
     FileName2 = drop_prefix(FileName),

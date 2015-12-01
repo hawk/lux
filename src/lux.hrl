@@ -30,6 +30,11 @@
          health :: alive | zombie,
          vars   :: [string()]}). % ["name=val"]
 
+-record(cmd_pos,
+        {rev_file   :: [string()],
+         lineno     :: non_neg_integer(),
+         type       :: atom()}).
+
 -record(result,
         {outcome       :: fail | success | shutdown,
          name          :: string(),
@@ -56,7 +61,7 @@
         {file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
-         loop_stack = []            :: [continue|break],
+         loop_stack = []            :: [continue | break],
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),
          debug_file                 :: string(),

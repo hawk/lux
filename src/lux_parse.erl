@@ -26,6 +26,7 @@
 parse_file(RelFile, RunMode, SkipSkip, Opts) ->
     try
         File = lux_utils:normalize(RelFile),
+        RevFile = lux_utils:filename_split(File),
         DefaultI = lux_interpret:default_istate(File),
         case lux_interpret:parse_iopts(DefaultI, Opts) of
             {ok, I} ->
@@ -47,10 +48,14 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                         UpdatedOpts = updated_opts(I2, I),
                         {ok, I2#istate.file, Cmds, UpdatedOpts};
                     {error, Reason} ->
-                        {error, [{File, 0, main}], Reason}
+                        {error,
+                         [#cmd_pos{rev_file= RevFile, lineno = 0, type = main}],
+                         Reason}
                 end;
             {error, Reason} ->
-                {error, [{File, 0, main}], Reason}
+                {error,
+                 [#cmd_pos{rev_file = RevFile, lineno = 0, type = main}],
+                 Reason}
         end
     catch
         throw:{error, ErrorStack, ErrorBin} ->
@@ -858,13 +863,16 @@ parse_error(StateOrFile, Fd, LineNo, IoList, Stack) ->
 parse_error(StateOrFile, Fd, Tag, LineNo, IoList, Stack) ->
     file_close(Fd),
     File = state_to_file(StateOrFile),
+    RevFile = lux_utils:filename_split(File),
     Context =
         case Stack of
             [] -> main;
             _  -> include
         end,
-    throw({Tag, [{File, LineNo, Context} | Stack],
-           iolist_to_binary(IoList)}).
+    CmdPos = #cmd_pos{rev_file = RevFile,
+                      lineno = LineNo,
+                      type = Context},
+    throw({Tag, [CmdPos | Stack], iolist_to_binary(IoList)}).
 
 state_to_file(File) when is_list(File) -> File;
 state_to_file(#pstate{file = File})    -> File;
