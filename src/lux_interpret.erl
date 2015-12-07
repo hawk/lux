@@ -41,9 +41,9 @@ interpret_commands(Script, Cmds, Opts, Opaque) ->
                     {ok, Base} ->
                         ExtraLogs = filename:join([CaseLogDir,
                                                    Base ++ ".extra.logs"]),
-                        ExtraDict = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
-                        GlobalDict = [ExtraDict | I4#istate.global_dict],
-                        I5 = I4#istate{global_dict = GlobalDict},
+                        ExtraVars = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
+                        GlobalVars = [ExtraVars | I4#istate.global_vars],
+                        I5 = I4#istate{global_vars = GlobalVars},
                         Config = config_data(I5),
                         ConfigFd =
                             lux_log:open_config_log(CaseLogDir, Script, Config),
@@ -125,10 +125,10 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
         %% Poor mans hibernate
         ShrinkedI =
             NewI#istate{commands     = shrinked,
-                        macro_dict   = shrinked,
-                        global_dict  = shrinked,
-                        builtin_dict = shrinked,
-                        system_dict  = shrinked},
+                        macro_vars   = shrinked,
+                        global_vars  = shrinked,
+                        builtin_vars = shrinked,
+                        system_vars  = shrinked},
         garbage_collect(),
         wait_for_done(ShrinkedI, Pid, Docs)
     after
@@ -233,7 +233,7 @@ config_type(Name) ->
         shell_prompt_regexp ->
             {ok, #istate.shell_prompt_regexp, [string]};
         var ->
-            {ok, #istate.global_dict, [{env_list, [string]}]};
+            {ok, #istate.global_vars, [{std_list, [string]}]};
         _ ->
             {error, iolist_to_binary(lists:concat(["Bad argument: ", Name]))}
     end.
@@ -515,9 +515,9 @@ config_data(I) ->
      {shell_args,                              I#istate.shell_args},
      {shell_prompt_cmd,                        I#istate.shell_prompt_cmd},
      {shell_prompt_regexp,                     I#istate.shell_prompt_regexp},
-     {var,             [{env_list, [string]}], I#istate.global_dict},
-     {builtin,         [{env_list, [string]}], I#istate.builtin_dict},
-     {system_env,      [{env_list, [string]}], I#istate.system_dict}
+     {var,             [{std_list, [string]}], I#istate.global_vars},
+     {builtin,         [{std_list, [string]}], I#istate.builtin_vars},
+     {system_env,      [{std_list, [string]}], I#istate.system_vars}
     ].
 
 interpret_init(I) ->
@@ -611,8 +611,8 @@ interpret_loop(I) ->
                     I2 = I#istate{want_more = true},
                     interpret_loop(I2)
             end;
-        {submatch_dict, _From, SubDict} ->
-            I2 = I#istate{submatch_dict = SubDict},
+        {submatch_vars, _From, SubVars} ->
+            I2 = I#istate{submatch_vars = SubVars},
             interpret_loop(I2);
         {'DOWN', _, process, Pid, Reason} ->
             I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
@@ -748,8 +748,8 @@ dispatch_cmd(I,
                     VarVal = lists:flatten([Var, $=, Val2]),
                     case Scope of
                         my ->
-                            Dict = [VarVal | I#istate.macro_dict],
-                            I#istate{macro_dict = Dict};
+                            Vars = [VarVal | I#istate.macro_vars],
+                            I#istate{macro_vars = Vars};
                         local when I#istate.active_shell =:= undefined ->
                             throw_error(I, <<"The command must be executed"
                                              " in context of a shell">>);
@@ -758,11 +758,11 @@ dispatch_cmd(I,
                         global ->
                             I2 = add_active_var(I, VarVal),
                             Shells =
-                                [S#shell{dict = [VarVal | S#shell.dict]} ||
+                                [S#shell{vars = [VarVal | S#shell.vars]} ||
                                     S <- I#istate.shells],
-                            GlobalDict = [VarVal | I#istate.global_dict],
+                            GlobalVars = [VarVal | I#istate.global_vars],
                             I2#istate{shells = Shells,
-                                      global_dict = GlobalDict}
+                                      global_vars = GlobalVars}
                     end;
                 {no_such_var, BadName} ->
                     no_such_var(I, Cmd, LineNo, BadName)
@@ -993,20 +993,20 @@ invoke_macro(I,
                      file = File,
                      cmd = #cmd{arg = {macro, Name, ArgNames, FirstLineNo,
                                        LastLineNo, Body}} = MacroCmd}]) ->
-    OldMacroDict = I#istate.macro_dict,
-    MacroDict = macro_dict(I, ArgNames, ArgVals, InvokeCmd),
+    OldMacroVars = I#istate.macro_vars,
+    MacroVars = macro_vars(I, ArgNames, ArgVals, InvokeCmd),
     ilog(I, "~s(~p): invoke_~s \"~s\"\n",
          [I#istate.active_name,
           LineNo,
           Name,
-          lists:flatten([[M, " "] || M <- MacroDict])]),
+          lists:flatten([[M, " "] || M <- MacroVars])]),
 
-    BeforeI = I#istate{macro_dict = MacroDict, latest_cmd = InvokeCmd},
+    BeforeI = I#istate{macro_vars = MacroVars, latest_cmd = InvokeCmd},
     DefaultFun = get_eval_fun(),
     AfterI = eval_body(BeforeI, LineNo, FirstLineNo,
                        LastLineNo, File, Body, MacroCmd, DefaultFun),
 
-    AfterI#istate{macro_dict = OldMacroDict};
+    AfterI#istate{macro_vars = OldMacroVars};
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
     BinName = list_to_binary(Name),
     throw_error(I, <<"No such macro: ", BinName/binary>>);
@@ -1014,17 +1014,17 @@ invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
     BinName = list_to_binary(Name),
     throw_error(I, <<"Ambiguous macro: ", BinName/binary>>).
 
-macro_dict(I, [Name | Names], [Val | Vals], Invoke) ->
+macro_vars(I, [Name | Names], [Val | Vals], Invoke) ->
     case safe_expand_vars(I, Val) of
         {ok, Val2} ->
             [lists:flatten([Name, $=, Val2]) |
-             macro_dict(I, Names, Vals, Invoke)];
+             macro_vars(I, Names, Vals, Invoke)];
         {no_such_var, BadName} ->
             no_such_var(I, Invoke, Invoke#cmd.lineno, BadName)
     end;
-macro_dict(_I, [], [], _Invoke) ->
+macro_vars(_I, [], [], _Invoke) ->
     [];
-macro_dict(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
+macro_vars(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
     BinName = list_to_binary(Name),
     BinLineNo = list_to_binary(integer_to_list(LineNo)),
     Reason = <<"at ", BinLineNo/binary,
@@ -1117,8 +1117,8 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
     case pick_item(Items) of
         {item, Item, Rest} ->
             LoopVar = lists:flatten([Name, $=, Item]),
-            MacroDict = [LoopVar|OldI#istate.macro_dict],
-            BeforeI = OldI#istate{macro_dict = MacroDict,
+            MacroVars = [LoopVar|OldI#istate.macro_vars],
+            BeforeI = OldI#istate{macro_vars = MacroVars,
                                   latest_cmd = LoopCmd},
             SyntheticLineNo = -N,
             AfterI = eval_body(BeforeI, SyntheticLineNo, First, Last,
@@ -1504,25 +1504,25 @@ safe_expand_vars(I, Bin) ->
     end.
 
 expand_vars(#istate{active_shell  = Shell,
-                    submatch_dict = SubDict,
-                    macro_dict    = MacroDict,
-                    global_dict   = OptGlobalDict,
-                    builtin_dict  = BuiltinDict,
-                    system_dict   = SystemDict},
+                    submatch_vars = SubVars,
+                    macro_vars    = MacroVars,
+                    global_vars   = OptGlobalVars,
+                    builtin_vars  = BuiltinVars,
+                    system_vars   = SystemVars},
             Val,
             MissingVar) ->
     case Shell of
-        #shell{dict = LocalDict} -> ok;
-        undefined                -> LocalDict = OptGlobalDict
+        #shell{vars = LocalVars} -> ok;
+        undefined                -> LocalVars = OptGlobalVars
     end,
-    Dicts = [SubDict, MacroDict, LocalDict, BuiltinDict, SystemDict],
-    lux_utils:expand_vars(Dicts, Val, MissingVar).
+    Varss = [SubVars, MacroVars, LocalVars, BuiltinVars, SystemVars],
+    lux_utils:expand_vars(Varss, Val, MissingVar).
 
 add_active_var(#istate{active_shell = undefined} = I, _VarVal) ->
     I;
 add_active_var(#istate{active_shell = Shell} = I, VarVal) ->
-    LocalDict = [VarVal | Shell#shell.dict],
-    Shell2 = Shell#shell{dict = LocalDict},
+    LocalVars = [VarVal | Shell#shell.vars],
+    Shell2 = Shell#shell{vars = LocalVars},
     I#istate{active_shell = Shell2}.
 
 double_ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
@@ -1568,8 +1568,8 @@ default_istate(File) ->
     #istate{file = filename:absname(File),
             log_fun = fun(Bin) -> console_write(binary_to_list(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
-            builtin_dict = lux_utils:builtin_dict(),
-            system_dict = lux_utils:system_dict()}.
+            builtin_vars = lux_utils:builtin_vars(),
+            system_vars = lux_utils:system_vars()}.
 
 default_shell_wrapper() ->
     Wrapper = filename:join([code:priv_dir(?APPLICATION), "bin", "runpty"]),

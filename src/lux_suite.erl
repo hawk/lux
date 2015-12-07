@@ -47,9 +47,9 @@
          file_opts = []             :: [{atom(), term()}], % Script opts
          config_opts = []           :: [{atom(), term()}], % Arch spec opts
          default_opts = []          :: [{atom(), term()}], % Default opts
-         builtin_dict = lux_utils:builtin_dict()
+         builtin_vars = lux_utils:builtin_vars()
                                     :: [string()], % ["name=val"]
-         system_dict = lux_utils:system_dict()
+         system_vars = lux_utils:system_vars()
                                     :: [string()], % ["name=val"]
          tap_opts = []              :: [string()],
          tap                        :: term() % #tap{}

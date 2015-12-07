@@ -12,10 +12,10 @@
 -include("lux.hrl").
 
 -record(pstate,
-        {file      :: string(),
-         mode      :: run_mode(),
-         skip_skip :: boolean(),
-         dicts     :: [[string()]]}). % ["name=val"][]}).
+        {file       :: string(),
+         mode       :: run_mode(),
+         skip_skip  :: boolean(),
+         multi_vars :: [[string()]]}). % ["name=val"][]}).
 
 -define(TAB_LEN, 8).
 -define(FF(Format, Args), io_lib:format(Format, Args)).
@@ -29,14 +29,14 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
         DefaultI = lux_interpret:default_istate(File),
         case lux_interpret:parse_iopts(DefaultI, Opts) of
             {ok, I} ->
-                Dicts =
-                    [I#istate.global_dict,
-                     I#istate.builtin_dict,
-                     I#istate.system_dict],
+                MultiVars =
+                    [I#istate.global_vars,
+                     I#istate.builtin_vars,
+                     I#istate.system_vars],
                 P = #pstate{file = File,
                             mode = RunMode,
                             skip_skip = SkipSkip,
-                            dicts = Dicts},
+                            multi_vars = MultiVars},
                 test_user_config(P, I),
                 {_FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 garbage_collect(),
@@ -119,8 +119,8 @@ updated_opts(I, DefaultI) ->
          {shell_args, #istate.shell_args},
          {shell_prompt_cmd, #istate.shell_prompt_cmd},
          {shell_prompt_regexp, #istate.shell_prompt_regexp},
-         {var, #istate.global_dict},
-         {system_env, #istate.system_dict}
+         {var, #istate.global_vars},
+         {system_env, #istate.system_vars}
         ],
     Filter = fun({Tag, Pos}) ->
                      Old = element(Pos, DefaultI),
@@ -684,7 +684,8 @@ test_variable(P, VarVal) ->
     end,
     UnExpanded = [$$ | Var],
     try
-        Expanded = lux_utils:expand_vars(P#pstate.dicts, UnExpanded, error),
+        Expanded = lux_utils:expand_vars(P#pstate.multi_vars,
+                                         UnExpanded, error),
         %% Variable is set
         if
             Val =:= false ->
@@ -705,7 +706,7 @@ test_variable(P, VarVal) ->
 
 expand_vars(P, Fd, Val, LineNo) ->
     try
-        lux_utils:expand_vars(P#pstate.dicts, Val, error)
+        lux_utils:expand_vars(P#pstate.multi_vars, Val, error)
     catch
         throw:{no_such_var, BadVar} ->
             Reason = ["Variable $", BadVar,

@@ -28,7 +28,7 @@
          pid    :: pid(),
          ref    :: reference(),
          health :: alive | zombie,
-         dict   :: [string()]}). % ["name=val"]
+         vars   :: [string()]}). % ["name=val"]
 
 -record(result,
         {outcome       :: fail | success | shutdown,
@@ -101,11 +101,11 @@
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
          cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
-         submatch_dict = []         :: [string()],   % ["name=val"]
-         macro_dict = []            :: [string()],   % ["name=val"]
-         global_dict = []           :: [string()],   % ["name=val"]
-         builtin_dict               :: [string()],   % ["name=val"]
-         system_dict                :: [string()],   % ["name=val"]
+         submatch_vars = []         :: [string()],   % ["name=val"]
+         macro_vars = []            :: [string()],   % ["name=val"]
+         global_vars = []           :: [string()],   % ["name=val"]
+         builtin_vars               :: [string()],   % ["name=val"]
+         system_vars                :: [string()],   % ["name=val"]
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
          stopped_by_user            :: undefined | 'case' | suite}).

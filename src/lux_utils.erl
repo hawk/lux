@@ -6,7 +6,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_utils).
--export([version/0, timestamp/0, builtin_dict/0, system_dict/0, expand_vars/3,
+-export([version/0, timestamp/0, builtin_vars/0, system_vars/0, expand_vars/3,
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
@@ -33,23 +33,23 @@ timestamp() ->
         apply(erlang, now, []) % Avoid compiler warning
     end.
 
-builtin_dict() ->
+builtin_vars() ->
     %% Alphabetic order
     [
      "_BS_="  ++ [8],  % backspace
      "_CR_="  ++ [13]  % carriage return
-    ] ++  ctrl_dict() ++
+    ] ++  ctrl_vars() ++
     [
      "_DEL_=" ++ [127], % delete
      "_LF_="  ++ [10],  % line feed
      "_TAB_=" ++ [9]    % tab
     ].
 
-ctrl_dict() -> % From a-z
+ctrl_vars() -> % From a-z
     %% Alphabetic order
     ["_CTRL_" ++ [Ctrl+64] ++ "_=" ++ [Ctrl] ||  Ctrl <- lists:seq(1,26)].
 
-system_dict() ->
+system_vars() ->
     %% Alphabetic order
     lists:sort(os:getenv()).
 
@@ -57,49 +57,49 @@ system_dict() ->
 %% Expand varibles
 
 %% MissingVar = keep | empty | error
-expand_vars(Dicts, String, MissingVar) when is_list(String) ->
-    do_expand_vars(Dicts, normal, String, [], MissingVar);
-expand_vars(Dicts, Bin, MissingVar) when is_binary(Bin) ->
-    list_to_binary(expand_vars(Dicts, binary_to_list(Bin), MissingVar)).
+expand_vars(MultiVars, String, MissingVar) when is_list(String) ->
+    do_expand_vars(MultiVars, normal, String, [], MissingVar);
+expand_vars(MultiVars, Bin, MissingVar) when is_binary(Bin) ->
+    list_to_binary(expand_vars(MultiVars, binary_to_list(Bin), MissingVar)).
 
-do_expand_vars(Dicts, normal = Mode, [H | T], Acc, MissingVar) ->
+do_expand_vars(MultiVars, normal = Mode, [H | T], Acc, MissingVar) ->
     case H of
         $$ ->
-            do_expand_vars(Dicts, {variable, []}, T, Acc, MissingVar);
+            do_expand_vars(MultiVars, {variable, []}, T, Acc, MissingVar);
         _ ->
-            do_expand_vars(Dicts, Mode, T, [H | Acc], MissingVar)
+            do_expand_vars(MultiVars, Mode, T, [H | Acc], MissingVar)
     end;
-do_expand_vars(_Dicts, normal, [], Acc, _MissingVar) ->
+do_expand_vars(_MultiVars, normal, [], Acc, _MissingVar) ->
     lists:reverse(Acc);
-do_expand_vars(Dicts, {variable, []}, [$$=H | T], Acc, MissingVar) ->
-    do_expand_vars(Dicts, normal, T, [H | Acc], MissingVar);
-do_expand_vars(Dicts, {variable, []}, [${=H | T], Acc, MissingVar) ->
+do_expand_vars(MultiVars, {variable, []}, [$$=H | T], Acc, MissingVar) ->
+    do_expand_vars(MultiVars, normal, T, [H | Acc], MissingVar);
+do_expand_vars(MultiVars, {variable, []}, [${=H | T], Acc, MissingVar) ->
     FailAcc = [H, $$ | Acc],
     case split_name(T, [], FailAcc) of
         {match, Name, FailAcc2, T2} ->
             %% Found a variable name "prefix${var}suffix"
-            Acc2 = replace_var(Dicts, Name, Acc, FailAcc2, MissingVar),
-            do_expand_vars(Dicts, normal, T2, Acc2, MissingVar);
+            Acc2 = replace_var(MultiVars, Name, Acc, FailAcc2, MissingVar),
+            do_expand_vars(MultiVars, normal, T2, Acc2, MissingVar);
         {nomatch, _, _, []} ->
             %% False positive. Continue to search.
-            do_expand_vars(Dicts, normal, T, FailAcc, MissingVar)
+            do_expand_vars(MultiVars, normal, T, FailAcc, MissingVar)
     end;
-do_expand_vars(Dicts, {variable, RevName}, [H | T], Acc, MissingVar) ->
+do_expand_vars(MultiVars, {variable, RevName}, [H | T], Acc, MissingVar) ->
     case is_var(H) of
         true ->
-            do_expand_vars(Dicts, {variable, [H|RevName]}, T, Acc, MissingVar);
+            do_expand_vars(MultiVars, {variable, [H|RevName]}, T, Acc, MissingVar);
         false ->
             %% Found a variable name "prefix$var/suffix"
             Name = lists:reverse(RevName),
             FailAcc = RevName ++ [$$ | Acc],
-            Acc2 = replace_var(Dicts, Name, Acc, FailAcc, MissingVar),
-            do_expand_vars(Dicts, normal, [H | T], Acc2, MissingVar)
+            Acc2 = replace_var(MultiVars, Name, Acc, FailAcc, MissingVar),
+            do_expand_vars(MultiVars, normal, [H | T], Acc2, MissingVar)
     end;
-do_expand_vars(Dicts, {variable, RevName}, [], Acc, MissingVar) ->
+do_expand_vars(MultiVars, {variable, RevName}, [], Acc, MissingVar) ->
     %% Found a variable name "prefix$var"
     Name = lists:reverse(RevName),
     FailAcc = RevName ++ [$$ | Acc],
-    Acc2 = replace_var(Dicts, Name, Acc, FailAcc, MissingVar),
+    Acc2 = replace_var(MultiVars, Name, Acc, FailAcc, MissingVar),
     lists:reverse(Acc2).
 
 split_name([Char | Rest], Name, Fail) ->
@@ -122,11 +122,11 @@ is_var(Char) ->
         true                   -> false
     end.
 
-replace_var(_Dicts, "", _Acc, FailAcc, _MissingVar) ->
+replace_var(_MultiVars, "", _Acc, FailAcc, _MissingVar) ->
     %% False positive
     FailAcc;
-replace_var(Dicts, Name, Acc, FailAcc, MissingVar) ->
-    do_replace_var(Dicts, Name, Acc, FailAcc, MissingVar).
+replace_var(MultiVars, Name, Acc, FailAcc, MissingVar) ->
+    do_replace_var(MultiVars, Name, Acc, FailAcc, MissingVar).
 
 do_replace_var([], Name, _Acc, FailAcc, MissingVar) ->
     %% No such var
@@ -135,10 +135,10 @@ do_replace_var([], Name, _Acc, FailAcc, MissingVar) ->
         empty -> "";      % replace with ""
         error -> throw({no_such_var, Name})
     end;
-do_replace_var([Dict | Dicts], Name, Acc, FailAcc, MissingVar) ->
-    case lookup_var(Dict, Name) of
+do_replace_var([Vars | MultiVars], Name, Acc, FailAcc, MissingVar) ->
+    case lookup_var(Vars, Name) of
         false ->
-            do_replace_var(Dicts, Name, Acc, FailAcc, MissingVar);
+            do_replace_var(MultiVars, Name, Acc, FailAcc, MissingVar);
         Val ->
             lists:reverse(Val) ++ Acc
     end.

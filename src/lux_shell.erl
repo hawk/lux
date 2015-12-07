@@ -101,7 +101,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                            pid = Pid,
                            ref = Ref,
                            health = alive,
-                           dict = NewVarVals ++ I#istate.global_dict},
+                           vars = NewVarVals ++ I#istate.global_vars},
             I2 = I#istate{active_shell = Shell,
                           active_name = Name},
             {ok, I2#istate{logs = I2#istate.logs ++ [Logs]}};
@@ -719,23 +719,23 @@ match_more(C, Skip, Rest, SubMatches) ->
             %% End of input
             stop(C2, success, end_of_script);
         false ->
-            SubDict = submatch_dict(SubMatches, 1),
+            SubVars = submatch_vars(SubMatches, 1),
             send_reply(C2, C2#cstate.parent,
-                       {submatch_dict, self(), SubDict}),
+                       {submatch_vars, self(), SubVars}),
             C3 = C2#cstate{expected = undefined, actual = Rest},
             dlog(C3, ?dmore, "expected=[] (waiting)", []),
             opt_late_sync_reply(C3)
     end.
 
-submatch_dict([SubMatches | Rest], N) ->
+submatch_vars([SubMatches | Rest], N) ->
     case SubMatches of
         nosubmatch ->
-            submatch_dict(Rest, N+1); % Omit $N as its value is undefined
+            submatch_vars(Rest, N+1); % Omit $N as its value is undefined
         Val ->
             VarVal = integer_to_list(N) ++ "=" ++ binary_to_list(Val),
-            [VarVal | submatch_dict(Rest, N+1)]
+            [VarVal | submatch_vars(Rest, N+1)]
     end;
-submatch_dict([], _) ->
+submatch_vars([], _) ->
     [].
 
 split_multi(C, Actual, Matches, Multi, Context, AltSkip) ->
