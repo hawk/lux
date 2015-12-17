@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.9.10 - 2015-11-04
+Version 1.10 - 2015-12-17
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1180,14 +1180,14 @@ set verbosity level of progress
 
 * level - verbosity level. Toggle between brief and verbose by default.; enum(silent|brief|doc|compact|verbose)  
 
-quit [context]
---------------
+quit [scope]
+------------
 
 exit lux in a controlled manner. Runs cleanup if applicable. 
 
 **Parameters:**  
 
-* context - quit a single test case or the entire test suite.; enum(case|suite)  
+* scope - quit a single test case or the entire test suite.; enum(case|suite)  
 
 save [file]
 -----------

@@ -802,7 +802,7 @@ html_history_header(Section, AllRuns, ConfigTables, HostTables,
 
      "<h3>",
      html_href("",
-               [drop_new_log_prefix(HtmlDir, HtmlFile), "#content"],
+               [drop_prefix(HtmlDir, HtmlFile), "#content"],
                "Overview"),
      "</h3>\n\n",
 
@@ -1074,7 +1074,7 @@ html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
                     Log ->
                         HtmlDir = filename:dirname(HtmlFile),
                         html_href("",
-                                  [drop_new_log_prefix(HtmlDir, Log), ".html"],
+                                  [drop_prefix(HtmlDir, Log), ".html"],
                                   FailCount)
                 end,
             OrigRes =
