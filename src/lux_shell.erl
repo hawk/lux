@@ -514,7 +514,7 @@ shell_eval(#cstate{name = Name} = C0,
             true = is_list(Arg), % Assert
             String = Arg,
             clog(C, progress, "\"~s\"", [String]),
-            io:format("~s", [dequote(String)]),
+            lux_utils:progress_write(C#cstate.progress, dequote(String)),
             C;
         change_timeout ->
             Millis = Arg,
