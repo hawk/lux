@@ -1597,11 +1597,21 @@ throw_error(#istate{active_shell = ActiveShell, shells = Shells} = I, Reason)
     lux:trace_me(50, 'case', error,
                  [{active_shell, ActiveShell}, {shells, Shells}, Reason]),
     %% Exit all shells before the interpreter is exited
-    Sig= shutdown,
-    Send =
-        fun(#shell{name = Name, pid = Pid}) ->
-                lux:trace_me(50, 'case', Name, Sig, [{'EXIT', Sig}]),
-                exit(Pid, Sig)
-        end,
-    lists:map(Send, Shells),
-    throw({error, Reason, I}).
+    multicast(I, {'DOWN', undefined, process, self(), shutdown}), % Fake exit
+    I2 = flush_stop(I#istate{mode = stopping}, [ActiveShell | Shells]),
+    throw({error, Reason, I2}).
+
+flush_stop(I, []) ->
+    I;
+flush_stop(I, [undefined | Shells]) ->
+    flush_stop(I, Shells);
+flush_stop(I, [#shell{pid = Pid} | Shells]) ->
+    receive
+        {'DOWN', _, process, P, Reason} when P =:= Pid ->
+            I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
+            flush_stop(I2, Shells);
+        {stop, P, Res} when P =:= Pid ->
+            %% One shell has finished. Stop the others if needed
+            I2 = prepare_stop(I, Pid, Res),
+            flush_stop(I2, Shells)
+    end.

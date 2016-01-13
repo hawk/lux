@@ -123,7 +123,6 @@ send_reply(C, To, Msg) ->
     To ! Msg.
 
 init(C, ExtraLogs) when is_record(C, cstate) ->
-    erlang:monitor(process, C#cstate.parent),
     process_flag(trap_exit, true),
     Name = C#cstate.name,
     lux:trace_me(50, 'case', Name, 'spawn', []),
@@ -499,9 +498,9 @@ shell_eval(#cstate{name = Name} = C0,
             Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
         sleep ->
-            true = is_integer(Arg), % Assert
             Secs = Arg,
             clog(C, sleep, "(~p seconds)", [Secs]),
+            true = is_integer(Secs), % Assert
             Progress = C#cstate.progress,
             Self = self(),
             WakeUp = {wakeup, Secs},
