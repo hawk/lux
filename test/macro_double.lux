@@ -1,0 +1,10 @@
+[doc Doubly defined macro]
+
+[macro foo]
+[endmacro]
+
+[macro foo]
+[endmacro]
+
+[shell foo]
+    [invoke foo]

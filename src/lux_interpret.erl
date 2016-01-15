@@ -536,27 +536,27 @@ interpret_init(I) ->
     Ref = safe_send_after(I, I#istate.case_timeout, self(),
                           {case_timeout, I#istate.case_timeout}),
     OrigCmds = I#istate.commands,
-    I2 =
-        I#istate{macros = collect_macros(I, OrigCmds),
-                 blocked = false,
-                 has_been_blocked = false,
-                 want_more = true,
-                 old_want_more = undefined,
-                 orig_commands = OrigCmds},
-    I4 =
-        if
-            I2#istate.stopped_by_user =:= suite ->
-                stopped_by_user(I2, I2#istate.stopped_by_user);
-            I2#istate.debug orelse I2#istate.debug_file =/= undefined ->
-                DebugState = {attach, temporary},
-                {_, I3} = lux_debug:cmd_attach(I2, [], DebugState),
-                io:format("\nDebugger for lux. Try help or continue.\n",
-                          []),
-                I3;
-            true ->
-                I2
-        end,
     try
+        I2 =
+            I#istate{macros = collect_macros(I, OrigCmds),
+                     blocked = false,
+                     has_been_blocked = false,
+                     want_more = true,
+                     old_want_more = undefined,
+                     orig_commands = OrigCmds},
+        I4 =
+            if
+                I2#istate.stopped_by_user =:= suite ->
+                    stopped_by_user(I2, I2#istate.stopped_by_user);
+                I2#istate.debug orelse I2#istate.debug_file =/= undefined ->
+                    DebugState = {attach, temporary},
+                    {_, I3} = lux_debug:cmd_attach(I2, [], DebugState),
+                    io:format("\nDebugger for lux. Try help or continue.\n",
+                              []),
+                    I3;
+                true ->
+                    I2
+            end,
         Res = interpret_loop(I4),
         {ok, Res}
     catch
@@ -566,15 +566,27 @@ interpret_init(I) ->
         safe_cancel_timer(Ref)
     end.
 
-collect_macros(#istate{file = File, orig_file = OrigFile}, OrigCmds) ->
+collect_macros(#istate{file = File, orig_file = OrigFile} = I, OrigCmds) ->
     Collect =
-        fun(Cmd, _RevFile, _CmdStack, Acc) ->
+        fun(Cmd, RevFile, _CmdStack, Acc) ->
                 case Cmd of
                     #cmd{type = macro,
                          arg = {macro, Name, _ArgNames,
-                                _FirstLineNo, _LastLineNo, _Body}} ->
-                        [#macro{name = Name,
-                                file = File, cmd = Cmd} | Acc];
+                                LineNo, _LastLineNo, _Body}} ->
+                        case lists:keymember(Name, #macro.name, Acc) of
+                            false ->
+                                [#macro{name = Name,
+                                        file = File, cmd = Cmd} | Acc];
+                            true ->
+                                Reason =
+                                    [
+                                     "Ambiguous macro ", Name, " at ",
+                                     lux_utils:pretty_filename(RevFile),
+                                     ":",
+                                     integer_to_list(LineNo)
+                                    ],
+                                throw({error, iolist_to_binary(Reason), I})
+                        end;
                     _ ->
                         Acc
                 end
