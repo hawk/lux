@@ -1,0 +1,27 @@
+[doc Invoke macro with too few arguments combined with a shell switch]
+
+[macro too_few_args arg]
+    !echo $arg
+    ?SH-PROMPT:
+[endmacro]
+
+[macro inner inner]
+    [progress call $inner]
+    [invoke $inner]
+[endmacro]
+
+[macro outer inner arg]
+    [progress switch to shell bar]
+    [my old=$LUX_SHELLNAME]
+[shell bar]
+    [progress call $inner]
+    [invoke $inner $arg]
+    [progress back to $old]
+[shell $old]
+[endmacro]
+
+[shell bar]
+
+[shell foo]
+    [progress call outer]
+    [invoke outer inner too_few_args]

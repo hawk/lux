@@ -981,7 +981,12 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                                    [InvokeLineNo, FirstLineNo, LastLineNo,
                                     CmdFile])
                 end,
-            _ = switch_cmd('after2', BeforeI2, OldStack, Cmd, BeforeExit),
+            if
+                Class =:= throw, element(1, Reason) =:= error ->
+                    BeforeExit();
+                true ->
+                    switch_cmd('after2', BeforeI2, OldStack, Cmd, BeforeExit)
+            end,
             erlang:raise(Class, Reason, erlang:get_stacktrace())
     end.
 
