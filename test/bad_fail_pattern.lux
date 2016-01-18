@@ -1,0 +1,9 @@
+[doc Bad fail pattern]
+
+[macro match]
+    -?
+    !echo foo
+[endmacro]
+
+[shell bad]
+    [invoke match]
