@@ -18,7 +18,7 @@ References
 [pre-built packages]:    https://www.erlang-solutions.com/downloads/download-erlang-otp
                       "Prebuilt packages at Erlang Solutions"
 
-[regular expression]: http://www.erlang.org/doc/man/re.html
+[regular expression]: http://www.erlang.org/doc/man/re.html#regexp_syntax
                       "Erlang style regular expressions (re)"
 [PCRE]:               http://www.pcre.org/
                       "PCRE - Perl Compatible Regular Expressions"

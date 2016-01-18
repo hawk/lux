@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.10 - 2015&#8211;12&#8211;17</p>
+<p>Version 1.10 - 2016&#8211;01&#8211;18</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -36,7 +36,7 @@ fashion. See <a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect home
 <ul>
 <li>simplify automated testing</li>
 <li>control interactive programs by sending textual input to them and
- using <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s to ensure that their output matches the
+ using <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s to ensure that their output matches the
  expectations</li>
 <li>perform detailed post mortem analyzis of test suite results</li>
 <li>interactively debug and trace single test cases</li>
@@ -185,14 +185,14 @@ literally to the shell even if the Lux engine happens to have
 have a variable registered with that name. In order to achieve this
 the <code>$var</code> must be escaped as <code>$$var</code>.</p>
 
-<p>The <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s in <code>expect</code> statements may contain
+<p>The <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s in <code>expect</code> statements may contain
 <strong>sub-patterns</strong>. The values matching captured sub-patterns may be
 accessed in the following variable assignments. For example if the
 statement <code>?begin (.*) middle (.*) end</code> matches the actual shell output
 <code>begin abc middle def end</code>. The captured sub-patterns can be accessed
 as numbered variables: <code>[local foo=the vals are $1 and $2]</code> which will
 assign the variable <code>foo</code> to the value &#8220;<code>the vals are abc and def</code>&#8221;.
-As in any language <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s contains keywords. If the
+As in any language <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s contains keywords. If the
 output of a shell contains such a keyword and we want to match that,
 the keyword must be escaped. Example of such keywords are any of
 the characters <code>^$.?+*()[]{}|</code>.</p>
@@ -202,7 +202,7 @@ the characters <code>^$.?+*()[]{}|</code>.</p>
 for these test cases may assign different values to variables and then
 include a generic script that makes use of these variables.</p>
 
-<p>See the documentation about <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s in Erlang for
+<p>See the documentation about <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s in Erlang for
 details about the regular expression dialect used in Lux. It is
 an extended subset of <a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE</a>.
 <a name="script_syntax"/></p>
@@ -255,7 +255,7 @@ Same as <code>!String</code>, but it does NOT add a <code>LF</code> at the end.<
 
 <p><strong>?Regexp</strong><br/>
 An <code>expect</code> operation which waits for a string matching a
-<a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a> to appear on the shell output (either <code>stdout</code>
+<a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a> to appear on the shell output (either <code>stdout</code>
 or <code>stderr</code>). If no matching output does appear within the timeout
 period, the test case is considered as failed. See the <code>--timeout</code>
 option. If no <code>Regexp</code> is given, the output streams (<code>stdout</code>,
@@ -297,7 +297,7 @@ the usage of <code>?</code>. <code>?+</code> is always used together with <code>
 
 <p><strong>-</strong><br/>
 <strong>-Regexp</strong><br/>
-Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
+Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
 cleanup). If no <code>Regexp</code> is given, the old failure condition is reset
@@ -311,7 +311,7 @@ produces new output.</p>
 
 <p><strong>+</strong><br/>
 <strong>+Regexp</strong><br/>
-Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>. If
+Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>. If
 the given <code>Regexp</code> ever matches, the test case is considered a success
 (no further processing of the script will be performed besides
 cleanup). If no <code>Regexp</code> is given, the old success condition is reset
@@ -798,7 +798,7 @@ the context for the test case(s), such as subsystem or test suite.</p>
 
 <p><strong>&#8211;timeout Timeout</strong><br/>
 The script expects the shell output to match given
-<a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s. But the output must be received within a
+<a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s. But the output must be received within a
 given time limit. The <code>Timeout</code> specifies how long it will wait before
 the script fails. The <code>Timeout</code> defaults to <code>10000</code> milli seconds
 (<code>10</code> seconds). This <code>Timeout</code> can be overridden by the statement
@@ -831,7 +831,7 @@ is <code>300000</code> (5 minutes).</p>
 
 <p><strong>&#8211;flush_timeout FlushTimeout</strong><br/>
 All output from a shell is buffered and matched against
-<a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s. It can however explicitly be flushed by
+<a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s. It can however explicitly be flushed by
 the script. When this is done, the engine first waits a while
 before it discards the output. How long it waits is controlled
 by <code>FlushTimeout</code>. It defaults to <code>0</code>. If you want to experiment
@@ -840,7 +840,7 @@ with it, <code>1000</code> milli seconds (1 second) can be a resonable value.</p
 <p><strong>&#8211;poll_timeout PollTimeout</strong><br/>
 When the Lux engine receives output from a shell it will
 wait in <code>PollTimeout</code> milli seconds for more output before it
-tries to match it against any <a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">regular expression</a>s. It defaults
+tries to match it against any <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s. It defaults
 to <code>0</code>. If you want to experiment with it, <code>100</code> milli seconds
 (1/10 second) can be a resonable value.</p>
 
@@ -1391,7 +1391,7 @@ firefox ../lux.html
 <li><a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect homepage</a></li>
 <li><a href="http://www.erlang.org/" title="Erlang programming language">Erlang programming language</a></li>
 <li><a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">Pre-built Erlang packages</a></li>
-<li><a href="http://www.erlang.org/doc/man/re.html" title="Erlang style regular expressions (re)">Erlang style regular expressions (re)</a></li>
+<li><a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">Erlang style regular expressions (re)</a></li>
 <li><a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE - Perl Compatible Regular Expressions</a></li>
 <li><a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Erlang release management tool</a></li>
 <li><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></li>
