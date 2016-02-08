@@ -690,8 +690,8 @@ html_opt_div(Op, Data) ->
 history(TopDir, RelHtmlFile, Opts) ->
     TopDir2 = lux_utils:normalize(TopDir),
     AbsHtmlFile = lux_utils:normalize(RelHtmlFile),
-    AllRuns = parse_summary_logs(AbsHtmlFile, TopDir2, [], Opts),
-    io:format("~p test runs", [length(AllRuns)]),
+    {AllRuns, Errors} = parse_summary_logs(AbsHtmlFile, TopDir2, [], [], Opts),
+    io:format("~p test runs (~p errors)", [length(AllRuns), length(Errors)]),
     SplitHosts = keysplit(#run.hostname, AllRuns),
     LatestRuns = latest_runs(SplitHosts),
     HostTables = html_history_table_hosts(SplitHosts, AbsHtmlFile),
@@ -1147,7 +1147,7 @@ multi_member([H | T], Files) ->
 multi_member([], _Files) ->
     false.
 
-parse_summary_logs(HtmlFile, Dir, Acc, Opts) ->
+parse_summary_logs(HtmlFile, Dir, Acc, Err, Opts) ->
     Skip =
         ["lux.skip",
          "lux_summary.log",
@@ -1156,9 +1156,9 @@ parse_summary_logs(HtmlFile, Dir, Acc, Opts) ->
          "qmscript_summary.log",
          "qmscript_summary.log.tmp",
          "qmscript.summary.log"],
-    do_parse_summary_logs(HtmlFile, Dir, Acc, Skip, Opts).
+    do_parse_summary_logs(HtmlFile, Dir, Acc, Err, Skip, Opts).
 
-do_parse_summary_logs(HtmlFile, Dir, Acc, Skip, Opts) ->
+do_parse_summary_logs(HtmlFile, Dir, Acc, Err, Skip, Opts) ->
     %% io:format("~s\n", [Dir]),
     case file:list_dir(Dir) of
         {ok, Files} ->
@@ -1171,35 +1171,39 @@ do_parse_summary_logs(HtmlFile, Dir, Acc, Skip, Opts) ->
                             io:format(".", []),
                             case lux_log:parse_summary_log(File) of
                                 {ok,_,_,_,_,_} = Res->
-                                    R = lux_log:parse_run_summary(HtmlFile,
-                                                                  File,
-                                                                  Res,
-                                                                  Opts),
-                                    [R | Acc];
-                                {error, _, _Reason} ->
-                                    Acc
+                                    case lux_log:parse_run_summary(HtmlFile,
+                                                                   File,
+                                                                   Res,
+                                                                   Opts) of
+                                        {error, F, Reason} ->
+                                            {Acc, [{error, F, Reason} |Err]};
+                                        #run{} = R ->
+                                            {[R|Acc], Err}
+                                    end;
+                                {error, F, Reason} ->
+                                    {Acc, [{error, F, Reason} |Err]}
                             end;
                         false ->
                             io:format("s", []),
                             %% Skip
-                            Acc
+                            {Acc, Err}
                     end;
                 false ->
                     %% No interesting file found. Search subdirs
                     Fun =
-                        fun("latest_run", A) ->
+                        fun("latest_run", {A,E}) ->
                                 %% Symlink
-                                A;
-                           (File, A) ->
+                                {A,E};
+                           (File, {A,E}) ->
                                 SubDir = filename:join([Dir, File]),
                                 do_parse_summary_logs(HtmlFile, SubDir,
-                                                      A, Skip, Opts)
+                                                      A, E, Skip, Opts)
                         end,
-                    lists:foldl(Fun, Acc, Files)
+                    lists:foldl(Fun, {Acc, Err}, Files)
             end;
         {error, _Reason} ->
             %% Not a dir or problem to read dir
-            Acc
+            {Acc, Err}
     end.
 
 %% Keysort list of tuples and group items with same tag
