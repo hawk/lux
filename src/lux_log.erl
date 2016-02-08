@@ -377,7 +377,8 @@ run_result(Res) ->
         <<"SUCCESS">>                                          -> success;
         <<"SKIP", _/binary>>                                   -> skip;
         <<"FAIL", _/binary>>                                   -> fail;
-        <<"ERROR", _/binary>>                                  -> fail
+        <<"ERROR", _/binary>>                                  -> fail;
+        <<"WARNING", _/binary>>                                -> success
     end.
 
 drop_some_dirs(File) when is_binary(File) -> % BUGBUG: Temporary solution
