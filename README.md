@@ -86,7 +86,6 @@ Run a single script like this:
 
 In this run we got a (brief) progress report of the test case on
 stdout and a link to a summary log containing (lots of) details.
-
 How to assemble the history of multiple runs
 --------------------------------------------
 
