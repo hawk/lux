@@ -442,10 +442,7 @@ write_results(Progress, SummaryLog, Summary, Results, Warnings) ->
 print_results(Progress, Fd, Summary, Results, Warnings) ->
     %% Display most important results last
     result_format(Progress, Fd, "\n", []),
-    SuccessScripts = pick_result(Results, success),
-    result_format(Progress, Fd, "~s~p\n",
-                  [?TAG("successful"),
-                   length(SuccessScripts)]),
+    print_success(Progress, Fd, Results),
     print_skip(Progress, Fd, Results),
     print_warning(Progress, Fd, Warnings),
     print_fail(Progress, Fd, Results),
@@ -453,6 +450,11 @@ print_results(Progress, Fd, Summary, Results, Warnings) ->
     result_format(Progress, Fd, "~s~s\n",
                   [?TAG("summary"),
                    [string:to_upper(Char) || Char <- atom_to_list(Summary)]]).
+
+print_success(Progress, Fd, Results) ->
+    SuccessScripts = pick_result(Results, success),
+    result_format(Progress, Fd, "~s~p\n",
+                  [?TAG("successful"), length(SuccessScripts)]).
 
 print_skip(Progress, Fd, Results) ->
     case pick_result(Results, skip) of
@@ -462,9 +464,8 @@ print_skip(Progress, Fd, Results) ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("skipped"), length(SkipScripts)]),
             [result_format(Progress, Fd, "\t~s:~s\n",
-                           [F, L]) || {F, L} <- SkipScripts]
+                           [F, L]) || {F, L, _R} <- SkipScripts]
     end.
-
 
 print_warning(Progress, Fd, Warnings) ->
     case pick_result(Warnings, warning) of
@@ -473,8 +474,9 @@ print_warning(Progress, Fd, Warnings) ->
         WarnScripts ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("warnings"), length(WarnScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s\n",
-                           [F, L]) || {F, L} <- WarnScripts]
+            [result_format(Progress, Fd,
+                           "\t~s:~s - ~s\n",
+                           [F, L, R]) || {F, L, R} <- WarnScripts]
     end.
 
 print_fail(Progress, Fd, Results) ->
@@ -484,8 +486,8 @@ print_fail(Progress, Fd, Results) ->
         FailScripts ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("failed"), length(FailScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s\n",
-                           [F, L]) || {F, L} <- FailScripts]
+            [result_format(Progress, Fd, "\t~s:~s - ~p\n",
+                           [F, L, R]) || {F, L, R} <- FailScripts]
     end.
 
 print_error(Progress, Fd, Results) ->
@@ -495,20 +497,23 @@ print_error(Progress, Fd, Results) ->
         ErrorScripts ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("errors"), length(ErrorScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s\n", [F, L]) ||
-                {F, L} <- ErrorScripts]
+            [result_format(Progress, Fd, "\t~s:~s - ~s\n", [F, L, R]) ||
+                {F, L, R} <- ErrorScripts]
     end.
 
 pick_result(Results, Outcome) when Outcome =:= error ->
-    [{Script, FullLineNo} ||
-        {error, Script, FullLineNo, _Reason} <- Results];
+    [{Script, FullLineNo, Reason} ||
+        {error, Script, FullLineNo, Reason} <- Results];
 pick_result(Warnings, Outcome) when Outcome =:= warning ->
-    [{Script, FullLineNo} ||
-        {warning, Script, FullLineNo, _Reason} <- Warnings];
+    [{Script, FullLineNo, Reason} ||
+        {warning, Script, FullLineNo, Reason} <- Warnings];
 pick_result(Results, Outcome) ->
-    [{Script, FullLineNo} ||
+    Actual = fun(#result{actual=NewAcc}, _Acc) -> NewAcc;
+                (_, Acc)                       -> Acc
+             end,
+    [{Script, FullLineNo, lists:foldl(Actual, Outcome, Events)} ||
         {ok, O, Script, FullLineNo, _LogDir,
-         _Events, _FailBins, _Opaque} <- Results,
+         Events, _FailBin, _Opaque} <- Results,
         O =:= Outcome].
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->

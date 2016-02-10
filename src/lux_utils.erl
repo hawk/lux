@@ -16,7 +16,7 @@
          pretty_full_lineno/1, pretty_filename/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2,
-         cmd/2, chop_newline/1, cmd_expected/1, perms/1,
+         cmd/1, cmd_expected/1, perms/1,
          pick_opt/3]).
 
 -include("lux.hrl").
@@ -655,27 +655,11 @@ add({delete,Delete}, [{insert,Insert}|Merge]) ->
 add(Curr, Merge) ->
     [Curr|Merge].
 
-cmd(Cmd, Default) ->
+cmd(Cmd) ->
     Output = os:cmd(Cmd++"; echo $?"),
-    rsplit(Output, "\n", Default).
-
-rsplit(Line, Seps, Default) ->
-    {After, Sep, Before} = split(lists:reverse(Line), Seps, Default),
-    {lists:reverse(Before), Sep, lists:reverse(After)}.
-
-split(Line, Seps, Default) ->
-    Pred = fun(C) -> not lists:member(C, Seps) end,
-    case lists:splitwith(Pred, Line) of
-        {Before, ""}          -> {Before, "", Default};
-        {Before, [Sep|After]} -> {Before, Sep, After}
-    end.
-
-chop_newline(Line) ->
-    {Before, _Sep, After} = rsplit(Line, "\n", ""),
-    case After of
-        "" -> Before;
-        _  -> Line
-    end.
+    Tokens = string:tokens(Output, "\n"),
+    [CmdStatus | Rest] = lists:reverse(Tokens),
+    {lists:reverse(Rest), CmdStatus}.
 
 cmd_expected(Cmd) ->
     case Cmd of

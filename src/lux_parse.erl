@@ -12,10 +12,15 @@
 -include("lux.hrl").
 
 -record(pstate,
-        {file       :: string(),
-         mode       :: run_mode(),
-         skip_skip  :: boolean(),
-         multi_vars :: [[string()]]}). % ["name=val"][]}).
+        {
+          file       :: string(),
+          orig_file  :: string(),
+          pos_stack  :: [#cmd_pos{}],
+          mode       :: run_mode(),
+          skip_skip  :: boolean(),
+          multi_vars :: [[string()]], % ["name=val"]
+          warnings   :: [binary()]
+        }).
 
 -define(TAB_LEN, 8).
 -define(FF(Format, Args), io_lib:format(Format, Args)).
@@ -35,18 +40,22 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                      I#istate.builtin_vars,
                      I#istate.system_vars],
                 P = #pstate{file = File,
+                            orig_file = File,
+                            pos_stack = [],
                             mode = RunMode,
                             skip_skip = SkipSkip,
-                            multi_vars = MultiVars},
+                            multi_vars = MultiVars,
+                            warnings = []},
                 test_user_config(P, I),
-                {_FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
+                {P2, _FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 garbage_collect(),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
                                               [], File, [], Cmds),
                 case parse_config(I, lists:reverse(Config)) of
                     {ok, I2} ->
                         UpdatedOpts = updated_opts(I2, I),
-                        {ok, I2#istate.file, Cmds, UpdatedOpts};
+                        Warnings = P2#pstate.warnings,
+                        {ok, I2#istate.file, Cmds, UpdatedOpts, Warnings};
                     {error, Reason} ->
                         {error,
                          [#cmd_pos{rev_file= RevFile, lineno = 0, type = main}],
@@ -120,17 +129,19 @@ parse_file2(P) ->
     case file_open(P) of
         {ok, Fd} ->
             FirstLineNo = 1,
-            {eof, RevCmds} = parse(P, Fd, FirstLineNo, []),
+            {P2, eof, RevCmds} = parse(P, Fd, FirstLineNo, []),
             Cmds = lists:reverse(RevCmds),
             %% io:format("Cmds: ~p\n", [Cmds]),
             case Cmds of
                 [#cmd{lineno = LastLineNo} | _] -> ok;
                 []                              -> LastLineNo = 1
             end,
-            {FirstLineNo, LastLineNo, Cmds};
+            {P2, FirstLineNo, LastLineNo, Cmds};
         {error, FileReason} ->
             NewFd = eof,
-            parse_error(P, NewFd, 0, file:format_error(FileReason))
+            Reason = iolist_to_binary([lux_utils:drop_prefix(P#pstate.file),
+                                       ": ", file:format_error(FileReason)]),
+            parse_error(P, NewFd, 0, Reason)
     end.
 
 file_open(Lines) when is_list(Lines) ->
@@ -278,7 +289,7 @@ parse(P, Fd, LineNo, Tokens) ->
             Line = lux_utils:strip_leading_whitespaces(OrigLine),
             parse_cmd(P, NewFd, Line, LineNo, Incr, OrigLine, Tokens);
         eof = NewFd ->
-            {NewFd, Tokens}
+            {P, NewFd, Tokens}
     end.
 
 parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens) ->
@@ -286,19 +297,18 @@ parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens) ->
     parse(P, Fd, LineNo+Incr+1, [Token | Tokens]);
 parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
     RunMode = P#pstate.mode,
-    {Type, SubType, Raw} = parse_oper(P, Fd, LineNo, Line),
-    Stripped = lux_utils:strip_trailing_whitespaces(Raw),
+    {Type, SubType, UnStripped} = parse_oper(P, Fd, LineNo, Line),
     Cmd = #cmd{lineno = LineNo,
                type = Type,
                arg = SubType,
                orig = OrigLine},
     if
         Type =:= meta ->
-            parse_meta(P, Fd, Stripped, Cmd, Tokens);
+            parse_meta(P, Fd, UnStripped, Cmd, Tokens);
         Type =:= multi ->
-            parse_multi(P, Fd, Stripped, Cmd, Tokens);
+            parse_multi(P, Fd, UnStripped, Cmd, Tokens);
         RunMode =:= validate; RunMode =:= execute ->
-            Cmd2 = parse_single(Cmd, Stripped),
+            Cmd2 = parse_single(Cmd, UnStripped),
             parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
         RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Skip command
@@ -365,7 +375,7 @@ parse_regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
 parse_var(P, Fd, Cmd, Scope, String) ->
     case split_var(String, []) of
         {Var, Val} ->
-            Cmd#cmd{type = variable, arg = {Scope, Var, Val}};
+            {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
         false ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
@@ -381,21 +391,29 @@ split_var([H | T], Var) ->
 split_var([], _Var) ->
     false.
 
-parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
-    MetaSize = byte_size(Data) - 1,
-    case Data of
+parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+    Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
+    P2 =
+        if
+            Stripped =/= UnStripped ->
+                add_warning(P, Cmd, <<"Trailing whitespaces">>);
+           true ->
+                P
+        end,
+    MetaSize = byte_size(Stripped) - 1,
+    case Stripped of
         <<Meta:MetaSize/binary, "]">> ->
-            MetaCmd = parse_meta_token(P, Fd, Cmd, Meta, LineNo),
-            {NewFd, NewLineNo, NewCmd} =
+            {P3, MetaCmd} = parse_meta_token(P2, Fd, Cmd, Meta, LineNo),
+            {NewP, NewFd, NewLineNo, NewCmd} =
                 case MetaCmd#cmd.type of
                     macro ->
-                        parse_body(P, Fd, MetaCmd, "endmacro", LineNo);
+                        parse_body(P3, Fd, MetaCmd, "endmacro", LineNo);
                     loop ->
-                        parse_body(P, Fd, MetaCmd, "endloop", LineNo);
+                        parse_body(P3, Fd, MetaCmd, "endloop", LineNo);
                     _ ->
-                        {Fd, LineNo, MetaCmd}
+                        {P3, Fd, LineNo, MetaCmd}
                 end,
-            RunMode = P#pstate.mode,
+            RunMode = NewP#pstate.mode,
             NewType = NewCmd#cmd.type,
             NewTokens =
                 if
@@ -404,8 +422,8 @@ parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                     NewType =:= include  ->
                         [NewCmd | Tokens];
                     NewType =:= doc,
-                    P#pstate.mode =/= list,
-                    P#pstate.mode =/= list_dir ->
+                    RunMode =/= list,
+                    RunMode =/= list_dir ->
                         [NewCmd | Tokens];
                     RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
                         %% Skip command
@@ -413,9 +431,9 @@ parse_meta(P, Fd, Data, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                     RunMode =:= validate; RunMode =:= execute ->
                         [NewCmd | Tokens]
                 end,
-            parse(P, NewFd, NewLineNo+1, NewTokens);
+            parse(NewP, NewFd, NewLineNo+1, NewTokens);
         _ ->
-            parse_error(P, Fd, LineNo,
+            parse_error(P2, Fd, LineNo,
                         ["Syntax error at line ", integer_to_list(LineNo),
                          ": ']' is expected to be at end of line"])
     end.
@@ -440,17 +458,17 @@ parse_body(#pstate{mode = RunMode} = P,
             %% Do not parse body
             BodyLen = length(BodyLines)+BodyIncr,
             LastLineNo = LineNo+Incr+BodyLen+1,
-            {NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
+            {P, NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
         {line, _EndMacro, NewFd, Incr}
           when RunMode =:= validate; RunMode =:= execute ->
             %% Parse body
             BodyLen = length(BodyLines)+BodyIncr,
             FdBody = file_open(BodyLines),
-            {eof, RevBodyCmds} = parse(P, FdBody, LineNo+Incr+1, []),
+            {P2, eof, RevBodyCmds} = parse(P, FdBody, LineNo+Incr+1, []),
             BodyCmds = lists:reverse(RevBodyCmds),
             LastLineNo = LineNo+Incr+BodyLen+1,
             Arg = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
-            {NewFd, LastLineNo, Cmd#cmd{arg = Arg}}
+            {P2, NewFd, LastLineNo, Cmd#cmd{arg = Arg}}
     end.
 
 merge_body([Line | Lines], Acc, Pending, Decr) ->
@@ -477,7 +495,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     [Char | _Text] when Char >= $0, Char =< $9 ->
                         Text;
                     _Text ->
-                        "1 " ++Text
+                        "1 " ++ Text
                 end,
             Pred = fun(Char) -> Char =/= $\  end,
             {LevelStr, Text3} = lists:splitwith(Pred, Text2),
@@ -485,7 +503,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 Level = list_to_integer(LevelStr),
                 if Level > 0 -> ok end, % assert
                 Doc = list_to_binary(string:strip(Text3)),
-                Cmd#cmd{type = doc, arg = {Level, Doc}}
+                {P, Cmd#cmd{type = doc, arg = {Level, Doc}}}
             catch
                 error:_ ->
                     parse_error(P, Fd, LineNo,
@@ -494,16 +512,16 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                                  integer_to_list(LineNo)])
             end;
         "cleanup" ++ Name ->
-            Cmd#cmd{type = cleanup, arg = string:strip(Name)};
+            {P, Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
         "shell" ++ Name ->
             Name2 = string:strip(Name),
             Match = re:run(Name2, "\\$\\$", [{capture,none}]),
             case {Name2, Match} of
-%%                 {"", _} ->
-%%                     parse_error(P, Fd, LineNo,
-%%                                 ?FF("Syntax error at line ~p"
-%%                                     ": missing shell name",
-%%                                     [LineNo]));
+                %%                 {"", _} ->
+                %%                     parse_error(P, Fd, LineNo,
+                %%                                 ?FF("Syntax error at line ~p"
+                %%                                     ": missing shell name",
+                %%                                     [LineNo]));
                 {"lux"++_, _} ->
                     parse_error(P, Fd, LineNo,
                                 ?FF("Syntax error at line ~p"
@@ -522,21 +540,22 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                                     ": $$ in shell name",
                                     [LineNo]));
                 {_, nomatch} ->
-                    Cmd#cmd{type = shell, arg = Name2}
+                    {P, Cmd#cmd{type = shell, arg = Name2}}
             end;
         "endshell" ++ Data ->
             case list_to_binary(string:strip(Data)) of
-             %% <<>>   -> RegExp = <<"0">>;
+                %% <<>>   -> RegExp = <<"0">>;
                 <<>>   -> RegExp = <<".*">>;
                 RegExp -> ok
             end,
-            Cmd#cmd{type = expect, arg = {endshell, single, RegExp}};
+            {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
         "config" ++ VarVal ->
-            ConfigCmd = parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
+            {P2, ConfigCmd} =
+                parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
-            Val2 = expand_vars(P, Fd, Val, LineNo),
+            Val2 = expand_vars(P2, Fd, Val, LineNo),
             ConfigCmd2 = ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}},
-            test_skip(P, Fd, ConfigCmd2);
+            test_skip(P2, Fd, ConfigCmd2);
         "my" ++ VarVal ->
             parse_var(P, Fd, Cmd, my, string:strip(VarVal));
         "local" ++ VarVal ->
@@ -544,34 +563,39 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "global" ++ VarVal ->
             parse_var(P, Fd, Cmd, global, string:strip(VarVal));
         "timeout" ++ Time ->
-            Cmd#cmd{type = change_timeout, arg = string:strip(Time)};
+            {P, Cmd#cmd{type = change_timeout, arg = string:strip(Time)}};
         "sleep" ++ Time ->
-            Cmd#cmd{type = sleep, arg = string:strip(Time)};
+            {P, Cmd#cmd{type = sleep, arg = string:strip(Time)}};
         "progress" ++ String ->
-            Cmd#cmd{type = progress, arg = string:strip(String)};
-        "include" ++ File ->
-            File2 = string:strip(expand_vars(P, Fd, File, LineNo)),
-            InclFile = filename:absname(File2,
-                                        filename:dirname(P#pstate.file)),
-            InclFile2 = lux_utils:normalize(InclFile),
+            {P, Cmd#cmd{type = progress, arg = string:strip(String)}};
+        "include" ++ RelFile ->
+            CurrFile = P#pstate.file,
+            Dir = filename:dirname(CurrFile),
+            RelFile2 = string:strip(expand_vars(P, Fd, RelFile, LineNo)),
+            AbsFile = filename:absname(RelFile2, Dir),
+            AbsFile2 = lux_utils:normalize(AbsFile),
             try
-                {FirstLineNo, LastLineNo, InclCmds} =
-                    parse_file2(P#pstate{file = InclFile2}),
-                Cmd#cmd{type = include,
-                        arg = {include,InclFile2,FirstLineNo,
-                               LastLineNo,InclCmds}}
+                NewPosStack = cmd_pos_stack(P, LineNo),
+                {P2, FirstLineNo, LastLineNo, InclCmds} =
+                    parse_file2(P#pstate{file = AbsFile2,
+                                         pos_stack = NewPosStack}),
+                Cmd2 = Cmd#cmd{type = include,
+                               arg = {include,AbsFile2,FirstLineNo,
+                                      LastLineNo,InclCmds}},
+                {P2#pstate{file = CurrFile}, Cmd2}
             catch
                 throw:{skip, ErrorStack, Reason} ->
                     %% re-throw
-                    parse_error(P, Fd, skip, LineNo, Reason, ErrorStack);
+                    reparse_error(Fd, skip, ErrorStack, Reason);
                 throw:{error, ErrorStack, Reason} ->
                     %% re-throw
-                    parse_error(P, Fd, error, LineNo, Reason, ErrorStack)
+                    reparse_error(Fd, error, ErrorStack, Reason)
             end;
         "macro" ++ Head ->
             case string:tokens(string:strip(Head), " ") of
                 [Name | ArgNames] ->
-                    Cmd#cmd{type = macro, arg = {body, macro, Name, ArgNames}};
+                    {P, Cmd#cmd{type = macro,
+                                arg  = {body, macro, Name, ArgNames}}};
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
@@ -581,7 +605,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "invoke" ++ Head ->
             case split_invoke_args(P, Fd, LineNo, Head, normal, [], []) of
                 [Name | ArgVals] ->
-                    Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}};
+                    {P, Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}}};
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
@@ -593,7 +617,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             case lists:splitwith(Pred, string:strip(Head)) of
                 {Var, Items0} when Var =/= "" ->
                     Items = string:strip(Items0, left),
-                    Cmd#cmd{type = loop, arg = {body, loop, Var, Items}};
+                    {P, Cmd#cmd{type = loop, arg = {body, loop, Var, Items}}};
                 _ ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
@@ -628,7 +652,7 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
             {IsSet, Name} = test_variable(P, NameVal),
             case IsSet of
                 false ->
-                    Cmd;
+                    {P, Cmd};
                 true ->
                     Reason = "SKIP as variable ~s is set",
                     parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
@@ -637,7 +661,7 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
             {IsSet, Name} = test_variable(P, NameVal),
             case IsSet of
                 true ->
-                    Cmd;
+                    {P, Cmd};
                 false ->
                     Reason = "SKIP as variable ~s is not set",
                     parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
@@ -646,13 +670,13 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
             {IsSet, Name} = test_variable(P, NameVal),
             case IsSet of
                 true ->
-                    Cmd;
+                    {P, Cmd};
                 false ->
                     Reason = "FAIL as required variable ~s is not set",
                     parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
             end;
         _ ->
-            Cmd
+            {P, Cmd}
     end.
 
 test_variable(P, VarVal) ->
@@ -739,20 +763,20 @@ parse_multi(P, Fd, <<>>,
                 ["Syntax error at line ", integer_to_list(LineNo),
                  ": '\"\"\"' command expected"]);
 parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
-            #cmd{lineno = LineNo, orig = OrigLine}, Tokens) ->
+            #cmd{lineno = LineNo, orig = OrigLine} = Cmd, Tokens) ->
     PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
-    {RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
-        scan_multi(Fd, PrefixLen, [], 0),
+    {P2, RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
+        scan_multi(P, Fd, Cmd, PrefixLen, [], 0),
     LastLineNo0 = LineNo+MultiIncr+length(RevBefore)+1,
     case file_next_wrapper(FdAfter) of
         eof = NewFd ->
-            parse_error(P, NewFd, LastLineNo0,
+            parse_error(P2, NewFd, LastLineNo0,
                         ["Syntax error after line ",
                          integer_to_list(LineNo),
                          ": '\"\"\"' expected"]);
         {line, _, NewFd, Incr} when RemPrefixLen =/= 0 ->
             LastLineNo = LastLineNo0+Incr,
-            parse_error(P, NewFd, LastLineNo,
+            parse_error(P2, NewFd, LastLineNo,
                         ["Syntax error at line ", integer_to_list(LastLineNo),
                          ": multi line block must end in same column as"
                          " it started on line ", integer_to_list(LineNo)]);
@@ -760,7 +784,7 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
           when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Skip command
             LastLineNo = LastLineNo0+Incr,
-            parse(P, NewFd, LastLineNo+1, Tokens);
+            parse(P2, NewFd, LastLineNo+1, Tokens);
         {line, _EndOfMulti, Fd2, Incr}
           when RunMode =:= validate; RunMode =:= execute ->
             %% Join all lines with a newline as separator
@@ -779,9 +803,9 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
                 end,
             MultiLine = <<Chars/binary, Blob/binary>>,
             LastLineNo = LastLineNo0+Incr,
-            {NewFd, Tokens2} =
-                parse_cmd(P, Fd2, MultiLine, LastLineNo, 0, OrigLine, Tokens),
-            parse(P, NewFd, LastLineNo+1, Tokens2)
+            {P3, NewFd, Tokens2} =
+                parse_cmd(P2, Fd2, MultiLine, LastLineNo, 0, OrigLine, Tokens),
+            parse(P3, NewFd, LastLineNo+1, Tokens2)
     end.
 
 count_prefix_len([H | T], N) ->
@@ -791,63 +815,92 @@ count_prefix_len([H | T], N) ->
         $"  -> N
     end.
 
-scan_multi(Fd, PrefixLen, Acc, Incr0) ->
+scan_multi(P, Fd, Cmd, PrefixLen, Acc, Incr0) ->
     case file_next_wrapper(Fd) of
         {line, Line, NewFd, Incr} ->
-            case scan_single(Line, PrefixLen) of
-                {more, Line2} ->
-                    scan_multi(NewFd, PrefixLen, [Line2 | Acc], Incr0+Incr);
-                {nomore, RemPrefixLen} ->
-                    {Acc, file_push(NewFd, [Line]), RemPrefixLen, Incr0+Incr}
+            NextIncr = Incr0+Incr,
+            case scan_single(P, Fd, Cmd, Line, PrefixLen, Incr0) of
+                {more, P2, Line2} ->
+                    scan_multi(P2, NewFd, Cmd, PrefixLen,
+                               [Line2 | Acc], NextIncr);
+                {nomore, P2, RemPrefixLen} ->
+                    {P2, Acc, file_push(NewFd,[Line]), RemPrefixLen, NextIncr}
             end;
         eof = NewFd->
-            {Acc, NewFd, PrefixLen, Incr0}
+            {P, Acc, NewFd, PrefixLen, Incr0}
     end.
 
-scan_single(Line, PrefixLen) ->
+scan_single(P, Fd, Cmd, Line, PrefixLen, Incr) ->
     case Line of
-        <<"\"\"\"", _Rest/binary>> ->
-            {nomore, PrefixLen};
+        <<"\"\"\"", UnStripped/binary>> ->
+            Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
+            ThisLineNo = Cmd#cmd.lineno-Incr+1,
+            if
+                UnStripped =:= <<>> ->
+                    {nomore, P, PrefixLen};
+                Stripped =:= <<>> ->
+                    Reason = <<"Trailing whitespaces">>,
+                    Cmd2 = Cmd#cmd{lineno = ThisLineNo},
+                    P2 = add_warning(P, Cmd2, Reason),
+                    {nomore, P2, PrefixLen};
+                true ->
+                    Reason = <<"Trailing garbage">>,
+                    parse_error(P, Fd, ThisLineNo, Reason)
+            end;
         _ when PrefixLen =:= 0 ->
-            {more, Line};
+            {more, P, Line};
         <<" ", Rest/binary>> ->
-            scan_single(Rest, PrefixLen - 1);
+            scan_single(P, Fd, Cmd, Rest, PrefixLen - 1, Incr);
         <<"\t", Rest/binary>> ->
             Left = PrefixLen - ?TAB_LEN,
             if
                 Left < 0 -> % Too much leading whitespace
                     Spaces = lists:duplicate(abs(Left), $\ ),
-                    {more, iolist_to_binary([Spaces, Line])};
+                    {more, P, iolist_to_binary([Spaces, Line])};
                 true ->
-                    scan_single(Rest, Left)
+                    scan_single(P, Fd, Cmd, Rest, Left, Incr)
             end;
         _ ->
-            {more, Line}
+            {more, P, Line}
     end.
 
-parse_skip(File, Fd, LineNo, IoList) ->
-    parse_error(File, Fd, skip, LineNo, IoList, []).
+parse_skip(P, Fd, LineNo, IoList) ->
+    parse_error(P, Fd, skip, LineNo, IoList).
 
-parse_error(File, Fd, LineNo, IoList) ->
-    parse_error(File, Fd, LineNo, IoList, []).
+parse_error(P, Fd, LineNo, IoList) ->
+    parse_error(P, Fd, error, LineNo, IoList).
 
-parse_error(StateOrFile, Fd, LineNo, IoList, Stack) ->
-    parse_error(StateOrFile, Fd, error, LineNo, IoList, Stack).
+parse_error(P, Fd, Tag, LineNo, IoList) ->
+    NewPosStack = cmd_pos_stack(P, LineNo),
+    NewIoList = iolist_to_binary(IoList),
+    reparse_error(Fd, Tag, NewPosStack, NewIoList).
 
-parse_error(StateOrFile, Fd, Tag, LineNo, IoList, Stack) ->
+reparse_error(Fd, Tag, PosStack, IoList) ->
     file_close(Fd),
-    File = state_to_file(StateOrFile),
-    RevFile = lux_utils:filename_split(File),
+    throw({Tag, PosStack, IoList}).
+
+make_warning(P, Cmd, IoList) ->
+    File = P#pstate.file,
+    FullLineNo = full_lineno(P, Cmd),
+    {warning, File, FullLineNo, iolist_to_binary(IoList)}.
+
+add_warning(P, Cmd, IoList) ->
+    Warning = make_warning(P, Cmd, IoList),
+    P#pstate{warnings = P#pstate.warnings ++ [Warning]}.
+
+full_lineno(P, #cmd{lineno = LineNo}) ->
+    FullStack = cmd_pos_stack(P, LineNo),
+    lux_utils:pretty_full_lineno(FullStack).
+
+cmd_pos_stack(P, LineNo) ->
+    RevFile = lux_utils:filename_split(P#pstate.file),
+    OldPosStack = P#pstate.pos_stack,
     Context =
-        case Stack of
+        case OldPosStack of
             [] -> main;
             _  -> include
         end,
     CmdPos = #cmd_pos{rev_file = RevFile,
                       lineno = LineNo,
                       type = Context},
-    throw({Tag, [CmdPos | Stack], iolist_to_binary(IoList)}).
-
-state_to_file(File) when is_list(File) -> File;
-state_to_file(#pstate{file = File})    -> File;
-state_to_file(#istate{file = File})    -> File.
+    [CmdPos | OldPosStack].
