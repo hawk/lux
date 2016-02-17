@@ -99,42 +99,22 @@ parse_config(I0, Config) ->
     element(1, Res).
 
 updated_opts(I, DefaultI) ->
-    Candidates =
-        [
-         {debug, #istate.debug},
-         {skip, #istate.skip},
-         {skip_unless, #istate.skip_unless},
-         {require, #istate.require},
-         {config_dir, #istate.config_dir},
-         {progress, #istate.progress},
-         {case_prefix, #istate.case_prefix},
-         {log_dir, #istate.case_log_dir},
-         {log_fun, #istate.log_fun},
-         {multiplier, #istate.multiplier},
-         {suite_timeout, #istate.suite_timeout},
-         {case_timeout,#istate.case_timeout},
-         {flush_timeout,#istate.flush_timeout},
-         {poll_timeout,#istate.poll_timeout},
-         {timeout, #istate.timeout},
-         {cleanup_timeout, #istate.cleanup_timeout},
-         {shell_wrapper, #istate.shell_wrapper},
-         {shell_cmd, #istate.shell_cmd},
-         {shell_args, #istate.shell_args},
-         {shell_prompt_cmd, #istate.shell_prompt_cmd},
-         {shell_prompt_regexp, #istate.shell_prompt_regexp},
-         {var, #istate.global_vars},
-         {system_env, #istate.system_vars}
-        ],
-    Filter = fun({Tag, Pos}) ->
+    Candidates = lux_interpret:user_config_types(),
+    Filter = fun({Tag, Pos, Types}) ->
                      Old = element(Pos, DefaultI),
                      New = element(Pos, I),
                      case Old =/= New of
-                         false -> false;
-                         true  -> {true, {Tag, New}}
+                         false ->
+                             false;
+                         true when Types =:= [{std_list, [string]}] ->
+                             Diff = New -- Old,
+                             {true, {Tag, Diff}};
+                         true ->
+                             {true, {Tag, New}}
                      end
              end,
-    Opts = lists:zf(Filter, Candidates),
-    lux_suite:split_args(Opts, case_style, []).
+    Args = lists:zf(Filter, Candidates),
+    lux_suite:args_to_opts(Args, case_style, []).
 
 parse_file2(P) ->
     case file_open(P) of

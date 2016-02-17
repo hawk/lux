@@ -688,7 +688,7 @@ translate_opts([
          {file_pattern,       FilePattern},
          {tap,                Tap}
         ],
-    {Files, lux_suite:split_args(Opts, suite_style, [])}.
+    {Files, lux_suite:args_to_opts(Opts, suite_style, [])}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Generic option handling

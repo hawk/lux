@@ -7,7 +7,7 @@
 
 -module(lux_suite).
 
--export([run/3, split_args/3]).
+-export([run/3, args_to_opts/3]).
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -42,11 +42,11 @@
                                        fail | error | disable,
          warnings = []              :: [{warning, string(),
                                          string(), string()}],
-         internal_opts = []         :: [{atom(), term()}], % Internal opts
-         user_opts = []             :: [{atom(), term()}], % Command line opts
-         file_opts = []             :: [{atom(), term()}], % Script opts
-         config_opts = []           :: [{atom(), term()}], % Arch spec opts
-         default_opts = []          :: [{atom(), term()}], % Default opts
+         internal_args = []         :: [{atom(), term()}], % Internal opts
+         user_args = []             :: [{atom(), term()}], % Command line opts
+         file_args = []             :: [{atom(), term()}], % Script opts
+         config_args = []           :: [{atom(), term()}], % Arch spec opts
+         default_args = []          :: [{atom(), term()}], % Default opts
          builtin_vars = lux_utils:builtin_vars()
                                     :: [string()], % ["name=val"]
          system_vars = lux_utils:system_vars()
@@ -180,8 +180,7 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
                         LogDir = filename:dirname(SummaryLog),
                         ConfigLog = filename:join([LogDir,
                                                    "lux_config.log"]),
-                        ConfigData2 = merge_opts(ConfigData, []),
-                        ok = lux_log:write_config_log(ConfigLog, ConfigData2),
+                        ok = lux_log:write_config_log(ConfigLog, ConfigData),
                         lux_log:write_results(R2#rstate.progress,
                                               SummaryLog, skip, [], []),
                         %% Generate initial html log
@@ -311,15 +310,15 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
         file_pattern when is_list(Val) ->
             parse_ropts(T, R#rstate{file_pattern = Val});
         case_prefix when is_list(Val) ->
-            UserOpts = [NameVal | R#rstate.user_opts],
+            UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{case_prefix = Val,
-                                    user_opts = UserOpts});
+                                    user_args = UserArgs});
         progress when Val =:= silent; Val =:= brief;
                       Val =:= doc; Val =:= compact;
                       Val =:= verbose ->
-            UserOpts = [NameVal | R#rstate.user_opts],
+            UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{progress = Val,
-                                    user_opts = UserOpts});
+                                    user_args = UserArgs});
         config_dir when is_list(Val) ->
             parse_ropts(T, R#rstate{config_dir = lux_utils:normalize(Val)});
         config_name when is_list(Val) ->
@@ -350,16 +349,17 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
                   Val =:= disable ->
             parse_ropts(T, R#rstate{html = Val});
         tap when is_list(Val) ->
-            parse_ropts(T, R#rstate{tap_opts = [Val|R#rstate.tap_opts]});
+            TapOpts = [Val|R#rstate.tap_opts],
+            parse_ropts(T, R#rstate{tap_opts = TapOpts});
 
         %% case options
         _ ->
-            UserOpts = [NameVal | R#rstate.user_opts],
-            parse_ropts(T, R#rstate{user_opts = UserOpts})
+            UserArgs = [NameVal | R#rstate.user_args],
+            parse_ropts(T, R#rstate{user_args = UserArgs})
     end;
 parse_ropts([], R) ->
-    UserOpts = merge_opts(lists:reverse(R#rstate.user_opts), []),
-    R2 = R#rstate{user_opts = UserOpts},
+    UserArgs = opts_to_args(lists:reverse(R#rstate.user_args), []),
+    R2 = R#rstate{user_args = UserArgs},
     {ok, adjust_log_dir(R2)}.
 
 adjust_log_dir(R) ->
@@ -394,11 +394,11 @@ adjust_log_dir(R) ->
             true ->
                 AbsLogDir0
         end,
-    UserOpts = merge_opts([{log_dir, AbsLogDir}], R#rstate.user_opts),
+    UserArgs = opts_to_args([{log_dir, AbsLogDir}], R#rstate.user_args),
     R#rstate{start_time = Now,
              run = Run,
              log_dir = AbsLogDir,
-             user_opts = UserOpts}.
+             user_args = UserArgs}.
 
 ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
                SummaryLog) ->
@@ -495,7 +495,7 @@ run_cases(R, [{SuiteFile, {error,Reason}}|Scripts],
     run_cases(R, Scripts, OldSummary, Results2, CC+1, List, Opaque);
 run_cases(R0, [{SuiteFile,{ok,Script}} | Scripts],
           OldSummary, Results, CC, List, Opaque) ->
-    R = R0#rstate{warnings = [], file_opts = []},
+    R = R0#rstate{warnings = [], file_args = []},
     RunMode = R#rstate.mode,
     RelScript = rel_script(R, Script),
     case parse_script(R, SuiteFile, Script) of
@@ -720,36 +720,26 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
                           Summary, Results, Warnings).
 
 parse_script(R, _SuiteFile, Script) ->
-    Opts0 = split_args(lists:reverse(case_config_opts(R)), case_style, []),
+    Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
     case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, Opts0) of
-        {ok, Script2, Cmds, FileOpts0} ->
-            FileOpts = merge_opts(FileOpts0, R#rstate.file_opts),
-            R2 = R#rstate{internal_opts = [],
-                          file_opts = FileOpts},
+        {ok, Script2, Cmds, FileOpts} ->
+            FileArgs = opts_to_args(FileOpts, R#rstate.file_args),
+            R2 = R#rstate{internal_args = [],
+                          file_args = FileArgs},
             LogDir = pick_val(log_dir, R, undefined),
             LogFd = R#rstate.log_fd,
             LogFun = fun(Bin) -> lux_log:safe_write(LogFd, Bin) end,
-            InternalOpts = [{log_dir, LogDir},
+            InternalArgs = [{log_dir, LogDir},
                             {log_fun, LogFun},
                             {log_fd,  LogFd}],
-            UserOpts = R2#rstate.user_opts,
-            Opts = lists:foldl(fun(New, Acc) ->
-                                       Split = split_args(New, case_style, []),
-                                       merge_opts(Split, Acc)
-                               end,
-                               [],
-                               [
-                                R2#rstate.default_opts,
-                                R2#rstate.config_opts,
-                                FileOpts,
-                                UserOpts,
-                                InternalOpts
-                               ]),
-            R3 = R2#rstate{user_opts = UserOpts,
-                           file_opts = FileOpts,
-                           internal_opts = InternalOpts},
-            Opts2 = lux_suite:split_args(Opts, case_style, []),
-            {ok, R3, Script2, Cmds, Opts2};
+            R3 = R2#rstate{internal_args = InternalArgs},
+            MergeArgs = fun(A, Acc) ->
+                                O = args_to_opts(A, case_style, []),
+                                opts_to_args(O, Acc)
+                        end,
+            Args = lists:foldl(MergeArgs, [], args_dicts(R3)),
+            Opts = args_to_opts(Args, case_style, []),
+            {ok, R3, Script2, Cmds, Opts};
         {skip, ErrorStack, ErrorBin} ->
             {skip, R, ErrorStack, ErrorBin};
         {error, ErrorStack, ErrorBin} ->
@@ -762,9 +752,9 @@ parse_config(R) ->
     PrivDir = code:lib_dir(?APPLICATION, priv),
     DefaultDir = lux_utils:normalize(PrivDir),
     DefaultFile = filename:join([DefaultDir, DefaultBase]),
-    DefaultArgs = parse_config_file(R, DefaultFile),
-    DefaultOpts = merge_opts(DefaultArgs, []),
-    R2 = R#rstate{default_opts = DefaultOpts},
+    DefaultOpts = parse_config_file(R, DefaultFile),
+    DefaultArgs = opts_to_args(DefaultOpts, []),
+    R2 = R#rstate{default_args = DefaultArgs},
 
     %% Config dir
     case pick_val(config_dir, R2, R2#rstate.config_dir) of
@@ -778,23 +768,23 @@ parse_config(R) ->
     ActualConfigName = config_name(),
     DefaultData =
         builtins(R, ActualConfigName) ++
-        [{'default file', [string], DefaultFile}] ++ DefaultOpts,
+        [{'default file', [string], DefaultFile}] ++ DefaultArgs,
     {ConfigName, AbsConfigFile} =
         config_file(R2, AbsConfigDir, R2#rstate.config_name, ActualConfigName),
     if
         AbsConfigFile =/= DefaultFile ->
-            ConfigArgs = parse_config_file(R2, AbsConfigFile),
-            ConfigOpts = merge_opts(ConfigArgs, []),
+            ConfigOpts = parse_config_file(R2, AbsConfigFile),
+            ConfigArgs = opts_to_args(ConfigOpts, []),
             ConfigData = [{'config file', [string], AbsConfigFile}] ++
                 ConfigArgs;
         true ->
-            ConfigOpts = [],
+            ConfigArgs = [],
             ConfigData = []
         end,
     R3 = R2#rstate{config_name = ConfigName,
                    config_dir  = AbsConfigDir,
                    config_file = AbsConfigFile,
-                   config_opts = ConfigOpts},
+                   config_args = ConfigArgs},
     {DefaultData ++ ConfigData, R3}.
 
 builtins(R, ActualConfigName) ->
@@ -826,20 +816,20 @@ config_name() ->
     end.
 
 parse_config_file(R, AbsConfigFile) ->
-    Opts0 = case_config_opts(R),
+    Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
     SkipSkip = true,
     case lux:parse_file(AbsConfigFile, R#rstate.mode, SkipSkip, Opts0) of
-        {ok, _File, _Cmds, Opts} ->
+        {ok, _File, _Cmds, UpdatedOpts} ->
             Key = config_dir,
             Opts2 =
-                case lists:keyfind(Key, 1, Opts) of
+                case lists:keyfind(Key, 1, UpdatedOpts) of
                     false ->
-                        Opts;
+                        UpdatedOpts;
                     {_, Dir} ->
                         Top = filename:dirname(AbsConfigFile),
                         Dir2 = filename:absname(Dir, Top),
                         Dir3 = lux_utils:normalize(Dir2),
-                        lists:keystore(Key, 1, Opts, {Key, Dir3})
+                        lists:keystore(Key, 1, UpdatedOpts, {Key, Dir3})
                 end,
             lists:keydelete(log_dir, 1, Opts2);
         {skip, _ErrorStack, _SkipBin} ->
@@ -857,12 +847,12 @@ parse_config_file(R, AbsConfigFile) ->
             end
     end.
 
-case_config_opts(R) ->
-    [{Key, Val} || {Key, Val} <- all_config_opts(R),
+case_config_args(R) ->
+    [{Key, Val} || {Key, Val} <- all_config_args(R),
                    is_case_config_type(Key)].
 
-all_config_opts(R) ->
-    lists:append(lists:reverse(opts_dicts(R))).
+all_config_args(R) ->
+    lists:append(lists:reverse(args_dicts(R))).
 
 stack_error(ErrorStack, ErrorBin) ->
     #cmd_pos{rev_file = RevMainFile} = hd(ErrorStack),
@@ -972,32 +962,32 @@ cancel_timer({Ref, Msg}) ->
     end.
 
 pick_val(Tag, R, Default) ->
-    Dicts = opts_dicts(R),
-    multi_key_find(Tag, 1, Dicts, Default).
+    Dicts = args_dicts(R),
+    pick_first(Tag, 1, Dicts, Default).
 
-multi_key_find(Tag, Pos, [Dict|Dicts], Default) ->
+pick_first(Tag, Pos, [Dict|Dicts], Default) ->
     case lists:keyfind(Tag, 1, Dict) of
         false ->
-            multi_key_find(Tag, Pos, Dicts, Default);
+            pick_first(Tag, Pos, Dicts, Default);
         {_, Val} ->
             Val
     end;
-multi_key_find(_Tag, _Pos, [], Default) ->
+pick_first(_Tag, _Pos, [], Default) ->
     Default.
 
-opts_dicts(#rstate{internal_opts = I,
-                   user_opts = U,
-                   file_opts = F,
-                   config_opts = C,
-                   default_opts = D}) ->
+args_dicts(#rstate{internal_args = I,
+                   user_args = U,
+                   file_args = F,
+                   config_args = C,
+                   default_args = D}) ->
     [I, U, F, C, D].
 
-merge_opts(KeyVals, Acc) ->
-    do_merge_opts(KeyVals, Acc, []).
+opts_to_args(KeyVals, Acc) ->
+    do_opts_to_args(KeyVals, Acc, []).
 
-do_merge_opts([], Acc, _) ->
+do_opts_to_args([], Acc, _) ->
     Acc;
-do_merge_opts([KeyVal | KeyVals], Acc, OldUpdated) ->
+do_opts_to_args([KeyVal | KeyVals], Acc, OldUpdated) ->
     Key = element(1, KeyVal),
     ValPos = tuple_size(KeyVal),
     Val = element(ValPos, KeyVal),
@@ -1012,33 +1002,33 @@ do_merge_opts([KeyVal | KeyVals], Acc, OldUpdated) ->
             Val2 = OldVal ++ [Val],
             KeyVal2 = setelement(ValPos, KeyVal, Val2),
             Acc2 = lists:keystore(Key, 1, Acc, KeyVal2),
-            do_merge_opts(KeyVals, Acc2, NewUpdated);
+            do_opts_to_args(KeyVals, Acc2, NewUpdated);
         reset ->
             %% Multi - Clear old settings in order to override unwanted defaults
             Stripped = [KV || KV <- Acc, element(1, KV) =/= Key],
             KeyVal2 = setelement(ValPos, KeyVal, [Val]),
             Acc2 = lists:keystore(Key, 1, Stripped, KeyVal2),
-            do_merge_opts(KeyVals, Acc2, NewUpdated);
+            do_opts_to_args(KeyVals, Acc2, NewUpdated);
         replace ->
             %% Single - replace old val
             Acc2 = lists:keystore(Key, 1, Acc, KeyVal),
-            do_merge_opts(KeyVals, Acc2, NewUpdated)
+            do_opts_to_args(KeyVals, Acc2, NewUpdated)
     end.
 
-split_args([{_Key, []} | KeyVals], Style, Acc) when Style =:= suite_style ->
-    split_args(KeyVals, Style, Acc);
-split_args([{Key, Val} | KeyVals], Style, Acc) ->
+args_to_opts([{_Key, []} | KeyVals], Style, Acc) when Style =:= suite_style ->
+    args_to_opts(KeyVals, Style, Acc);
+args_to_opts([{Key, Val} | KeyVals], Style, Acc) ->
     case arg_arity({Key, Val}) of
         single when Style =:= case_style ->
-            split_args(KeyVals, Style, [{Key, Val} | Acc]);
+            args_to_opts(KeyVals, Style, [{Key, Val} | Acc]);
         single when Style =:= suite_style ->
             [SingleVal] = Val,
-            split_args(KeyVals, Style, [{Key, SingleVal} | Acc]);
+            args_to_opts(KeyVals, Style, [{Key, SingleVal} | Acc]);
         multi ->
             Split = [{Key, V} || V <- Val],
-            split_args(KeyVals, Style, Split ++ Acc)
+            args_to_opts(KeyVals, Style, Split ++ Acc)
     end;
-split_args([], _Style, Acc) ->
+args_to_opts([], _Style, Acc) ->
     Acc.
 
 arg_arity(KeyVal) ->

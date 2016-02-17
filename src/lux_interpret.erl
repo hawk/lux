@@ -14,6 +14,7 @@
          default_istate/1,
          parse_iopts/2,
          config_type/1,
+         user_config_types/0,
          set_config_val/6,
          set_config_vals/6
         ]).
@@ -239,9 +240,18 @@ config_type(Name) ->
             {ok, #istate.shell_prompt_regexp, [string]};
         var ->
             {ok, #istate.global_vars, [{std_list, [string]}]};
+        system_env ->
+            {ok, #istate.system_vars, [{std_list, [string]}]};
         _ ->
             {error, iolist_to_binary(lists:concat(["Bad argument: ", Name]))}
     end.
+
+user_config_types() ->
+    Fun = fun(Key) ->
+                  {ok, Pos, Types} = config_type(Key),
+                  {Key, Pos, Types}
+          end,
+    lists:map(Fun, user_config_keys()).
 
 set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
     U2 = [Name | U],
@@ -504,32 +514,42 @@ simple_to_string([]) ->
 
 config_data(I) ->
     {ok, Cwd} = file:get_cwd(),
+    UserConfigTypes = user_config_types(),
     [
-     {script,          [string],               I#istate.file},
-     {run_dir,         [string],               Cwd},
-     {log_dir,                                 I#istate.suite_log_dir},
-     {debug,                                   I#istate.debug},
-     {debug_file,                              I#istate.debug_file},
-     {skip,                                    I#istate.skip},
-     {skip_unless,                             I#istate.skip_unless},
-     {require,                                 I#istate.require},
-     {case_prefix,                             I#istate.case_prefix},
-     {progress,                                I#istate.progress},
-     {multiplier,                              I#istate.multiplier},
-     {suite_timeout,                           I#istate.suite_timeout},
-     {case_timeout,                            I#istate.case_timeout},
-     {flush_timeout,                           I#istate.flush_timeout},
-     {poll_timeout,                            I#istate.poll_timeout},
-     {timeout,                                 I#istate.timeout},
-     {cleanup_timeout,                         I#istate.cleanup_timeout},
-     {shell_wrapper,                           I#istate.shell_wrapper},
-     {shell_cmd,                               I#istate.shell_cmd},
-     {shell_args,                              I#istate.shell_args},
-     {shell_prompt_cmd,                        I#istate.shell_prompt_cmd},
-     {shell_prompt_regexp,                     I#istate.shell_prompt_regexp},
-     {var,             [{std_list, [string]}], I#istate.global_vars},
-     {builtin,         [{std_list, [string]}], I#istate.builtin_vars},
-     {system_env,      [{std_list, [string]}], I#istate.system_vars}
+     {script,     [string], I#istate.file},
+     {run_dir,    [string], Cwd}
+    ]
+        ++
+    [{Key, Types, element(Pos, I)} || {Key, Pos, Types} <- UserConfigTypes]
+        ++
+    [
+     {builtin,    [{std_list, [string]}], I#istate.builtin_vars},
+     {system_env, [{std_list, [string]}], I#istate.system_vars}
+    ].
+
+user_config_keys() ->
+    [
+     log_dir,
+     debug,
+     debug_file,
+     skip,
+     skip_unless,
+     require,
+     case_prefix,
+     progress,
+     multiplier,
+     suite_timeout,
+     case_timeout,
+     flush_timeout,
+     poll_timeout,
+     timeout,
+     cleanup_timeout,
+     shell_wrapper,
+     shell_cmd,
+     shell_args,
+     shell_prompt_cmd,
+     shell_prompt_regexp,
+     var
     ].
 
 interpret_init(I) ->
