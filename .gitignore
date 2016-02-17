@@ -18,6 +18,7 @@ ebin/*.app
 # C
 core*
 /priv/bin/runpty
+/priv/bin/runpty.dSYM
 
 # Doc
 /lux.html.tmp
