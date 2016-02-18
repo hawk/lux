@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.11 - 2016-02-08
+Version 1.12 - 2016-02-22
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -105,7 +105,6 @@ Run a single script like this:
 
 In this run we got a (brief) progress report of the test case on
 stdout and a link to a summary log containing (lots of) details.
-
 How to assemble the history of multiple runs
 --------------------------------------------
 
