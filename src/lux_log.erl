@@ -486,8 +486,9 @@ print_fail(Progress, Fd, Results) ->
         FailScripts ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("failed"), length(FailScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s - ~p\n",
-                           [F, L, R]) || {F, L, R} <- FailScripts]
+            [result_format(Progress, Fd, "\t~s:~s - ~s\n",
+                           [F, L, lux_utils:to_string(R)]) ||
+                {F, L, R} <- FailScripts]
     end.
 
 print_error(Progress, Fd, Results) ->
