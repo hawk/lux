@@ -655,9 +655,9 @@ expect(#cstate{state_changed = true,
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C, Actual),
                     C3 = cancel_timer(C2),
-                    ExitStatus = C3#cstate.exit_status,
-                    try_match(C, integer_to_binary(ExitStatus),
-                              C#cstate.expected, Actual),
+                    ExitStatus =
+                        list_to_binary(integer_to_list(C3#cstate.exit_status)),
+                    try_match(C, ExitStatus, C#cstate.expected, Actual),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
