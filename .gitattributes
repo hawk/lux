@@ -1,0 +1,134 @@
+# A primer on a few git attributes
+# whitespace=space-before-tab = do not allow spaces followed by tabs
+# whitespace=tab-in-indent    = do not allow indentation by tabs
+# whitespace=trailing-space   = do not allow trailing spaces
+# whitespace=tailf-tab        = do not allow any tabs
+# whitespace=tab              = do not allow any tabs (deprecated)
+# tailf-max-line-length=80    = do not allow lines longer than 80 chars
+
+# ==============================================================================
+
+# Default behaviour, in case the git client doesn't have core.autocrlf set:
+# commit only LF line endings, but use CRLF locally if needed
+# https://help.github.com/articles/dealing-with-line-endings/
+# http://adaptivepatchwork.com/2012/03/01/mind-the-end-of-your-line/
+* text=auto
+
+# Whitespace ===================================================================
+* whitespace=space-before-tab,tab-in-indent,trailing-space,tab
+# *.c whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.cli whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.conf whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.cpp whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.cs whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.erl whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.h whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.hrl whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.java whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.js whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.nc whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.xml whitespace=space-before-tab,tab-in-indent,trailing-space
+# *.yang whitespace=space-before-tab,tab-in-indent,trailing-space
+
+# Whitespace (exclusions) ======================================================
+.gitmodules -whitespace
+Makefile* -whitespace
+*.lux -whitespace
+*.luxinc -whitespace
+*.sh -whitespace
+*.exs -whitespace
+*.env -whitespace
+*.md -whitespace
+*.mk whitespace=space-before-tab,-tab-in-indent,trailing-space
+*.xml whitespace=space-before-tab,-tab-in-indent,trailing-space
+*.patch whitespace=space-before-tab,-tab-in-indent,trailing-space
+Makefile* whitespace=space-before-tab,-tab-in-indent,trailing-space
+.classpath whitespace=space-before-tab,-tab-in-indent,trailing-space
+.project whitespace=space-before-tab,-tab-in-indent,trailing-space
+
+# Text =========================================================================
+*.c text eol=lf diff=cpp
+*.conf text eol=lf
+*.cpp text eol=lf diff=cpp
+*.cs text eol=lf diff=csharp
+*.erl text eol=lf
+*.func text eol=lf
+*.h text eol=lf diff=cpp
+*.hrl text eol=lf
+*.html text eol=lf diff=html
+*.inc text eol=lf
+*.java text eol=lf diff=java
+*.js text eol=lf
+*.json text eol=lf
+*.mk text eol=lf
+*.nc text eol=lf
+*.perl text eol=lf diff=perl
+*.php text eol=lf diff=php
+*.pl text eol=lf diff=perl
+*.pm text eol=lf diff=perl
+*.py text eol=lf diff=python
+*.sh text eol=lf
+*.txt text eol=lf
+*.xml text eol=lf
+*.yang text eol=lf
+Makefile* text eol=lf
+.classpath text eol=lf
+.project text eol=lf
+
+# Text (CRLF exclusions) =======================================================
+# /win32/license.xml text eol=crlf
+
+# Text (exclusions) ============================================================
+*.lux -text
+*.luxinc -text
+
+# Binaries =====================================================================
+
+*.docx binary
+*.gif binary
+*.ico binary
+*.jpg binary diff=exif
+*.pdf binary
+*.png binary
+*.tar.gz binary
+*.tgz binary
+*.xlsx binary
+*.zip binary
+
+# Binaries (exclusions) ========================================================
+
+# Max line length ==============================================================
+* tailf-max-line-length=80
+# *.c tailf-max-line-length=80
+# *.conf tailf-max-line-length=80
+# *.cpp tailf-max-line-length=80
+# *.cs tailf-max-line-length=80
+# *.erl tailf-max-line-length=80
+# *.h tailf-max-line-length=80
+# *.hrl tailf-max-line-length=80
+# *.java tailf-max-line-length=80
+# *.nc tailf-max-line-length=80
+# *.yang tailf-max-line-length=80
+
+# Max line length (exclusions) =================================================
+Makefile* -tailf-max-line-length
+*.func -tailf-max-line-length
+*.html -tailf-max-line-length
+*.katt -tailf-max-line-length
+*.lux -tailf-max-line-length
+*.luxinc -tailf-max-line-length
+*.md -tailf-max-line-length
+*.mk -tailf-max-line-length
+*.sh -tailf-max-line-length
+*.supp -tailf-max-line-length
+/.gitattributes -tailf-max-line-length
+/doc/** -tailf-max-line-length
+/LICENSE.in -tailf-max-line-length
+
+# 3rd-party exclusions =========================================================
+/otp/** -whitespace -text -tailf-max-line-length
+
+# Ignore when exporting ========================================================
+.gitattributes export-ignore
+.gitignore export-ignore
+.gitmodules export-ignore
