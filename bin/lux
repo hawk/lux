@@ -159,7 +159,7 @@ profile_arg(Prof) ->
     end.
 
 mode_arg(usage) ->
-    "enum(list|doc|validate|execute)";
+    "enum(list|list_dir|doc|validate|execute)";
 mode_arg(Mode) ->
     case Mode of
         "list"     -> list;

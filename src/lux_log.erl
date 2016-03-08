@@ -880,7 +880,7 @@ safe_write(Progress, LogFun, Fd, IoList) when is_list(IoList) ->
     safe_write(Progress, LogFun, Fd, list_to_binary(IoList));
 safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
     case Fd0 of
-        undefined  ->
+        undefined ->
             Fd = Fd0,
             Verbose = false;
         {Verbose, Fd} ->
@@ -898,7 +898,7 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
                 io:format("~s", [binary_to_list(Bin)])
             catch
                 _:CReason ->
-                    exit({safe_write, verbose, Bin, CReason})
+                    exit({safe_write, compact, Bin, CReason})
             end;
         compact ->
             ok;
