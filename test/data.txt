@@ -1,0 +1,4 @@
+INIT
+START
+bad
+DONE
