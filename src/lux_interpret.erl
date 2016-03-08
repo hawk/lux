@@ -1630,10 +1630,10 @@ default_shell_wrapper() ->
     end.
 
 throw_error(#istate{active_shell = ActiveShell, shells = Shells,
-                    file = File, latest_cmd = Cmd} = I, Reason0)
-  when is_binary(Reason0) ->
-    Reason = iolist_to_binary([File, ":", integer_to_list(Cmd#cmd.lineno),
-                               ": ", Reason0]),
+                    file = _File, latest_cmd = _Cmd} = I, Reason)
+  when is_binary(Reason) ->
+    %% Reason = iolist_to_binary([File, ":", integer_to_list(Cmd#cmd.lineno),
+    %%                            ": ", Reason0]),
     lux:trace_me(50, 'case', error,
                  [{active_shell, ActiveShell}, {shells, Shells}, Reason]),
     %% Exit all shells before the interpreter is exited

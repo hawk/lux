@@ -1163,7 +1163,7 @@ tap_suite_end(_R, _Summary, _Results) ->
 tap_case_begin(#rstate{}, _AbsScript) ->
     ok.
 
-tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip} = R,
+tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings} = R,
              CaseCount, AbsScript, Result, FullLineNo, Reason, Details)
   when TAP =/= undefined ->
     RelScript = rel_script(R, AbsScript),
@@ -1183,6 +1183,11 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip} = R,
             success               -> {ok,     ""}
         end,
     lux_tap:test(TAP, Outcome, "    " ++ Descr, Directive),
+    Format = fun({warning, _File, LineNo, W}) ->
+                     ok = lux_tap:diag(TAP, "WARNING at line " ++ LineNo),
+                     ok = lux_tap:diag(TAP,  binary_to_list(W))
+             end,
+    lists:foreach(Format, Warnings),
     case Details of
         <<>> ->
             ok;

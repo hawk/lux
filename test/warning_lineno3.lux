@@ -1,0 +1,5 @@
+[doc Error and warning lineno]  
+
+#[shell foo]
+-error
+!
