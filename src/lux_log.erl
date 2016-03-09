@@ -889,6 +889,8 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
     case Progress of
         silent ->
             ok;
+        summary ->
+            ok;
         brief ->
             ok;
         doc ->

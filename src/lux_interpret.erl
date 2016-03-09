@@ -202,7 +202,7 @@ config_type(Name) ->
             {ok, #istate.config_dir, [string]};
         progress ->
             {ok, #istate.progress,
-             [{atom, [silent, brief, doc, compact, verbose]}]};
+             [{atom, [silent, summary, brief, doc, compact, verbose]}]};
         log_dir ->
             {ok, #istate.suite_log_dir, [string]};
         log_fun->

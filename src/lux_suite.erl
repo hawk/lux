@@ -19,7 +19,8 @@
          orig_args                  :: [string()],
          mode = execute             :: run_mode(),
          skip_skip = false          :: boolean(),
-         progress = brief           :: silent | brief | doc | compact | verbose,
+         progress = brief           :: silent | summary | brief |
+                                       doc | compact | verbose,
          config_dir                 :: string(),
          file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
          case_prefix = ""           :: string(),
@@ -311,9 +312,10 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{case_prefix = Val,
                                     user_args = UserArgs});
-        progress when Val =:= silent; Val =:= brief;
-                      Val =:= doc; Val =:= compact;
-                      Val =:= verbose ->
+        progress when Val =:= silent;
+                      Val =:= summary; Val =:= brief;
+                      Val =:= doc;
+                      Val =:= compact; Val =:= verbose ->
             UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{progress = Val,
                                     user_args = UserArgs});
@@ -1027,7 +1029,7 @@ args_to_opts([{Key, Val} | KeyVals], Style, Acc) ->
         single when Style =:= case_style ->
             args_to_opts(KeyVals, Style, [{Key, Val} | Acc]);
         single when Style =:= suite_style ->
-            [SingleVal] = Val,
+            SingleVal = lists:last(Val),
             args_to_opts(KeyVals, Style, [{Key, SingleVal} | Acc]);
         multi ->
             Split = [{Key, V} || V <- Val],
@@ -1126,8 +1128,8 @@ tap_suite_begin(R, Scripts, Directive)
             ok = lux_tap:diag(TAP, "ssh " ++ Host),
             {ok, Cwd} = file:get_cwd(),
             ok = lux_tap:diag(TAP, "cd " ++ Cwd),
-            RelFiles = [lux_utils:drop_prefix(F) || F <- R#rstate.files],
-            ok = lux_tap:diag(TAP, "lux -t " ++ string:join(RelFiles, " ")),
+            Args = string:join(tl(R#rstate.orig_args), " "),
+            ok = lux_tap:diag(TAP, "lux " ++ Args),
             SummaryLog = lux_utils:drop_prefix(R#rstate.summary_log),
             ok = lux_tap:diag(TAP, "open " ++ SummaryLog ++ ".html"),
             ok = lux_tap:diag(TAP, "\n"),

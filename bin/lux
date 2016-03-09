@@ -106,12 +106,12 @@ specs() ->
      {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
      {"--install_app",        undefined,   string,                 mandatory},
-     {"--install_profile",    standalone,  fun profile_arg/1,      mandatory},
+     {"--install_profile",    standalone,  {enum, profile},        mandatory},
      {"--reltool",            false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
-     {"--rerun",              enable,      fun prio_arg/1,         mandatory},
-     {"--html",               enable,      fun prio_arg/1,         mandatory},
+     {"--rerun",              enable,      {enum, prio},           mandatory},
+     {"--html",               enable,      {enum, prio},           mandatory},
      {"--debug",              false,       boolean,                none},
      {"--debug_file",         undefined,   string,                 mandatory},
      {"--skip",               undefined,   string,                 mandatory},
@@ -127,8 +127,8 @@ specs() ->
      {"--extend_run",         false,       boolean,                none},
      {"--revision",           undefined,   string,                 mandatory},
      {"--hostname",           undefined,   string,                 mandatory},
-     {"--mode",               execute,     fun mode_arg/1,         mandatory},
-     {"--progress",           brief,       fun progress_arg/1,     mandatory},
+     {"--mode",               execute,     {enum, mode},           mandatory},
+     {"--progress",           brief,       {enum, progress},       mandatory},
      {"--multiplier",         1000,        {integer, 0, infinity}, mandatory},
      {"--suite_timeout",      infinity,    {integer, 0, infinity}, mandatory},
      {"--case_timeout",       5*60*1000,   {integer, 0, infinity}, mandatory},
@@ -149,49 +149,25 @@ specs() ->
      {"--tap",                undefined,   string,                 mandatory}
     ].
 
-profile_arg(usage) ->
-    "enum(standalone|development|embedded)";
-profile_arg(Prof) ->
-    case Prof of
-        "standalone"  -> standalone;
-        "development" -> development;
-        "embedded"    -> embedded
-    end.
+enum(profile) ->
+    [standalone, development, embedded];
+enum(mode) ->
+    [list, list_dir, doc, validate, execute];
+enum(prio) ->
+    [enable, success, skip, warning, fail, error, disable];
+enum(progress) ->
+    [silent, summary, brief, doc, compact, verbose].
 
-mode_arg(usage) ->
-    "enum(list|list_dir|doc|validate|execute)";
-mode_arg(Mode) ->
-    case Mode of
-        "list"     -> list;
-        "list_dir" -> list_dir;
-        "doc"      -> doc;
-        "validate" -> validate;
-        "execute"  -> execute
-    end.
+enum_usage(Enum) ->
+    Atoms = enum(Enum),
+    Strings = [atom_to_list(A) || A <- Atoms],
+    "enum(" ++ string:join(Strings, "|") ++ ")".
 
-prio_arg(usage) ->
-    "enum(enable|success|skip|warning|fail|error|disable)";
-prio_arg(Mode) ->
-    case Mode of
-        "enable"  -> enable;
-        "success" -> success;
-        "skip"    -> skip;
-        "warning" -> warning;
-        "fail"    -> fail;
-        "error"   -> error;
-        "disable" -> disable
-    end.
-
-progress_arg(usage) ->
-    "enum(silent|brief|doc|compact|verbose)";
-progress_arg(Level) ->
-    case Level of
-        "silent"  -> silent;
-        "brief"   -> brief;
-        "doc"     -> doc;
-        "compact" -> compact;
-        "verbose" -> verbose
-    end.
+enum_value(Enum, Value) when is_list(Value) ->
+    Atoms = enum(Enum),
+    Strings = [atom_to_list(A) || A <- Atoms],
+    true = lists:member(Value, Strings), % Assert
+    list_to_existing_atom(Value).
 
 usage(Specs, LuxAppDir) ->
     do_usage(Specs, LuxAppDir),
@@ -202,9 +178,9 @@ do_usage(Specs, LuxAppDir) ->
     P = fun(Atom) -> [H | T] = atom_to_list(Atom), [string:to_upper(H) | T] end,
     PrettyType = fun(Type) ->
                          case Type of
-                             F when is_function(F, 1) -> F(usage);
-                             {T, _Min, _Max}          -> P(T);
-                             T                        -> P(T)
+                             {enum, Enum}    -> enum_usage(Enum);
+                             {T, _Min, _Max} -> P(T);
+                             T               -> P(T)
                          end
                  end,
     Pretty = fun(Spec) ->
@@ -837,8 +813,8 @@ validate(Name, Val, Type, Presence) ->
                 true;
             boolean when Val =:= false; Val =:= "false" ->
                 false;
-            Fun when is_function(Fun, 1) ->
-                Fun(Val);
+            {enum, Enum} ->
+                enum_value(Enum, Val);
             _ when Val =:= undefined, Presence =/= mandatory ->
                 Val
         end
@@ -869,13 +845,13 @@ find_spec(Opt, Specs) ->
 badarg(Val) ->
     do_throw({badarg, Val}).
 
-badarg(Val, TypeFun) when is_function(TypeFun, 1) ->
-    do_throw({badarg, Val, TypeFun(usage)});
+badarg(Val, {enum, Enum}) ->
+    do_throw({badarg, Val, enum_usage(Enum)});
 badarg(Val, Type) ->
     do_throw({badarg, Val, Type}).
 
-badarg(Name, Val, TypeFun) when is_function(TypeFun, 1) ->
-    do_throw({badarg, Name, Val, TypeFun(usage)});
+badarg(Name, Val, {enum, Enum}) ->
+    do_throw({badarg, Name, Val, enum_usage(Enum)});
 badarg(Name, Val, Type) ->
     do_throw({badarg, Name, Val, Type}).
 

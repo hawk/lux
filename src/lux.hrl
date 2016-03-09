@@ -70,7 +70,8 @@
          require = []               :: [string()],
          case_prefix = ""           :: string(),
          config_dir = undefined     :: undefined | string(),
-         progress = brief           :: silent | brief | doc | compact | verbose,
+         progress = brief           :: silent | summary | brief |
+                                       doc | compact | verbose,
          suite_log_dir = "lux_logs" :: string(),
          case_log_dir               :: string(),
          log_fun                    :: function(),

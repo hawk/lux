@@ -31,7 +31,8 @@
          wait_for_expect         :: undefined | pid(),
          mode = resume           :: resume | suspend,
          start_reason            :: fail | success | normal,
-         progress                :: silent | brief | doc | compact | verbose,
+         progress                :: silent | summary | brief |
+                                    doc | compact | verbose,
          log_fun                 :: function(),
          log_prefix              :: string(),
          event_log_fd            :: {true, file:io_device()},

@@ -267,6 +267,7 @@ dequote1([]) ->
 progress_write(Progress, String) ->
     case Progress of
         silent  -> ok;
+        summary -> ok;
         brief   -> io:format("~s", [String]);
         doc     -> io:format("~s", [String]);
         compact -> ok;

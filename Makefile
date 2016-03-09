@@ -16,6 +16,13 @@ all install clean: Makefile
 	   fi ;                        \
 	done
 
+.PHONY: test
+test:
+	cd test && $(MAKE) all
+
+test_clean:
+	cd test && $(MAKE) clean
+
 config_clean:
 	$(MAKE) clean
 	-rm -rf configure include.mk autom4te.cache config.status config.log *~

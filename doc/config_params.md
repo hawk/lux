@@ -260,15 +260,15 @@ Debugging and tracing
 ---------------------
 
 **--progress ProgressLevel**  
-`ProgressLevel` can be one of `silent`, `brief`, `doc`, `compact` and
-`verbose`. It defaults to `brief` which means that single characters
-are printed to stdout. `doc` is like `brief` but in this mode doc
-strings are also printed on stdout. `compact` means that an event
-trace is printed on stdout. It is the same event trace that is written
-to the `event log`. verbose contains the same info as compact but is
-more readable (the newlines are expanded). `silent` means that no
-progress at all is printed. The `brief` characters have the following
-meanings:
+`ProgressLevel` can be one of `silent`, `summary`, `brief`, `doc`,
+`compact` and `verbose`. It defaults to `brief` which means that
+single characters are printed to stdout. `doc` is like `brief` but in
+this mode doc strings are also printed on stdout. `compact` means that
+an event trace is printed on stdout. It is the same event trace that
+is written to the `event log`. verbose contains the same info as
+compact but is more readable (the newlines are expanded). `summary`
+means that no progress is printed. `silent` means that nothing is
+printed. The `brief` characters have the following meanings:
 
        . - a new row in the script is being interpreted
        : - output is being received from a shell
