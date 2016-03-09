@@ -1,0 +1,22 @@
+[global OK=0]
+[global ANY=[0-9]+]
+
+[macro eval_ok cmd]
+    [invoke eval ${OK} $cmd]
+[endmacro]
+
+[macro eval_any cmd]
+    [invoke eval ${ANY} $cmd]
+[endmacro]
+
+[macro eval status cmd]
+    !$cmd
+    [invoke check_status $status]
+[endmacro]
+
+[macro check_status status]
+    ?SH-PROMPT:
+    !echo ==$$?==
+    ?==${status}==
+    ?SH-PROMPT:
+[endmacro]

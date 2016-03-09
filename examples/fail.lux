@@ -1,17 +1,5 @@
 [doc Demonstrate a failure]
 
-[doc2 Show examples of config settings]
-
-[config skip=FOO_BAR]
-[config skip=BAZ]
-[config require=SHELL]
-[config var=FUM=xxx]
-
-[shell vars]
-    !echo $SHELL yyy \$SHELL zzz $$SHELL
-    !echo ==\$==
-    ?==0==
-
 [doc2 Provoke a failure to get something interesting in the logs]
 
 [shell dc]
@@ -32,9 +20,11 @@
     """
 
     # Demonstrate a failure
+    [timeout 2]
     !1
     !+
     !p
+    ?p
     ?7
 
 [cleanup]

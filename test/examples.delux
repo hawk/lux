@@ -1,0 +1,44 @@
+[doc Test examples]
+
+[include include/macros.luxinc]
+
+[shell test]
+    [invoke eval $OK "rm -rf delux_logs"]
+    !lux --progress=summary --timeout=5000 --log_dir=delux_logs ../examples
+
+"""?
+test case         : .*examples/calc.lux
+result            : SUCCESS
+"""
+"""?
+test case         : .*examples/dc.lux
+result            : SUCCESS
+"""
+"""?
+test case         : .*examples/fail.lux
+result            : FAIL at .*examples/fail.lux:28
+expected
+	7
+actual timeout
+	
+	6
+	
+"""
+"""?
+test case         : .*examples/intro.lux
+result            : SUCCESS
+"""
+"""?
+test case         : .*examples/skip.lux
+result            : SKIP as variable SHELL is set
+"""
+"""?
+successful        : 3
+skipped           : 1
+	.*examples/skip.lux:5
+failed            : 1
+	.*examples/fail.lux:28 - timeout
+summary           : FAIL
+"""
+
+    [invoke check_status 1]
