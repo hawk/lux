@@ -953,7 +953,7 @@ ensure_lux_app_dir(Retry) ->
             AppDir = filename:dirname(filename:dirname(ThisEscript)),
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
-            %%           [Name, EbinDir]),
+            %%           [AppName, EbinDir]),
             case code:add_patha(EbinDir) of
                 true ->
                     ok;
@@ -973,7 +973,8 @@ ensure_lux_app_dir(Retry) ->
 script_base_name() ->
     filename:basename(escript:script_name()).
 
-resolve_path(Path) ->
+resolve_path(Path0) ->
+    Path = normalize_path(Path0),
     do_resolve_path(filename:split(Path), []).
 
 do_resolve_path([H | T], ResolvedPath) ->
@@ -991,3 +992,20 @@ do_resolve_path([H | T], ResolvedPath) ->
     end;
 do_resolve_path([], ResolvedPath) ->
     ResolvedPath.
+
+normalize_path(File) when is_binary(File) ->
+    list_to_binary(normalize_path(binary_to_list(File)));
+normalize_path(File) ->
+    do_normalize_path(filename:split(filename:absname(File)), []).
+
+do_normalize_path([H|T], Acc) ->
+    Acc2 =
+        case H of
+            "."                  -> Acc;
+            ".." when Acc =:= [] -> Acc;
+            ".."                 -> tl(Acc);
+            _                    -> [H|Acc]
+        end,
+    do_normalize_path(T, Acc2);
+do_normalize_path([], Acc) ->
+    filename:join(lists:reverse(Acc)).
