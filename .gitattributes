@@ -2,9 +2,6 @@
 # whitespace=space-before-tab = do not allow spaces followed by tabs
 # whitespace=tab-in-indent    = do not allow indentation by tabs
 # whitespace=trailing-space   = do not allow trailing spaces
-# whitespace=tailf-tab        = do not allow any tabs
-# whitespace=tab              = do not allow any tabs (deprecated)
-# tailf-max-line-length=80    = do not allow lines longer than 80 chars
 
 # ==============================================================================
 
@@ -76,7 +73,6 @@ Makefile* text eol=lf
 .project text eol=lf
 
 # Text (CRLF exclusions) =======================================================
-# /win32/license.xml text eol=crlf
 
 # Text (exclusions) ============================================================
 *.lux -text
@@ -97,36 +93,7 @@ Makefile* text eol=lf
 
 # Binaries (exclusions) ========================================================
 
-# Max line length ==============================================================
-* tailf-max-line-length=80
-# *.c tailf-max-line-length=80
-# *.conf tailf-max-line-length=80
-# *.cpp tailf-max-line-length=80
-# *.cs tailf-max-line-length=80
-# *.erl tailf-max-line-length=80
-# *.h tailf-max-line-length=80
-# *.hrl tailf-max-line-length=80
-# *.java tailf-max-line-length=80
-# *.nc tailf-max-line-length=80
-# *.yang tailf-max-line-length=80
-
-# Max line length (exclusions) =================================================
-Makefile* -tailf-max-line-length
-*.func -tailf-max-line-length
-*.html -tailf-max-line-length
-*.katt -tailf-max-line-length
-*.lux -tailf-max-line-length
-*.luxinc -tailf-max-line-length
-*.md -tailf-max-line-length
-*.mk -tailf-max-line-length
-*.sh -tailf-max-line-length
-*.supp -tailf-max-line-length
-/.gitattributes -tailf-max-line-length
-/doc/** -tailf-max-line-length
-/LICENSE.in -tailf-max-line-length
-
 # 3rd-party exclusions =========================================================
-/otp/** -whitespace -text -tailf-max-line-length
 
 # Ignore when exporting ========================================================
 .gitattributes export-ignore
