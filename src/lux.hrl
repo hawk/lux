@@ -125,6 +125,7 @@
          hostname,
          config_name,
          run_dir,
+         run_log_dir,
          repos_rev,
          details}).
 

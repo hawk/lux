@@ -12,29 +12,24 @@
 
  -include("lux.hrl").
 
--record(astate, {run_dir,
-                 run_log_dir,
-                 new_log_dir,
-                 suite_log_dir,
-                 log_file,
-                 script_file,
-                 case_prefix,
-                 opts}).
+-record(astate,
+        {run_dir,
+         run_log_dir,
+         new_log_dir,
+         suite_log_dir,
+         log_file,
+         script_file,
+         case_prefix,
+         opts}).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
     SuiteLogDir = filename:dirname(LogFile),
     annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts).
 
 annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
-    AbsLogFile = lux_utils:normalize(LogFile),
+    A = init_astate(LogFile, SuiteLogDir, Opts),
+    AbsLogFile = A#astate.log_file,
     IsEventLog = lists:suffix("event.log", AbsLogFile),
-    LogDir = filename:dirname(AbsLogFile),
-    CasePrefix = lux_utils:pick_opt(case_prefix, Opts, ""),
-    A = #astate{new_log_dir = LogDir,
-                log_file = AbsLogFile,
-                suite_log_dir = SuiteLogDir,
-                case_prefix = CasePrefix,
-                opts = Opts},
     Res =
         case IsEventLog of
             true  -> annotate_event_log(A);
@@ -46,6 +41,16 @@ annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
         {error, _File, _ReasonStr} = Error ->
             Error
     end.
+
+init_astate(LogFile, SuiteLogDir, Opts) ->
+    AbsLogFile = lux_utils:normalize(LogFile),
+    LogDir = filename:dirname(AbsLogFile),
+    CasePrefix = lux_utils:pick_opt(case_prefix, Opts, ""),
+    #astate{new_log_dir = LogDir,
+            log_file = AbsLogFile,
+            suite_log_dir = SuiteLogDir,
+            case_prefix = CasePrefix,
+            opts = Opts}.
 
 safe_write_file(File, IoList) when is_binary(File) ->
     safe_write_file(binary_to_list(File), IoList);
@@ -1056,7 +1061,7 @@ compare_split({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
     %% Test on first run
     compare_run(R1, R2).
 
-html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
+html_history_cell(Test, Id, Runs, _HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
             Td = html_history_td("-", no_data, "right", Test),
@@ -1072,10 +1077,13 @@ html_history_cell(Test, Id, Runs, HtmlFile, AccRes) ->
                     ?DEFAULT_LOG ->
                         FailCount;
                     Log ->
-                        HtmlDir = filename:dirname(HtmlFile),
-                        html_href("",
-                                  [drop_prefix(HtmlDir, Log), ".html"],
-                                  FailCount)
+                        RunDir = Run#run.run_dir,
+                        RunLogDir = Run#run.run_log_dir,
+                        Prefix = drop_prefix(RunDir, RunLogDir),
+                        Suffix = drop_prefix(RunLogDir, Log),
+                        Suffix2 = drop_prefix(Prefix, Suffix),
+                        RelLog = filename:join([Prefix, Suffix2]),
+                        html_href("", [RelLog, ".html"], FailCount)
                 end,
             OrigRes =
                 case RunN of

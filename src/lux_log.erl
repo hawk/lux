@@ -268,6 +268,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
              hostname = ?DEFAULT_HOSTNAME,
              config_name = CN0,
              run_dir = Cwd,
+             run_log_dir = Cwd,
              repos_rev = ?DEFAULT_REV,
              details = []},
     case Res of
@@ -297,11 +298,13 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
             RunId = find_config(<<"run">>, ConfigProps, R#run.id),
             ReposRev =
                 find_config(<<"revision">>, ConfigProps, R#run.repos_rev),
-            RunDir = binary_to_list(find_config(<<"run_dir">>,
-                                                ConfigProps,
-                                                list_to_binary(Cwd))),
+            CwdBin = list_to_binary(Cwd),
+            RunDir =
+                binary_to_list(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
+            RunLogDir =
+                binary_to_list(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
             HtmlDir = filename:dirname(HtmlFile),
-            Cases = [parse_run_case(HtmlDir, RunDir, StartTime,
+            Cases = [parse_run_case(HtmlDir, RunDir, RunLogDir, StartTime,
                                     HostName, ConfigName,
                                     Suite, RunId, ReposRev, Case) ||
                         {test_group, _Group, Cases} <- Groups,
@@ -313,6 +316,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
                   hostname    = HostName,
                   config_name = ConfigName,
                   run_dir     = RunDir,
+                  run_log_dir = RunLogDir,
                   repos_rev   = ReposRev,
                   details     = Cases};
         {error, SummaryLog, _ReasonStr} ->
@@ -333,7 +337,7 @@ split_config(ConfigBins) ->
         end,
     lists:zf(Split, ConfigBins).
 
-parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName,
+parse_run_case(HtmlDir, RunDir, RunLogDir, Start, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, Name, Log, _Doc, _HtmlLog, CaseRes}) ->
     File = lux_utils:drop_prefix(RunDir, Name),
@@ -346,9 +350,10 @@ parse_run_case(HtmlDir, RunDir, Start, Host, ConfigName,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,
+         run_log_dir = RunLogDir,
          repos_rev = ReposRev,
          details = []};
-parse_run_case(_HtmlDir, RunDir, Start, Host, ConfigName, Suite,
+parse_run_case(_HtmlDir, RunDir, RunLogDir, Start, Host, ConfigName, Suite,
                RunId, ReposRev,
                {result_case, Name, Res, _Reason}) ->
     File = lux_utils:drop_prefix(RunDir, Name),
@@ -361,6 +366,7 @@ parse_run_case(_HtmlDir, RunDir, Start, Host, ConfigName, Suite,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,
+         run_log_dir = RunLogDir,
          repos_rev = ReposRev,
          details = []}.
 
