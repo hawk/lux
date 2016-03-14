@@ -7,7 +7,7 @@
 
 -module(lux_log).
 
--export([is_temporary/1, parse_summary_log/1, parse_run_summary/4,
+-export([is_temporary/1, parse_summary_log/1, parse_run_summary/6,
          open_summary_log/3, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
@@ -33,13 +33,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Summary log
 
-is_temporary(SummaryLog) ->
-    case lists:reverse(SummaryLog) of
-        "pmt."++_ -> true;
-        _         -> false
-    end.
+is_temporary(SummaryLog) when is_list(SummaryLog) ->
+    lists:suffix(".tmp", SummaryLog).
 
-open_summary_log(Progress, SummaryLog, ExtendRun) ->
+open_summary_log(Progress, SummaryLog, ExtendRun) when is_list(SummaryLog) ->
     TmpSummaryLog = SummaryLog ++ ".tmp",
     {WriteMode, Exists} =
         case ExtendRun of
@@ -82,7 +79,7 @@ open_summary_log(Progress, SummaryLog, ExtendRun) ->
             end
     end.
 
-close_summary_log(SummaryFd, SummaryLog) ->
+close_summary_log(SummaryFd, SummaryLog) when is_list(SummaryLog) ->
     ok = close_summary_tmp_log(SummaryFd),
     TmpSummaryLog = SummaryLog ++ ".tmp",
     ok = file:rename(TmpSummaryLog, SummaryLog).
@@ -90,7 +87,7 @@ close_summary_log(SummaryFd, SummaryLog) ->
 close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
-parse_summary_log(SummaryLog) ->
+parse_summary_log(SummaryLog) when is_list(SummaryLog) ->
     try
         do_parse_summary_log(SummaryLog)
     catch
@@ -125,7 +122,7 @@ do_parse_summary_log(SummaryLog) ->
             {error, SummaryLog, FileReason}
     end.
 
-read_log(Log, ExpectedTag) ->
+read_log(Log, ExpectedTag) when is_list(Log) ->
   case file:read_file(Log) of
       {ok, Bin} ->
           [Head|Sections] = binary:split(Bin, <<"\n\n">>, [global]),
@@ -165,7 +162,7 @@ read_log(Log, ExpectedTag) ->
           {error, file:format_error(Reason), <<"">>}
   end.
 
-write_log(File, Tag, Version, Sections) ->
+write_log(File, Tag, Version, Sections) when is_list(File) ->
     file:write_file(File, [?TAG(Tag), Version, [["\n\n",S] || S <- Sections]]).
 
 split_result([Result]) ->
@@ -198,9 +195,10 @@ split_result2([], Acc) ->
 split_cases([Case | Cases], Acc, EventLogs) ->
     [NameRow | Sections] = binary:split(Case, <<"\n">>, [global]),
     case binary:split(NameRow, <<": ">>) of
-        [<<"test case", _/binary>>, Name] ->  ok;
-        [<<>>]                            -> Name = <<"unknown">>
+        [<<"test case", _/binary>>, NameBin] ->  ok;
+        [<<>>]                               -> NameBin = <<"unknown">>
     end,
+    Name = binary_to_list(NameBin),
     case Sections of
         [] ->
             Res = {result_case, Name, <<"ERROR">>, <<"unknown">>},
@@ -242,33 +240,39 @@ split_doc([H|T] = Rest, AccDoc) ->
             {lists:reverse(AccDoc), Rest}
     end.
 
-parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
+parse_run_summary(TopDir, RelDir, Base, File, Res, Opts)
+  when is_list(TopDir), is_list(RelDir), is_list(Base), is_list(File) ->
     try
-        do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts)
+        do_parse_run_summary(TopDir, RelDir, Base, File, Res, Opts)
     catch
         error:Reason ->
             ReasonStr =
                 lists:flatten(io_lib:format("\nERROR in ~s\n~p\n\~p\n",
-                                            [SummaryLog,
+                                            [File,
                                              Reason,
                                              erlang:get_stacktrace()])),
             io:format("~s\n", [ReasonStr]),
-            {error, SummaryLog, ReasonStr}
+            {error, File, ReasonStr}
     end.
 
-do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
-    HtmlDir = filename:dirname(HtmlFile),
+do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
     {ok, Cwd} = file:get_cwd(),
     CN0 = ?DEFAULT_CONFIG_NAME,
+    Log =
+        case RelDir of
+            "" -> Base;
+            _  -> filename:join([RelDir, Base])
+        end,
     R = #run{test = ?DEFAULT_SUITE,
              id = ?DEFAULT_RUN,
              result = fail,
-             log = lux_utils:drop_prefix(HtmlDir, SummaryLog),
+             log = Log,
              start_time = ?DEFAULT_TIME,
              hostname = ?DEFAULT_HOSTNAME,
              config_name = CN0,
              run_dir = Cwd,
-             run_log_dir = Cwd,
+             run_log_dir = TopDir,
+             rel_dir = RelDir,
              repos_rev = ?DEFAULT_REV,
              details = []},
     case Res of
@@ -276,7 +280,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
             ConfigProps = split_config(ConfigBins),
             Ctime0 = FI#file_info.ctime,
-            Ctime =  list_to_binary(lux_utils:datetime_to_string(Ctime0)),
+            Ctime = list_to_binary(lux_utils:datetime_to_string(Ctime0)),
             StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
             case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
@@ -303,8 +307,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
                 binary_to_list(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
             RunLogDir =
                 binary_to_list(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
-            HtmlDir = filename:dirname(HtmlFile),
-            Cases = [parse_run_case(HtmlDir, RunDir, RunLogDir, StartTime,
+            Cases = [parse_run_case(RelDir, RunDir, RunLogDir, StartTime,
                                     HostName, ConfigName,
                                     Suite, RunId, ReposRev, Case) ||
                         {test_group, _Group, Cases} <- Groups,
@@ -319,7 +322,7 @@ do_parse_run_summary(HtmlFile, SummaryLog, Res, Opts) ->
                   run_log_dir = RunLogDir,
                   repos_rev   = ReposRev,
                   details     = Cases};
-        {error, SummaryLog, _ReasonStr} ->
+        {error, _SummaryLog, _ReasonStr} ->
             R
     end.
 
@@ -337,28 +340,36 @@ split_config(ConfigBins) ->
         end,
     lists:zf(Split, ConfigBins).
 
-parse_run_case(HtmlDir, RunDir, RunLogDir, Start, Host, ConfigName,
+parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName,
                Suite, RunId, ReposRev,
-               {test_case, Name, Log, _Doc, _HtmlLog, CaseRes}) ->
-    File = lux_utils:drop_prefix(RunDir, Name),
-    File2 = drop_some_dirs(File),
-    #run{test = <<Suite/binary, ":", File2/binary>>,
+               {test_case, AbsName, AbsEventLog, _Doc, _HtmlLog, CaseRes})
+  when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
+       is_list(AbsName), is_list(AbsEventLog) ->
+    RelEventLog = lux_utils:drop_prefix(RunLogDir, AbsEventLog),
+    Log =
+        case RelDir of
+            "" -> RelEventLog;
+            _  -> filename:join([RelDir, RelEventLog])
+        end,
+    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunDir, AbsName)),
+    #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(CaseRes),
-         log = lux_utils:drop_prefix(HtmlDir, Log),
+         log = Log,
          start_time = Start,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,
          run_log_dir = RunLogDir,
+         rel_dir = RelDir,
          repos_rev = ReposRev,
          details = []};
-parse_run_case(_HtmlDir, RunDir, RunLogDir, Start, Host, ConfigName, Suite,
-               RunId, ReposRev,
-               {result_case, Name, Res, _Reason}) ->
-    File = lux_utils:drop_prefix(RunDir, Name),
-    File2 = drop_some_dirs(File),
-    #run{test = <<Suite/binary, ":", File2/binary>>,
+parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName, Suite,
+               RunId, ReposRev, {result_case, AbsName, Res, _Reason})
+  when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
+       is_list(AbsName) ->
+    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunDir, AbsName)),
+    #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(Res),
          log = ?DEFAULT_LOG,
@@ -367,6 +378,7 @@ parse_run_case(_HtmlDir, RunDir, RunLogDir, Start, Host, ConfigName, Suite,
          config_name = ConfigName,
          run_dir = RunDir,
          run_log_dir = RunLogDir,
+         rel_dir = RelDir,
          repos_rev = ReposRev,
          details = []}.
 
@@ -376,23 +388,15 @@ run_result({result, Res}) ->
     run_result(Res);
 run_result(Res) ->
     case Res of
-        success                                                -> success;
-        {skip, _}                                              -> skip;
-        {fail, _Script, _LineNo, _Expected, _Actual, _Details} -> fail;
-        {error, _Reason}                                       -> fail;
-        <<"SUCCESS">>                                          -> success;
-        <<"SKIP", _/binary>>                                   -> skip;
-        <<"FAIL", _/binary>>                                   -> fail;
-        <<"ERROR", _/binary>>                                  -> fail;
-        <<"WARNING", _/binary>>                                -> success
-    end.
-
-drop_some_dirs(File) when is_binary(File) -> % BUGBUG: Temporary solution
-    Q = <<"lux">>,
-    Comp = filename:split(File),
-    case lists:dropwhile(fun(E) -> E =/= Q end, Comp) of
-        [Q | Rest] -> filename:join(Rest);
-        _Rest      -> File
+        success                                       -> success;
+        {skip, _}                                     -> skip;
+        {fail, _LineNo, _Expected, _Actual, _Details} -> fail;
+        {error, _Reason}                              -> fail;
+        <<"SUCCESS">>                                 -> success;
+        <<"SKIP", _/binary>>                          -> skip;
+        <<"FAIL", _/binary>>                          -> fail;
+        <<"ERROR", _/binary>>                         -> fail;
+        <<"WARNING", _/binary>>                       -> success
     end.
 
 find_config(Key, Tuples, Default) ->
@@ -401,14 +405,14 @@ find_config(Key, Tuples, Default) ->
         {_, Val} -> Val
     end.
 
-write_config_log(ConfigLog, ConfigData) ->
+write_config_log(ConfigLog, ConfigData) when is_list(ConfigLog) ->
     PrettyConfig = format_config(ConfigData),
     write_log(ConfigLog, ?CONFIG_TAG, ?CONFIG_LOG_VERSION, [PrettyConfig]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Results
 
-parse_summary_result(LogDir) ->
+parse_summary_result(LogDir) when is_list(LogDir) ->
     ResultLog = filename:join([LogDir, "lux_result.log"]),
     case read_log(ResultLog, ?RESULT_TAG) of
         {ok, ?RESULT_LOG_VERSION, Sections} ->
@@ -421,7 +425,8 @@ parse_summary_result(LogDir) ->
             {error, ResultLog, Reason}
     end.
 
-write_results(Progress, SummaryLog, Summary, Results, Warnings) ->
+write_results(Progress, SummaryLog, Summary, Results, Warnings)
+  when is_list(SummaryLog) ->
     LogDir = filename:dirname(SummaryLog),
     ResultFile = filename:join([LogDir, "lux_result.log"]),
     TmpResultFile = ResultFile++".tmp",
@@ -536,7 +541,8 @@ result_format(Progress, {IsTmp, Fd}, Format, Args) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Event log
 
-open_event_log(LogDir, Script, Progress, LogFun, Verbose) ->
+open_event_log(LogDir, Script, Progress, LogFun, Verbose)
+  when is_list(LogDir), is_list(Script) ->
     Base = filename:basename(Script),
     EventLog = filename:join([LogDir, Base ++ ".event.log"]),
     case file:open(EventLog, [write]) of
@@ -562,7 +568,7 @@ write_event(Progress, LogFun, Fd, {event, LineNo, Shell, Op, Format, Args}) ->
     Data3 = io_lib:format("~s(~p): ~p ~s\n", [Shell, LineNo, Op, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
 
-scan_events(EventLog) ->
+scan_events(EventLog) when is_list(EventLog) ->
     case read_log(EventLog, ?EVENT_TAG) of
         {ok, ?EVENT_LOG_VERSION, Sections} ->
             do_scan_events(EventLog, Sections);
@@ -577,9 +583,10 @@ do_scan_events(EventLog, EventSections) ->
     EventSections2 = [binary:split(S, <<"\n">>, [global]) ||
                          S <- EventSections],
     case EventSections2 of
-        [[Script], EventBins, ResultBins] -> ok;
-        [[Script], ResultBins]            -> EventBins = []
+        [[ScriptBin], EventBins, ResultBins] -> ok;
+        [[ScriptBin], ResultBins]            -> EventBins = []
     end,
+    Script = binary_to_list(ScriptBin),
     Dir = filename:dirname(EventLog),
     Base = filename:basename(EventLog, ".event.log"),
     ConfigLog = filename:join([Dir, Base ++ ".config.log"]),
@@ -641,7 +648,7 @@ do_parse_events([Event | Events], Acc) ->
 do_parse_events([], Acc) ->
     lists:reverse(Acc).
 
-parse_other_file(EndTag, SubFile, Events, Acc) ->
+parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
     Pred = fun(E) ->
                    EndSz = byte_size(EndTag),
                    case E of
@@ -661,7 +668,8 @@ parse_other_file(EndTag, SubFile, Events, Acc) ->
     FirstLineNo = list_to_integer(binary_to_list(RawFirstLineNo)),
     LastLineNo = list_to_integer(binary_to_list(RawLastLineNo)),
     SubEvents2 = parse_events(SubEvents, []),
-    E = {body, LineNo, FirstLineNo, LastLineNo, SubFile3, SubEvents2},
+    SubFile4 = binary_to_list(SubFile3),
+    E = {body, LineNo, FirstLineNo, LastLineNo, SubFile4, SubEvents2},
     do_parse_events(Events2, [E | Acc]).
 
 split_lines(<<"">>) ->
@@ -675,7 +683,7 @@ split_lines(Bin) ->
     Normalized = lists:foldl(Replace, Bin, NLs),
     binary:split(Normalized, <<"\n">>, Opts).
 
-scan_config(ConfigLog) ->
+scan_config(ConfigLog) when is_list(ConfigLog) ->
     case read_log(ConfigLog, ?CONFIG_TAG) of
         {ok, ?CONFIG_LOG_VERSION, Sections} ->
             {ok, Sections};
@@ -694,7 +702,7 @@ parse_config(ConfigSection) when is_binary(ConfigSection) ->
 parse_io_logs([StdinLog, StdoutLog | Logs], Acc) ->
     [_, Shell, Stdin] = binary:split(StdinLog, <<": ">>, [global]),
     [_, Shell, Stdout] = binary:split(StdoutLog, <<": ">>, [global]),
-    L = {log, Shell, Stdin, Stdout},
+    L = {log, Shell, binary_to_list(Stdin), binary_to_list(Stdout)},
     %% io:format("Logs: ~p\n", [L]),
     parse_io_logs(Logs, [L | Acc]);
 parse_io_logs([<<>>], Acc) ->
@@ -724,12 +732,24 @@ parse_result(RawResult) ->
             <<"FAIL at ", Fail/binary>> ->
                 [<<"expected">>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
-                [Script, RawLineNo] = binary:split(Fail, <<":">>),
+                RawLineNo =
+                    case binary:split(Fail, <<":">>) of
+                        [_] -> % Main
+                            Fail;
+                        [Before, After] -> % Nested
+                            try
+                                _ = list_to_integer(?b2l(Before)),
+                                Fail
+                            catch
+                                _:badarg ->
+                                    After
+                            end
+                    end,
                 {quote, Expected2} = unquote(Expected),
                 Expected3 = split_lines(Expected2),
                 {quote, Details2} = unquote(Details),
                 Details3 = split_lines(Details2),
-                {fail, Script, RawLineNo, Expected3, Actual, Details3};
+                {fail, RawLineNo, Expected3, Actual, Details3};
             <<"FAIL as ", _/binary>> = Fail->
                 {error, [Fail]}
         end,
@@ -886,7 +906,7 @@ safe_write(Progress, LogFun, Fd, IoList) when is_list(IoList) ->
     safe_write(Progress, LogFun, Fd, list_to_binary(IoList));
 safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
     case Fd0 of
-        undefined  ->
+        undefined ->
             Fd = Fd0,
             Verbose = false;
         {Verbose, Fd} ->
@@ -894,6 +914,8 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
     end,
     case Progress of
         silent ->
+            ok;
+        summary ->
             ok;
         brief ->
             ok;
@@ -904,7 +926,7 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
                 io:format("~s", [binary_to_list(Bin)])
             catch
                 _:CReason ->
-                    exit({safe_write, verbose, Bin, CReason})
+                    exit({safe_write, compact, Bin, CReason})
             end;
         compact ->
             ok;

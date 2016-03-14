@@ -5,7 +5,11 @@
 
 include ./include.mk
 
-SUBDIRS = src $(C_SRC_TARGET)
+ifdef LUX_SELF_TEST
+LUX_EXTRAS += test
+endif
+
+SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
 
 all install clean: Makefile
 	@for d in $(SUBDIRS); do         \
@@ -15,6 +19,16 @@ all install clean: Makefile
 	      (cd $$d && $(MAKE) $@) ; \
 	   fi ;                        \
 	done
+
+xref:
+	bin/lux --xref
+
+.PHONY: test
+test:
+	cd test && $(MAKE) all
+
+test_clean:
+	cd test && $(MAKE) clean
 
 config_clean:
 	$(MAKE) clean

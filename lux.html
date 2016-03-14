@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.12.2 - 2016&#8211;03&#8211;10</p>
+<p>Version 1.12.2 - 2016&#8211;03&#8211;22</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -533,6 +533,7 @@ tasks.</p>
 <li>&#8211;help</li>
 <li>&#8211;version</li>
 <li>&#8211;reltool</li>
+<li>&#8211;xref</li>
 <li>&#8211;install</li>
 <li>&#8211;make</li>
 <li>&#8211;markdown</li>
@@ -556,6 +557,7 @@ script execution.</p>
 <pre><code>lux --help
 lux --version
 lux --reltool [--root_dir RootDir]
+lux --xref
 lux --install [InstallDir] [--root_dir RootDir]
 lux --make
 lux --markdown
@@ -571,6 +573,10 @@ Prints out the actual lux version</p>
 Starts the graphical tool <a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Reltool</a> which enables inspection of
 internal Lux application dependencies. It is disabled in the
 standalone installation.</p>
+
+<p><strong>&#8211;xref</strong><br/>
+Perform cross reference checks of Lux itsel in order to find calls to
+undefined functions.</p>
 
 <p><strong>&#8211;install [InstallDir]</strong><br/>
 See <a href="#../INSTALL">installation</a>. Installs the application as a
@@ -774,11 +780,13 @@ If the actual outcome is the same or higher than <code>Html</code> then the
 logs will be converted. The possible outcome and their relative
 values are as follows:</p>
 
-<pre><code>enable &lt; success &lt; skip &lt; warning &lt; fail &lt; error &lt; disable
+<pre><code>validate &lt; enable &lt; success &lt; skip &lt; warning &lt; fail &lt; error &lt; disable
 </code></pre>
 
-<p>Default is <code>enable</code>. The logs can be converted to HTML manually by
-using the command line option <code>--annotate</code>.</p>
+<p>Default is <code>enable</code>. <code>validate</code> behaves as <code>enable</code> but will also
+perform validation of the generated HTML files. The logs can also be
+converted to HTML manually later by using the command line option
+<code>--annotate</code>.</p>
 
 <p><strong>&#8211;tap LogFile</strong><br/>
 A file where <a href="http://testanything.org/" title="Test Anything Protocol">TAP</a> events should be written. The file names
@@ -875,22 +883,26 @@ It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the
 <a href="#cmd_line_opts">command line option</a> <code>--history</code>.</p>
 
+<p><strong>&#8211;html validate</strong>
+Performs validation of the generated HTML files.</p>
+
 <h2 id="debuggingandtracing">Debugging and tracing</h2>
 
 <p><strong>&#8211;progress ProgressLevel</strong><br/>
-<code>ProgressLevel</code> can be one of <code>silent</code>, <code>brief</code>, <code>doc</code>, <code>compact</code> and
-<code>verbose</code>. It defaults to <code>brief</code> which means that single characters
-are printed to stdout. <code>doc</code> is like <code>brief</code> but in this mode doc
-strings are also printed on stdout. <code>compact</code> means that an event
-trace is printed on stdout. It is the same event trace that is written
-to the <code>event log</code>. verbose contains the same info as compact but is
-more readable (the newlines are expanded). <code>silent</code> means that no
-progress at all is printed. The <code>brief</code> characters have the following
-meanings:</p>
+<code>ProgressLevel</code> can be one of <code>silent</code>, <code>summary</code>, <code>brief</code>, <code>doc</code>,
+<code>compact</code> and <code>verbose</code>. It defaults to <code>brief</code> which means that
+single characters are printed to stdout. <code>doc</code> is like <code>brief</code> but in
+this mode doc strings are also printed on stdout. <code>compact</code> means that
+an event trace is printed on stdout. It is the same event trace that
+is written to the <code>event log</code>. verbose contains the same info as
+compact but is more readable (the newlines are expanded). <code>summary</code>
+means that no progress is printed. <code>silent</code> means that nothing is
+printed. The <code>brief</code> characters have the following meanings:</p>
 
 <pre><code>   . - a new row in the script is being interpreted
    : - output is being received from a shell
-   c - the cleanup marker
+   c - the normal cleanup marker
+   C - the cleanup marker during premature termination
    z - is printed out each second while sleeping
    ( - beginning of a macro or an include file
    ) - end of a macro or an include file
@@ -1202,7 +1214,7 @@ commands have been given in between.</p>
 <p><strong>Parameters:</strong> </p>
 
 <ul>
-<li>level - verbosity level. Toggle between brief and verbose by default.; enum(silent|brief|doc|compact|verbose)</li>
+<li>level - verbosity level. Toggle between brief and verbose by default.; enum(silent|summary|brief|doc|compact|verbose)</li>
 </ul>
 
 <h2 id="scope">quit</h2>

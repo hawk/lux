@@ -1,6 +1,7 @@
 [doc Bad fail pattern]
 
 [macro match]
+    # Next line contains a syntax error
     -?
     !echo foo
 [endmacro]

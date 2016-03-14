@@ -1,0 +1,4 @@
+[doc Lineno of warnings] 
+[include warning_lineno2.lux] 
+[include warning_lineno3.lux] 
+[shell foo] 

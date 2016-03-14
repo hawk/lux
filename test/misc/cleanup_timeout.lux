@@ -1,0 +1,11 @@
+[doc Change timeout settings]
+
+[shell test]
+    [timeout 2]
+    # Next line will fail
+    ?fail here
+
+[cleanup]
+    [timeout 3]
+    # Next line will fail
+    ?another fail here

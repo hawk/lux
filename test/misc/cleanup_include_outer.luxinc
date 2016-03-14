@@ -2,9 +2,9 @@
 
 [doc2 Test outer]
 
-[include inner.luxinc]
+[include cleanup_include_inner.luxinc]
 
 [cleanup]
-    [progress $LUX_START_REASON]
+    [progress outer $LUX_START_REASON]
     !echo outer
     ?SH-PROMPT:

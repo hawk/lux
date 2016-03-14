@@ -570,6 +570,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             {P, Cmd#cmd{type = progress, arg = string:strip(String)}};
         "include" ++ RelFile ->
             CurrFile = P#pstate.file,
+            CurrPosStack = P#pstate.pos_stack,
             Dir = filename:dirname(CurrFile),
             RelFile2 = string:strip(expand_vars(P, Fd, RelFile, LineNo)),
             AbsFile = filename:absname(RelFile2, Dir),
@@ -582,7 +583,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 Cmd2 = Cmd#cmd{type = include,
                                arg = {include,AbsFile2,FirstLineNo,
                                       LastLineNo,InclCmds}},
-                {P2#pstate{file = CurrFile}, Cmd2}
+                {P2#pstate{file = CurrFile, pos_stack = CurrPosStack}, Cmd2}
             catch
                 throw:{skip, ErrorStack, Reason} ->
                     %% re-throw
@@ -880,7 +881,7 @@ reparse_error(Fd, Tag, PosStack, IoList) ->
     throw({Tag, PosStack, IoList}).
 
 make_warning(P, Cmd, IoList) ->
-    File = P#pstate.file,
+    File = P#pstate.orig_file,
     FullLineNo = full_lineno(P, Cmd),
     {warning, File, FullLineNo, iolist_to_binary(IoList)}.
 

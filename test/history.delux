@@ -1,0 +1,26 @@
+[doc Test history generation]
+
+[include include/macros.luxinc]
+
+[shell plain]
+    -HTML ERROR|0 test runs
+    [progress plain]
+    [local plain=$LUX_EXTRA_LOGS/$LUX_SHELLNAME]
+    [local run=$plain/run]
+    [invoke eval 0 "mkdir -p $run"]
+    [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs --html=validate ../examples"]
+    [invoke eval 0 "../bin/lux --html=validate --history $plain"]
+
+[shell move]
+    -HTML ERROR|0 test runs
+    [progress run]
+    [local run=$LUX_EXTRA_LOGS/$LUX_SHELLNAME/run]
+    [invoke eval 0 "mkdir -p $run"]
+    [invoke eval 0 "cp -r ../examples $run/"]
+    [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs --html=validate $run/examples"]
+
+    [progress history]
+    [local history=$LUX_EXTRA_LOGS/$LUX_SHELLNAME/history]
+    [invoke eval 0 "mv $run $history"]
+    [invoke eval 0 "rm -rf $history/examples"]
+    [invoke eval 0 "../bin/lux --html=validate --history $history/logs"]

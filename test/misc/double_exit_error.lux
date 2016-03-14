@@ -1,0 +1,11 @@
+[doc Test exit race condition]
+
+[shell xxx]
+    !exit
+    !exit
+
+[cleanup]
+    !exit
+    !exit
+
+[shell xxx]

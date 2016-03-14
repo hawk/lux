@@ -1,0 +1,45 @@
+[doc Test cleanup mechanism of macros]
+
+[shell main]
+    [invoke outer]
+    !echo main
+    ?^main
+    ?SH-PROMPT:
+
+[cleanup]
+    [progress main cleanup $LUX_START_REASON]
+    !echo main
+    ?^main
+    ?SH-PROMPT:
+
+[macro inner]
+    [invoke nice]
+    !echo inner
+    ?^inner
+    ?SH-PROMPT:
+
+[cleanup]
+    [progress inner cleanup $LUX_START_REASON]
+    !echo inner
+    ?^inner
+    ?SH-PROMPT:
+[endmacro]
+
+[macro outer]
+    [invoke inner]
+
+[cleanup]
+    [progress outer cleanup $LUX_START_REASON]
+    !echo outer
+    ?^outer
+    ?SH-PROMPT:
+[endmacro]
+
+[macro nice]
+    !echo nice
+    ?^nice
+    ?SH-PROMPT:
+
+[cleanup]
+    [progress nice cleanup $LUX_START_REASON]
+[endmacro]

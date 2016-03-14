@@ -20,7 +20,7 @@ main(OrigArgs) ->
     LuxAppDir = require_app(undefined, ?APPLICATION),
     OpModes = ["--help", "--version", "--markdown",
                "--internal_debug", "--event_trace", "--internal_trace",
-               "--make", "--install", "--reltool",
+               "--make", "--install", "--reltool", "--xref",
                "--annotate", "--history"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
@@ -50,6 +50,7 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
         {"--make", [_]}             -> make(Op, LuxAppDir);
         {"--install", [InstallDir]} -> install(Op, LuxAppDir, InstallDir, Opts);
         {"--reltool", [_]}          -> reltool(Op, LuxAppDir, Opts);
+        {"--xref", [_]}             -> xref(Op, LuxAppDir, Opts);
         {"--annotate", [LogFile]}   -> annotate(LogFile, Opts);
         {"--history", [LogDir]}     -> history(LogDir, Opts);
         _                           -> usage(Specs, LuxAppDir)
@@ -106,12 +107,13 @@ specs() ->
      {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
      {"--install_app",        undefined,   string,                 mandatory},
-     {"--install_profile",    standalone,  fun profile_arg/1,      mandatory},
+     {"--install_profile",    standalone,  {enum, profile},        mandatory},
      {"--reltool",            false,       boolean,                none},
+     {"--xref",               false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
-     {"--rerun",              enable,      fun prio_arg/1,         mandatory},
-     {"--html",               enable,      fun prio_arg/1,         mandatory},
+     {"--rerun",              enable,      {enum, prio},           mandatory},
+     {"--html",               enable,      {enum, html},           mandatory},
      {"--debug",              false,       boolean,                none},
      {"--debug_file",         undefined,   string,                 mandatory},
      {"--skip",               undefined,   string,                 mandatory},
@@ -127,8 +129,8 @@ specs() ->
      {"--extend_run",         false,       boolean,                none},
      {"--revision",           undefined,   string,                 mandatory},
      {"--hostname",           undefined,   string,                 mandatory},
-     {"--mode",               execute,     fun mode_arg/1,         mandatory},
-     {"--progress",           brief,       fun progress_arg/1,     mandatory},
+     {"--mode",               execute,     {enum, mode},           mandatory},
+     {"--progress",           brief,       {enum, progress},       mandatory},
      {"--multiplier",         1000,        {integer, 0, infinity}, mandatory},
      {"--suite_timeout",      infinity,    {integer, 0, infinity}, mandatory},
      {"--case_timeout",       5*60*1000,   {integer, 0, infinity}, mandatory},
@@ -149,49 +151,27 @@ specs() ->
      {"--tap",                undefined,   string,                 mandatory}
     ].
 
-profile_arg(usage) ->
-    "enum(standalone|development|embedded)";
-profile_arg(Prof) ->
-    case Prof of
-        "standalone"  -> standalone;
-        "development" -> development;
-        "embedded"    -> embedded
-    end.
+enum(profile) ->
+    [standalone, development, embedded];
+enum(mode) ->
+    [list, list_dir, doc, validate, execute];
+enum(prio) ->
+    [enable, success, skip, warning, fail, error, disable];
+enum(html) ->
+    [validate | enum(prio)];
+enum(progress) ->
+    [silent, summary, brief, doc, compact, verbose].
 
-mode_arg(usage) ->
-    "enum(list|doc|validate|execute)";
-mode_arg(Mode) ->
-    case Mode of
-        "list"     -> list;
-        "list_dir" -> list_dir;
-        "doc"      -> doc;
-        "validate" -> validate;
-        "execute"  -> execute
-    end.
+enum_usage(Enum) ->
+    Atoms = enum(Enum),
+    Strings = [atom_to_list(A) || A <- Atoms],
+    "enum(" ++ string:join(Strings, "|") ++ ")".
 
-prio_arg(usage) ->
-    "enum(enable|success|skip|warning|fail|error|disable)";
-prio_arg(Mode) ->
-    case Mode of
-        "enable"  -> enable;
-        "success" -> success;
-        "skip"    -> skip;
-        "warning" -> warning;
-        "fail"    -> fail;
-        "error"   -> error;
-        "disable" -> disable
-    end.
-
-progress_arg(usage) ->
-    "enum(silent|brief|doc|compact|verbose)";
-progress_arg(Level) ->
-    case Level of
-        "silent"  -> silent;
-        "brief"   -> brief;
-        "doc"     -> doc;
-        "compact" -> compact;
-        "verbose" -> verbose
-    end.
+enum_value(Enum, Value) when is_list(Value) ->
+    Atoms = enum(Enum),
+    Strings = [atom_to_list(A) || A <- Atoms],
+    true = lists:member(Value, Strings), % Assert
+    list_to_existing_atom(Value).
 
 usage(Specs, LuxAppDir) ->
     do_usage(Specs, LuxAppDir),
@@ -202,9 +182,9 @@ do_usage(Specs, LuxAppDir) ->
     P = fun(Atom) -> [H | T] = atom_to_list(Atom), [string:to_upper(H) | T] end,
     PrettyType = fun(Type) ->
                          case Type of
-                             F when is_function(F, 1) -> F(usage);
-                             {T, _Min, _Max}          -> P(T);
-                             T                        -> P(T)
+                             {enum, Enum}    -> enum_usage(Enum);
+                             {T, _Min, _Max} -> P(T);
+                             T               -> P(T)
                          end
                  end,
     Pretty = fun(Spec) ->
@@ -475,12 +455,14 @@ reltool_opts(MainOp, LuxAppDir, Opts) ->
                 {[{wx, exclude}],
                  [{hipe, exclude}, {reltool, exclude}]}
         end,
-    AppCondsCommon = [{erts, exclude}, {crypto, exclude}, {tools, exclude}],
+    AppCondsCommon = [{erts, include}, {crypto, exclude}, {tools, exclude}],
     AppCondsMain =
         case MainOp of
             "--install" ->
                 AppCondsWx ++ [{runtime_tools, exclude}];
             "--reltool" ->
+                AppCondsWx;
+            "--xref" ->
                 AppCondsWx
         end,
     AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsMain,
@@ -550,6 +532,124 @@ root_dir(Opts) ->
         {_, [RootDir]} -> {true, RootDir}
     end.
 
+xref(MainOp, LuxAppDir, Opts) ->
+    process_flag(trap_exit, true),
+    require_app(MainOp, tools),
+    {_RootDir, ReltoolOpts} = reltool_opts(MainOp, LuxAppDir, Opts),
+    case reltool:start_server(ReltoolOpts) of
+        {ok, ServerPid} ->
+            case reltool:get_status(ServerPid) of
+                {ok, _Warnings} ->
+                    %% [io:format("WARNING: ~s\n", [W]) || W <- Warnings],
+                    {ok, {sys, Sys}} =
+                        reltool:get_config(ServerPid, true, true),
+                    _StopRes = reltool:stop(ServerPid),
+                    try
+                        do_xref(Sys)
+                    catch
+                        _Class:Reason ->
+                            io:format("XREF ERROR: ~p\n", [Reason]),
+                            1
+                    end;
+                {error, StatusReasonStr} ->
+                    io:format("XREF ERROR: ~s\n", [StatusReasonStr]),
+                    1
+            end;
+        {error, StartReasonStr} ->
+            io:format("XREF ERROR: ~s\n", [StartReasonStr]),
+            1
+    end.
+
+do_xref(Sys) ->
+    {_, ErtsApps} = lists:keyfind(erts, 1, Sys),
+    ExtendedSys = Sys ++ ErtsApps,
+    AppEbins =  [{A, filename:join([D, "ebin"])} ||
+                    {app, A, O}  <- ExtendedSys,
+                    {lib_dir, D} <- O],
+    Fun = fun(A, M) ->
+                  {_, Ebin} = lists:keyfind(A, 1, AppEbins),
+                  {A, M, filename:join([Ebin, atom_to_list(M) ++ ".beam"])}
+          end,
+    ModFiles =  [Fun(A, M) || {app, A, O} <- ExtendedSys,
+                              {mod, M, _} <- O],
+    Xref = ?MODULE,
+    {ok, _} = xref:start(Xref),
+    %% ok = xref:set_library_path(Xref, LibDirs),
+    Defaults = [{warnings,false}, {verbose,false}, {builtins,true}],
+    ok = xref:set_default(Xref, Defaults),
+    {ok, Cwd} = file:get_cwd(),
+    Add = fun({_App, _Mod, AbsFile}, Acc) ->
+                  RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
+                  case xref:add_module(Xref, RelFile) of
+                      {ok, _} ->
+                          Acc;
+                      {error, Callback, Error} ->
+                          Chars = lists:flatten(Callback:format_error(Error)),
+                          Reason = [C || C <- Chars, C =/= $" ],
+                          io:format("ERROR: ~s", [Reason]),
+                          1
+                  end
+          end,
+    ExitCode = 0,
+    {ExitCode2, EscriptModFile} = xref_add_escript(Sys, Add, ExitCode),
+    ExitCode3 = lists:foldl(Add, ExitCode2, ModFiles),
+    ModFiles2 = [EscriptModFile | ModFiles],
+    ExitCode4 = undefined_function_calls(Xref, ModFiles2, ExitCode3),
+    xref:stop(Xref),
+    ExitCode4.
+
+xref_add_escript(Sys, Add, ExitCode) ->
+    {_, EscriptFile, _} = lists:keyfind(escript, 1, Sys),
+    {ok, Sections} = escript:extract(EscriptFile, [compile_source]),
+    {_, EscriptBeam} = lists:keyfind(source, 1, Sections),
+    TmpEscriptFile = EscriptFile ++ ".beam",
+    EscriptModFile = {?APPLICATION, ?MODULE, TmpEscriptFile},
+    case file:write_file(TmpEscriptFile, EscriptBeam) of
+        ok ->
+            Res = Add(EscriptModFile, ExitCode),
+            file:delete(TmpEscriptFile),
+            {Res, EscriptModFile};
+        {error, FileReason} ->
+            io:format("ERROR: ~s ~s\n",
+                      [TmpEscriptFile, file:format_error(FileReason)]),
+            {1, EscriptModFile}
+    end.
+
+undefined_function_calls(Xref, ModFiles, ExitCode) ->
+    {ok, MFAs} = xref:analyze(Xref, undefined_function_calls),
+    Fun =
+        fun({FromMFA, ToMFA}, Acc) ->
+                case ignore_call(FromMFA, ToMFA, ModFiles) of
+                    true ->
+                        Acc;
+                    false ->
+                        io:format("ERROR: ~s calls undefined function ~s\n",
+                                  [mfa(FromMFA), mfa(ToMFA)]),
+                        1
+                end
+        end,
+    lists:foldl(Fun, ExitCode, MFAs).
+
+ignore_call(FromMFA, ToMFA, ModFiles) ->
+    FromMod = element(1, FromMFA),
+    FromApp = which_app(FromMod, ModFiles),
+    if
+        FromMod =:= ?MODULE ->
+            ToMod = element(1, ToMFA),
+            lists:member(ToMod, [make, reltool, xref]);
+        FromApp =:= ?APPLICATION ->
+            false;
+        true ->
+            true
+    end.
+
+which_app(Mod, ModFiles) ->
+    {App, _, _} = lists:keyfind(Mod, 2, ModFiles),
+    App.
+
+mfa({M, F, A}) ->
+  io_lib:format("~s:~s/~p", [M, F, A]).
+
 annotate(LogFile0, Opts) ->
     {_Files, Opts2} = translate_opts(Opts),
     LogFile = filename:absname(LogFile0),
@@ -575,21 +675,35 @@ history(LogDir0, Opts) ->
             io:format("\nfile://~s\n", [HtmlFile]),
             0;
         {error, File, ReasonStr} ->
-            io:format("...ERROR\n\t~p: ~s\n", [File, ReasonStr]),
+            io:format("...ERROR\n\t~s: ~s\n", [File, ReasonStr]),
             1
     end.
 
 run(Opts, OrigArgs) ->
     {Files, Opts2} = translate_opts(Opts),
-    ThisEscript = escript:script_name(),
-    case lux:run(Files, Opts2, [ThisEscript | OrigArgs]) of
-        {ok, Summary, _SummaryLog, _Results} ->
+    case do_run(Files, Opts2, OrigArgs) of
+        ok -> % HTML
+            Summary = success,
+            ok;
+        {ok, Summary, _SummaryLog, _Results} -> % LUX
             ok;
         {error, File, ReasonBin} ->
             io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
             Summary = error
     end,
     exit_code(Summary).
+
+do_run(Files, Opts, OrigArgs) ->
+    case is_html(Files) of
+        true ->
+            lux_html_parse:validate_html(hd(Files));
+        false ->
+            ThisEscript = escript:script_name(),
+            lux:run(Files, Opts, [ThisEscript | OrigArgs])
+    end.
+
+is_html(Files) ->
+    lists:any(fun(F) -> lists:suffix(".html", F) end, Files).
 
 exit_code(Summary) ->
     case Summary of
@@ -613,6 +727,7 @@ translate_opts([
      {"--install_app",        _InstallApp},
      {"--install_profile",    _InstallProfile},
      {"--reltool",            _Reltool},
+     {"--xref",               _Xref},
      {"--annotate",           _LogFile},
      {"--history",            _LogDir},
      {"--rerun",              ReRun},
@@ -837,8 +952,8 @@ validate(Name, Val, Type, Presence) ->
                 true;
             boolean when Val =:= false; Val =:= "false" ->
                 false;
-            Fun when is_function(Fun, 1) ->
-                Fun(Val);
+            {enum, Enum} ->
+                enum_value(Enum, Val);
             _ when Val =:= undefined, Presence =/= mandatory ->
                 Val
         end
@@ -869,13 +984,13 @@ find_spec(Opt, Specs) ->
 badarg(Val) ->
     do_throw({badarg, Val}).
 
-badarg(Val, TypeFun) when is_function(TypeFun, 1) ->
-    do_throw({badarg, Val, TypeFun(usage)});
+badarg(Val, {enum, Enum}) ->
+    do_throw({badarg, Val, enum_usage(Enum)});
 badarg(Val, Type) ->
     do_throw({badarg, Val, Type}).
 
-badarg(Name, Val, TypeFun) when is_function(TypeFun, 1) ->
-    do_throw({badarg, Name, Val, TypeFun(usage)});
+badarg(Name, Val, {enum, Enum}) ->
+    do_throw({badarg, Name, Val, enum_usage(Enum)});
 badarg(Name, Val, Type) ->
     do_throw({badarg, Name, Val, Type}).
 

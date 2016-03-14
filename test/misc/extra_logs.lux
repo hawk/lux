@@ -1,3 +1,5 @@
+[doc Make use of \$LUX_EXTRA_LOGS]
+
 [global log_file=$LUX_EXTRA_LOGS/my.log]
 
 [shell test]

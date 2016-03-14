@@ -1,41 +1,35 @@
 [doc Demonstrate a failure]
 
-[doc2 Show examples of config settings]
-
-[config skip=FOO_BAR]
-[config skip=BAZ]
-[config require=SHELL]
-[config var=FUM=xxx]
-
-[shell vars]
-    !echo $SHELL yyy \$SHELL zzz $$SHELL
-    !echo ==\$==
-    ?==0==
+[global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
+[global eprompt=\d+>\s]
 
 [doc2 Provoke a failure to get something interesting in the logs]
 
 [shell dc]
-    # Multi-line send
-    """!
-    dc
-    2
-    3
-    p
-    +
-    p
-    """
+    -$fail_pattern|SH-PROMPT:
+    !erl
 
     # Multi-line expect
     """?
-    3
-    5
+    Eshell.*
+    $eprompt
     """
 
+    # Multi-line send
+    """!
+    2+3.
+    6+7.
+    """
+
+    # Ignore output between 5 and 13
+    ?5
+    ?13
+
     # Demonstrate a failure
-    !1
-    !+
-    !p
-    ?7
+    [timeout 2]
+    !5+13.
+    # Next line will fail
+    ?19
 
 [cleanup]
     !echo "LUX_START_REASON=$LUX_START_REASON"

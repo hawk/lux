@@ -26,11 +26,15 @@ version() ->
     {_Name, _Slogan, Version} = lists:keyfind(?APPLICATION, 1, LoadedApps),
     Version.
 
+hidden_apply(M, F, A) ->
+    Obfuscated = fun() -> M end(),
+    apply(Obfuscated, F, A).
+
 timestamp() ->
     try
-        erlang:timestamp()
+        hidden_apply(erlang, timestamp, []) % Avoid xref warning
     catch error:undef ->
-        apply(erlang, now, []) % Avoid compiler warning
+        hidden_apply(erlang, now, []) % Avoid compiler warning
     end.
 
 builtin_vars() ->
@@ -166,15 +170,16 @@ summary(Old, New) ->
 
 summary_prio(Summary) ->
     case Summary of
-        enable         -> 0;
-        no_data        -> 1;
-        success        -> 2;
-        none           -> 3;
-        skip           -> 4;
+        validate       -> 0;
+        enable         -> 1;
+        no_data        -> 2;
+        success        -> 3;
+        none           -> 4;
+        skip           -> 5;
         warning        -> 5;
-        secondary_fail -> 6;
-        fail           -> 7;
-        error          -> 8;
+        secondary_fail -> 7;
+        fail           -> 8;
+        error          -> 9;
         disable        -> 999
     end.
 
@@ -267,6 +272,7 @@ dequote1([]) ->
 progress_write(Progress, String) ->
     case Progress of
         silent  -> ok;
+        summary -> ok;
         brief   -> io:format("~s", [String]);
         doc     -> io:format("~s", [String]);
         compact -> ok;

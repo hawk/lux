@@ -12,15 +12,21 @@
 
 [shell shell]
     [timeout 1]
-    [loop s foo bar]
+    [loop first foo bar]
+        # Next line will fail
         ?fail
+    [cleanup]
+        [progress first loop $LUX_START_REASON]
     [endloop]
 
 [cleanup]
-    [progress cleanup]
+    [progress main $LUX_START_REASON]
     [invoke cleanup_loop]
     [timeout 1]
-    [loop i 1..2]
+    [loop second 1..2]
         [progress fail in cleanup]
+        # Next line will fail
         ?fail
+    [cleanup]
+        [progress second loop $LUX_START_REASON]
     [endloop]

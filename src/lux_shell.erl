@@ -31,7 +31,8 @@
          wait_for_expect         :: undefined | pid(),
          mode = resume           :: resume | suspend,
          start_reason            :: fail | success | normal,
-         progress                :: silent | brief | doc | compact | verbose,
+         progress                :: silent | summary | brief |
+                                    doc | compact | verbose,
          log_fun                 :: function(),
          log_prefix              :: string(),
          event_log_fd            :: {true, file:io_device()},
@@ -87,7 +88,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 multiplier = I#istate.multiplier,
                 poll_timeout = I#istate.poll_timeout,
                 flush_timeout = I#istate.flush_timeout,
-                timeout = I#istate.timeout,
+                timeout = I#istate.default_timeout,
                 shell_wrapper = I#istate.shell_wrapper,
                 shell_cmd = I#istate.shell_cmd,
                 shell_args = I#istate.shell_args,

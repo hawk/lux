@@ -18,7 +18,6 @@
     [include macro_debug_body.luxinc]
 
     [loop iter a1 b2]
-        # iter
         !echo $iter
     [endloop]
     ?echo a1

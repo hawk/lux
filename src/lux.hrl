@@ -10,11 +10,12 @@
 
 -type run_mode() :: list | list_dir | doc | validate | execute.
 
--define(stack(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
+-define(b2l(B), binary_to_list(B)).
+-define(l2b(L), iolist_to_binary(L)).
+-define(callstack(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
 -define(APPLICATION, lux).
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
-
 -define(dmore, 10).
 
 -record(cmd,
@@ -70,7 +71,8 @@
          require = []               :: [string()],
          case_prefix = ""           :: string(),
          config_dir = undefined     :: undefined | string(),
-         progress = brief           :: silent | brief | doc | compact | verbose,
+         progress = brief           :: silent | summary | brief |
+                                       doc | compact | verbose,
          suite_log_dir = "lux_logs" :: string(),
          case_log_dir               :: string(),
          log_fun                    :: function(),
@@ -84,7 +86,7 @@
          case_timeout = 5*60*1000   :: non_neg_integer() | infinity,
          flush_timeout = 0          :: non_neg_integer(),
          poll_timeout = 0           :: non_neg_integer(), % 100
-         timeout = 10*1000          :: non_neg_integer() | infinity,
+         default_timeout = 10*1000  :: non_neg_integer() | infinity,
          cleanup_timeout = 100*1000 :: non_neg_integer() | infinity,
          shell_wrapper              :: undefined | string(),
          shell_cmd = "/bin/sh"      :: string(),
@@ -126,6 +128,7 @@
          config_name,
          run_dir,
          run_log_dir,
+         rel_dir,
          repos_rev,
          details}).
 

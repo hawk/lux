@@ -7,10 +7,10 @@
     [include nice.luxinc]
 
     !echo inner
-    [progress expect failure]
+    # Next line will fail
     ?outer
 
 [cleanup]
-    [progress $LUX_START_REASON]
+    [progress inner $LUX_START_REASON]
     !echo inner
     ?SH-PROMPT:

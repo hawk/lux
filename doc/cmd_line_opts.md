@@ -9,6 +9,7 @@ tasks.
 * --help
 * --version
 * --reltool
+* --xref
 * --install
 * --make
 * --markdown
@@ -32,6 +33,7 @@ Release management
     lux --help
     lux --version
     lux --reltool [--root_dir RootDir]
+    lux --xref
     lux --install [InstallDir] [--root_dir RootDir]
     lux --make
     lux --markdown
@@ -46,6 +48,10 @@ Prints out the actual lux version
 Starts the graphical tool [Reltool][] which enables inspection of
 internal Lux application dependencies. It is disabled in the
 standalone installation.
+
+**--xref**  
+Perform cross reference checks of Lux itsel in order to find calls to
+undefined functions.
 
 **--install \[InstallDir\]**  
 See [installation](#../INSTALL). Installs the application as a

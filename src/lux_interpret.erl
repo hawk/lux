@@ -16,7 +16,9 @@
          config_type/1,
          user_config_types/0,
          set_config_val/6,
-         set_config_vals/6
+         set_config_vals/6,
+         case_log_dir/2,
+         copy_orig/2
         ]).
 -export([
          opt_dispatch_cmd/1,
@@ -75,6 +77,8 @@ interpret_commands(Script, Cmds, Opts, Opaque) ->
     end.
 
 case_log_dir(#istate{suite_log_dir = SuiteLogDir}, AbsScript) ->
+    case_log_dir(SuiteLogDir, AbsScript);
+case_log_dir(SuiteLogDir, AbsScript) ->
     RelScript0 = lux_utils:drop_prefix(AbsScript),
     RelScript =
         case filename:pathtype(RelScript0) of
@@ -202,7 +206,7 @@ config_type(Name) ->
             {ok, #istate.config_dir, [string]};
         progress ->
             {ok, #istate.progress,
-             [{atom, [silent, brief, doc, compact, verbose]}]};
+             [{atom, [silent, summary, brief, doc, compact, verbose]}]};
         log_dir ->
             {ok, #istate.suite_log_dir, [string]};
         log_fun->
@@ -222,8 +226,8 @@ config_type(Name) ->
         poll_timeout ->
             {ok, #istate.poll_timeout, [{integer, 0, infinity}]};
         timeout ->
-            {ok, #istate.timeout, [{integer, 0, infinity},
-                                   {atom, [infinity]}]};
+            {ok, #istate.default_timeout, [{integer, 0, infinity},
+                                           {atom, [infinity]}]};
         cleanup_timeout ->
             {ok, #istate.cleanup_timeout, [{integer, 0, infinity},
                                            {atom, [infinity]}]};
@@ -418,8 +422,8 @@ print_fail(OldI0, NewI, File, Results,
         end,
     OldI = OldI0#istate{progress = silent},
     FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
-    ResStr = double_ilog(OldI, "~sFAIL at ~s:~s\n",
-                         [?TAG("result"), File, FullLineNo]),
+    ResStr = double_ilog(OldI, "~sFAIL at ~s\n",
+                         [?TAG("result"), FullLineNo]),
     FailBin =
         iolist_to_binary(
           [
@@ -840,7 +844,7 @@ dispatch_cmd(I,
             Millis =
                 case Arg of
                     "" ->
-                        I#istate.timeout;
+                        I#istate.default_timeout;
                     "infinity" ->
                         infinity;
                     SecsStr ->
@@ -865,20 +869,29 @@ dispatch_cmd(I,
                  [I#istate.active_name, LineNo, Var, Val]),
             I;
         cleanup ->
-            lux_utils:progress_write(I#istate.progress, "c"),
+            ProgressStr =
+                case I#istate.cleanup_reason of
+                    normal -> "c";
+                    _      -> "C"
+                end,
+            lux_utils:progress_write(I#istate.progress, ProgressStr),
             ilog(I, "~s(~p): cleanup\n",
                  [I#istate.active_name, LineNo]),
             multicast(I, {eval, self(), Cmd}),
             I2 = multisync(I, immediate),
             NewMode =
-                case I2#istate.mode of
-                    stopping -> stopping;
-                    _OldMode -> cleanup
+                if
+                    I2#istate.mode =:= stopping ->
+                        I2#istate.mode;
+                    I2#istate.cleanup_reason =:= normal ->
+                        I2#istate.mode;
+                    true ->
+                        cleanup
                 end,
             I3 = inactivate_shell(I2, I2#istate.want_more),
             Zombies = [S#shell{health = zombie} || S <- I3#istate.shells],
             I4 = I3#istate{mode = NewMode,
-                           timeout = I3#istate.cleanup_timeout,
+                           default_timeout = I3#istate.cleanup_timeout,
                            shells = Zombies},
             Suffix =
                 case call_level(I4) of
@@ -996,7 +1009,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
         if
             NewI#istate.cleanup_reason =:= normal ->
                 %% Everything OK - no cleanup needed
-                NewI;
+                NewI#istate{default_timeout = OldI#istate.default_timeout};
             OldI#istate.cleanup_reason =:= normal ->
                 %% New cleanup initiated in body - continue on this call level
                 goto_cleanup(NewI, NewI#istate.cleanup_reason);
@@ -1541,7 +1554,8 @@ shell_crashed(I, Pid, Reason) ->
                 ErrBin;
             _ ->
                 list_to_binary( [What, " crashed: ",
-                                 io_lib:format("~p\n~p", [Reason, ?stack()])])
+                                 io_lib:format("~p\n~p",
+                                               [Reason, ?callstack()])])
         end,
     throw_error(I2, Error).
 
@@ -1630,10 +1644,10 @@ default_shell_wrapper() ->
     end.
 
 throw_error(#istate{active_shell = ActiveShell, shells = Shells,
-                    file = File, latest_cmd = Cmd} = I, Reason0)
-  when is_binary(Reason0) ->
-    Reason = iolist_to_binary([File, ":", integer_to_list(Cmd#cmd.lineno),
-                               ": ", Reason0]),
+                    file = _File, latest_cmd = _Cmd} = I, Reason)
+  when is_binary(Reason) ->
+    %% Reason = iolist_to_binary([File, ":", integer_to_list(Cmd#cmd.lineno),
+    %%                            ": ", Reason0]),
     lux:trace_me(50, 'case', error,
                  [{active_shell, ActiveShell}, {shells, Shells}, Reason]),
     %% Exit all shells before the interpreter is exited

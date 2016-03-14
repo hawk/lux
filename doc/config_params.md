@@ -154,10 +154,12 @@ If the actual outcome is the same or higher than `Html` then the
 logs will be converted. The possible outcome and their relative
 values are as follows:
 
-    enable < success < skip < warning < fail < error < disable
+    validate < enable < success < skip < warning < fail < error < disable
 
-Default is `enable`. The logs can be converted to HTML manually by
-using the command line option `--annotate`.
+Default is `enable`. `validate` behaves as `enable` but will also
+perform validation of the generated HTML files. The logs can also be
+converted to HTML manually later by using the command line option
+`--annotate`.
 
 **--tap LogFile**  
 A file where [TAP][TAP] events should be written. The file names
@@ -256,23 +258,27 @@ It may for example be useful in a test environment where the test
 runs are distributed over multiple equivalent slaves. See the
 [command line option](#cmd_line_opts) `--history`.
 
+**--html validate**
+Performs validation of the generated HTML files.
+
 Debugging and tracing
 ---------------------
 
 **--progress ProgressLevel**  
-`ProgressLevel` can be one of `silent`, `brief`, `doc`, `compact` and
-`verbose`. It defaults to `brief` which means that single characters
-are printed to stdout. `doc` is like `brief` but in this mode doc
-strings are also printed on stdout. `compact` means that an event
-trace is printed on stdout. It is the same event trace that is written
-to the `event log`. verbose contains the same info as compact but is
-more readable (the newlines are expanded). `silent` means that no
-progress at all is printed. The `brief` characters have the following
-meanings:
+`ProgressLevel` can be one of `silent`, `summary`, `brief`, `doc`,
+`compact` and `verbose`. It defaults to `brief` which means that
+single characters are printed to stdout. `doc` is like `brief` but in
+this mode doc strings are also printed on stdout. `compact` means that
+an event trace is printed on stdout. It is the same event trace that
+is written to the `event log`. verbose contains the same info as
+compact but is more readable (the newlines are expanded). `summary`
+means that no progress is printed. `silent` means that nothing is
+printed. The `brief` characters have the following meanings:
 
        . - a new row in the script is being interpreted
        : - output is being received from a shell
-       c - the cleanup marker
+       c - the normal cleanup marker
+       C - the cleanup marker during premature termination
        z - is printed out each second while sleeping
        ( - beginning of a macro or an include file
        ) - end of a macro or an include file

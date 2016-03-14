@@ -1,12 +1,13 @@
 [shell fail]
    !sleep 2; echo foo
    ?echo foo
-   -foo
-   [progress Fail at lineno 8:11 after 2 sec]
+    # Next line should never be reached
+   +foo
 
 [shell other]
     [invoke fun]
 
 [macro fun]
+    # Next line will fail
     ?fail on this line
 [endmacro]

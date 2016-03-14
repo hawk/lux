@@ -1,18 +1,23 @@
 [doc Test deep loop failure]
 
 [shell fail]
+    [timeout 3]
     [invoke outer]
 
 [macro outer]
-    # Cause a failure in the third iteration
+    # Cause a failure in the second iteration
+    -second
     !echo foo
     ?echo foo
     ?foo
     [loop iter first second third fourth]
-        [invoke inner $iter]
-        ?first|second
-        ?first|second
+      [invoke inner $iter]
     [endloop]
+
+    ?first
+    ?second
+    ?third
+    ?fourth
 [endmacro]
 
 [macro inner iter]

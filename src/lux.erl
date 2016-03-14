@@ -60,7 +60,7 @@ interpret_commands(File, Cmds, Opts, Opaque) ->
              ok | error()).
 
 annotate_log(LogFile, Opts) ->
-    lux_html:annotate_log(true, LogFile, Opts).
+    lux_suite:annotate_log(true, LogFile, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Assemble result history
@@ -69,7 +69,7 @@ annotate_log(LogFile, Opts) ->
              ok | error()).
 
 history(LogDir, HtmlFile, Opts) ->
-    lux_html:history(LogDir, HtmlFile, Opts).
+    lux_html_gen:history(LogDir, HtmlFile, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Enable simplified tracing and viewing it as a sequence chart

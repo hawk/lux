@@ -1,0 +1,3 @@
+[doc Demonstrate an error]
+
+[local foo=bar]

@@ -1,0 +1,13 @@
+[doc Fail in macro]
+
+[macro foo]
+    [invoke bar]
+[endmacro]
+
+[macro bar]
+    [timeout 1]
+    ?fail
+[endmacro]
+
+[shell test]
+    [invoke foo]

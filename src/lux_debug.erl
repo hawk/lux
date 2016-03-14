@@ -379,7 +379,9 @@ cmds() ->
                 callback = fun cmd_next/3},
      #debug_cmd{name = "progress",
                 params = [#debug_param{name = "level",
-                                       type = {enum, ["silent", "brief", "doc",
+                                       type = {enum, ["silent",
+                                                      "summary", "brief",
+                                                      "doc",
                                                       "compact", "verbose"]},
                                        presence = optional,
                                        help = "verbosity level. "
@@ -1137,6 +1139,7 @@ cmd_progress(I, Args, CmdState) ->
                     compact -> brief;
                     doc     -> verbose;
                     brief   -> verbose;
+                    summary -> verbose;
                     silent  -> verbose
                 end
     end,

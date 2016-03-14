@@ -3,6 +3,8 @@
 [shell bar]
 
 [shell foo]
+    [timeout 3]
+    # Cause a failure in the second iteration
    -second
     [loop iter first second third fourth]
       !echo $iter
