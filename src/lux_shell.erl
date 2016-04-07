@@ -430,12 +430,18 @@ shell_eval(#cstate{name = Name} = C0,
         expect when Arg =:= reset ->
             %% Reset output buffer
             C2 = cancel_timer(C),
-            Waste = flush_port(C2, C2#cstate.flush_timeout, C#cstate.actual),
-            clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
-            clog(C, output, "reset", []),
+            Events =
+                case flush_port(C2,C2#cstate.flush_timeout,C2#cstate.actual) of
+                    <<>> ->
+                        C2#cstate.events;
+                    Waste ->
+                        clog(C2, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+                        save_event(C2, recv, Waste)
+                end,
+            clog(C2, output, "reset", []),
             C2#cstate{state_changed = true,
                       actual = <<>>,
-                      events = save_event(C, recv, Waste)};
+                      events = Events};
         expect when element(1, Arg) =:= endshell ->
             single = element(2, Arg), % Assert
             RegExp = extract_regexp(Arg),

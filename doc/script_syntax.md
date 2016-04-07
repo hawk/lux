@@ -46,16 +46,18 @@ references to variables using `$Var` or `${Var}`.
 **~String**  
 Same as `!String`, but it does NOT add a `LF` at the end.
 
+**?**  
+Flush the output streams (`stdout`, `stderr`). Already received output
+is discarded. Avoid this (mis)feature. At a first look it seems more
+useful than it is. It causes often unexpected race conditions.
+
 **?Regexp**  
-An `expect` operation which waits for a string matching a
-[regular expression][] to appear on the shell output (either `stdout`
-or `stderr`). If no matching output does appear within the timeout
+An `expect` operation which waits for a string matching a [regular
+expression][] to appear on the shell output (either `stdout` or
+`stderr`). If no matching output does appear within the timeout
 period, the test case is considered as failed. See the `--timeout`
-option. If no `Regexp` is given, the output streams (`stdout`,
-`stderr`) are flushed. This means any output that has already been
-received is discarded. See also the `--flush_timeout` and
-`--poll_timeout` configuration parameters about customizing the
-`?` behavior.
+option.See also the `--flush_timeout` and `--poll_timeout`
+configuration parameters about customizing the `?` behavior.
 
 **??Template**  
 Like `?Regexp`, but more restricted as all regular expression
