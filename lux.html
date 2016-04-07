@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.13 - 2016&#8211;04&#8211;04</p>
+<p>Version 1.13.1 - 2016&#8211;04&#8211;07</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -253,16 +253,18 @@ references to variables using <code>$Var</code> or <code>${Var}</code>.</p>
 <p><strong>~String</strong><br/>
 Same as <code>!String</code>, but it does NOT add a <code>LF</code> at the end.</p>
 
+<p><strong>?</strong><br/>
+Flush the output streams (<code>stdout</code>, <code>stderr</code>). Already received output
+is discarded. Avoid this (mis)feature. At a first look it seems more
+useful than it is. It causes often unexpected race conditions.</p>
+
 <p><strong>?Regexp</strong><br/>
-An <code>expect</code> operation which waits for a string matching a
-<a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a> to appear on the shell output (either <code>stdout</code>
-or <code>stderr</code>). If no matching output does appear within the timeout
+An <code>expect</code> operation which waits for a string matching a <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular
+expression</a> to appear on the shell output (either <code>stdout</code> or
+<code>stderr</code>). If no matching output does appear within the timeout
 period, the test case is considered as failed. See the <code>--timeout</code>
-option. If no <code>Regexp</code> is given, the output streams (<code>stdout</code>,
-<code>stderr</code>) are flushed. This means any output that has already been
-received is discarded. See also the <code>--flush_timeout</code> and
-<code>--poll_timeout</code> configuration parameters about customizing the
-<code>?</code> behavior.</p>
+option.See also the <code>--flush_timeout</code> and <code>--poll_timeout</code>
+configuration parameters about customizing the <code>?</code> behavior.</p>
 
 <p><strong>??Template</strong><br/>
 Like <code>?Regexp</code>, but more restricted as all regular expression
