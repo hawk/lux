@@ -954,7 +954,7 @@ html_history_table(NewLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
                 "    <tr>\n",
                 html_history_table_td(Grain, SelectedRes, "left"),
                 [["      <td>", Rev,
-                  "<br/>", "<strong>", Id, "</strong>", Time,
+                  "<br/>", "<strong>", Id, "</strong>", "<br/>", Time,
                   "</td>\n"] ||
                     {Id, [#run{start_time=Time, repos_rev=Rev} |_ ]}
                         <- SplitIds2
