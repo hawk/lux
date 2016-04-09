@@ -886,6 +886,7 @@ html_history_table_all(NewLogDir, AllRuns, HtmlFile) ->
 
 html_history_table_current(NewLogDir, AllRuns, HtmlFile) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
+io:format("\nSTILL\n", []),
     T = html_history_table(NewLogDir, "All", "Still failing test cases",
                            Details, HtmlFile, latest_success, latest),
     [
@@ -934,6 +935,8 @@ html_history_double_table(NewLogDir, Name, Label, AllRuns, HtmlFile, Select) ->
                 FailedT#table.iolist
                ]}.
 
+%% Suppress :: latest_success | any_success | none
+%% Select   :: worst | latest
 html_history_table(NewLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
     SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
     SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
@@ -1040,11 +1043,8 @@ select_latest_row_res([#cell{res=Res} | Cells], Acc)
     NewAcc = lux_utils:summary(Acc, Res),
     select_latest_row_res(Cells, NewAcc);
 select_latest_row_res([#cell{run=#run{repos_rev=Rev}}=C | Cells], Acc) ->
-    PickSameRev = fun(#cell{run=#run{repos_rev=R}}) when R =:= Rev ->
-                          true;
-                     (_) ->
-                          false
-                  end,
+    %% Pick the worst of all cells with same revision
+    PickSameRev = fun(#cell{run=#run{repos_rev=R}}) -> R =:= Rev end,
     SameRevCells = lists:takewhile(PickSameRev, Cells),
     select_row_res([C|SameRevCells], worst, Acc);
 select_latest_row_res([#cell{res=Res, run=undefined} | _Cells], _Acc) ->

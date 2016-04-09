@@ -3,8 +3,8 @@
 [include include/macros.luxinc]
 
 [shell plain]
-    -HTML ERROR|0 test runs
     [progress plain]
+    -HTML ERROR|0 test runs
     [local plain=$LUX_EXTRA_LOGS/$LUX_SHELLNAME]
     [local run=$plain/run]
     [invoke eval 0 "mkdir -p $run"]
@@ -12,8 +12,8 @@
     [invoke eval 0 "../bin/lux --html=validate --history $plain"]
 
 [shell move]
+    [progress move]
     -HTML ERROR|0 test runs
-    [progress run]
     [local run=$LUX_EXTRA_LOGS/$LUX_SHELLNAME/run]
     [invoke eval 0 "mkdir -p $run"]
     [invoke eval 0 "cp -r ../examples $run/"]
@@ -24,3 +24,38 @@
     [invoke eval 0 "mv $run $history"]
     [invoke eval 0 "rm -rf $history/examples"]
     [invoke eval 0 "../bin/lux --html=validate --history $history/logs"]
+
+[shell multi]
+    [progress multi]
+    -HTML ERROR|0 test runs
+    [local run=$LUX_EXTRA_LOGS/$LUX_SHELLNAME/run]
+    [invoke eval 0 "mkdir -p $run/src/success"]
+    [invoke eval 0 "cp ../examples/calc.lux $run/src/success/success.lux"]
+    [invoke eval 0 "mkdir -p $run/src/fail"]
+    [invoke eval 0 "cp ../examples/fail.lux $run/src/fail/"]
+    [invoke eval 0 "mkdir -p $run/src/mix"]
+
+    [progress run1]
+    [invoke eval 0 "cp $run/src/success/success.lux $run/src/mix/worse.lux"]
+    [invoke eval 0 "cp $run/src/fail/fail.lux $run/src/mix/better.lux"]
+    [invoke eval 0 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/success1 --run=run1 --revision=rev1             --suite=success --html=validate $run/src/success"]
+    [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/fail1    --run=run1 --revision=rev1 --extend_run --suite=fail    --html=validate $run/src/fail"]
+    [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/mix1     --run=run1 --revision=rev1 --extend_run --suite=mix     --html=validate $run/src/mix"]
+
+    [progress run2]
+    [invoke eval 0 "cp $run/src/fail/fail.lux $run/src/mix/worse.lux"]
+    [invoke eval 0 "cp $run/src/success/success.lux $run/src/mix/better.lux"]
+    [invoke eval 0 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/success2 --run=run2 --revision=rev2              --suite=success --html=validate $run/src/success"]
+    [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/fail2    --run=run2 --revision=rev2 --extend_run --suite=fail    --html=validate $run/src/fail"]
+    [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/mix2     --run=run2 --revision=rev2 --extend_run --suite=mix     --html=validate $run/src/mix"]
+
+    [progress history]
+    [progress \nopen file://$run/logs/lux_history.html\n]
+    [invoke eval 0 "../bin/lux --html=validate --history $run/logs"]
+
+    -success.lux|better.lux
+    !cat $run/logs/lux_history_current.html
+    ?Still failing test cases
+    ?worse.lux
+    ?fail.lux
+    [invoke check_status 0]

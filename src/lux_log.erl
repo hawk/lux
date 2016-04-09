@@ -194,11 +194,11 @@ split_result2([], Acc) ->
 
 split_cases([Case | Cases], Acc, EventLogs) ->
     [NameRow | Sections] = binary:split(Case, <<"\n">>, [global]),
-    case binary:split(NameRow, <<": ">>) of
-        [<<"test case", _/binary>>, NameBin] ->  ok;
-        [<<>>]                               -> NameBin = <<"unknown">>
-    end,
-    Name = binary_to_list(NameBin),
+    Name =
+        case binary:split(NameRow, <<": ">>) of
+            [<<"test case", _/binary>>, NameBin] -> binary_to_list(NameBin);
+            [<<>>]                               -> "unknown"
+        end,
     case Sections of
         [] ->
             Res = {result_case, Name, <<"ERROR">>, <<"unknown">>},
@@ -351,7 +351,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName,
             "" -> RelEventLog;
             _  -> filename:join([RelDir, RelEventLog])
         end,
-    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunDir, AbsName)),
+    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunLogDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(CaseRes),
