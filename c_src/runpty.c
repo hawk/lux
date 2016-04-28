@@ -93,10 +93,8 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    /* QNX requires euid 0 to get a pty
-       - get rid of any setuid-ness now */
-    setuid(getuid());
-
+    /* QNX requires euid 0 to get a pty - get rid of any setuid-ness now */
+    (void)setuid(getuid());
 
     if ((child = fork()) < 0) {
         perror("fork failed");
