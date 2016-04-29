@@ -495,11 +495,11 @@ print_fail(Progress, Fd, Results) ->
         [] ->
             ok;
         FailScripts ->
+            Norm = fun(Str) -> lux_utils:to_string(Str) end,
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("failed"), length(FailScripts)]),
             [result_format(Progress, Fd, "\t~s:~s - ~s\n",
-                           [F, L, lux_utils:to_string(R)]) ||
-                {F, L, R} <- FailScripts]
+                           [F, L, Norm(R)]) || {F, L, R} <- FailScripts]
     end.
 
 print_error(Progress, Fd, Results) ->

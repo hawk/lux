@@ -832,7 +832,8 @@ prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{expected = undefined, actual = Actual},
-    Actual2 = <<Context/binary, "\"", Match/binary, "\"">>,
+    Match2 = lux_utils:normalize_newlines(Match),
+    Actual2 = <<Context/binary, "\"", Match2/binary, "\"">>,
     dlog(C2, ?dmore, "expected=[] (prepare_stop)", []),
     C3 = opt_late_sync_reply(C2),
     {C3, Actual2}.
@@ -1054,13 +1055,15 @@ prepare_outcome(C, Outcome, Actual) ->
             Fail = C#cstate.fail,
             FailCmd = Fail#pattern.cmd,
             Extra = element(2, FailCmd#cmd.arg),
-            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
+            Extra2 = lux_utils:normalize_newlines(lux_utils:to_string(Extra)),
+            clog(C, pattern, "\"~p\"", [Extra2]);
         Outcome =:= success, Context =:= success_pattern_matched ->
             NewOutcome = Outcome,
             Success = C#cstate.success,
             SuccessCmd = Success#pattern.cmd,
             Extra = element(2, SuccessCmd#cmd.arg),
-            clog(C, pattern, "\"~p\"", [lux_utils:to_string(Extra)]);
+            Extra2 = lux_utils:normalize_newlines(lux_utils:to_string(Extra)),
+            clog(C, pattern, "\"~p\"", [Extra2]);
         Outcome =:= error ->
             NewOutcome = fail,
             Extra = Actual;

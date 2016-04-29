@@ -1,0 +1,18 @@
+[shell multi]
+    -foo
+    !echo bar
+    ?bar
+
+    """?
+    bar
+    SH-PROMPT:
+    """
+
+    !echo bar
+    ?bar
+
+    """-
+    bar
+    SH-PROMPT:
+    """
+    [sleep 2]
