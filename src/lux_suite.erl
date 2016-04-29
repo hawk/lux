@@ -300,12 +300,12 @@ compute_files(R, [], _LogBase, Acc) ->
 
 compute_files(R, InitialRes) ->
     MinCond = lux_utils:summary_prio(R#rstate.rerun),
-    Return = fun(Res, Script) ->
+    Return = fun(Res, Script) when is_list(Script) ->
                      Cond = lux_utils:summary_prio(Res),
                      if
                          Cond >= MinCond ->
                              RelScript = lux_utils:drop_prefix(Script),
-                             {true, binary_to_list(RelScript)};
+                             {true, RelScript};
                          true ->
                              false
                      end
