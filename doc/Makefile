@@ -62,7 +62,7 @@ $(HTML): \
 	@/bin/echo
 	@/bin/echo "file://$(PWD)/$(HTML)"
 
-$(GEN_TOC).md: Makefile $(MARKDOWNS)
+$(GEN_TOC).md: Makefile $(MARKDOWNS) ../vsn.mk
 	rm -f $@ $@.tmp
 	/bin/echo "Lux - LUcid eXpect scripting" > $@.tmp
 	/bin/echo "============================" >> $@.tmp
