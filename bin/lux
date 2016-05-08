@@ -204,11 +204,9 @@ do_usage(Specs, LuxAppDir) ->
     info_doc(LuxAppDir).
 
 info_doc(LuxAppDir) ->
-    Url = doc_url(LuxAppDir),
-    Version = lux_utils:version(),
-    io:format("\nRead the full documentation of Lux ~s"
+    io:format("\nRead the full documentation of Lux (version ~s)"
               " in the browser:\n\n\t~s\n",
-              [Version, Url]).
+              [version(), doc_url(LuxAppDir)]).
 
 doc_url(AppDir) ->
     UsersGuide = filename:join([AppDir, "lux.html"]),
@@ -219,8 +217,16 @@ help(LuxAppDir, Specs) ->
     0.
 
 version() ->
-    io:format("~s\n", [lux_utils:version()]),
+    io:format("~s\n", [version_str()]),
     0.
+
+version_str() ->
+    try
+        lux_utils:version()
+    catch
+        error:undef ->
+            "unknown"
+    end.
 
 markdown() ->
     lux_debug:markdown(),
@@ -1002,8 +1008,14 @@ do_throw(Reason) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 fatal_error(RetCode, Format, Args) ->
+    {ok, Cwd} = file:get_cwd(),
     ThisEscript = escript:script_name(),
-    io:format("~s: " ++ Format, [ThisEscript  | Args]),
+    io:format("\nFATAL ERROR : " ++ Format, Args),
+    io:format("ESCRIPT     : ~s\n", [ThisEscript]),
+    io:format("VERSION     : ~s\n", [version_str()]),
+    io:format("CWD         : ~s\n", [Cwd]),
+    io:format("ROOT DIR    : ~s\n", [code:root_dir()]),
+    io:format("CODE PATH   : ~p\n", [code:get_path()]),
     safe_halt(RetCode).
 
 safe_halt(RetCode) ->
@@ -1055,8 +1067,7 @@ missing_app(undefined, AppName) ->
     fatal_error(4, "The application '~p' is missing.\n", [AppName]);
 missing_app(MainOp, AppName) ->
     fatal_error(4,
-                "The application '~p' is required"
-                " for the option ~p.\n",
+                "The application '~p' is required for the ~p option.\n",
                 [AppName, MainOp]).
 
 ensure_lux_app_dir(Retry) ->
@@ -1077,9 +1088,7 @@ ensure_lux_app_dir(Retry) ->
             end,
             ensure_lux_app_dir(false);
         {error, Reason} ->
-            io:format("ROOT DIR: ~p\n", [code:root_dir()]),
-            io:format("CODE PATH: ~p\n", [code:get_path()]),
-            fatal_error(2, "The application '~p' is required to run: ~p\n",
+            fatal_error(2, "The mandatory application '~p' is missing: ~p\n",
                         [AppName, Reason]);
         EbinDir ->
             filename:dirname(EbinDir)
