@@ -58,14 +58,15 @@
 
 run(Files, Opts, OrigArgs) when is_list(Files) ->
     case parse_ropts(Opts, #rstate{files = Files, orig_args = OrigArgs}) of
-        {ok, R} when R#rstate.mode =:= list;
-                     R#rstate.mode =:= list_dir;
-                     R#rstate.mode =:= doc ->
+        {ok, R, _UserLogDir}
+          when R#rstate.mode =:= list;
+               R#rstate.mode =:= list_dir;
+               R#rstate.mode =:= doc ->
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
             R2 = compute_files(R, LogDir, LogBase),
             doc_run(R2);
-        {ok, R} ->
+        {ok, R, UserLogDir} ->
             TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
@@ -73,7 +74,7 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
             try
                 {ConfigData, R2} = parse_config(R), % May throw error
                 R3 = compute_files(R2, LogDir, LogBase),
-                R4 = ensure_log_dir(R3, SummaryLog),
+                R4 = ensure_log_dir(R3, SummaryLog, UserLogDir),
                 full_run(R4, ConfigData, SummaryLog)
             catch
                 throw:{error, FileErr, ReasonStr} ->
@@ -406,9 +407,10 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
 parse_ropts([], R) ->
     UserArgs = opts_to_args(lists:reverse(R#rstate.user_args), []),
     R2 = R#rstate{user_args = UserArgs},
-    {ok, adjust_log_dir(R2)}.
+    UserLogDir = pick_val(log_dir, R2, undefined),
+    {ok, adjust_log_dir(R2, UserLogDir), UserLogDir}.
 
-adjust_log_dir(R) ->
+adjust_log_dir(R, UserLogDir) ->
     Now = lux_utils:timestamp(),
     UniqStr = uniq_str(Now),
     UniqRun = "run_" ++ UniqStr,
@@ -417,7 +419,6 @@ adjust_log_dir(R) ->
             undefined -> UniqRun;
             UserRun   -> UserRun
         end,
-    UserLogDir = pick_val(log_dir, R, undefined),
     RelLogDir =
         case UserLogDir of
             undefined -> filename:join(["lux_logs", UniqRun]);
@@ -446,19 +447,15 @@ adjust_log_dir(R) ->
              log_dir = AbsLogDir,
              user_args = UserArgs}.
 
-ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
-               SummaryLog) ->
+ensure_log_dir(R, SummaryLog, UserLogDir) ->
     RelFiles = R#rstate.files,
     TagFiles = [{config_dir, R#rstate.config_dir} |
                 [{file, F} || F <- RelFiles]],
     lists:foreach(fun check_file/1, TagFiles), % May throw error
-    case opt_ensure_dir(ExtendRun, SummaryLog) of
+    AbsLogDir = R#rstate.log_dir,
+    case opt_ensure_dir(R#rstate.extend_run, SummaryLog) of
         ok ->
-            ParentDir = filename:dirname(AbsLogDir),
-            Link = filename:join([ParentDir, "latest_run"]),
-            Base = filename:basename(AbsLogDir),
-            _ = file:delete(Link),
-            _ = file:make_symlink(Base, Link),
+            opt_create_latest_link(UserLogDir, AbsLogDir),
             AbsFiles = [lux_utils:normalize(F) || F <- RelFiles],
             R#rstate{files = AbsFiles};
         summary_log_exists ->
@@ -477,6 +474,16 @@ ensure_log_dir(#rstate{log_dir = AbsLogDir, extend_run = ExtendRun} = R,
                                        [AbsLogDir,
                                         file:format_error(FileReason)])})
     end.
+
+opt_create_latest_link(undefined, AbsLogDir) ->
+    ParentDir = filename:dirname(AbsLogDir),
+    Link = filename:join([ParentDir, "latest_run"]),
+    Base = filename:basename(AbsLogDir),
+    _ = file:delete(Link),
+    _ = file:make_symlink(Base, Link),
+    ok;
+opt_create_latest_link(_UserLogDir, _AbsLogDir) ->
+    ok.
 
 opt_ensure_dir(ExtendRun, SummaryLog) ->
     case not ExtendRun andalso filelib:is_dir(SummaryLog) of
