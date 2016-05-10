@@ -1044,7 +1044,9 @@ select_latest_row_res([#cell{res=Res} | Cells], Acc)
     select_latest_row_res(Cells, NewAcc);
 select_latest_row_res([#cell{run=#run{repos_rev=Rev}}=C | Cells], Acc) ->
     %% Pick the worst of all cells with same revision
-    PickSameRev = fun(#cell{run=#run{repos_rev=R}}) -> R =:= Rev end,
+    PickSameRev = fun(#cell{run=#run{repos_rev=R}}) -> R =:= Rev;
+                     (#cell{res=_Res})              -> true
+                  end,
     SameRevCells = lists:takewhile(PickSameRev, Cells),
     select_row_res([C|SameRevCells], worst, Acc);
 select_latest_row_res([#cell{res=Res, run=undefined} | _Cells], _Acc) ->
