@@ -144,7 +144,7 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
     end.
 
 internal_error(I, ReasonTerm) ->
-    ReasonBin = list_to_binary(io_lib:format("Internal error: ~p\n",
+    ReasonBin = list_to_binary(io_lib:format("INTERNAL LUX ERROR: ~p\n",
                                              [ReasonTerm])),
     fatal_error(I, ReasonBin).
 
@@ -669,10 +669,11 @@ interpret_loop(I) ->
                                           TimeoutType =:= case_timeout ->
             I2 = premature_stop(I, TimeoutType, TimeoutMillis),
             interpret_loop(I2);
-        Unexpected ->
-            lux:trace_me(70, 'case', internal_error,
-                         [{interpreter_got, Unexpected}]),
-            exit({interpreter_got, Unexpected})
+        IgnoreMsg ->
+            lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
+            io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
+                      [IgnoreMsg]),
+            interpret_loop(I)
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
             interpret_loop(I2)
@@ -1430,7 +1431,8 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
             wait_for_reply(I2, [], Expect, Fun, 500);
         IgnoreMsg when FlushTimeout =/= infinity ->
             lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
-            io:format("\nWARNING: Interpreter got: ~p\n", [IgnoreMsg]),
+            io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
+                      [IgnoreMsg]),
             wait_for_reply(I, [Pid|Pids], Expect, Fun, FlushTimeout)
     after FlushTimeout ->
             I

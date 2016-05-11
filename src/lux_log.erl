@@ -93,7 +93,8 @@ parse_summary_log(SummaryLog) when is_list(SummaryLog) ->
     catch
         error:Reason ->
             ReasonStr =
-                lists:flatten(io_lib:format("\nERROR in ~s\n~p\n\~p\n",
+                lists:flatten(io_lib:format("\nINTERNAL LUX ERROR"
+                                            " in ~s\n~p\n\~p\n",
                                             [SummaryLog,
                                              Reason,
                                              erlang:get_stacktrace()])),
@@ -247,7 +248,8 @@ parse_run_summary(TopDir, RelDir, Base, File, Res, Opts)
     catch
         error:Reason ->
             ReasonStr =
-                lists:flatten(io_lib:format("\nERROR in ~s\n~p\n\~p\n",
+                lists:flatten(io_lib:format("\nINTERNAL LUX ERROR"
+                                            " in ~s\n~p\n\~p\n",
                                             [File,
                                              Reason,
                                              erlang:get_stacktrace()])),

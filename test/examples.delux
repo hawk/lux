@@ -4,7 +4,7 @@
 [global eprompt=\d+>\s]
 
 [shell test]
-    -HTML ERROR
+    -LUX ERROR
     [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
     !../bin/lux --progress=summary --timeout=5000 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate ../examples
 

@@ -4,7 +4,7 @@
 
 [shell plain]
     [progress plain]
-    -HTML ERROR|0 test runs
+    -LUX ERROR|0 test runs
     [local plain=$LUX_EXTRA_LOGS/$LUX_SHELLNAME]
     [local run=$plain/run]
     [invoke eval 0 "mkdir -p $run"]
@@ -13,7 +13,7 @@
 
 [shell move]
     [progress move]
-    -HTML ERROR|0 test runs
+    -LUX ERROR|0 test runs
     [local run=$LUX_EXTRA_LOGS/$LUX_SHELLNAME/run]
     [invoke eval 0 "mkdir -p $run"]
     [invoke eval 0 "cp -r ../examples $run/"]
@@ -27,7 +27,7 @@
 
 [shell multi]
     [progress multi]
-    -HTML ERROR|0 test runs
+    -LUX ERROR|0 test runs
     [local run=$LUX_EXTRA_LOGS/$LUX_SHELLNAME/run]
     [invoke eval 0 "mkdir -p $run/src/success"]
     [invoke eval 0 "cp ../examples/calc.lux $run/src/success/success.lux"]

@@ -259,10 +259,10 @@ format_result(Res, Cwd) ->
         {link_error, AbsFile, Line, Col, Reason} ->
             RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             Reason2 = "Bad link: " ++ Reason,
-            ["HTML ERROR: ", RelFile, opt_pos(Line, Col), Reason2];
+            ["HTML LUX ERROR: ", RelFile, opt_pos(Line, Col), Reason2];
         {syntax_error, AbsFile, Line, Col, Reason} ->
             RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
-            ["HTML ERROR: ", RelFile, opt_pos(Line, Col), Reason]
+            ["HTML LUX ERROR: ", RelFile, opt_pos(Line, Col), Reason]
     end.
 
 opt_pos(0, _Col) ->

@@ -554,15 +554,15 @@ xref(MainOp, LuxAppDir, Opts) ->
                         do_xref(Sys)
                     catch
                         _Class:Reason ->
-                            io:format("XREF ERROR: ~p\n", [Reason]),
+                            io:format("XREF LUX ERROR: ~p\n", [Reason]),
                             1
                     end;
                 {error, StatusReasonStr} ->
-                    io:format("XREF ERROR: ~s\n", [StatusReasonStr]),
+                    io:format("XREF LUX ERROR: ~s\n", [StatusReasonStr]),
                     1
             end;
         {error, StartReasonStr} ->
-            io:format("XREF ERROR: ~s\n", [StartReasonStr]),
+            io:format("XREF LUX ERROR: ~s\n", [StartReasonStr]),
             1
     end.
 
