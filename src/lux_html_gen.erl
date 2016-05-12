@@ -886,7 +886,6 @@ html_history_table_all(NewLogDir, AllRuns, HtmlFile) ->
 
 html_history_table_current(NewLogDir, AllRuns, HtmlFile) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
-io:format("\nSTILL\n", []),
     T = html_history_table(NewLogDir, "All", "Still failing test cases",
                            Details, HtmlFile, latest_success, latest),
     [
