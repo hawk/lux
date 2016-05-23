@@ -937,14 +937,15 @@ html_history_double_table(NewLogDir, Name, Label, AllRuns, HtmlFile, Select) ->
 %% Suppress :: latest_success | any_success | none
 %% Select   :: worst | latest
 html_history_table(NewLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
-    SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
+    SplitTests0 = keysplit(#run.test, Runs, fun compare_run/2),
+    SplitTests = lists:keysort(1, SplitTests0),
     SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
     SplitIds2 = lists:sort(fun compare_split/2, SplitIds),
     RowHistory =
         [
          html_history_row(NewLogDir, Test, TestRuns, SplitIds2, HtmlFile,
                           Select, Suppress)
-         || {Test, TestRuns} <- lists:reverse(SplitTests)
+         || {Test, TestRuns} <- SplitTests
         ],
     PickRes = fun(#row{res=R}, Acc) -> lux_utils:summary(Acc, R) end,
     SelectedRes = lists:foldl(PickRes, no_data, RowHistory),

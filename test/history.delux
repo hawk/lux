@@ -50,12 +50,14 @@
     [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/mix2     --run=run2 --revision=rev2 --extend_run --suite=mix     --html=validate $run/src/mix"]
 
     [progress history]
+    [progress cd $PWD]
+    [progress \n../bin/lux --html=validate --history $run/logs]
     [progress \nopen file://$run/logs/lux_history.html\n]
     [invoke eval 0 "../bin/lux --html=validate --history $run/logs"]
 
     -success.lux|better.lux
     !cat $run/logs/lux_history_current.html
     ?Still failing test cases
-    ?worse.lux
     ?fail.lux
+    ?worse.lux
     [invoke check_status 0]
