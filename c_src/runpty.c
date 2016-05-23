@@ -94,7 +94,8 @@ int main(int argc, char *argv[])
     }
 
     /* QNX requires euid 0 to get a pty - get rid of any setuid-ness now */
-    (void)setuid(getuid());
+    if (setuid(getuid()))
+        ; /* Ignore return value */
 
     if ((child = fork()) < 0) {
         perror("fork failed");
