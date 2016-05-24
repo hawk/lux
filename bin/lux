@@ -206,7 +206,7 @@ do_usage(Specs, LuxAppDir) ->
 info_doc(LuxAppDir) ->
     io:format("\nRead the full documentation of Lux (version ~s)"
               " in the browser:\n\n\t~s\n",
-              [version(), doc_url(LuxAppDir)]).
+              [version_str(), doc_url(LuxAppDir)]).
 
 doc_url(AppDir) ->
     UsersGuide = filename:join([AppDir, "lux.html"]),
