@@ -1,0 +1,104 @@
+[doc Test loop increment]
+
+[global file=loop_incr.tmp]
+
+[shell test]
+    ### String items
+    !echo _START_ > $file
+    ?SH-PROMPT:
+    [loop color blue red green]
+        !echo $color >> $file
+        ?SH-PROMPT:
+    [endloop]
+    !echo _END_ >> $file
+    ?SH-PROMPT:
+    !cat $file
+    """?
+    _START_
+    blue
+    red
+    green
+    _END_
+    """
+
+    ### Range
+    !echo _START_ > $file
+    ?SH-PROMPT:
+    [loop item 4..9]
+        !echo $item >> $file
+        ?SH-PROMPT:
+    [endloop]
+    !echo _END_ >> $file
+    ?SH-PROMPT:
+    !cat $file
+    """?
+    _START_
+    4
+    5
+    6
+    7
+    8
+    9
+    _END_
+    """
+
+### Reverse range
+    !echo _START_ > $file
+    ?SH-PROMPT:
+    [loop item 9..4]
+        !echo $item >> $file
+        ?SH-PROMPT:
+    [endloop]
+    !echo _END_ >> $file
+    ?SH-PROMPT:
+    !cat $file
+    """?
+    _START_
+    9
+    8
+    7
+    6
+    5
+    4
+    _END_
+    """
+
+### Range - with increment
+    !echo _START_ > $file
+    ?SH-PROMPT:
+    [loop item 4..9..2]
+        !echo $item >> $file
+        ?SH-PROMPT:
+    [endloop]
+    !echo _END_ >> $file
+    ?SH-PROMPT:
+    !cat $file
+    """?
+    _START_
+    4
+    6
+    8
+    _END_
+    """
+
+### Reverse range - with increment
+    !echo _START_ > $file
+    ?SH-PROMPT:
+    [loop item 10..4..3]
+        !echo $item >> $file
+        ?SH-PROMPT:
+    [endloop]
+    !echo _END_ >> $file
+    ?SH-PROMPT:
+    !cat $file
+    """?
+    _START_
+    10
+    7
+    4
+    _END_
+    """
+
+[cleanup]
+    !rm -f $file
+    ?SH-PROMPT:

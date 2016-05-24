@@ -221,12 +221,16 @@ value of the current `Item`. The scope of the loop variable is the
 same as a macro variable (defined with my). The `Item list` may
 contain variables and these are expanded before the first
 iteration. Items in the expanded list are separated with spaces. For
-example `[loop colors blue red green]`.  When iterating over a set of
-consecutive integers, such as `[loop iter 4 5 6 7]`, this can be
-written as a range expression, like `[loop iter 4..7]`. In the logs
+example `[loop colors blue red green]`. When iterating over a set of
+consecutive integers, such as `[loop iter 4 5 6 7 8 9]`, this can be
+written as a range expression, like `[loop iter 4..9]`. In the logs
 the iteration counter is represented as a negative line number. For
 example "8:-2:10" would mean line 10 in the second loop iteration
-where the loop starts at line 8.
+where the loop starts at line 8. By default the increment is 1. A
+custom increment can also be set with the construct `from..to..incr`,
+such as `[loop iter 4..9..2]`. This would be the same as
+`[loop iter 4 6 8]`. `[loop iter 9..4..2]`  would be the same as
+`[loop iter 9 7 5]`.
 
 ###Variables###
 

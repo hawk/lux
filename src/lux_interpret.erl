@@ -1203,21 +1203,26 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
     end.
 
 pick_item([Item|Items]) ->
-    Pred = fun(Char) -> Char =/= $. end,
-    {Before, After} = lists:splitwith(Pred, Item),
-    case After of
-        [] ->
+    case split_range(Item, []) of
+        false ->
+            %% Not a range
             {item, Item, Items};
-        [$., $. | After2] ->
+        {From0, Mid} ->
             try
-                From = list_to_integer(Before),
-                To   = list_to_integer(After2),
+                From = list_to_integer(From0),
+                {To, Incr} =
+                    case split_range(Mid, []) of
+                        false ->
+                            {list_to_integer(Mid), 1};
+                        {End, Incr0} ->
+                            {list_to_integer(End), list_to_integer(Incr0)}
+                    end,
                 Seq =
                     if
                         From =< To ->
-                            lists:seq(From, To);
+                            lists:seq(From, To, Incr);
                         true ->
-                            lists:reverse(lists:seq(To, From))
+                            lists:reverse(lists:seq(To, From, Incr))
                     end,
                 [NewItem|NewItems] = [integer_to_list(I) || I <- Seq],
                 {item, NewItem, NewItems ++ Items}
@@ -1228,6 +1233,13 @@ pick_item([Item|Items]) ->
     end;
 pick_item([]) ->
     endloop.
+
+split_range([$., $. | Rest], Acc) ->
+    {lists:reverse(Acc), Rest};
+split_range([H|T], Acc) ->
+    split_range(T, [H|Acc]);
+split_range([], _Acc) ->
+    false.
 
 prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
     %% Handle stop procedure
