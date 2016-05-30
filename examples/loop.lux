@@ -7,7 +7,7 @@
 ###
 [shell vanilla]
     # Iterate over a fix list of items
-    [loop color red yellow red]
+    [loop color green yellow red]
         !echo "Color $color"
         ?SH-PROMPT:
     [endloop]
@@ -19,7 +19,7 @@
     [endloop]
 
     # Iterate over a mix of strings, reverse range and range with custom incr
-    [local colors=red yellow red]
+    [local colors=green yellow red]
     [local incr=3]
     [loop mix $color 7..4 3..9..$incr]
         !echo "Mix $mix"
@@ -36,7 +36,7 @@
     !(sleep 3; echo DONE >> $file)
 
 [shell forground]
-    # Probe the file for the DONE stringnusing a break pattern
+    # Probe the file for the DONE string using a break pattern
     [loop i 1..7]
         @DONE
         [progress i=$i]
