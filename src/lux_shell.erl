@@ -51,6 +51,7 @@
          waiting = false         :: boolean(),
          fail                    :: undefined | #pattern{},
          success                 :: undefined | #pattern{},
+         loop_stack = []         :: [#loop{}],
          expected                :: undefined | #cmd{},
          pre_expected = []       :: [#cmd{}],
          actual = <<>>           :: binary(),
@@ -94,6 +95,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 shell_args = I#istate.shell_args,
                 shell_prompt_cmd = I#istate.shell_prompt_cmd,
                 shell_prompt_regexp = I#istate.shell_prompt_regexp,
+                loop_stack = I#istate.loop_stack,
                 debug_level = I#istate.debug_level},
     {Pid, Ref} = spawn_monitor(fun() -> init(C, ExtraLogs) end),
     receive
@@ -214,8 +216,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             shell_wait_for_event(C2, OrigC);
-        {switch_cmd, From, _When, NewCmd, CmdStack, Fun} ->
-            C2 = switch_cmd(C, From, NewCmd, CmdStack, Fun),
+        {switch_cmd, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
+            C2 = switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun),
             shell_wait_for_event(C2, OrigC);
         {change_mode, From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->
@@ -304,10 +306,39 @@ timeout(C) ->
             IdleThreshold
     end.
 
-switch_cmd(C, From, NewCmd, CmdStack, Fun) ->
+switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
     Fun(),
     send_reply(C, From, {switch_cmd_ack, self()}),
-    C#cstate{latest_cmd = NewCmd, cmd_stack = CmdStack}.
+    LoopStack = C#cstate.loop_stack,
+    case {NewCmd#cmd.type, When} of
+        {loop, before} when IsRootLoop ->
+            Loop = #loop{mode = iterate, cmd = NewCmd},
+            C#cstate{latest_cmd = NewCmd,
+                     cmd_stack = CmdStack,
+                     loop_stack = [Loop | LoopStack]};
+        {loop, 'after'} when IsRootLoop,
+                             (hd(LoopStack))#loop.mode =:= iterate ->
+            C#cstate{latest_cmd = NewCmd,
+                     cmd_stack = CmdStack,
+                     loop_stack = tl(LoopStack)};
+        {loop, 'after'} when IsRootLoop,
+                             (hd(LoopStack))#loop.mode =:= break ->
+            C#cstate{latest_cmd = NewCmd,
+                     cmd_stack = CmdStack,
+                     loop_stack = tl(LoopStack)};
+        {loop, 'after'} when IsRootLoop ->
+            %% endloop with pending break pattern
+            Loop = hd(LoopStack),
+            LoopCmd = Loop#loop.mode,
+            RegExp = extract_regexp(LoopCmd#cmd.arg),
+            RegExp2 = lux_utils:normalize_newlines(RegExp),
+            Actual = <<"Loop ended without match of \"", RegExp2/binary, "\"">>,
+            C2 = do_prepare_stop(C),
+            stop(C2, fail, Actual);
+        _ ->
+            C#cstate{latest_cmd = NewCmd,
+                     cmd_stack = CmdStack}
+    end.
 
 change_mode(C, From, Mode, Cmd, CmdStack) ->
     Reply = {change_mode_ack, self()},
@@ -343,8 +374,8 @@ block(C, From, OrigC) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             block(C2, From, OrigC);
-        {switch_cmd, From, _When, NewCmd, CmdStack, Fun} ->
-            C2 = switch_cmd(C, From, NewCmd, CmdStack, Fun),
+        {switch_cmd, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
+            C2 = switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun),
             block(C2, From, OrigC);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
             interpreter_died(C, Reason);
@@ -504,6 +535,26 @@ shell_eval(#cstate{name = Name} = C0,
             clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
+        break when Arg =:= reset ->
+            clog(C, break, "pattern ~p", [Arg]),
+            [Loop | LoopStack] = C#cstate.loop_stack,
+            Loop2 =
+                if
+                    Loop#loop.mode =:= break -> Loop; % Ignore
+                    true                     -> Loop#loop{mode = iterate}
+                end,
+            C#cstate{state_changed = true,
+                     loop_stack    = [Loop2|LoopStack]};
+        break ->
+            RegExp = extract_regexp(Arg),
+            clog(C, break, "pattern ~p", [lux_utils:to_string(RegExp)]),
+            [Loop | LoopStack] = C#cstate.loop_stack,
+            Loop2 =
+                if
+                    Loop#loop.mode =:= break -> Loop; % Ignore
+                    true                     -> Loop#loop{mode = Cmd}
+                end,
+            C#cstate{state_changed = true, loop_stack = [Loop2|LoopStack]};
         sleep ->
             Secs = Arg,
             clog(C, sleep, "(~p seconds)", [Secs]),
@@ -542,9 +593,16 @@ shell_eval(#cstate{name = Name} = C0,
                 undefined  -> ok;
                 _          -> clog(C2, success, "pattern reset", [])
             end,
+            LoopStack = C#cstate.loop_stack,
+            LoopStack2  = [L#loop{mode = break} || L <- LoopStack],
+            case lists:keymember(pattern, 1, C#cstate.loop_stack) of
+                false -> ok;
+                true  -> clog(C2, break, "pattern reset", [])
+            end,
             C3 = C2#cstate{expected = undefined,
                            fail = undefined,
-                           success = undefined},
+                           success = undefined,
+                           loop_stack = LoopStack2},
             dlog(C3, ?dmore, "expected=undefined (cleanup)", []),
             opt_late_sync_reply(C3);
         Unexpected ->
@@ -786,17 +844,16 @@ do_log_multi(_C, _Actual, [], _Context) ->
 match_patterns(C, Actual) ->
     C2 = match_fail_pattern(C, Actual),
     C3 = match_success_pattern(C2, Actual),
-    C3#cstate{state_changed = false}.
+    C4 = match_break_patterns(C3, Actual),
+    C4#cstate{state_changed = false}.
 
 match_fail_pattern(C, Actual) ->
     {Res, _Multi} = match(Actual, C#cstate.fail),
     case Res of
         {match, Matches} ->
-            C2 = cancel_timer(C),
-            {C3, Actual2} =
-                prepare_stop(C2, Actual, Matches,
-                             <<"fail pattern matched ">>),
-            stop(C3, fail, Actual2);
+            {C2, Actual2} = prepare_stop(C, Actual, Matches,
+                                         <<"fail pattern matched ">>),
+            stop(C2, fail, Actual2);
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
@@ -811,11 +868,9 @@ match_success_pattern(C, Actual) ->
     {Res, _Multi} = match(Actual, C#cstate.success),
     case Res of
         {match, Matches} ->
-            C2 = cancel_timer(C),
-            {C3, Actual2} =
-                prepare_stop(C2, Actual, Matches,
-                             <<"success pattern matched ">>),
-            stop(C3, success, Actual2);
+            {C2, Actual2} = prepare_stop(C, Actual, Matches,
+                                         <<"success pattern matched ">>),
+            stop(C2, success, Actual2);
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
@@ -826,17 +881,62 @@ match_success_pattern(C, Actual) ->
             stop(C, error, iolist_to_binary(Err))
     end.
 
-prepare_stop(C, Actual, [{First, TotLen} | _], Context) ->
+match_break_patterns(C, Actual) ->
+    %% Search in reverse order. Top loop first.
+    match_break_patterns(C, Actual, lists:reverse(C#cstate.loop_stack), []).
+
+match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
+    case Loop#loop.mode of
+        iterate ->
+            match_break_patterns(C, Actual, Stack, [Loop|Acc]);
+        break ->
+            match_break_patterns(C, Actual, Stack, [Loop|Acc]);
+        BreakCmd = #cmd{type = break} ->
+            {Res, _Multi} = match(Actual, BreakCmd),
+            case Res of
+                {match, Matches} ->
+                    {C2, _Match} =
+                        post_match(C, Actual, Matches,
+                                   <<"loop break pattern matched ">>),
+                    LoopCmd = Loop#loop.cmd,
+                    BreakLoop = {break_pattern_matched, self(), LoopCmd},
+                    send_reply(C2, C2#cstate.parent, BreakLoop),
+                    %% Break all inner loops
+                    Breaks = [L#loop{mode = break} || L <- AllStack],
+                    C2#cstate{loop_stack = Breaks  ++ Acc};
+                nomatch ->
+                    match_break_patterns(C, Actual, Stack, [Loop|Acc]);
+                {{'EXIT', Reason}, _} ->
+                    RegExp = extract_regexp(BreakCmd#cmd.arg),
+                    Err = io_lib:format("Bad regexp:\n\t~p\n"
+                                        "Reason:\n\t~p\n",
+                                        [RegExp, Reason]),
+                    stop(C, error, iolist_to_binary(Err))
+            end
+    end;
+match_break_patterns(C, _Actual, [], Acc) ->
+    C#cstate{loop_stack = Acc}.
+
+prepare_stop(C, Actual, Matches, Context) ->
+    {C2, Match} = post_match(C, Actual, Matches, Context),
+    Match2 = lux_utils:normalize_newlines(Match),
+    Actual2 = <<Context/binary, "\"", Match2/binary, "\"">>,
+    C3 = do_prepare_stop(C2),
+    {C3, Actual2}.
+
+do_prepare_stop(C) ->
+    C2 = cancel_timer(C),
+    C3 = C2#cstate{expected = undefined},
+    dlog(C3, ?dmore, "expected=[] (prepare_stop)", []),
+    opt_late_sync_reply(C3).
+
+post_match(C, Actual, [{First, TotLen} | _], Context) ->
     {Skip, Rest} = split_binary(Actual, First),
     {Match, _Actual2} = split_binary(Rest, TotLen),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
-    C2 = C#cstate{expected = undefined, actual = Actual},
-    Match2 = lux_utils:normalize_newlines(Match),
-    Actual2 = <<Context/binary, "\"", Match2/binary, "\"">>,
-    dlog(C2, ?dmore, "expected=[] (prepare_stop)", []),
-    C3 = opt_late_sync_reply(C2),
-    {C3, Actual2}.
+    C2 = C#cstate{actual = Actual},
+    {C2, Match}.
 
 split_submatches(C, [{First, TotLen} | SubMatches], Actual, Context, AltSkip) ->
     {Skip, Match, Rest} = split_total(Actual, First, TotLen, AltSkip),
@@ -862,11 +962,11 @@ split_total(Actual, First, TotLen, AltSkip) ->
 
 match(_Actual, undefined) ->
     {nomatch, single};
-match(Actual, #pattern{cmd = Cmd}) -> % success or fail pattern
+match(Actual, #pattern{cmd = Cmd}) -> % fail or success pattern
     match(Actual, Cmd);
 match(Actual, #cmd{type = Type, arg = Arg}) ->
     if
-        Type =:= expect; Type =:= fail; Type =:= success ->
+        Type =:= expect; Type =:= fail; Type =:= success ; Type =:= break ->
             case Arg of
                 {verbatim, _RegExpOper, Expected} ->
                     {lux_utils:verbatim_match(Actual, Expected), single};
@@ -1136,8 +1236,8 @@ wait_for_down(C, Res) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             wait_for_down(C2, Res);
-        {switch_cmd, From, _When, NewCmd, CmdStack, Fun} ->
-            C2 = switch_cmd(C, From, NewCmd, CmdStack, Fun),
+        {switch_cmd, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
+            C2 = switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun),
             wait_for_down(C2, Res);
         {change_mode, From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->

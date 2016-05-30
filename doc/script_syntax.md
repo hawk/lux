@@ -49,7 +49,7 @@ Same as `!String`, but it does NOT add a `LF` at the end.
 **?**  
 Flush the output streams (`stdout`, `stderr`). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
-useful than it is. It causes often unexpected race conditions.
+useful than it is. It causes often unexpected race patterns.
 
 **?Regexp**  
 An `expect` operation which waits for a string matching a [regular
@@ -91,31 +91,41 @@ the usage of `?`. `?+` is always used together with `?`.
 
 **-**  
 **-Regexp**  
-Sets a failure condition regular expression [regular expression][]. If
-the given `Regexp` ever matches, the test case is considered to have
+Sets a failure pattern to a regular expression (see [regular
+expression][]). It is typically used to match error messages. If the
+given `Regexp` ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
-cleanup). If no `Regexp` is given, the old failure condition is reset
-(cleared). It is typically used to match error messages.
+cleanup). If no `Regexp` is given, the old failure pattern is reset
+(cleared).
 
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the failure
-condition. In non-active shells the `Regexp` is tried when the shell
+pattern. In non-active shells the `Regexp` is tried when the shell
 produces new output.
 
 **+**  
 **+Regexp**  
-Sets a success condition regular expression [regular expression][]. If
-the given `Regexp` ever matches, the test case is considered a success
-(no further processing of the script will be performed besides
-cleanup). If no `Regexp` is given, the old success condition is reset
-(cleared). It is typically used to match error messages.
+Sets a success pattern to a regular expression (see [regular
+expression][]). If the given `Regexp` ever matches, the test case is
+considered a success (no further processing of the script will be
+performed besides cleanup). If no `Regexp` is given, the old success
+pattern is reset (cleared).
 
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the success
-condition. In non-active shells the `Regexp` is tried when the shell
+pattern. In non-active shells the `Regexp` is tried when the shell
 produces new output.
+
+**@**  
+**@Regexp**  
+Sets a loop break pattern to a regular expression (see [regular
+expression][]). This statement is only valid in loops. It is
+typically used to match output from a poll command. When the given
+`Regexp` matches, the loop is immediately exited. The test case fails
+if the loop is exited before the break pattern is matched. If no
+`Regexp` is given, the break failure pattern is reset (cleared).
 
 **\[endshell\]**  
 **\[endshell Regexp\]**

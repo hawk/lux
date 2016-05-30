@@ -642,6 +642,11 @@ interpret_loop(I) ->
             %% One shell has finished. Stop the others if needed
             I2 = prepare_stop(I, Pid, Res),
             interpret_loop(I2);
+        {break_pattern_matched, _Pid, LoopCmd} ->
+            %% Top down search
+            LoopStack = I#istate.loop_stack,
+            I2 = break_loop(I, LoopCmd, lists:reverse(LoopStack), []),
+            interpret_loop(I2#istate{want_more = true});
         {more, Pid, _Name} ->
             if
                 Pid =/= I#istate.active_shell#shell.pid ->
@@ -678,6 +683,14 @@ interpret_loop(I) ->
             I2 = opt_dispatch_cmd(I),
             interpret_loop(I2)
     end.
+
+break_loop(I, LoopCmd, [Loop|_Stack] = AllStack, Acc)
+  when Loop#loop.cmd =:= LoopCmd ->
+    %% Break all inner loops
+    Breaks = [L#loop{mode = break} || L <- AllStack],
+    I#istate{loop_stack = Breaks  ++ Acc};
+break_loop(I, LoopCmd, [Loop|Stack], Acc) ->
+    break_loop(I, LoopCmd, Stack, [Loop|Acc]).
 
 stopped_by_user(I, Scope) ->
     %% Ordered to stop by user
@@ -751,7 +764,7 @@ sync_return(I) ->
 opt_dispatch_cmd(#istate{commands = Cmds, want_more = WantMore} = I) ->
     case Cmds of
         [#cmd{lineno = CmdLineNo} = Cmd | Rest] when WantMore ->
-            case lux_debug:check_break(I, CmdLineNo) of
+            case lux_debug:check_breakpoint(I, CmdLineNo) of
                 {dispatch, I2} ->
                     I3 = I2#istate{commands = Rest, latest_cmd = Cmd},
                     dispatch_cmd(I3, Cmd);
@@ -823,12 +836,21 @@ dispatch_cmd(I,
         expect when is_tuple(Arg) ->
             Cmd2 = compile_regexp(I, Cmd, Arg),
             shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
-        fail when is_tuple(Arg) ->
+        fail ->
             Cmd2 = compile_regexp(I, Cmd, Arg),
             shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
-        success when is_tuple(Arg) ->
+        success ->
             Cmd2 = compile_regexp(I, Cmd, Arg),
             shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+        break ->
+            Cmd2 = compile_regexp(I, Cmd, Arg),
+            if
+                I#istate.loop_stack =:= [] ->
+                    throw_error(I, <<"The command must be executed"
+                                     " in context of a loop">>);
+                true ->
+                    shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2)
+            end;
         sleep ->
             Secs = parse_int(I, Arg, Cmd),
             Cmd2 = Cmd#cmd{arg = Secs},
@@ -933,6 +955,8 @@ dispatch_cmd(I,
                     throw_error(I, <<E/binary, ". Bad line: ",
                                      OrigLine/binary>>)
             end;
+        loop when element(2, Arg) =:= forever ->
+            eval_loop(I, Cmd);
         loop ->
             {loop, Name, ItemStr, LineNo, LastLineNo, Body} = Arg,
             case safe_expand_vars(I, ItemStr) of
@@ -967,14 +991,13 @@ eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo,
              InclFile, InclCmds, InclCmd) ->
     DefaultFun = get_eval_fun(),
     eval_body(OldI, InclLineNo, FirstLineNo, LastLineNo,
-              InclFile, InclCmds, InclCmd, DefaultFun).
+              InclFile, InclCmds, InclCmd, DefaultFun, false).
 
 get_eval_fun() ->
     fun(I) when is_record(I, istate) -> interpret_loop(I) end.
 
 eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
-          #cmd{type = Type} = Cmd, Fun) ->
-    lux_utils:progress_write(OldI#istate.progress, "("),
+          #cmd{type = Type} = Cmd, Fun, IsRootLoop) ->
     Enter =
         fun() ->
                 ilog(OldI, "file_enter ~p ~p ~p ~p\n",
@@ -991,8 +1014,10 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                           latest_cmd = Cmd,
                           cmd_stack = NewStack,
                           commands = Body},
-    BeforeI2 = switch_cmd(before, BeforeI, NewStack, Cmd, Enter),
+    BeforeI2 = switch_cmd(before, BeforeI, NewStack, Cmd,
+                          Enter, IsRootLoop),
     try
+        lux_utils:progress_write(BeforeI2#istate.progress, "("),
         AfterI = Fun(BeforeI2),
         lux_utils:progress_write(AfterI#istate.progress, ")"),
         AfterExit =
@@ -1001,7 +1026,8 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                                [InvokeLineNo, FirstLineNo, LastLineNo,
                                 CmdFile])
             end,
-        AfterI2 = switch_cmd('after', AfterI, OldStack, Cmd, AfterExit),
+        AfterI2 = switch_cmd('after', AfterI, OldStack, Cmd,
+                             AfterExit, IsRootLoop),
         NewI = AfterI2#istate{call_level = call_level(OldI),
                               file = OldI#istate.file,
                               latest_cmd = OldI#istate.latest_cmd,
@@ -1031,7 +1057,8 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
                 Class =:= throw, element(1, Reason) =:= error ->
                     BeforeExit();
                 true ->
-                    switch_cmd('after2', BeforeI2, OldStack, Cmd, BeforeExit)
+                    switch_cmd('after', BeforeI2, OldStack, Cmd,
+                               BeforeExit, IsRootLoop)
             end,
             erlang:raise(Class, Reason, erlang:get_stacktrace())
     end.
@@ -1068,7 +1095,7 @@ invoke_macro(I,
     BeforeI = I#istate{macro_vars = MacroVars, latest_cmd = InvokeCmd},
     DefaultFun = get_eval_fun(),
     AfterI = eval_body(BeforeI, LineNo, FirstLineNo,
-                       LastLineNo, File, Body, MacroCmd, DefaultFun),
+                       LastLineNo, File, Body, MacroCmd, DefaultFun, false),
 
     AfterI#istate{macro_vars = OldMacroVars};
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
@@ -1163,21 +1190,37 @@ parse_int(I, Chars, Cmd) ->
 
 eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = LoopCmd) ->
     DefaultFun = get_eval_fun(),
-    LoopStack = [continue | OldI#istate.loop_stack],
+    Loop = #loop{mode = iterate, cmd = LoopCmd},
+    LoopStack = [Loop | OldI#istate.loop_stack],
     NewI = eval_body(OldI#istate{loop_stack = LoopStack}, First, First, First,
                      OldI#istate.file, Body, LoopCmd,
                      fun(I) ->
                              do_eval_loop(I, Name, Items, First, Last, Body,
                                           LoopCmd, DefaultFun, 1)
-                     end),
+                     end,
+                     true),
     NewI#istate{loop_stack = tl(NewI#istate.loop_stack)}.
 
 do_eval_loop(OldI, _Name, _Items, _First, _Last, _Body, _LoopCmd, _LoopFun, _N)
-  when hd(OldI#istate.loop_stack) =:= break ->
+  when (hd(OldI#istate.loop_stack))#loop.mode =:= break ->
     %% Exit the loop
     OldI;
 do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
-  when hd(OldI#istate.loop_stack) =:= continue ->
+  when Name =:= forever, Items =:= undefined ->
+    BeforeI = OldI#istate{latest_cmd = LoopCmd},
+    SyntheticLineNo = -N,
+    AfterI = eval_body(BeforeI, SyntheticLineNo, First, Last,
+                       BeforeI#istate.file, Body, LoopCmd,
+                       fun(I) ->
+                               ilog(I, "~s(~p): loop forever\n",
+                                    [I#istate.active_name,
+                                     LoopCmd#cmd.lineno]),
+                               LoopFun(I)
+                       end,
+                       false),
+    do_eval_loop(AfterI, Name, Items, First, Last, Body, LoopCmd,
+                 LoopFun, N+1);
+do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N) ->
     case pick_item(Items) of
         {item, Item, Rest} ->
             LoopVar = lists:flatten([Name, $=, Item]),
@@ -1193,7 +1236,8 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
                                              First,
                                              LoopVar]),
                                        LoopFun(I)
-                               end),
+                               end,
+                               false),
             do_eval_loop(AfterI, Name, Rest, First, Last, Body, LoopCmd,
                          LoopFun, N+1);
         endloop ->
@@ -1202,14 +1246,14 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N)
             OldI
     end.
 
-pick_item([Item|Items]) ->
+pick_item([Item|Items])                                                 ->
     case split_range(Item, []) of
         false ->
             %% Not a range
             {item, Item, Items};
-        {From0, Mid} ->
+        {Begin, Mid} ->
             try
-                From = list_to_integer(From0),
+                From = list_to_integer(Begin),
                 {To, Incr} =
                     case split_range(Mid, []) of
                         false ->
@@ -1369,7 +1413,8 @@ do_goto_cleanup(I, CleanupReason, LineNo) ->
             true ->
                 stopping
         end,
-    LoopStack = [break || _ <- I#istate.loop_stack], % Break active loops
+    %% Break active loops
+    LoopStack = [L#loop{mode = break} || L <- I#istate.loop_stack],
     I#istate{mode = NewMode,
              loop_stack = LoopStack,
              cleanup_reason = CleanupReason,
@@ -1543,14 +1588,22 @@ change_active_mode(I, _Cmd, _NewMode) ->
     %% No active shell
     I.
 
-switch_cmd(_When, #istate{active_shell = undefined} = I,
-           _CmdStack, _NewCmd, Fun) ->
+switch_cmd(When, #istate{active_shell = undefined} = I,
+           CmdStack, NewCmd, Fun, IsRootLoop) ->
     Fun(),
-    I;
-switch_cmd(When, #istate{active_shell = #shell{pid = Pid}} = I,
-           CmdStack, NewCmd, Fun) ->
-    Pid = cast(I, {switch_cmd, self(), When, NewCmd, CmdStack, Fun}),
-    wait_for_reply(I, [Pid], switch_cmd_ack, Fun, infinity).
+    do_switch_cmd(When, I, CmdStack, NewCmd, IsRootLoop, []);
+switch_cmd(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
+           CmdStack, NewCmd, Fun, IsRootLoop) ->
+    Msg = {switch_cmd, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
+    ActivePid = cast(I, Msg),
+    do_switch_cmd(When, I, CmdStack, NewCmd, IsRootLoop, [ActivePid]).
+
+do_switch_cmd(When, I, CmdStack, NewCmd, IsRootLoop, ActivePids) ->
+    Fun = fun() -> ignore end,
+    Msg = {switch_cmd, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
+    OtherPids = multicast(I#istate{active_shell = undefined}, Msg),
+    Pids = ActivePids ++ OtherPids,
+    wait_for_reply(I, Pids, switch_cmd_ack, Fun, infinity).
 
 shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
     I2 = inactivate_shell(I, I#istate.want_more),

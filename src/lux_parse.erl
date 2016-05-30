@@ -326,6 +326,7 @@ parse_oper(P, Fd, LineNo, OrigLine) ->
         <<"?",      D/binary>> -> {expect,            regexp,    D};
         <<"-",      D/binary>> -> {fail,              regexp,    D};
         <<"+",      D/binary>> -> {success,           regexp,    D};
+        <<"@",      D/binary>> -> {break,             regexp,    D};
         <<"[",      D/binary>> -> {meta,              undefined, D};
         <<"\"\"\"", D/binary>> -> {multi,             undefined, D};
         <<"#",      D/binary>> -> {comment,           undefined, D};
@@ -347,6 +348,8 @@ parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
         fail                       -> parse_regexp(Cmd, SubType, Data,  single);
         success when Data =:= <<>> -> parse_regexp(Cmd, SubType, reset, single);
         success                    -> parse_regexp(Cmd, SubType, Data,  single);
+        break when Data =:= <<>>   -> parse_regexp(Cmd, SubType, reset, single);
+        break                      -> parse_regexp(Cmd, SubType, Data,  single);
 %%      meta                       -> Cmd;
 %%      multi                      -> Cmd;
         comment                    -> Cmd
@@ -613,6 +616,9 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                                  integer_to_list(LineNo),
                                  ": missing macro name"])
             end;
+        "loop" ->
+            %% Indefinite loop
+            {P, Cmd#cmd{type = loop, arg = {body, loop, forever, undefined}}};
         "loop" ++ Head ->
             Pred = fun(Char) -> Char =/= $\ end,
             case lists:splitwith(Pred, string:strip(Head)) of

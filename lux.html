@@ -7,7 +7,7 @@
 
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.13.4 - 2016&#8211;05&#8211;11</p>
+<p>Version 1.13.5 - 2016&#8211;05&#8211;26</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -256,7 +256,7 @@ Same as <code>!String</code>, but it does NOT add a <code>LF</code> at the end.<
 <p><strong>?</strong><br/>
 Flush the output streams (<code>stdout</code>, <code>stderr</code>). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
-useful than it is. It causes often unexpected race conditions.</p>
+useful than it is. It causes often unexpected race patterns.</p>
 
 <p><strong>?Regexp</strong><br/>
 An <code>expect</code> operation which waits for a string matching a <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular
@@ -299,31 +299,41 @@ the usage of <code>?</code>. <code>?+</code> is always used together with <code>
 
 <p><strong>-</strong><br/>
 <strong>-Regexp</strong><br/>
-Sets a failure condition regular expression <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>. If
-the given <code>Regexp</code> ever matches, the test case is considered to have
+Sets a failure pattern to a regular expression (see <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular
+expression</a>). It is typically used to match error messages. If the
+given <code>Regexp</code> ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
-cleanup). If no <code>Regexp</code> is given, the old failure condition is reset
-(cleared). It is typically used to match error messages.</p>
+cleanup). If no <code>Regexp</code> is given, the old failure pattern is reset
+(cleared).</p>
 
 <p>In the active shell, the <code>Regexp</code> is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the failure
-condition. In non-active shells the <code>Regexp</code> is tried when the shell
+pattern. In non-active shells the <code>Regexp</code> is tried when the shell
 produces new output.</p>
 
 <p><strong>+</strong><br/>
 <strong>+Regexp</strong><br/>
-Sets a success condition regular expression <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>. If
-the given <code>Regexp</code> ever matches, the test case is considered a success
-(no further processing of the script will be performed besides
-cleanup). If no <code>Regexp</code> is given, the old success condition is reset
-(cleared). It is typically used to match error messages.</p>
+Sets a success pattern to a regular expression (see <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular
+expression</a>). If the given <code>Regexp</code> ever matches, the test case is
+considered a success (no further processing of the script will be
+performed besides cleanup). If no <code>Regexp</code> is given, the old success
+pattern is reset (cleared).</p>
 
 <p>In the active shell, the <code>Regexp</code> is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
 not including, the (successful) match are tried against the success
-condition. In non-active shells the <code>Regexp</code> is tried when the shell
+pattern. In non-active shells the <code>Regexp</code> is tried when the shell
 produces new output.</p>
+
+<p><strong>@</strong><br/>
+<strong>@Regexp</strong><br/>
+Sets a loop break pattern to a regular expression (see <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular
+expression</a>). This statement is only valid in loops. It is
+typically used to match output from a poll command. When the given
+<code>Regexp</code> matches, the loop is immediately exited. The test case fails
+if the loop is exited before the break pattern is matched. If no
+<code>Regexp</code> is given, the break failure pattern is reset (cleared).</p>
 
 <p><strong>[endshell]</strong><br/>
 <strong>[endshell Regexp]</strong>
@@ -430,11 +440,15 @@ same as a macro variable (defined with my). The <code>Item list</code> may
 contain variables and these are expanded before the first
 iteration. Items in the expanded list are separated with spaces. For
 example <code>[loop colors blue red green]</code>. When iterating over a set of
-consecutive integers, such as <code>[loop iter 4 5 6 7]</code>, this can be
-written as a range expression, like <code>[loop iter 4..7]</code>. In the logs
+consecutive integers, such as <code>[loop iter 4 5 6 7 8 9]</code>, this can be
+written as a range expression, like <code>[loop iter 4..9]</code>. In the logs
 the iteration counter is represented as a negative line number. For
 example &#8220;8:&#8211;2:10&#8221; would mean line 10 in the second loop iteration
-where the loop starts at line 8.</p>
+where the loop starts at line 8. By default the increment is 1. A
+custom increment can also be set with the construct <code>from..to..incr</code>,
+such as <code>[loop iter 4..9..2]</code>. This would be the same as
+<code>[loop iter 4 6 8]</code>. <code>[loop iter 9..4..2]</code> would be the same as
+<code>[loop iter 9 7 5]</code>.</p>
 
 <h3 id="variables">Variables</h3>
 

@@ -7,7 +7,13 @@
 
 -module(lux_debug).
 
--export([start_link/1, eval_cmd/4, cmd_attach/3, check_break/2, markdown/0]).
+-export([
+         start_link/1,
+         eval_cmd/4,
+         cmd_attach/3,
+         check_breakpoint/2,
+         markdown/0
+        ]).
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -638,7 +644,7 @@ replace_break(NewBreak, Breaks) ->
 delete_break(Break, Breaks) ->
     lists:keydelete(Break#break.pos, #break.pos, Breaks).
 
-check_break(I, LineNo) ->
+check_breakpoint(I, LineNo) ->
     Breaks = I#istate.breakpoints,
     case lookup_break(I, LineNo, Breaks) of
         false ->

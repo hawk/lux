@@ -1,0 +1,11 @@
+[doc Premature end of a loop with break expression]
+
+[shell break]
+    # Set up a break pattern in a loop and exit the loop before match
+    [loop i 1..3]
+        @THIS WILL NEVER MATCH
+        [progress i=$i]
+        !echo "Incr $i"
+        ?SH-PROMPT:
+        [sleep 1]
+    [endloop]

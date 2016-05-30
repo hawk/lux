@@ -58,11 +58,15 @@
          file :: string(),
          cmd  :: #cmd{}}).
 
+-record(loop,
+        {mode :: iterate | break | #cmd{},
+         cmd  :: #cmd{}}).
+
 -record(istate,
         {file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
-         loop_stack = []            :: [continue | break],
+         loop_stack = []            :: [#loop{}],
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),
          debug_file                 :: string(),

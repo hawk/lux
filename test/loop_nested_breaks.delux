@@ -1,0 +1,64 @@
+[config case_timeout=20000]
+
+[global inner_file=loop_nested_breaks_inner.tmp]
+[global outer_file=loop_nested_breaks_outer.tmp]
+
+[shell init]
+    [invoke nested NORMAL]
+    [invoke nested INNER]
+    [invoke nested OUTER]
+    
+[cleanup]
+    !rm -f $outer_file
+    !rm -f $inner_file
+    ?SH-PROMPT:
+
+[macro nested extra]
+  [shell background_outer]
+    [progress $extra]
+    [invoke async_event 8 $outer_file OUTER]
+
+  [shell forground]
+    [loop i 1..50]
+        [progress outer=$i]
+        @OUTER
+        [shell background_inner]
+            [invoke async_event 2 $inner_file INNER]
+
+        [shell forground]
+            [invoke wait_for 1 $inner_file INNER $extra]
+        !cat $outer_file
+        ?SH-PROMPT:
+        [sleep 2]
+    [endloop]
+[endmacro]
+
+[macro async_event timeout file done]
+    """!
+    echo foo > $file;
+    (sleep $timeout; echo $done >> $file)
+    """
+[endmacro]
+
+[macro wait_for timeout file done extra]
+    [loop j 1..50]
+        [progress inner=$j]
+        [invoke noise]
+        @$done
+        [invoke noise]
+        !cat $file
+        ?SH-PROMPT:
+        !echo $extra
+        ?SH-PROMPT:
+        [invoke noise]
+        [sleep $timeout]
+        [invoke noise]
+    [endloop]
+[endmacro]
+
+[macro noise]
+    [loop i 1..3]
+        !echo NOISE
+        ?SH-PROMPT:
+    [endloop]
+[endmacro]
