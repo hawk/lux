@@ -895,15 +895,16 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
             {Res, _Multi} = match(Actual, BreakCmd),
             case Res of
                 {match, Matches} ->
-                    {C2, _Match} =
-                        post_match(C, Actual, Matches,
-                                   <<"loop break pattern matched ">>),
                     LoopCmd = Loop#loop.cmd,
                     BreakLoop = {break_pattern_matched, self(), LoopCmd},
-                    send_reply(C2, C2#cstate.parent, BreakLoop),
+                    send_reply(C, C#cstate.parent, BreakLoop),
+                    C2 = clear_expected(C, " (break loop)"),
+                    {C3, _Match} =
+                        post_match(C2, Actual, Matches,
+                                   <<"loop break pattern matched ">>),
                     %% Break all inner loops
                     Breaks = [L#loop{mode = break} || L <- AllStack],
-                    C2#cstate{loop_stack = Breaks  ++ Acc};
+                    C3#cstate{loop_stack = Breaks  ++ Acc};
                 nomatch ->
                     match_break_patterns(C, Actual, Stack, [Loop|Acc]);
                 {{'EXIT', Reason}, _} ->
@@ -925,10 +926,14 @@ prepare_stop(C, Actual, Matches, Context) ->
     {C3, Actual2}.
 
 do_prepare_stop(C) ->
+    C2 = clear_expected(C, " (prepare stop)"),
+    opt_late_sync_reply(C2).
+
+clear_expected(C, Context) ->
     C2 = cancel_timer(C),
     C3 = C2#cstate{expected = undefined},
-    dlog(C3, ?dmore, "expected=[] (prepare_stop)", []),
-    opt_late_sync_reply(C3).
+    dlog(C3, ?dmore, "expected=[]~s", [Context]),
+    C3.
 
 post_match(C, Actual, [{First, TotLen} | _], Context) ->
     {Skip, Rest} = split_binary(Actual, First),
