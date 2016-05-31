@@ -1622,7 +1622,7 @@ shell_crashed(I, Pid, Reason) ->
             _ ->
                 list_to_binary( [What, " crashed: ",
                                  io_lib:format("~p\n~p",
-                                               [Reason, ?callstack()])])
+                                               [Reason, ?stacktrace()])])
         end,
     throw_error(I2, Error).
 

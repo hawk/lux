@@ -1421,7 +1421,7 @@ html_href(Protocol, Name, Label) when Protocol =:= "" -> % Temporary assert
     %% AbsHref = ?b2l(?l2b([Protocol, Name])),
     %% case chop_root(AbsHref) of
     %%     AbsHref ->
-    %%         io:format("ABS HREF ~p\n\t~p\n", [AbsHref, ?callstack()]);
+    %%         io:format("ABS HREF ~p\n\t~p\n", [AbsHref, ?stacktrace()]);
     %%     _RelHref ->
     %%         ok
     %% end,

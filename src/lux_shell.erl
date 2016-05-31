@@ -179,7 +179,7 @@ open_logfile(C, Slogan) ->
             String = file:format_error(FileReason),
             BinErr = iolist_to_binary(["Failed to open logfile: ", LogFile,
                                        " -> ", String]),
-            io:format("~s\n~p\n", [BinErr, erlang:get_stacktrace()]),
+            io:format("~s\n~p\n", [BinErr, ?stacktrace()]),
             stop(C, error, BinErr)
     end.
 
@@ -1205,7 +1205,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
             clog(C, error, "stop", []);
         true ->
             io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
-                      [Reason, Error, Res, erlang:get_stacktrace()]),
+                      [Reason, Error, Res, ?stacktrace()]),
             clog(C, 'INTERNAL ERROR', "\"~p@~p\"", [Why, Cmd#cmd.lineno])
     end,
     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
