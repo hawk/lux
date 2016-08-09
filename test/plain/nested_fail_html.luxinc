@@ -1,0 +1,14 @@
+# before macro foo
+[macro foo]
+    # before invoke bar
+    [invoke bar]
+    # after invoke bar
+[endmacro]
+# after macro foo
+[macro bar]
+    # before fail
+    -xxx
+    !echo xxx
+    [sleep 1]
+    # after fail
+[endmacro]

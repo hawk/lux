@@ -1,0 +1,7 @@
+# before include
+[include nested_fail_html.luxinc]
+# after include
+[shell zzz]
+# before invoke foo
+[invoke foo]
+# after invoke foo

@@ -281,6 +281,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
                 %% io:format("Events: ~p\n", [Events]),
                 Logs = lux_log:parse_io_logs(LogBins, []),
                 Result = lux_log:parse_result(ResultBins),
+
                 {Annotated, Files} =
                     interleave_code(A3, Events, Script, 1, 999999, [], []),
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
@@ -323,11 +324,12 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
     Files2 = lists:keystore(Script, 2, Files,
                             {file, Script, OrigScript}),
     Acc = [],
-    do_interleave_code(A, Events, ScriptComps, CodeLines2,
+    do_interleave_code(A, Events, Events, ScriptComps, CodeLines2,
                        FirstLineNo, MaxLineNo, Acc, CmdStack, Files2).
 
 do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
                        {event, SingleLineNo, Shell, Op, Data2} | Events],
+                   OrigEvents,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) when Op =:= <<"recv">>,
                                               Data2 =/= [<<"timeout">>]->
@@ -337,23 +339,28 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
     [First | Rest] = Data2,
     Data3 = lists:reverse(Rev, [<<Last/binary, First/binary>> | Rest]),
     do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data3} | Events],
+                       OrigEvents,
                        ScriptComps, CodeLines, CodeLineNo,
                        MaxLineNo, Acc, CmdStack, Files);
 do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
+                   OrigEvents,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) ->
     {CodeLines2, CodeLineNo2, Code} =
-        pick_code(ScriptComps, CodeLines, CodeLineNo, SingleLineNo,
+        pick_code(ScriptComps, CodeLines, CodeLineNo, SingleLineNo, false,
                   [], CmdStack),
     SinglePos = #cmd_pos{rev_file = ScriptComps,
                          lineno = SingleLineNo,
                          type = undefined},
     CmdStack2 = [SinglePos | CmdStack],
     Acc2 = [{event_html, CmdStack2, _Op, Shell, Data}] ++ Code ++ Acc,
-    do_interleave_code(A, Events, ScriptComps, CodeLines2, CodeLineNo2,
+    do_interleave_code(A, Events,
+                       OrigEvents,
+                       ScriptComps, CodeLines2, CodeLineNo2,
                        MaxLineNo, Acc2, CmdStack, Files);
 do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
                         SubScript, SubEvents} | Events],
+                   OrigEvents,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) when is_list(SubScript) ->
     InvokePos = #cmd_pos{rev_file = ScriptComps,
@@ -367,23 +374,29 @@ do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
                         CmdStack2, Files),
     Event = {body_html, CmdStack2, FirstLineNo, SubScript,
              OrigSubScript, SubAnnotated},
-    do_interleave_code(A, Events, ScriptComps, CodeLines, CodeLineNo,
+    do_interleave_code(A, Events,
+                       OrigEvents,
+                       ScriptComps, CodeLines, CodeLineNo,
                        MaxLineNo, [Event | Acc], CmdStack, Files2);
-do_interleave_code(_A, [], ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
+do_interleave_code(_A, [],
+                   OrigEvents,
+                   ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) ->
-    X = pick_code(ScriptComps, CodeLines, CodeLineNo, MaxLineNo, [], CmdStack),
+    X = pick_code(ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
+                  OrigEvents =:= [],
+                  [], CmdStack),
     {_Skipped, _CodeLineNo, Code} = X,
     {lists:reverse(Code ++ Acc), Files}.
 
-pick_code(ScriptComps, [Line | Lines], CodeLineNo, LineNo, Acc, CmdStack)
-  when LineNo >= CodeLineNo ->
+pick_code(ScriptComps, [Line | Lines], CodeLineNo, LineNo, Flush, Acc, CmdStack)
+  when LineNo >= CodeLineNo; Flush ->
     CodePos = #cmd_pos{rev_file = ScriptComps,
                        lineno = CodeLineNo,
                        type = undefined},
     CmdStack2 = [CodePos | CmdStack],
-    pick_code(ScriptComps, Lines, CodeLineNo+1, LineNo,
+    pick_code(ScriptComps, Lines, CodeLineNo+1, LineNo, Flush,
               [{code_html, CmdStack2, Line} | Acc], CmdStack);
-pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, Acc, _CmdStack) ->
+pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, _Flush, Acc, _CmdStack) ->
     {Lines, CodeLineNo, Acc}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -645,13 +658,13 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
                     [
                      html_change_div_mode(event, Prev),
                      html_opt_div(<<"file">>,
-                                  ["entering file: ", RelSubScript]),
+                                  [["\nentering file: ", RelSubScript]]),
                      html_code(A, SubAnnotated, event),
                      html_change_div_mode(code, event),
                      html_anchor(FullLineNo, FullLineNo), ": ",
                      html_change_div_mode(event, code),
                      html_opt_div(<<"file">>,
-                                  ["exiting file: ", RelSubScript]),
+                                  [["exiting file: ", RelSubScript]]),
                      html_code2(A, Annotated, event, Orig)
                     ];
                 true ->

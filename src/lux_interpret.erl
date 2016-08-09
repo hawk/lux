@@ -590,22 +590,27 @@ interpret_init(I) ->
         safe_cancel_timer(Ref)
     end.
 
-collect_macros(#istate{file = File, orig_file = OrigFile} = I, OrigCmds) ->
+collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
     Collect =
         fun(Cmd, RevFile, _CmdStack, Acc) ->
                 case Cmd of
                     #cmd{type = macro,
                          arg = {macro, Name, _ArgNames,
                                 LineNo, _LastLineNo, _Body}} ->
+                        RelFile = lux_utils:pretty_filename(RevFile),
+                        AbsFile = filename:absname(RelFile),
+                        MacroFile = lux_utils:normalize(AbsFile),
                         case lists:keymember(Name, #macro.name, Acc) of
                             false ->
-                                [#macro{name = Name,
-                                        file = File, cmd = Cmd} | Acc];
+                                Macro = #macro{name = Name,
+                                               file = MacroFile,
+                                               cmd = Cmd},
+                                [Macro | Acc];
                             true ->
                                 Reason =
                                     [
                                      "Ambiguous macro ", Name, " at ",
-                                     lux_utils:pretty_filename(RevFile),
+                                     MacroFile,
                                      ":",
                                      integer_to_list(LineNo)
                                     ],
@@ -996,8 +1001,8 @@ eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo,
 get_eval_fun() ->
     fun(I) when is_record(I, istate) -> interpret_loop(I) end.
 
-eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo, CmdFile, Body,
-          #cmd{type = Type} = Cmd, Fun, IsRootLoop) ->
+eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
+          CmdFile, Body, #cmd{type = Type} = Cmd, Fun, IsRootLoop) ->
     Enter =
         fun() ->
                 ilog(OldI, "file_enter ~p ~p ~p ~p\n",
@@ -1081,7 +1086,7 @@ invoke_macro(I,
              #cmd{arg = {invoke, Name, ArgVals},
                   lineno = LineNo} = InvokeCmd,
              [#macro{name = Name,
-                     file = File,
+                     file = MacroFile,
                      cmd = #cmd{arg = {macro, Name, ArgNames, FirstLineNo,
                                        LastLineNo, Body}} = MacroCmd}]) ->
     OldMacroVars = I#istate.macro_vars,
@@ -1090,12 +1095,12 @@ invoke_macro(I,
          [I#istate.active_name,
           LineNo,
           Name,
-          lists:flatten([[M, " "] || M <- MacroVars])]),
+          lists:flatten(string:join(MacroVars, " "))]),
 
     BeforeI = I#istate{macro_vars = MacroVars, latest_cmd = InvokeCmd},
     DefaultFun = get_eval_fun(),
-    AfterI = eval_body(BeforeI, LineNo, FirstLineNo,
-                       LastLineNo, File, Body, MacroCmd, DefaultFun, false),
+    AfterI = eval_body(BeforeI, LineNo, FirstLineNo, LastLineNo,
+                       MacroFile, Body, MacroCmd, DefaultFun, false),
 
     AfterI#istate{macro_vars = OldMacroVars};
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
