@@ -1,10 +1,10 @@
 Command line options
 ====================
 
-By default Lux is executing test suites and most of the command line
-options affects that execution in different ways. There are however a
-few auxiliary options that can be used to make Lux perform other
-tasks.
+Normal execution mode for Lux is to execute test suites and most of
+the command line options affects the execution in different ways.
+There are however a few auxiliary options that can be used to make
+Lux perform other tasks.
 
 * --help
 * --version
@@ -39,10 +39,14 @@ Release management
     lux --markdown
 
 **--help**  
-Displays help info about lux.
+Displays a brief list of all command line arguments, as well as a URL
+to the full documentation.
+
+**-h**  
+A shortcut for `--help`.
 
 **--version**  
-Prints out the actual lux version
+Prints out the actual Lux version
 
 **--reltool**  
 Starts the graphical tool [Reltool][] which enables inspection of
@@ -50,30 +54,30 @@ internal Lux application dependencies. It is disabled in the
 standalone installation.
 
 **--xref**  
-Perform cross reference checks of Lux itsel in order to find calls to
+Perform cross reference checks of Lux itself in order to find calls to
 undefined functions.
 
 **--install \[InstallDir\]**  
-See [installation](#../INSTALL). Installs the application as a
-standalone application on the `InstallDir` directory. `InstallDir`
+See [installation](#../INSTALL). Installs the Lux application as a
+standalone application in the `InstallDir` directory. `InstallDir`
 must exist. If `InstallDir` is omitted only a dry run is performed. A
-standalone installation is an installation that is self-contained and
-contains a minimal Erlang runtime system. It is however not neccessary
-to install Lux as standalone. If Erlang already is installed on the
-system, Lux can make use of that runtime environment.
+standalone installation is self-contained and contains a minimal
+Erlang runtime system. It is however not neccessary to install Lux as
+standalone. If Erlang already is installed on the system, Lux can make
+use of that runtime environment. But sometimes it is useful to avoid
+that dependency.
     
 **--root\_dir `RootDir`**  
 Directs [Reltool][] to use an alternate Erlang root directory instead
-of the one that Lux currently executes. Affects `--install` and
-`--reltool`.
+of the one currently being used. Affects `--install` and `--reltool`.
 
 **--make**  
-Simplified build that only relies on an installed Erlang/OTP system.
-To be used with care on obscure platforms. See
+Performs a simplified build only relying on a pre-installed Erlang/OTP
+system. To be used with care on obscure platforms. See
 [installation](#../INSTALL).
     
 **--markdown**  
-Generates documentation for the debugger on [Markdown][] format.
+Generates documentation for the Lux debugger on [Markdown][] format.
 This is used internally by doc/Makefile.
     
 Log management
@@ -83,15 +87,15 @@ Log management
     lux --history LogDir
 
 **--annotate LogFile**  
-Transforms textual log files into HTML format and annotates Lux
-scripts code with log events. The generated HTML file will get the
-same name as `LogFile` but with a `.html` extension added. See also
-the [configuration parameter](#config_params) `--html`.
+Transforms textual log files into HTML format and annotates Lux script
+code with log events. The generated HTML file will get the same name
+as `LogFile` but with a `.html` extension added. See also the
+[configuration parameter](#config_params) `--html`.
 
 **--history LogDir**  
 Generates an HTML file which summarizes the history of all test runs,
 by analyzing the `lux_summary.log` files located under `LogDir`. All
-sub directories that not have a `lux.skip` file will be searched. The
+sub directories not containing a `lux.skip` file will be searched. The
 file will be generated on the `LogDir` directory and is called
 `lux_history.html`. Its behavior can be customized by using the
 `--suite`, `--run`, `--revision` and `--hostname`

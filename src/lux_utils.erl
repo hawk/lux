@@ -11,7 +11,7 @@
          multiply/2, drop_prefix/1, drop_prefix/2, normalize/1,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
          normalize_newlines/1, expand_lines/1,
-         to_string/1, tag_prefix/2,
+         to_string/1, capitalize/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
          pretty_full_lineno/1, pretty_filename/1, filename_split/1, dequote/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
@@ -248,6 +248,11 @@ to_string([H | T]) ->
     to_string(H) ++ to_string(T);
 to_string([]) ->
     [].
+
+capitalize([H | T]) ->
+    [string:to_upper(H) | T];
+capitalize([] = L) ->
+    L.
 
 dequote(" expect " ++ _ = L) ->
     re:replace(L, <<"\\\\\\\\R">>, <<"\n    ">>, [global, {return, list}]);

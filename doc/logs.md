@@ -2,13 +2,13 @@ Logs
 ====
 
 Lux will create a new directory for each test run. By default the log
-files are generated under `./lux_logs/run_yyyy_mm_dd_hh_mm_ss` where
-`run_yyyy_mm_dd_hh_mm_ss` is a unique directory name generated from
-the current time. A symbolic link called `./lux_logs/latest_run` will
-also be created. It refers to the newly created log directory for the
-latest run. If the [configuration parameter](#config_params)
-`--log_dir LogDir` is set, the given path will be used instead and no
-symbolic link will be created.
+files are generated under `./lux_logs/run_yyyy_mm_dd_hh_mm_ss_mmmmmm`
+where `run_yyyy_mm_dd_hh_mm_ss_mmmmmm` is a unique directory name
+generated from the current time. A symbolic link called
+`./lux_logs/latest_run` will also be created. It refers to the newly
+created log directory for the latest run. If the [configuration
+parameter](#config_params) `--log_dir LogDir` is set, the given path
+will be used instead and no symbolic link will be created.
 
 Each test run will result in the following log files:
 

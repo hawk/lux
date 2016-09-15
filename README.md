@@ -57,7 +57,7 @@ starts couple of concurrent shells and sends text to them with the
 >     [shell single]
 >         ?^foo
 >
->     # Cleanup is always executed, regardless of the script succeeds or fails
+>     # Cleanup is always executed, regardless if the script succeeds or fails
 >     [cleanup]
 >         # Match of command exit status. Observe the double dollar sign.
 >         !rm -f $file

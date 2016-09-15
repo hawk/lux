@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.14.2 - 2016-08-09
+Version 1.14.2.1 - 2016-09-20
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -76,7 +76,7 @@ starts couple of concurrent shells and sends text to them with the
 >     [shell single]
 >         ?^foo
 >
->     # Cleanup is always executed, regardless of the script succeeds or fails
+>     # Cleanup is always executed, regardless if the script succeeds or fails
 >     [cleanup]
 >         # Match of command exit status. Observe the double dollar sign.
 >         !rm -f $file
@@ -131,14 +131,15 @@ A Lux script may succeed or fail, meaning that the system under
 test is either conforming to or diverging from the expected
 behavior. A Lux script may also end with an **error**, if the
 Lux engine encountered some problem, and could not determine
-whether the system under test conforms or not.
+whether the system under test conforms or not. A syntax error in
+the Lux script is an error, not a failure.
 
 A Lux script consists of a sequence of instructions, mostly `send`
 and `expect` operations, read in sequence from top to bottom. The test
 case **succeed**s if all statements in the script are executed (or if an
 optional success criteria matched). The test case **fail**s if there
-is a `expect` operation that does not match within a given time (or if
-an optional failure criteria matches).
+is an `expect` operation not matching within a given time (or if an
+optional failure criteria matches).
 
 Each test case should not depend on other test cases being executed
 before (for example preparing something) or after (to clean up).
@@ -178,8 +179,8 @@ as numbered variables: `[local foo=the vals are $1 and $2]` which will
 assign the variable `foo` to the value "`the vals are abc and def`".
 As in any language [regular expression][]s contains keywords. If the
 output of a shell contains such a keyword and we want to match that,
-the keyword must be escaped. Example of such keywords are any of
-the characters `^$.?+*()[]{}|`.
+the keyword must be escaped with a backslash. Example of such keywords
+are any of the characters `^$.?+*()[]{}|`.
 
 The variable substitution mechanism makes it also possible to reuse
 (parts of) generic scripts in several test cases. The (main) script
@@ -199,9 +200,8 @@ character on each line determines how it will be processed. Lines
 beginning with a `#` are comments. It is recommended to use
 indentation and comments to make the scripts more readable. The **Lux
 mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is quite useful as it
-simplifies the indentation and makes scripts more easy to read as it
-provides different coloring for different types of language
-constructs.
+simplifies the indentation and makes scripts more easy to read with
+coloring for different types of language constructs.
 
 Lines beginning with `"""Char` are **multi line quotes**. The quote
 ends with the next line beginning with `"""`. The opening quote and
@@ -242,22 +242,22 @@ Same as `!String`, but it does NOT add a `LF` at the end.
 **?**  
 Flush the output streams (`stdout`, `stderr`). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
-useful than it is. It causes often unexpected race patterns.
+useful than it is. It often causes unexpected race patterns.
 
 **?Regexp**  
 An `expect` operation which waits for a string matching a [regular
 expression][] to appear on the shell output (either `stdout` or
 `stderr`). If no matching output does appear within the timeout
 period, the test case is considered as failed. See the `--timeout`
-option.See also the `--flush_timeout` and `--poll_timeout`
+option. See also the `--flush_timeout` and `--poll_timeout`
 configuration parameters about customizing the `?` behavior.
 
 **??Template**  
-Like `?Regexp`, but more restricted as all regular expression
+Like `?Regexp`, but is more restricted as all regular expression
 keywords are ignored. Variables are still substituted.
 
 **???Verbatim**  
-Like `??Template`, but more restricted as no variables are substituted.
+Like `??Template`, but is more restricted as no variables are substituted.
 That is the string is matched as is.
 
 **?+Regexp**  
@@ -280,7 +280,8 @@ specified with `?).
     ?C
 
 will render matching of all permutatations of A, B and C. Note
-the usage of `?`. `?+` is always used together with `?`.
+the usage of `?`. `?+` is always used together with `?`. It is
+`?` which triggers the evaluation.
 
 **-**  
 **-Regexp**  
@@ -288,8 +289,8 @@ Sets a failure pattern to a regular expression (see [regular
 expression][]). It is typically used to match error messages. If the
 given `Regexp` ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
-cleanup). If no `Regexp` is given, the old failure pattern is reset
-(cleared).
+the `cleanup`). If no `Regexp` is given, the old failure pattern is
+reset (cleared).
 
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
@@ -302,8 +303,8 @@ produces new output.
 Sets a success pattern to a regular expression (see [regular
 expression][]). If the given `Regexp` ever matches, the test case is
 considered a success (no further processing of the script will be
-performed besides cleanup). If no `Regexp` is given, the old success
-pattern is reset (cleared).
+performed besides the `cleanup`). If no `Regexp` is given, the old
+success pattern is reset (cleared).
 
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
@@ -314,11 +315,12 @@ produces new output.
 **@**  
 **@Regexp**  
 Sets a loop break pattern to a regular expression (see [regular
-expression][]). This statement is only valid in loops. It is
-typically used to match output from a poll command. When the given
-`Regexp` matches, the loop is immediately exited. The test case fails
-if the loop is exited before the break pattern is matched. If no
-`Regexp` is given, the break failure pattern is reset (cleared).
+expression][]). This statement is only valid in loops. It is typically
+used to match output from a poll like command. When the given `Regexp`
+matches, the loop is immediately exited. The execution continues with
+the first statement after the loop. The test case fails if the loop is
+exited before the break pattern is matched. If no `Regexp` is given,
+the break failure pattern is reset (cleared).
 
 **\[endshell\]**  
 **\[endshell Regexp\]**
@@ -337,7 +339,8 @@ on the same line with a `]`.
 **\[shell Name\]**  
 Switches to the named shell, to make it active. In case there is no
 such shell started yet, a new shell named `Name` is created.  If
-`Name` is missing, the active shell is deactivated.
+`Name` is missing, the active shell is deactivated. This implies
+no shell to be activated.
 
 By default a `/bin/sh` shell (Bourne shell) is started. See
 the `--shell_wrapper`, `--shell_cmd` and `--shell_arg` configuration
@@ -345,8 +348,8 @@ parameters. The current working directory of a newly started shell is
 the same as the dirname of the script file. The **environment
 variable** `LUX_SHELLNAME` is set to `Name`. The shell prompt variable
 `PS1` is set to `SH-PROMPT:` and the first printout of the prompt is
-automatically matched in a expect manner in order to ensure that the
-shell is ready for input. The `Name` may contain variables. Shell
+automatically matched in an expect like manner in order to ensure that
+the shell is ready for input. The `Name` may contain variables. Shell
 names beginning with `lux` and `cleanup` are reserved for internal
 purposes. The **environment variable** `LUX_START_REASON` is
 initially set to `normal`. See also `[cleanup]`.
@@ -372,14 +375,14 @@ the topmost level the automatically started shell will be called
 `cleanup`, on the next level it is called `cleanup2`, on next level
 `cleanup3` etc.
 
-The **environment* variable** `LUX_START_REASON` is set to `normal`
+The **environment variable** `LUX_START_REASON` is set to `normal`
 in most shells, but if the cleanup is run due to premature failure or
 premature success it will be set to `fail` or `success` respectively.
 This can for example be used if you want to save the contents of
 error logs, core dumps etc. in case of failure. Textual logs can
 simply be written to `stdout` in order to be easily accessible in
 the post mortem analyzis. For the purpose of saving binary files
-the **environment* variable** `LUX_EXTRA_LOGS` may be used. It
+the **environment variable** `LUX_EXTRA_LOGS` may be used. It
 refers to a log directory name unique for each test case. The
 directory is however not automatically created. It must be created
 by you in the test script if you want to use it. If you have created
@@ -396,18 +399,18 @@ evaluated in order to clean up unwanted side effects. Variables in
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
   ...  
 **\[endmacro\]**  
-Declare a macro. The body of the macro consists of all lines up to
-the next `[endmacro]` line. The scope of the arguments are local
-within the macro. The arguments can be accessed via their names as
-normal variables, such as `$ArgName1`. `[my Var=Value]` can be used to
-assign temporary variables that only are valid within the macro. If a
-macro switches to another shell it is good practice to switch back to
-the calling shell before the end of the macro. One way of doing this
-is to get the name of the active shell from the **environment variable**
+Declare a macro. The body of the macro consists of all lines up to the
+next `[endmacro]` line. The scope of the arguments are local within
+the macro. The arguments can be accessed via their names as normal
+variables, such as `$ArgName1`. `[my Var=Value]` can be used to assign
+temporary variables only valid within the macro. If a macro switches
+to another shell it is good practice to switch back to the calling
+shell before the end of the macro. One way of doing this is to get the
+name of the active shell from the **environment variable**
 `LUX_SHELLNAME` with `[my old=$LUX_SHELLNAME]` and later switch back
 to the shell with `[shell $old]`. If the macro file contains a
-`[cleanup]` marker, the statements after that will be evaluated in order
-to clean up unwanted side effects.
+`[cleanup]` marker, the statements after that will be evaluated in
+order to clean up unwanted side effects.
 
 **\[invoke MacroName ArgVal1 ArgVal ...\]**  
 Invoke a macro. The arguments are separated with spaces. Arguments
@@ -421,19 +424,18 @@ Declare a loop. The body of the loop consists of all lines up to the
 next `[endloop]` line. The commands within the loop are repeated for
 each item. For each iteration the loop variable `Var` is set to the
 value of the current `Item`. The scope of the loop variable is the
-same as a macro variable (defined with my). The `Item list` may
-contain variables and these are expanded before the first
-iteration. Items in the expanded list are separated with spaces. For
-example `[loop colors blue red green]`. When iterating over a set of
+same as a macro variable (defined with `my`). The `Item` list may
+contain variables and these are expanded before the first iteration.
+Items in the expanded list are separated with spaces. For example
+`[loop colors blue red green]`. When iterating over a set of
 consecutive integers, such as `[loop iter 4 5 6 7 8 9]`, this can be
 written as a range expression, like `[loop iter 4..9]`. In the logs
 the iteration counter is represented as a negative line number. For
 example "8:-2:10" would mean line 10 in the second loop iteration
 where the loop starts at line 8. By default the increment is 1. A
 custom increment can also be set with the construct `from..to..incr`,
-such as `[loop iter 4..9..2]`. This would be the same as
-`[loop iter 4 6 8]`. `[loop iter 9..4..2]`  would be the same as
-`[loop iter 9 7 5]`.
+such as `[loop iter 4..9..2]`. This would be the same as `[loop iter 4
+6 8]`. `[loop iter 9..4..2]` would be the same as `[loop iter 9 7 5]`.
 
 ###Variables###
 
@@ -451,13 +453,14 @@ read. In order to read a variable like `$?` it must be written as
 
 **\[global Var=Value\]**  
 assigns a value to a global variable. Works like `[local]`, but the
-variable setting is propagated to all shells. Global variables
-may be set before any shell has been started.
+variable setting is propagated to all shells. Global variables may be
+set before even if no shell is active.
 
 **\[my Var=Value\]**  
-assigns a value to a macro variable. Works like `[global]`, but can
-only be set and used in a macro. The variable setting is only valid
-within the macro that assigns the variable.
+assigns a value to a variable with a very limited scope. Works like
+`[global]`, but can only be set and used in a macro or loop. The
+variable setting is only valid within the macro that assigns the
+variable.
 
 ###Builtin variables###
 
@@ -477,34 +480,42 @@ within the macro that assigns the variable.
     LUX_START_REASON - reason for starting a shell (normal|fail|success)
     PS1              - shell prompt variable set by Lux
 
-###Miscellaneous statements##d##
+###Miscellaneous statements###
 
 **\[doc String\]**  
 **\[docN String\]**  
-A test case slogan that will be displayed in the summary log. It
-is also possible to document parts of a test case by specifying a
-documentation level `N`. In that case the doc statement should look
-like `[docN String]` where `N` is a integer. `doc2` would mean
-that the documentation is on level 2. Doc strings can be extracted
-from the scripts with the `--mode=doc` command line option.
+A test case slogan displayed in the summary log. It is also possible
+to document parts of a test case by specifying a documentation level
+`N`. In that case the doc statement should look like `[docN String]`
+where `N` is a integer. `doc2` would mean that the documentation is on
+level 2. Doc strings can be extracted from the scripts and written to
+stdout with the`--mode=doc` command line option. It gives a quick
+overview of the test cases and can be seen as a poor mans test spec.
 
+**\[timeout\]**  
 **\[timeout Seconds\]**  
-sets the timeout for the current shell to the given number of
-seconds multiplied with a configurated factor. By default the
-multiplier is `1000`. For example, by setting the `--multiplier`
-parameter to `2000` all timeouts will be doubled. The resulting
-timeout value affects how long time `expect` operations will wait
-before reporting failure. If time is not specified `[timeout]`, it
-is reset to default the timeout specified with the `--timeout`
-configuration parameter. The timeout value `infinity` means infinity.
+The script expects the shell output to match given
+[regular expression][]s. But the output must be received within a
+given time limit. The `timeout` command sets the timeout for the
+current shell to the given number of seconds multiplied with a
+configurated factor. By default the multiplier is `1000`. For example,
+by setting the `--multiplier` parameter to `2000` all timeouts will be
+doubled. The resulting timeout value affects how long time `expect`
+operations will wait before reporting failure. If the time is omitted
+like `[timeout]`, the timeout is reset to the default timeout
+specified with the `--timeout` configuration parameter. The timeout
+value `infinity` means infinity.
 
 **\[sleep Seconds\]**  
 waits given number of seconds before proceeding in the script. No
-`multiplier` factor is applied.
+`multiplier` factor is applied. The `sleep` command should be avoided
+if possible. It absolutely not intended to be used for solving race
+conditions. Find out some way to synchronize the test case properly
+instead.
 
 **\[progress String\]**  
 Displays `String` on the `stdout` stream together with the rest of the
-progress info.
+progress info. May contain newlines.
 
 **\[config Var=Value\]**  
 assigns a value to a [configuration parameter](#config_params). The
@@ -524,10 +535,10 @@ architecture specific files.
 Command line options
 ====================
 
-By default Lux is executing test suites and most of the command line
-options affects that execution in different ways. There are however a
-few auxiliary options that can be used to make Lux perform other
-tasks.
+Normal execution mode for Lux is to execute test suites and most of
+the command line options affects the execution in different ways.
+There are however a few auxiliary options that can be used to make
+Lux perform other tasks.
 
 * --help
 * --version
@@ -562,10 +573,14 @@ Release management
     lux --markdown
 
 **--help**  
-Displays help info about lux.
+Displays a brief list of all command line arguments, as well as a URL
+to the full documentation.
+
+**-h**  
+A shortcut for `--help`.
 
 **--version**  
-Prints out the actual lux version
+Prints out the actual Lux version
 
 **--reltool**  
 Starts the graphical tool [Reltool][] which enables inspection of
@@ -573,30 +588,30 @@ internal Lux application dependencies. It is disabled in the
 standalone installation.
 
 **--xref**  
-Perform cross reference checks of Lux itsel in order to find calls to
+Perform cross reference checks of Lux itself in order to find calls to
 undefined functions.
 
 **--install \[InstallDir\]**  
-See [installation](#../INSTALL). Installs the application as a
-standalone application on the `InstallDir` directory. `InstallDir`
+See [installation](#../INSTALL). Installs the Lux application as a
+standalone application in the `InstallDir` directory. `InstallDir`
 must exist. If `InstallDir` is omitted only a dry run is performed. A
-standalone installation is an installation that is self-contained and
-contains a minimal Erlang runtime system. It is however not neccessary
-to install Lux as standalone. If Erlang already is installed on the
-system, Lux can make use of that runtime environment.
+standalone installation is self-contained and contains a minimal
+Erlang runtime system. It is however not neccessary to install Lux as
+standalone. If Erlang already is installed on the system, Lux can make
+use of that runtime environment. But sometimes it is useful to avoid
+that dependency.
     
 **--root\_dir `RootDir`**  
 Directs [Reltool][] to use an alternate Erlang root directory instead
-of the one that Lux currently executes. Affects `--install` and
-`--reltool`.
+of the one currently being used. Affects `--install` and `--reltool`.
 
 **--make**  
-Simplified build that only relies on an installed Erlang/OTP system.
-To be used with care on obscure platforms. See
+Performs a simplified build only relying on a pre-installed Erlang/OTP
+system. To be used with care on obscure platforms. See
 [installation](#../INSTALL).
     
 **--markdown**  
-Generates documentation for the debugger on [Markdown][] format.
+Generates documentation for the Lux debugger on [Markdown][] format.
 This is used internally by doc/Makefile.
     
 Log management
@@ -606,15 +621,15 @@ Log management
     lux --history LogDir
 
 **--annotate LogFile**  
-Transforms textual log files into HTML format and annotates Lux
-scripts code with log events. The generated HTML file will get the
-same name as `LogFile` but with a `.html` extension added. See also
-the [configuration parameter](#config_params) `--html`.
+Transforms textual log files into HTML format and annotates Lux script
+code with log events. The generated HTML file will get the same name
+as `LogFile` but with a `.html` extension added. See also the
+[configuration parameter](#config_params) `--html`.
 
 **--history LogDir**  
 Generates an HTML file which summarizes the history of all test runs,
 by analyzing the `lux_summary.log` files located under `LogDir`. All
-sub directories that not have a `lux.skip` file will be searched. The
+sub directories not containing a `lux.skip` file will be searched. The
 file will be generated on the `LogDir` directory and is called
 `lux_history.html`. Its behavior can be customized by using the
 `--suite`, `--run`, `--revision` and `--hostname`
@@ -633,17 +648,19 @@ Configuration parameters can be given as command line options, as
 specific file**.
 
 An `architecture specific file` is a file with configuration
-statements that only are valid for a certain
-architecture/platform/system. The format of such a file is a subset of
-a normal Lux script. Only configuration settings (`[config Var=Value]`).
-See also the configuration parameters `--config_name` and `--config_dir`.
+statements only valid for a certain architecture/platform/system.
+The syntax of such a file is the same a normal Lux script, but only
+configuration settings (`[config Var=Value]`) are extracted. See
+also the configuration parameters `--config_name` and `--config_dir`.
+The file extension is `.luxcfg`.
 
 When a test suite (one or more test cases) is to be evaluated, the Lux
 engine will determine the software/hardware signature of the system to
-construct the name of a architecture specifiv file. If such a file
-exists, its configuration settings will be extracted and used as base
-for the entire test suite. These settings can however be overridden by
-command line options and configuration settings in each test case.
+construct the name of a architecture specific file. If a file with
+that name exists, the architecture specific configuration settings
+will be extracted and used as base for the entire test suite. These
+settings can however be overridden by command line options and
+`[config var=val]` statements in each test case file.
 
 The Lux engine evaluates one or more Lux files. Lux files has normally
 `.lux` as extension. See the configuration parameter `--file_pattern`.
@@ -706,7 +723,7 @@ Normally Lux figures out which system software/hardware it runs on,
 but it can explicitly be overridden with the `ConfigName` option. The
 `ConfigName` is used to read system architecture specific configuration
 parameters from a file named `ConfigName.luxcfg`. By default `ConfigName`
-is obtained from `uname -sm` where `ConfigName is set to `Kernel-Machine`.
+ is obtained from `uname -sm` where `ConfigName` is set to `Kernel-Machine`.
 This behavior can be overridden by adding a file named after the name of
 the host (`hostname.luxcfg`) on the `ConfigDir` directory. 
 
@@ -721,7 +738,7 @@ command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
 
 **--hostname Hostname**  
-The `Hostname`overrides the hostname obtained from the operating
+The `Hostname` overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
 equivalent slaves.
@@ -755,14 +772,14 @@ Forces Lux to not care about `--skip` and `--skip_unless` settings.
 
 **--require Var**  
 **--require Var=Value**  
-Require that the given variable is set. The script will fail if
+Require the given variable to be set. The script will fail if
 the variable not is set. This option can be used multiple times,
 which means that all given Vars are required to be set.
 Typically require is used to test on presence of environment
 variables. `--require` is intended to be used as `[config require=Var]`
 or `[config require=Var=Value]` statements within scripts. The
 construction **Var=Value** is little more restrictive as it
-requires that the variable is set to a certain value.
+requires the variable to be set to a certain value.
 
 Log control
 -----------
@@ -772,7 +789,7 @@ A directory where log files will be written. Default is `./lux_logs`.
 
 **--html Html**  
 The `Html` option controls whether the logs should be converted to
-HTML or not. It is an enum that denotes the outcome of the tests.
+HTML or not. It is an enum denoting the outcome of the tests.
 If the actual outcome is the same or higher than `Html` then the
 logs will be converted. The possible outcome and their relative
 values are as follows:
@@ -835,6 +852,7 @@ value in the unit of milli seconds or `infinity`. The default
 is `300000` (5 minutes).
 
 **--flush\_timeout FlushTimeout**  
+An experimental timeout setting.
 All output from a shell is buffered and matched against
 [regular expression][]s. It can however explicitly be flushed by
 the script. When this is done, the engine first waits a while
@@ -843,6 +861,7 @@ by `FlushTimeout`. It defaults to `0`. If you want to experiment
 with it, `1000` milli seconds (1 second) can be a resonable value.
 
 **--poll\_timeout PollTimeout**  
+An experimental timeout setting.
 When the Lux engine receives output from a shell it will
 wait in `PollTimeout` milli seconds for more output before it
 tries to match it against any [regular expression][]s. It defaults
@@ -884,6 +903,8 @@ runs are distributed over multiple equivalent slaves. See the
 **--html validate**
 Performs validation of the generated HTML files.
 
+<a name="debugging"/>
+
 Debugging and tracing
 ---------------------
 
@@ -903,12 +924,9 @@ printed. The `brief` characters have the following meanings:
        c - the normal cleanup marker
        C - the cleanup marker during premature termination
        z - is printed out each second while sleeping
-       ( - beginning of a macro or an include file
-       ) - end of a macro or an include file
-       ? - waiting for shell output. Can be preceded with lineno of potential error.
-
-In addition to these characters, line number are printed when there is
-a failure or a potential failure.
+       ( - beginning of a macro, loop or an include file
+       ) - end of a macro, loop or an include file
+       ? - waiting for shell output. Preceded with lineno.
 
 `[progress String]` can also be used to display progress info.
 
@@ -933,6 +951,9 @@ debugger to the script and pauses its execution. The command
 and `verbose`. Use the debugger command `help` to get more info about
 the available commands. See also the section [debugging and tracing](#debugging).
 
+**-d**  
+A shortcut for `--debug`.
+
 **--debug\_file SavedFile**  
 Loads the commands in the `SavedFile` before the first line in the
 script is executed. See the debugger command `save` and `load` for
@@ -945,7 +966,6 @@ Miscellaneous
 
 **--shell\_cmd Cmd**  
 **--shell\_args Arg**  
-
 These parameters controls which program that will be started when a
 script starts a shell. By default **`/bin/sh -i`** is started as
 `--shell_cmd` and `--shell_args` defaults to `/bin/sh` and `-i`
@@ -954,29 +974,27 @@ is treated by Lux.
 
 **--shell\_prompt\_cmd PromptCmd**  
 **--shell\_prompt\_regexp PromptRegExp**  
-
 When Lux starts a shell the prompt is set to **`SH-PROMPT:`** by
 default. In Bourne shell, which is the default shell, the variable
 `PS1` is used to set the prompt. This is obtained by using the command
 `export PS1=SH-PROMPT:` followed by an explicit match of the prompt
 using the regexp `^SH-PROMPT:`. This behavior can be overridden by
-using `--shell_prompt_cmd` and `--shell_prompt_regex` respectively
+using `--shell_prompt_cmd` and `--shell_prompt_regexp` respectively
 when using more exotic shells.
 
+**--shell\_wrapper**  
 **--shell\_wrapper \[Executable\]**  
-
 In order to get the terminal settings to work properly in advanced
 interactive cases such as tab completion etc., the shell needs to be
-executed in a **pseudo terminal**. This can be accomplished by using a
-wrapper program that sets up the terminal correctly. The wrapper
-program takes the name of the shell program with arguments (by default
-`/bin/sh -i`) as argument and is expected to first configure the
+executed in a **pseudo terminal**. This is accomplished by using a
+wrapper program setting up the terminal correctly. The arguments to
+the wrapper program is the name of the shell program with its
+arguments (for example `/bin/sh -i`, see also see `--shell_cmd` and
+`--shell_args`). The wrapper is expected to first configure the
 terminal and then start the shell.
 
-The `lux/priv/runpty` is an `Executable` that handles such terminal
-settings and it will be used by default (if it has been built
-properly). It is however possible to use a custom wrapper program by
-using the `--shell_wrapper` parameter.
+The builtin executable `lux/priv/runpty` will be used by default as
+shell wrapper (if it has been built properly).
 
 It is also possible to use no shell wrapper at all by omitting the
 `Executable` value (or simply set it to the empty string "").
@@ -990,13 +1008,13 @@ Logs
 ====
 
 Lux will create a new directory for each test run. By default the log
-files are generated under `./lux_logs/run_yyyy_mm_dd_hh_mm_ss` where
-`run_yyyy_mm_dd_hh_mm_ss` is a unique directory name generated from
-the current time. A symbolic link called `./lux_logs/latest_run` will
-also be created. It refers to the newly created log directory for the
-latest run. If the [configuration parameter](#config_params)
-`--log_dir LogDir` is set, the given path will be used instead and no
-symbolic link will be created.
+files are generated under `./lux_logs/run_yyyy_mm_dd_hh_mm_ss_mmmmmm`
+where `run_yyyy_mm_dd_hh_mm_ss_mmmmmm` is a unique directory name
+generated from the current time. A symbolic link called
+`./lux_logs/latest_run` will also be created. It refers to the newly
+created log directory for the latest run. If the [configuration
+parameter](#config_params) `--log_dir LogDir` is set, the given path
+will be used instead and no symbolic link will be created.
 
 Each test run will result in the following log files:
 
@@ -1051,7 +1069,8 @@ Blank command lines implies that the previous command is repeated.
 If no command has been entered yet, the command `help` is assumed.
 
 Commands may be abbreviated. Use the help command (for example
-`help help` to get more detailed descriptions of the commands.
+`help help` (or `h h` for short) to get more detailed descriptions
+of the commands.
 
 
 Available commands: 
@@ -1063,11 +1082,11 @@ Available commands:
 * tail     - display log files
 * list     - list script source
 * load     - load file with debug commands
-* next     - execute next command. A multiline command counts as one command.
+* next     - execute next command. A multi-line command counts as one command.
 * progress - set verbosity level of progress
-* quit     - exit lux in a controlled manner. Runs cleanup if applicable. 
+* quit     - quit a single test case or the entire test suite in a controlled manner. Runs cleanup if applicable.
 * save     - save debug state to file
-* skip     - skip execution of one or more commands. A multiline command counts as one command.
+* skip     - skip execution of one or more commands. A multi-line command counts as one command.
 
 
 lineno parameter
@@ -1101,23 +1120,24 @@ Here are a few examples of how lineno can be used:
 attach
 ------
 
-attach to script and pause its execution
+Attach to script and pause its execution
 
 **Parameters:**  
 
 * no parameters
 
 
-break [lineno] [duration]
--------------------------
+break \[lineno\] \[duration\]
+-----------------------------
 
-set, delete and list breakpoints
+Set, delete and list breakpoints
 
 When a breakpoint is set it may either be normal (default)
 or temporary. The difference between them is that normal
-breakpoints remains after break while temporary breakpoints
-are automatically deleted when they have been used once.
-delete means that the breakpoint immediately is removed.
+breakpoints remains after the break has been triggered,
+while temporary breakpoints are automatically deleted when
+they have been triggered once. delete is used to immediately
+remove the breakpoint.
 
 Without parameters, all breakpoints are listed.
 
@@ -1127,28 +1147,97 @@ Without parameters, all breakpoints are listed.
 * lineno   - lineno in source file; lineno  
 * duration - controls the duration of the breakpoint; enum(normal|temporary|delete)  
 
-continue [lineno]
------------------
+continue \[lineno\]
+-------------------
 
-continue script execution
+Continue script execution
 
 **Parameters:**  
 
 * lineno - run to temporary breakpoint at lineno; lineno  
 
-help [command]
---------------
+help \[command\]
+----------------
 
-display description of a command
+Display description of a command
 
 **Parameters:**  
 
 * command - debugger command; string  
 
-tail [index] [format] [n_lines]
--------------------------------
+list \[n_lines\] \[lineno\]
+---------------------------
 
-display log files
+List script source
+
+If no "lineno" is given, the listing will start from the
+current line or from the latest given "lineno" if no other
+commands have been given in between.
+
+**Parameters:**  
+
+* n_lines - number of lines; 1 >= integer =< infinity  
+* lineno  - start listing at lineno; lineno  
+
+load \[file\]
+-------------
+
+Load file with debug commands
+
+**Parameters:**  
+
+* file - file name. Default is "./lux.debug".; string  
+
+next
+----
+
+Execute next command. A multi-line command counts as one command.
+
+**Parameters:**  
+
+* no parameters
+
+
+progress \[level\]
+------------------
+
+Set verbosity level of progress
+
+**Parameters:**  
+
+* level - verbosity level. Toggle between brief and verbose by default.; enum(silent|summary|brief|doc|compact|verbose)  
+
+quit \[scope\]
+--------------
+
+Quit a single test case or the entire test suite in a controlled manner. Runs cleanup if applicable.
+
+**Parameters:**  
+
+* scope - scope of exit; enum(case|suite)  
+
+save \[file\]
+-------------
+
+Save debug state to file
+
+**Parameters:**  
+
+* file - file name. Default is "lux.debug".; string  
+
+skip \[n_commands\]
+-------------------
+
+Skip execution of one or more commands. A multi-line command counts as one command.
+
+**Parameters:**  
+
+* n_commands - number of commands; 1 >= integer =< infinity  
+
+tail \[index\] \[format\] \[n_lines\]
+-------------------------------------
+
+Display log files
 
 With no argument, the names of the log files will be listed.
 Each one is preceeded by its index number and optionally a
@@ -1164,75 +1253,6 @@ of the command is repeated or not.
 * index   - log number; 1 >= integer =< infinity  
 * format  - display format; enum(compact|verbose)  
 * n_lines - fixed number of lines; 1 >= integer =< infinity  
-
-list [n_lines] [lineno]
------------------------
-
-list script source
-
-If no "lineno" is given, the listing will start from the
-current line or from the latest given "lineno" if no other
-commands have been given in between.
-
-**Parameters:**  
-
-* n_lines - number of lines; 1 >= integer =< infinity  
-* lineno  - start listing at lineno; lineno  
-
-load [file]
------------
-
-load file with debug commands
-
-**Parameters:**  
-
-* file - file name. Default is "lux.debug".; string  
-
-next
-----
-
-execute next command. A multiline command counts as one command.
-
-**Parameters:**  
-
-* no parameters
-
-
-progress [level]
-----------------
-
-set verbosity level of progress
-
-**Parameters:**  
-
-* level - verbosity level. Toggle between brief and verbose by default.; enum(silent|summary|brief|doc|compact|verbose)  
-
-quit [scope]
-------------
-
-exit lux in a controlled manner. Runs cleanup if applicable. 
-
-**Parameters:**  
-
-* scope - quit a single test case or the entire test suite.; enum(case|suite)  
-
-save [file]
------------
-
-save debug state to file
-
-**Parameters:**  
-
-* file - file name. Default is "lux.debug".; string  
-
-skip [n_commands]
------------------
-
-skip execution of one or more commands. A multiline command counts as one command.
-
-**Parameters:**  
-
-* n_commands - number of commands; 1 >= integer =< infinity  
 
 <a name="examples"/>
 
@@ -1332,18 +1352,18 @@ Simply do
 
 >     cd doc
 >     make
->     firefox ../lux.html
+>     open ../lux.html
 <a name="../AUTHORS"/>
 
 Original author:
 
-* H&aring;kan Mattsson
+* Håkan Mattsson
 
 Contributors:
 
 * Jan Lindblad (implemented a predecessor to Lux, called Qmscript, as a Python plugin to QMTest)
 * Sebastian Strollo (runpty)
-* Martin Bj&ouml;rklund (Emacs mode)
+* Martin Björklund (Emacs mode)
 <a name="references"/>
 
 References

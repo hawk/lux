@@ -312,9 +312,10 @@ cmds() ->
                 help = "set, delete and list breakpoints\n\n"
                 "When a breakpoint is set it may either be normal (default)\n"
                 "or temporary. The difference between them is that normal\n"
-                "breakpoints remains after break while temporary breakpoints\n"
-                "are automatically deleted when they have been used once.\n"
-                "delete means that the breakpoint immediately is removed.\n\n"
+                "breakpoints remains after the break has been triggered,\n"
+                "while temporary breakpoints are automatically deleted when\n"
+                "they have been triggered once. delete is used to immediately\n"
+                "remove the breakpoint.\n\n"
                 "Without parameters, all breakpoints are listed.\n",
                 callback = fun cmd_break/3},
      #debug_cmd{name = "continue",
@@ -375,13 +376,13 @@ cmds() ->
                                        type = string,
                                        presence = optional,
                                        help = "file name. Default is "
-                                       "\"lux.debug\"."}],
+                                       "\"./lux.debug\"."}],
                 help = "load file with debug commands",
                 callback = fun cmd_load/3},
      #debug_cmd{name = "next",
                 params = [],
                 help = "execute next command. "
-                "A multiline command counts as one command.",
+                "A multi-line command counts as one command.",
                 callback = fun cmd_next/3},
      #debug_cmd{name = "progress",
                 params = [#debug_param{name = "level",
@@ -399,10 +400,10 @@ cmds() ->
                 params = [#debug_param{name = "scope",
                                        type = {enum, ["case","suite"]},
                                        presence = optional,
-                                       help = "quit a single test case"
-                                       " or the entire test suite."}],
-                help = "exit lux in a controlled manner. "
-                "Runs cleanup if applicable. ",
+                                       help = "scope of exit"}],
+                help = "quit a single test case or the entire test suite "
+                       "in a controlled manner. "
+                       "Runs cleanup if applicable.",
                 callback = fun cmd_quit/3},
      #debug_cmd{name = "save",
                 params = [#debug_param{name = "file",
@@ -418,7 +419,7 @@ cmds() ->
                                        presence = optional,
                                        help = "number of commands"}],
                 help = "skip execution of one or more commands. "
-                "A multiline command counts as one command.",
+                "A multi-line command counts as one command.",
                 callback = fun cmd_skip/3}
     ].
 
@@ -439,7 +440,8 @@ intro_help() ->
         "If no command has been entered yet, the command `help` is assumed.\n"
         "\n"
         "Commands may be abbreviated. Use the help command (for example\n"
-        "`help help` to get more detailed descriptions of the commands.\n\n".
+        "`help help` (or `h h` for short) to get more detailed descriptions\n"
+        "of the commands.\n\n".
 
 lineno_help() ->
     "\n"
@@ -473,7 +475,8 @@ markdown() ->
     Intro = intro_help(),
     {error, Ambiguous} = select(""),
     LineNo = lineno_help(),
-    Cmds = lists:flatten([["\n", pretty_cmd(Cmd)] || Cmd <- cmds()]),
+    Cmds = lists:flatten([["\n", pretty_cmd(Cmd)] ||
+                             Cmd <- lists:keysort(#debug_cmd.name, cmds())]),
     io:format("~s\n", [Intro]),
     io:format("~s\n", [Ambiguous]),
     io:format("~s\n", [LineNo]),
@@ -806,7 +809,7 @@ pretty_cmd(#debug_cmd{name = Name, params = Params, help = Help}) ->
     Longest = longest(Params),
     Fun = fun(#debug_param{name = N, presence = Pres}) ->
                   case Pres of
-                      optional  -> [" [", N, "]"];
+                      optional  -> [" \\[", N, "\\]"];
                       mandatory -> [" ", N]
                   end
           end,
@@ -815,7 +818,7 @@ pretty_cmd(#debug_cmd{name = Name, params = Params, help = Help}) ->
      "\n",
      lists:duplicate(length(Header), "-"),
      "\n\n",
-     Help,
+     lux_utils:capitalize(Help),
      "\n\n**Parameters:**  \n\n",
      case Params of
          [] ->

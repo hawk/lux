@@ -10,17 +10,19 @@ Configuration parameters can be given as command line options, as
 specific file**.
 
 An `architecture specific file` is a file with configuration
-statements that only are valid for a certain
-architecture/platform/system. The format of such a file is a subset of
-a normal Lux script. Only configuration settings (`[config Var=Value]`).
-See also the configuration parameters `--config_name` and `--config_dir`.
+statements only valid for a certain architecture/platform/system.
+The syntax of such a file is the same a normal Lux script, but only
+configuration settings (`[config Var=Value]`) are extracted. See
+also the configuration parameters `--config_name` and `--config_dir`.
+The file extension is `.luxcfg`.
 
 When a test suite (one or more test cases) is to be evaluated, the Lux
 engine will determine the software/hardware signature of the system to
-construct the name of a architecture specifiv file. If such a file
-exists, its configuration settings will be extracted and used as base
-for the entire test suite. These settings can however be overridden by
-command line options and configuration settings in each test case.
+construct the name of a architecture specific file. If a file with
+that name exists, the architecture specific configuration settings
+will be extracted and used as base for the entire test suite. These
+settings can however be overridden by command line options and
+`[config var=val]` statements in each test case file.
 
 The Lux engine evaluates one or more Lux files. Lux files has normally
 `.lux` as extension. See the configuration parameter `--file_pattern`.
@@ -83,7 +85,7 @@ Normally Lux figures out which system software/hardware it runs on,
 but it can explicitly be overridden with the `ConfigName` option. The
 `ConfigName` is used to read system architecture specific configuration
 parameters from a file named `ConfigName.luxcfg`. By default `ConfigName`
-is obtained from `uname -sm` where `ConfigName is set to `Kernel-Machine`.
+ is obtained from `uname -sm` where `ConfigName` is set to `Kernel-Machine`.
 This behavior can be overridden by adding a file named after the name of
 the host (`hostname.luxcfg`) on the `ConfigDir` directory. 
 
@@ -98,7 +100,7 @@ command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
 
 **--hostname Hostname**  
-The `Hostname`overrides the hostname obtained from the operating
+The `Hostname` overrides the hostname obtained from the operating
 system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
 equivalent slaves.
@@ -132,14 +134,14 @@ Forces Lux to not care about `--skip` and `--skip_unless` settings.
 
 **--require Var**  
 **--require Var=Value**  
-Require that the given variable is set. The script will fail if
+Require the given variable to be set. The script will fail if
 the variable not is set. This option can be used multiple times,
 which means that all given Vars are required to be set.
 Typically require is used to test on presence of environment
 variables. `--require` is intended to be used as `[config require=Var]`
 or `[config require=Var=Value]` statements within scripts. The
 construction **Var=Value** is little more restrictive as it
-requires that the variable is set to a certain value.
+requires the variable to be set to a certain value.
 
 Log control
 -----------
@@ -149,7 +151,7 @@ A directory where log files will be written. Default is `./lux_logs`.
 
 **--html Html**  
 The `Html` option controls whether the logs should be converted to
-HTML or not. It is an enum that denotes the outcome of the tests.
+HTML or not. It is an enum denoting the outcome of the tests.
 If the actual outcome is the same or higher than `Html` then the
 logs will be converted. The possible outcome and their relative
 values are as follows:
@@ -212,6 +214,7 @@ value in the unit of milli seconds or `infinity`. The default
 is `300000` (5 minutes).
 
 **--flush\_timeout FlushTimeout**  
+An experimental timeout setting.
 All output from a shell is buffered and matched against
 [regular expression][]s. It can however explicitly be flushed by
 the script. When this is done, the engine first waits a while
@@ -220,6 +223,7 @@ by `FlushTimeout`. It defaults to `0`. If you want to experiment
 with it, `1000` milli seconds (1 second) can be a resonable value.
 
 **--poll\_timeout PollTimeout**  
+An experimental timeout setting.
 When the Lux engine receives output from a shell it will
 wait in `PollTimeout` milli seconds for more output before it
 tries to match it against any [regular expression][]s. It defaults
@@ -261,6 +265,8 @@ runs are distributed over multiple equivalent slaves. See the
 **--html validate**
 Performs validation of the generated HTML files.
 
+<a name="debugging"/>
+
 Debugging and tracing
 ---------------------
 
@@ -280,12 +286,9 @@ printed. The `brief` characters have the following meanings:
        c - the normal cleanup marker
        C - the cleanup marker during premature termination
        z - is printed out each second while sleeping
-       ( - beginning of a macro or an include file
-       ) - end of a macro or an include file
-       ? - waiting for shell output. Can be preceded with lineno of potential error.
-
-In addition to these characters, line number are printed when there is
-a failure or a potential failure.
+       ( - beginning of a macro, loop or an include file
+       ) - end of a macro, loop or an include file
+       ? - waiting for shell output. Preceded with lineno.
 
 `[progress String]` can also be used to display progress info.
 
@@ -310,6 +313,9 @@ debugger to the script and pauses its execution. The command
 and `verbose`. Use the debugger command `help` to get more info about
 the available commands. See also the section [debugging and tracing](#debugging).
 
+**-d**  
+A shortcut for `--debug`.
+
 **--debug\_file SavedFile**  
 Loads the commands in the `SavedFile` before the first line in the
 script is executed. See the debugger command `save` and `load` for
@@ -322,7 +328,6 @@ Miscellaneous
 
 **--shell\_cmd Cmd**  
 **--shell\_args Arg**  
-
 These parameters controls which program that will be started when a
 script starts a shell. By default **`/bin/sh -i`** is started as
 `--shell_cmd` and `--shell_args` defaults to `/bin/sh` and `-i`
@@ -331,29 +336,27 @@ is treated by Lux.
 
 **--shell\_prompt\_cmd PromptCmd**  
 **--shell\_prompt\_regexp PromptRegExp**  
-
 When Lux starts a shell the prompt is set to **`SH-PROMPT:`** by
 default. In Bourne shell, which is the default shell, the variable
 `PS1` is used to set the prompt. This is obtained by using the command
 `export PS1=SH-PROMPT:` followed by an explicit match of the prompt
 using the regexp `^SH-PROMPT:`. This behavior can be overridden by
-using `--shell_prompt_cmd` and `--shell_prompt_regex` respectively
+using `--shell_prompt_cmd` and `--shell_prompt_regexp` respectively
 when using more exotic shells.
 
+**--shell\_wrapper**  
 **--shell\_wrapper \[Executable\]**  
-
 In order to get the terminal settings to work properly in advanced
 interactive cases such as tab completion etc., the shell needs to be
-executed in a **pseudo terminal**. This can be accomplished by using a
-wrapper program that sets up the terminal correctly. The wrapper
-program takes the name of the shell program with arguments (by default
-`/bin/sh -i`) as argument and is expected to first configure the
+executed in a **pseudo terminal**. This is accomplished by using a
+wrapper program setting up the terminal correctly. The arguments to
+the wrapper program is the name of the shell program with its
+arguments (for example `/bin/sh -i`, see also see `--shell_cmd` and
+`--shell_args`). The wrapper is expected to first configure the
 terminal and then start the shell.
 
-The `lux/priv/runpty` is an `Executable` that handles such terminal
-settings and it will be used by default (if it has been built
-properly). It is however possible to use a custom wrapper program by
-using the `--shell_wrapper` parameter.
+The builtin executable `lux/priv/runpty` will be used by default as
+shell wrapper (if it has been built properly).
 
 It is also possible to use no shell wrapper at all by omitting the
 `Executable` value (or simply set it to the empty string "").

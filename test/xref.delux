@@ -5,6 +5,5 @@
 [shell test]
     -$fail_pattern
 
-    [invoke eval $OK "rm -rf delux_logs"]
     [timeout 30]
     [invoke eval $OK "../bin/lux --xref"]

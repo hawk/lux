@@ -89,4 +89,4 @@ Simply do
 
 >     cd doc
 >     make
->     firefox ../lux.html
+>     open ../lux.html

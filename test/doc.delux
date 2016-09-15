@@ -1,0 +1,10 @@
+[doc Test generated documentation]
+
+[config skip_unless=LUX_MISC]
+
+[include include/macros.luxinc]
+
+[shell test]
+    -$fail_pattern
+
+    [invoke eval $OK "../bin/lux --html=validate ../lux.html"]

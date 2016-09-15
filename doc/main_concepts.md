@@ -5,14 +5,15 @@ A Lux script may succeed or fail, meaning that the system under
 test is either conforming to or diverging from the expected
 behavior. A Lux script may also end with an **error**, if the
 Lux engine encountered some problem, and could not determine
-whether the system under test conforms or not.
+whether the system under test conforms or not. A syntax error in
+the Lux script is an error, not a failure.
 
 A Lux script consists of a sequence of instructions, mostly `send`
 and `expect` operations, read in sequence from top to bottom. The test
 case **succeed**s if all statements in the script are executed (or if an
 optional success criteria matched). The test case **fail**s if there
-is a `expect` operation that does not match within a given time (or if
-an optional failure criteria matches).
+is an `expect` operation not matching within a given time (or if an
+optional failure criteria matches).
 
 Each test case should not depend on other test cases being executed
 before (for example preparing something) or after (to clean up).
@@ -52,8 +53,8 @@ as numbered variables: `[local foo=the vals are $1 and $2]` which will
 assign the variable `foo` to the value "`the vals are abc and def`".
 As in any language [regular expression][]s contains keywords. If the
 output of a shell contains such a keyword and we want to match that,
-the keyword must be escaped. Example of such keywords are any of
-the characters `^$.?+*()[]{}|`.
+the keyword must be escaped with a backslash. Example of such keywords
+are any of the characters `^$.?+*()[]{}|`.
 
 The variable substitution mechanism makes it also possible to reuse
 (parts of) generic scripts in several test cases. The (main) script

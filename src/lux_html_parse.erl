@@ -29,7 +29,9 @@ validate_html(HtmlFile) ->
             io:format("\n", []),
             [io:format("~s\n", [R]) || R <- Reasons]
     end,
-    Errors = [VR || VR <- ValRes, element(1, VR) =/= ok],
+    Errors = [VR || VR <- ValRes,
+                    element(1, VR) =/= ok,
+                    element(1, VR) =/= link_warning],
     case Errors of
         [] -> ok;
         _  -> {error, HtmlFile, "Not valid HTML"}
@@ -37,6 +39,9 @@ validate_html(HtmlFile) ->
 
 -type val_res() ::
         {ok, File::file:filename(), html | no_html} |
+        {link_warning, File::file:filename(),
+         Line::non_neg_integer(), Col::non_neg_integer(),
+         Reason::string()} |
         {link_error, File::file:filename(),
          Line::non_neg_integer(), Col::non_neg_integer(),
          Reason::string()} |
@@ -64,37 +69,46 @@ validate_links({error, Abs, Line, Col, Reason}, _Orig, _EnoEnt, Acc) ->
 
 do_validate_links({link, External, Internal}, Abs, Orig, EnoEnt, Acc) ->
     AbsDir = filename:dirname(Abs),
-    AbsExternal =
+    {Type, AbsExternal} =
         case External of
-            "" -> Abs;
-            _  -> filename:join([AbsDir, External])
+            ""            -> {local,  Abs};
+            "http:"  ++ _ -> {remote, External};
+            "https:" ++ _ -> {remote, External};
+            _             -> {local,  filename:join([AbsDir, External])}
         end,
-    case lists:keyfind(AbsExternal, 2, Orig) of
-        {ok, _File, _Refs, _Type} when hd(External) =:= $/, Internal =:= "" ->
+    case Type of
+        remote ->
             Reason = External,
-            [{link_error, Abs, 0, 0, Reason} | Acc];
-        {ok, _File, _Refs, _Type} when hd(External) =:= $/ ->
-            Reason = External ++ "#" ++ Internal,
-            [{link_error, Abs, 0, 0, Reason} | Acc];
-        {ok, _File, _Refs, _Type} when Internal =:= "" ->
-            Acc;
-        {ok, _File, Refs, _Type} ->
-            case [A || {anchor, A} <- Refs, A =:= Internal] of
-                [] ->
+            [{link_warning, Abs, 0, 0, Reason} | Acc];
+        local ->
+            case lists:keyfind(AbsExternal, 2, Orig) of
+                {ok, _File, _Refs, _Type} when hd(External) =:= $/,
+                                               Internal =:= "" ->
+                    Reason = External,
+                    [{link_error, Abs, 0, 0, Reason} | Acc];
+                {ok, _File, _Refs, _Type} when hd(External) =:= $/ ->
                     Reason = External ++ "#" ++ Internal,
                     [{link_error, Abs, 0, 0, Reason} | Acc];
-                _Anchors ->
-                    Acc
-            end;
-        {error, _File, _Line, _Col, Reason} when Internal =:= "",
-                                                 Reason =/= EnoEnt ->
-            Acc;
-        {error, _File, _Line, _Col, _Reason} when Internal =:= "" ->
-            Reason = External,
-            [{link_error, Abs, 0, 0, Reason} | Acc];
-        {error, _File, _Line, _Col, _Reason} ->
-            Reason = External ++ "#" ++ Internal,
-            [{link_error, Abs, 0, 0, Reason} | Acc]
+                {ok, _File, _Refs, _Type} when Internal =:= "" ->
+                    Acc;
+                {ok, _File, Refs, _Type} ->
+                    case [A || {anchor, A} <- Refs, A =:= Internal] of
+                        [] ->
+                            Reason = External ++ "#" ++ Internal,
+                            [{link_error, Abs, 0, 0, Reason} | Acc];
+                        _Anchors ->
+                            Acc
+                    end;
+                {error, _File, _Line, _Col, Reason} when Internal =:= "",
+                                                         Reason =/= EnoEnt ->
+                    Acc;
+                {error, _File, _Line, _Col, _Reason} when Internal =:= "" ->
+                    Reason = External,
+                    [{link_error, Abs, 0, 0, Reason} | Acc];
+                {error, _File, _Line, _Col, _Reason} ->
+                    Reason = External ++ "#" ++ Internal,
+                    [{link_error, Abs, 0, 0, Reason} | Acc]
+            end
     end;
 do_validate_links({anchor, _Name}, _Abs, _Orig, _EnoEnt, Acc) ->
     Acc.
@@ -113,8 +127,10 @@ deep_parse_files([Rel|Rest], Acc) ->
                     AbsName =
                         fun(F) ->
                                 case F of
-                                    "" -> Abs;
-                                    _  -> filename:absname(F, Dir)
+                                    ""            -> Abs;
+                                    "http:"  ++ _ -> Abs;
+                                    "https:" ++ _ -> Abs;
+                                    _             -> filename:absname(F, Dir)
                                 end
                         end,
                     More = [AbsName(E) || {link, E, _I} <- Refs],
@@ -256,6 +272,10 @@ format_result(Res, Cwd) ->
             %% RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             %% ["EXISTS:     ", RelFile];
             [];
+        {link_warning, AbsFile, Line, Col, Reason} ->
+            RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
+            Reason2 = "Remote link: " ++ Reason,
+            ["HTML LUX WARNING: ", RelFile, opt_pos(Line, Col), Reason2];
         {link_error, AbsFile, Line, Col, Reason} ->
             RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             Reason2 = "Bad link: " ++ Reason,

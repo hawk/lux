@@ -6,9 +6,8 @@ character on each line determines how it will be processed. Lines
 beginning with a `#` are comments. It is recommended to use
 indentation and comments to make the scripts more readable. The **Lux
 mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is quite useful as it
-simplifies the indentation and makes scripts more easy to read as it
-provides different coloring for different types of language
-constructs.
+simplifies the indentation and makes scripts more easy to read with
+coloring for different types of language constructs.
 
 Lines beginning with `"""Char` are **multi line quotes**. The quote
 ends with the next line beginning with `"""`. The opening quote and
@@ -49,22 +48,22 @@ Same as `!String`, but it does NOT add a `LF` at the end.
 **?**  
 Flush the output streams (`stdout`, `stderr`). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
-useful than it is. It causes often unexpected race patterns.
+useful than it is. It often causes unexpected race patterns.
 
 **?Regexp**  
 An `expect` operation which waits for a string matching a [regular
 expression][] to appear on the shell output (either `stdout` or
 `stderr`). If no matching output does appear within the timeout
 period, the test case is considered as failed. See the `--timeout`
-option.See also the `--flush_timeout` and `--poll_timeout`
+option. See also the `--flush_timeout` and `--poll_timeout`
 configuration parameters about customizing the `?` behavior.
 
 **??Template**  
-Like `?Regexp`, but more restricted as all regular expression
+Like `?Regexp`, but is more restricted as all regular expression
 keywords are ignored. Variables are still substituted.
 
 **???Verbatim**  
-Like `??Template`, but more restricted as no variables are substituted.
+Like `??Template`, but is more restricted as no variables are substituted.
 That is the string is matched as is.
 
 **?+Regexp**  
@@ -87,7 +86,8 @@ specified with `?).
     ?C
 
 will render matching of all permutatations of A, B and C. Note
-the usage of `?`. `?+` is always used together with `?`.
+the usage of `?`. `?+` is always used together with `?`. It is
+`?` which triggers the evaluation.
 
 **-**  
 **-Regexp**  
@@ -95,8 +95,8 @@ Sets a failure pattern to a regular expression (see [regular
 expression][]). It is typically used to match error messages. If the
 given `Regexp` ever matches, the test case is considered to have
 failed (no further processing of the script will be performed besides
-cleanup). If no `Regexp` is given, the old failure pattern is reset
-(cleared).
+the `cleanup`). If no `Regexp` is given, the old failure pattern is
+reset (cleared).
 
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
@@ -109,8 +109,8 @@ produces new output.
 Sets a success pattern to a regular expression (see [regular
 expression][]). If the given `Regexp` ever matches, the test case is
 considered a success (no further processing of the script will be
-performed besides cleanup). If no `Regexp` is given, the old success
-pattern is reset (cleared).
+performed besides the `cleanup`). If no `Regexp` is given, the old
+success pattern is reset (cleared).
 
 In the active shell, the `Regexp` is tried on the output preceding
 each successful match of expect expressions. The characters up to, but
@@ -121,11 +121,12 @@ produces new output.
 **@**  
 **@Regexp**  
 Sets a loop break pattern to a regular expression (see [regular
-expression][]). This statement is only valid in loops. It is
-typically used to match output from a poll command. When the given
-`Regexp` matches, the loop is immediately exited. The test case fails
-if the loop is exited before the break pattern is matched. If no
-`Regexp` is given, the break failure pattern is reset (cleared).
+expression][]). This statement is only valid in loops. It is typically
+used to match output from a poll like command. When the given `Regexp`
+matches, the loop is immediately exited. The execution continues with
+the first statement after the loop. The test case fails if the loop is
+exited before the break pattern is matched. If no `Regexp` is given,
+the break failure pattern is reset (cleared).
 
 **\[endshell\]**  
 **\[endshell Regexp\]**
@@ -144,7 +145,8 @@ on the same line with a `]`.
 **\[shell Name\]**  
 Switches to the named shell, to make it active. In case there is no
 such shell started yet, a new shell named `Name` is created.  If
-`Name` is missing, the active shell is deactivated.
+`Name` is missing, the active shell is deactivated. This implies
+no shell to be activated.
 
 By default a `/bin/sh` shell (Bourne shell) is started. See
 the `--shell_wrapper`, `--shell_cmd` and `--shell_arg` configuration
@@ -152,8 +154,8 @@ parameters. The current working directory of a newly started shell is
 the same as the dirname of the script file. The **environment
 variable** `LUX_SHELLNAME` is set to `Name`. The shell prompt variable
 `PS1` is set to `SH-PROMPT:` and the first printout of the prompt is
-automatically matched in a expect manner in order to ensure that the
-shell is ready for input. The `Name` may contain variables. Shell
+automatically matched in an expect like manner in order to ensure that
+the shell is ready for input. The `Name` may contain variables. Shell
 names beginning with `lux` and `cleanup` are reserved for internal
 purposes. The **environment variable** `LUX_START_REASON` is
 initially set to `normal`. See also `[cleanup]`.
@@ -179,14 +181,14 @@ the topmost level the automatically started shell will be called
 `cleanup`, on the next level it is called `cleanup2`, on next level
 `cleanup3` etc.
 
-The **environment* variable** `LUX_START_REASON` is set to `normal`
+The **environment variable** `LUX_START_REASON` is set to `normal`
 in most shells, but if the cleanup is run due to premature failure or
 premature success it will be set to `fail` or `success` respectively.
 This can for example be used if you want to save the contents of
 error logs, core dumps etc. in case of failure. Textual logs can
 simply be written to `stdout` in order to be easily accessible in
 the post mortem analyzis. For the purpose of saving binary files
-the **environment* variable** `LUX_EXTRA_LOGS` may be used. It
+the **environment variable** `LUX_EXTRA_LOGS` may be used. It
 refers to a log directory name unique for each test case. The
 directory is however not automatically created. It must be created
 by you in the test script if you want to use it. If you have created
@@ -203,18 +205,18 @@ evaluated in order to clean up unwanted side effects. Variables in
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
   ...  
 **\[endmacro\]**  
-Declare a macro. The body of the macro consists of all lines up to
-the next `[endmacro]` line. The scope of the arguments are local
-within the macro. The arguments can be accessed via their names as
-normal variables, such as `$ArgName1`. `[my Var=Value]` can be used to
-assign temporary variables that only are valid within the macro. If a
-macro switches to another shell it is good practice to switch back to
-the calling shell before the end of the macro. One way of doing this
-is to get the name of the active shell from the **environment variable**
+Declare a macro. The body of the macro consists of all lines up to the
+next `[endmacro]` line. The scope of the arguments are local within
+the macro. The arguments can be accessed via their names as normal
+variables, such as `$ArgName1`. `[my Var=Value]` can be used to assign
+temporary variables only valid within the macro. If a macro switches
+to another shell it is good practice to switch back to the calling
+shell before the end of the macro. One way of doing this is to get the
+name of the active shell from the **environment variable**
 `LUX_SHELLNAME` with `[my old=$LUX_SHELLNAME]` and later switch back
 to the shell with `[shell $old]`. If the macro file contains a
-`[cleanup]` marker, the statements after that will be evaluated in order
-to clean up unwanted side effects.
+`[cleanup]` marker, the statements after that will be evaluated in
+order to clean up unwanted side effects.
 
 **\[invoke MacroName ArgVal1 ArgVal ...\]**  
 Invoke a macro. The arguments are separated with spaces. Arguments
@@ -228,19 +230,18 @@ Declare a loop. The body of the loop consists of all lines up to the
 next `[endloop]` line. The commands within the loop are repeated for
 each item. For each iteration the loop variable `Var` is set to the
 value of the current `Item`. The scope of the loop variable is the
-same as a macro variable (defined with my). The `Item list` may
-contain variables and these are expanded before the first
-iteration. Items in the expanded list are separated with spaces. For
-example `[loop colors blue red green]`. When iterating over a set of
+same as a macro variable (defined with `my`). The `Item` list may
+contain variables and these are expanded before the first iteration.
+Items in the expanded list are separated with spaces. For example
+`[loop colors blue red green]`. When iterating over a set of
 consecutive integers, such as `[loop iter 4 5 6 7 8 9]`, this can be
 written as a range expression, like `[loop iter 4..9]`. In the logs
 the iteration counter is represented as a negative line number. For
 example "8:-2:10" would mean line 10 in the second loop iteration
 where the loop starts at line 8. By default the increment is 1. A
 custom increment can also be set with the construct `from..to..incr`,
-such as `[loop iter 4..9..2]`. This would be the same as
-`[loop iter 4 6 8]`. `[loop iter 9..4..2]`  would be the same as
-`[loop iter 9 7 5]`.
+such as `[loop iter 4..9..2]`. This would be the same as `[loop iter 4
+6 8]`. `[loop iter 9..4..2]` would be the same as `[loop iter 9 7 5]`.
 
 ###Variables###
 
@@ -258,13 +259,14 @@ read. In order to read a variable like `$?` it must be written as
 
 **\[global Var=Value\]**  
 assigns a value to a global variable. Works like `[local]`, but the
-variable setting is propagated to all shells. Global variables
-may be set before any shell has been started.
+variable setting is propagated to all shells. Global variables may be
+set before even if no shell is active.
 
 **\[my Var=Value\]**  
-assigns a value to a macro variable. Works like `[global]`, but can
-only be set and used in a macro. The variable setting is only valid
-within the macro that assigns the variable.
+assigns a value to a variable with a very limited scope. Works like
+`[global]`, but can only be set and used in a macro or loop. The
+variable setting is only valid within the macro that assigns the
+variable.
 
 ###Builtin variables###
 
@@ -284,34 +286,42 @@ within the macro that assigns the variable.
     LUX_START_REASON - reason for starting a shell (normal|fail|success)
     PS1              - shell prompt variable set by Lux
 
-###Miscellaneous statements##d##
+###Miscellaneous statements###
 
 **\[doc String\]**  
 **\[docN String\]**  
-A test case slogan that will be displayed in the summary log. It
-is also possible to document parts of a test case by specifying a
-documentation level `N`. In that case the doc statement should look
-like `[docN String]` where `N` is a integer. `doc2` would mean
-that the documentation is on level 2. Doc strings can be extracted
-from the scripts with the `--mode=doc` command line option.
+A test case slogan displayed in the summary log. It is also possible
+to document parts of a test case by specifying a documentation level
+`N`. In that case the doc statement should look like `[docN String]`
+where `N` is a integer. `doc2` would mean that the documentation is on
+level 2. Doc strings can be extracted from the scripts and written to
+stdout with the`--mode=doc` command line option. It gives a quick
+overview of the test cases and can be seen as a poor mans test spec.
 
+**\[timeout\]**  
 **\[timeout Seconds\]**  
-sets the timeout for the current shell to the given number of
-seconds multiplied with a configurated factor. By default the
-multiplier is `1000`. For example, by setting the `--multiplier`
-parameter to `2000` all timeouts will be doubled. The resulting
-timeout value affects how long time `expect` operations will wait
-before reporting failure. If time is not specified `[timeout]`, it
-is reset to default the timeout specified with the `--timeout`
-configuration parameter. The timeout value `infinity` means infinity.
+The script expects the shell output to match given
+[regular expression][]s. But the output must be received within a
+given time limit. The `timeout` command sets the timeout for the
+current shell to the given number of seconds multiplied with a
+configurated factor. By default the multiplier is `1000`. For example,
+by setting the `--multiplier` parameter to `2000` all timeouts will be
+doubled. The resulting timeout value affects how long time `expect`
+operations will wait before reporting failure. If the time is omitted
+like `[timeout]`, the timeout is reset to the default timeout
+specified with the `--timeout` configuration parameter. The timeout
+value `infinity` means infinity.
 
 **\[sleep Seconds\]**  
 waits given number of seconds before proceeding in the script. No
-`multiplier` factor is applied.
+`multiplier` factor is applied. The `sleep` command should be avoided
+if possible. It absolutely not intended to be used for solving race
+conditions. Find out some way to synchronize the test case properly
+instead.
 
 **\[progress String\]**  
 Displays `String` on the `stdout` stream together with the rest of the
-progress info.
+progress info. May contain newlines.
 
 **\[config Var=Value\]**  
 assigns a value to a [configuration parameter](#config_params). The
