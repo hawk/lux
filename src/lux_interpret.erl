@@ -342,7 +342,8 @@ wait_for_done(I, Pid, Docs) ->
             %%              SuiteTimeout]),
             Pid ! {suite_timeout, SuiteTimeout},
             case wait_for_done(I, Pid, Docs) of
-                {ok, File, CaseLogDir, _Summary, FullLineNo, _Events} ->
+                {ok, _Summary, File, FullLineNo, CaseLogDir,
+                 _Events, _FailBin, _NewOpaque} ->
                     ok;
                 {error, File, CaseLogDir, FullLineNo, _} ->
                     ok
