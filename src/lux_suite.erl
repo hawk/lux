@@ -280,12 +280,12 @@ compute_files(R, _LogDir, _LogBase) when R#rstate.rerun =:= disable ->
     R;
 compute_files(R, _LogDir, LogBase) when R#rstate.files =/= [] ->
     OldLogDirs = R#rstate.files,
-    compute_files(R, OldLogDirs, LogBase, []);
+    compute_rerun_files(R, OldLogDirs, LogBase, []);
 compute_files(R, LogDir, LogBase) ->
     OldLogDirs = [filename:join([filename:dirname(LogDir), "latest_run"])],
-    compute_files(R, OldLogDirs, LogBase, []).
+    compute_rerun_files(R, OldLogDirs, LogBase, []).
 
-compute_files(R, [LogDir|LogDirs], LogBase, Acc) ->
+compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc) ->
     OldLog = filename:join([LogDir, LogBase]),
     LatestRes =
         case lux_log:parse_summary_log(OldLog) of
@@ -294,12 +294,12 @@ compute_files(R, [LogDir|LogDirs], LogBase, Acc) ->
             {error, _, _} ->
                 []
         end,
-    Files = compute_files(R, LatestRes),
-    compute_files(R, LogDirs, LogBase, Files ++ Acc);
-compute_files(R, [], _LogBase, Acc) ->
+    Files = filter_rerun_files(R, LatestRes),
+    compute_rerun_files(R, LogDirs, LogBase, Files ++ Acc);
+compute_rerun_files(R, [], _LogBase, Acc) ->
     R#rstate{files = lists:usort(Acc)}.
 
-compute_files(R, InitialRes) ->
+filter_rerun_files(R, InitialRes) ->
     MinCond = lux_utils:summary_prio(R#rstate.rerun),
     Return = fun(Res, Script) when is_list(Script) ->
                      Cond = lux_utils:summary_prio(Res),
