@@ -353,7 +353,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName,
             "" -> RelEventLog;
             _  -> filename:join([RelDir, RelEventLog])
         end,
-    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunLogDir, AbsName)),
+    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(CaseRes),
