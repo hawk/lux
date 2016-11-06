@@ -452,6 +452,8 @@ html_result(Tag, {result, Result}, HtmlLog) ->
     case Result of
         success ->
             ["\n<", Tag, ">Result: <strong>SUCCESS</strong></", Tag, ">\n"];
+        warning ->
+            ["\n<", Tag, ">Result: <strong>WARNING</strong></", Tag, ">\n"];
         skip ->
             ["\n<", Tag, ">Result: <strong>SKIP</strong></", Tag, ">\n"];
         {skip, _} ->
@@ -873,6 +875,7 @@ html_history_legend() ->
      "    <tr>\n",
      html_history_td("First fail", fail, "left", ""),
      html_history_td("Secondary fails on same host", secondary_fail, "left",""),
+     html_history_td("Warning", warning, "left", ""),
      html_history_td("Skipped", none, "left", ""),
      html_history_td("Success", success, "left", ""),
      html_history_td("No data", no_data, "left", ""),
@@ -1007,24 +1010,32 @@ html_history_row(NewLogDir, Test, Runs, SplitIds,
     {Cells, _} = lists:mapfoldr(EmitCell, [], SplitIds),
     ValidResFilter = fun (Cell) -> valid_res_filter(Cell, Suppress) end,
     ValidRes = lists:zf(ValidResFilter, Cells),
-    case lists:usort(ValidRes) of
+    SiblingFilter =
+        fun(R) ->
+                case R of
+                    warning -> success;
+                    none    -> no_data;
+                    _       -> R
+                end
+        end,
+    case lists:usort(lists:map(SiblingFilter, ValidRes)) of
         [] when Suppress =:= any_success ->
             #row{res=no_data, iolist=[]}; % Skip row
         [success] when Suppress =:= any_success ->
             #row{res=no_data, iolist=[]}; % Skip row
-        [none] when Suppress =:= any_success ->
+        [no_data] when Suppress =:= any_success ->
             #row{res=no_data, iolist=[]}; % Skip row
-        [no_data, none] when Suppress =:= any_success ->
-            #row{res=no_data, iolist=[]}; % Skip row
-        _ ->
+        _X ->
             SelectedRes = select_row_res(Cells, Select, no_data),
-            case Suppress of
-                latest_success
-                  when SelectedRes =:= success;
-                       SelectedRes =:= none;
-                       SelectedRes =:= no_data ->
+            if
+                Suppress =:= latest_success andalso
+                (SelectedRes =:= success orelse
+                 SelectedRes =:= warning orelse
+                 SelectedRes =:= skip orelse
+                 SelectedRes =:= none orelse
+                 SelectedRes =:= no_data) ->
                     #row{res=no_data, iolist=[]}; % Skip row
-                _ ->
+                true ->
                     #row{res=SelectedRes,
                          iolist=
                              [
@@ -1040,7 +1051,9 @@ html_history_row(NewLogDir, Test, Runs, SplitIds,
 valid_res_filter(#cell{res=Res}, Suppress) ->
     case Res of
         no_data                               -> false;
+        none    when Suppress =:= any_success -> false;
         success when Suppress =:= any_success -> false;
+        warning when Suppress =:= any_success -> false;
         _                                     -> {true, Res}
     end.
 
@@ -1519,10 +1532,6 @@ html_style() ->
         background-color: #E9967A;
   }
 
-  div.skip {
-        background-color: #FFFFE0
-  }
-
   div.match {
         background-color: #FFFFE0
   }
@@ -1541,6 +1550,14 @@ html_style() ->
 
   td.secondary_fail {
         background-color: #F26C4F
+  }
+
+  td.skip {
+        background-color: #FFFFE0
+  }
+
+  td.warning {
+        background-color: #FFF380
   }
 
   td.none {

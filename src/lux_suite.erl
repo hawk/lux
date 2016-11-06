@@ -605,13 +605,14 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                     lux:trace_me(70, suite, 'case', PrefixedRelScript, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, PrefixedRelScript, Script),
-                    Res = lux:interpret_commands(Script2, Cmds, Opts, Opaque),
+                    Res = lux:interpret_commands(Script2, Cmds, NewWarnings,
+                                                 Opts, Opaque),
                     SkipReason = "",
                     case Res of
                         {ok, Summary, _, FullLineNo, CaseLogDir,
                          Events, FailBin, NewOpaque} ->
                             lux:trace_me(70, 'case', suite, Summary,
-                                  []),
+                                         []),
                             tap_case_end(NewR, CC, Script, Summary,
                                          FullLineNo, SkipReason, FailBin),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
@@ -1210,6 +1211,7 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings} = R,
             error                 -> {not_ok, ""};
             fail when SkipSkip    -> {not_ok, TodoReason};
             fail                  -> {not_ok, ""};
+            warning               -> {ok,     Reason};
             skip                  -> {ok,     Reason};
             success when SkipSkip -> {ok,     TodoReason};
             success               -> {ok,     ""}

@@ -66,6 +66,7 @@
         {file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
+         warnings                   :: [{warning,string(),string(),string()}],
          loop_stack = []            :: [#loop{}],
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),

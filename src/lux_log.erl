@@ -391,6 +391,7 @@ run_result({result, Res}) ->
 run_result(Res) ->
     case Res of
         success                                       -> success;
+        warning                                       -> warning;
         {skip, _}                                     -> skip;
         {fail, _LineNo, _Expected, _Actual, _Details} -> fail;
         {error, _Reason}                              -> fail;
@@ -398,7 +399,7 @@ run_result(Res) ->
         <<"SKIP", _/binary>>                          -> skip;
         <<"FAIL", _/binary>>                          -> fail;
         <<"ERROR", _/binary>>                         -> fail;
-        <<"WARNING", _/binary>>                       -> success
+        <<"WARNING", _/binary>>                       -> warning
     end.
 
 find_config(Key, Tuples, Default) ->
@@ -477,7 +478,8 @@ print_skip(Progress, Fd, Results) ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("skipped"), length(SkipScripts)]),
             [result_format(Progress, Fd, "\t~s:~s\n",
-                           [F, L]) || {F, L, _R} <- SkipScripts]
+                           [lux_utils:drop_prefix(F), L]) ||
+                {F, L, _R} <- SkipScripts]
     end.
 
 print_warning(Progress, Fd, Warnings) ->
@@ -489,7 +491,8 @@ print_warning(Progress, Fd, Warnings) ->
                           [?TAG("warnings"), length(WarnScripts)]),
             [result_format(Progress, Fd,
                            "\t~s:~s - ~s\n",
-                           [F, L, R]) || {F, L, R} <- WarnScripts]
+                           [lux_utils:drop_prefix(F), L, R]) ||
+                {F, L, R} <- WarnScripts]
     end.
 
 print_fail(Progress, Fd, Results) ->
@@ -501,7 +504,8 @@ print_fail(Progress, Fd, Results) ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("failed"), length(FailScripts)]),
             [result_format(Progress, Fd, "\t~s:~s - ~s\n",
-                           [F, L, Norm(R)]) || {F, L, R} <- FailScripts]
+                           [lux_utils:drop_prefix(F), L, Norm(R)]) ||
+                {F, L, R} <- FailScripts]
     end.
 
 print_error(Progress, Fd, Results) ->
@@ -511,7 +515,8 @@ print_error(Progress, Fd, Results) ->
         ErrorScripts ->
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("errors"), length(ErrorScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s - ~s\n", [F, L, R]) ||
+            [result_format(Progress, Fd, "\t~s:~s - ~s\n",
+                           [lux_utils:drop_prefix(F), L, R]) ||
                 {F, L, R} <- ErrorScripts]
     end.
 
@@ -722,6 +727,8 @@ parse_result(RawResult) ->
         case Result of
             <<"SUCCESS">> ->
                 success;
+            <<"WARNING">> ->
+                warning;
             <<"SKIP as ",Skip/binary>> ->
                 {skip, [Skip | Rest]};
             <<"ERROR at ", Error/binary>> ->

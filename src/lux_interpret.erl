@@ -10,7 +10,7 @@
 -include("lux.hrl").
 
 -export([
-         interpret_commands/4,
+         interpret_commands/5,
          default_istate/1,
          parse_iopts/2,
          config_type/1,
@@ -26,13 +26,14 @@
          flush_logs/1
         ]).
 
-interpret_commands(Script, Cmds, Opts, Opaque) ->
+interpret_commands(Script, Cmds, Warnings, Opts, Opaque) ->
     I = default_istate(Script),
     case lists:keyfind(stopped_by_user, 1, Opaque) of
         {_, Context = suite} -> ok;
         _                    -> Context = undefined
     end,
     I2 = I#istate{commands = Cmds,
+                  warnings = Warnings,
                   orig_commands = shrinked,
                   stopped_by_user = Context},
     try
@@ -396,10 +397,18 @@ handle_done(OldI, NewI0, Docs) ->
     end.
 
 print_success(I, File, Results) ->
-    double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
-    {ok, success, File, FullLineNo, I#istate.case_log_dir,
+    Outcome =
+        if
+            I#istate.warnings =/= [] ->
+                double_ilog(I, "~sWARNING\n", [?TAG("result")]),
+                warning;
+            true ->
+                double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
+                success
+        end,
+    {ok, Outcome, File, FullLineNo, I#istate.case_log_dir,
      Results, <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
 print_fail(OldI0, NewI, File, Results,
