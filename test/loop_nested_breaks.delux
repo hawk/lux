@@ -1,4 +1,4 @@
-[config case_timeout=20000]
+[config case_timeout=100000]
 
 [global inner_file=loop_nested_breaks_inner.tmp]
 [global outer_file=loop_nested_breaks_outer.tmp]
@@ -7,7 +7,7 @@
     [invoke nested NORMAL]
     [invoke nested INNER]
     [invoke nested OUTER]
-    
+
 [cleanup]
     !rm -f $outer_file
     !rm -f $inner_file

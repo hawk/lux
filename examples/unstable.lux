@@ -1,0 +1,8 @@
+[doc Demonstrate an unstable test]
+
+[config unstable=SHELL]
+[config unstable_unless=QWERTY]
+
+[shell foo]
+    [timeout 1]
+    ?bar

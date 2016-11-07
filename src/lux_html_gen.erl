@@ -472,6 +472,28 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              "<h3>Reason</h3>",
              html_div(<<"event">>, lux_utils:expand_lines(Reason))
             ];
+        {warning, RawLineNo, Expected0, Actual, Details} ->
+            Anchor = RawLineNo,
+            Expected = lux_utils:expand_lines(Expected0),
+            Expected2 = lux_utils:normalize_newlines(Expected),
+            Expected3 = binary:split(Expected2, <<"\\R">>, [global]),
+            Diff = lux_utils:diff(Expected3, Details),
+            HtmlDiff = html_diff(Diff),
+            [
+             "\n<", Tag, ">Result: <strong>",
+             html_href([HtmlLog, "#failed"], "FAILED"),
+             " at line ",
+             html_href([HtmlLog, "#", Anchor], Anchor),
+             "</strong></", Tag, ">\n",
+             "<h3>Expected</h3>",
+              html_div(<<"event">>, lux_utils:expand_lines(Expected3)),
+             "<h3>Actual: ", html_quote(Actual), "</h3>",
+             [
+              "\n<div class=\"event\"><pre>",
+              lux_utils:expand_lines(HtmlDiff),
+              "</pre></div>"
+             ]
+            ];
         {fail, RawLineNo, Expected0, Actual, Details} ->
             Anchor = RawLineNo,
             Expected = lux_utils:expand_lines(Expected0),

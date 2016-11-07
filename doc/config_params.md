@@ -121,11 +121,11 @@ that the variable is set to a certain value.
 Skip execution of the script if the given variable NOT is set. This
 option can be used multiple times, which means that it suffices
 that one of the given `Var`s NOT is set in order to skip the test
-case. Typically `--skip` is used to test on presence of environment
-variables. `--skip_unless` is intended to be used as
+case. Typically `--skip_unless` is used to test on absence of
+environment variables. `--skip_unless` is intended to be used as
 `[config skip_unless=Var]` or `[config skip_unless=Var=Value]`
- statements within scripts. The construction **Var=Val** is little
-more restrictive as it requires that the variable is set to a certain
+statements within scripts. The construction **Var=Val** is little more
+restrictive as it requires that the variable is set to a certain
 value.
 
 **--skip\_skip**  
@@ -142,6 +142,31 @@ variables. `--require` is intended to be used as `[config require=Var]`
 or `[config require=Var=Value]` statements within scripts. The
 construction **Var=Value** is little more restrictive as it
 requires the variable to be set to a certain value.
+
+**--unstable Var**  
+**--unstable Var=Value**  
+Mark a test case as unstable if the given variable is set. This
+implies failures to be reported as warnings.The option can be used
+multiple times, which means that it suffices that one of the given
+`Var`s is set in order to mark the test case as unstable. Typically
+`--unstable` is used to test on presence of environment
+variables. `--unstable` is intended to be used as `[config
+unstable=Var]` or `[config unstable=Var=Value]` statements within
+scripts. The construction **Var=Value** is little more restrictive as
+it requires that the variable is set to a certain value.
+
+**--unstable\_unless Var**  
+**--unstable\_unless Var=Value**  
+Mark a test case as unstable if the given variable NOT is set. This
+implies failures to be reported as warnings. The option can be used
+multiple times, which means that it suffices that one of the given
+`Var`s NOT is set in order to mark the test case as unstable.
+Typically `--unstable_unless` is used to test on absence of
+environment variables. `--unstable_unless` is intended to be used as
+`[config unstable_unless=Var]` or `[config unstable_unless=Var=Value]`
+statements within scripts. The construction **Var=Val** is little more
+restrictive as it requires that the variable is set to a certain
+value.
 
 Log control
 -----------

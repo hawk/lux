@@ -48,14 +48,14 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                             warnings = []},
                 test_user_config(P, I),
                 {P2, _FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
-                garbage_collect(),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
                                               [], File, [], Cmds),
+                garbage_collect(),
                 case parse_config(I, lists:reverse(Config)) of
                     {ok, I2} ->
+                        File2 = I2#istate.file,
                         UpdatedOpts = updated_opts(I2, I),
-                        Warnings = P2#pstate.warnings,
-                        {ok, I2#istate.file, Cmds, UpdatedOpts, Warnings};
+                        {ok, File2, Cmds, UpdatedOpts, P2#pstate.warnings};
                     {error, Reason} ->
                         {error,
                          [#cmd_pos{rev_file= RevFile, lineno = 0, type = main}],
@@ -376,7 +376,7 @@ parse_regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
     end.
 
 parse_var(P, Fd, Cmd, Scope, String) ->
-    case split_var(String, []) of
+    case lux_utils:split_var(String, []) of
         {Var, Val} ->
             {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
         false ->
@@ -386,13 +386,6 @@ parse_var(P, Fd, Cmd, Scope, String) ->
                          ": illegal ", atom_to_list(Scope),
                          " variable "," '", String, "'"])
     end.
-
-split_var([$= | Val], Var) ->
-    {lists:reverse(Var), Val};
-split_var([H | T], Var) ->
-    split_var(T, [H | Var]);
-split_var([], _Var) ->
-    false.
 
 parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
     Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
@@ -648,15 +641,15 @@ test_user_config(P, I) ->
                            orig = <<>>},
                 test_skip(P, eof, Cmd)
         end,
-    lists:foreach(fun(Val) -> T("skip", Val) end,        I#istate.skip),
+    lists:foreach(fun(Val) -> T("skip", Val) end, I#istate.skip),
     lists:foreach(fun(Val) -> T("skip_unless", Val) end, I#istate.skip_unless),
-    lists:foreach(fun(Val) -> T("require", Val) end,     I#istate.require).
+    lists:foreach(fun(Val) -> T("require", Val) end, I#istate.require).
 
 test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
           #cmd{lineno = LineNo, arg = {config, Var, NameVal}} = Cmd) ->
     case Var of
         "skip" when not SkipSkip ->
-            {IsSet, Name} = test_variable(P, NameVal),
+            {IsSet, Name} = test_var(P, NameVal),
             case IsSet of
                 false ->
                     {P, Cmd};
@@ -665,7 +658,7 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
                     parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
             end;
         "skip_unless" when not SkipSkip ->
-            {IsSet, Name} = test_variable(P, NameVal),
+            {IsSet, Name} = test_var(P, NameVal),
             case IsSet of
                 true ->
                     {P, Cmd};
@@ -674,7 +667,7 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
                     parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
             end;
         "require" when RunMode =:= execute ->
-            {IsSet, Name} = test_variable(P, NameVal),
+            {IsSet, Name} = test_var(P, NameVal),
             case IsSet of
                 true ->
                     {P, Cmd};
@@ -686,35 +679,8 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
             {P, Cmd}
     end.
 
-test_variable(P, VarVal) ->
-    case split_var(VarVal, []) of
-        {Var, Val} ->
-            ok;
-        false ->
-            Var = VarVal,
-            Val = false
-    end,
-    UnExpanded = [$$ | Var],
-    try
-        Expanded = lux_utils:expand_vars(P#pstate.multi_vars,
-                                         UnExpanded, error),
-        %% Variable is set
-        if
-            Val =:= false ->
-                %% Variable exists
-                {true, Var};
-            Val =:= Expanded ->
-                %% Value matches. Possible empty.
-                {true, Var};
-            true ->
-                %% Value does not match
-                {false, Var}
-        end
-    catch
-        throw:{no_such_var, _} ->
-            %% Variable is not set
-            {false, Var}
-    end.
+test_var(P, VarVal) ->
+    lux_utils:test_var(P#pstate.multi_vars, VarVal).
 
 expand_vars(P, Fd, Val, LineNo) ->
     try

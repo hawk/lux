@@ -7,7 +7,7 @@
 <body>
 <h1 id="lux-lucidexpectscripting">Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.14.2.1 - 2016&#8211;09&#8211;20</p>
+<p>Version 1.14.3 - 2016&#8211;11&#8211;07</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -779,11 +779,11 @@ that the variable is set to a certain value.</p>
 Skip execution of the script if the given variable NOT is set. This
 option can be used multiple times, which means that it suffices
 that one of the given <code>Var</code>s NOT is set in order to skip the test
-case. Typically <code>--skip</code> is used to test on presence of environment
-variables. <code>--skip_unless</code> is intended to be used as
+case. Typically <code>--skip_unless</code> is used to test on absence of
+environment variables. <code>--skip_unless</code> is intended to be used as
 <code>[config skip_unless=Var]</code> or <code>[config skip_unless=Var=Value]</code>
- statements within scripts. The construction <strong>Var=Val</strong> is little
-more restrictive as it requires that the variable is set to a certain
+statements within scripts. The construction <strong>Var=Val</strong> is little more
+restrictive as it requires that the variable is set to a certain
 value.</p>
 
 <p><strong>&#8211;skip_skip</strong><br/>
@@ -800,6 +800,31 @@ variables. <code>--require</code> is intended to be used as <code>[config requir
 or <code>[config require=Var=Value]</code> statements within scripts. The
 construction <strong>Var=Value</strong> is little more restrictive as it
 requires the variable to be set to a certain value.</p>
+
+<p><strong>&#8211;unstable Var</strong><br/>
+<strong>&#8211;unstable Var=Value</strong><br/>
+Mark a test case as unstable if the given variable is set. This
+implies failures to be reported as warnings.The option can be used
+multiple times, which means that it suffices that one of the given
+<code>Var</code>s is set in order to mark the test case as unstable. Typically
+<code>--unstable</code> is used to test on presence of environment
+variables. <code>--unstable</code> is intended to be used as <code>[config
+unstable=Var]</code> or <code>[config unstable=Var=Value]</code> statements within
+scripts. The construction <strong>Var=Value</strong> is little more restrictive as
+it requires that the variable is set to a certain value.</p>
+
+<p><strong>&#8211;unstable_unless Var</strong><br/>
+<strong>&#8211;unstable_unless Var=Value</strong><br/>
+Mark a test case as unstable if the given variable NOT is set. This
+implies failures to be reported as warnings. The option can be used
+multiple times, which means that it suffices that one of the given
+<code>Var</code>s NOT is set in order to mark the test case as unstable.
+Typically <code>--unstable_unless</code> is used to test on absence of
+environment variables. <code>--unstable_unless</code> is intended to be used as
+<code>[config unstable_unless=Var]</code> or <code>[config unstable_unless=Var=Value]</code>
+statements within scripts. The construction <strong>Var=Val</strong> is little more
+restrictive as it requires that the variable is set to a certain
+value.</p>
 
 <h2 id="logcontrol">Log control</h2>
 

@@ -133,9 +133,7 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
         ShrinkedI =
             NewI#istate{commands     = shrinked,
                         macro_vars   = shrinked,
-                        global_vars  = shrinked,
-                        builtin_vars = shrinked,
-                        system_vars  = shrinked},
+                        global_vars  = shrinked},
         garbage_collect(),
         wait_for_done(ShrinkedI, Pid, Docs)
     after
@@ -199,6 +197,10 @@ config_type(Name) ->
             {ok, #istate.skip, [{std_list, [string]}]};
         skip_unless ->
             {ok, #istate.skip_unless, [{std_list, [string]}]};
+        unstable ->
+            {ok, #istate.unstable, [{std_list, [string]}]};
+        unstable_unless ->
+            {ok, #istate.unstable_unless, [{std_list, [string]}]};
         require ->
             {ok, #istate.require, [{std_list, [string]}]};
         case_prefix ->
@@ -399,16 +401,17 @@ handle_done(OldI, NewI0, Docs) ->
 print_success(I, File, Results) ->
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
+    Warnings = I#istate.warnings,
     Outcome =
         if
-            I#istate.warnings =/= [] ->
+            Warnings =/= [] ->
                 double_ilog(I, "~sWARNING\n", [?TAG("result")]),
                 warning;
             true ->
                 double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
                 success
         end,
-    {ok, Outcome, File, FullLineNo, I#istate.case_log_dir,
+    {ok, Outcome, File, FullLineNo, I#istate.case_log_dir, Warnings,
      Results, <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
 print_fail(OldI0, NewI, File, Results,
@@ -419,6 +422,25 @@ print_fail(OldI0, NewI, File, Results,
                    extra      = _Extra,
                    actual     = Actual,
                    rest       = Rest}) ->
+    OldI = OldI0#istate{progress = silent},
+    OldWarnings = OldI#istate.warnings,
+    FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
+    UnstableWarnings = unstable_warnings(OldI, FullLineNo),
+    {Outcome, Warnings, ResStr} =
+        if
+            UnstableWarnings =/= [] ->
+                {warning,
+                 OldWarnings ++ UnstableWarnings,
+                 double_ilog(OldI, "~sWARNING at ~s\n",
+                             [?TAG("result"), FullLineNo])
+                };
+            true ->
+                {fail,
+                 OldWarnings,
+                 double_ilog(OldI, "~sFAIL at ~s\n",
+                             [?TAG("result"), FullLineNo])
+                }
+        end,
     {NewActual, NewRest} =
         case Actual of
             <<"fail pattern matched ",  _/binary>> ->
@@ -430,10 +452,6 @@ print_fail(OldI0, NewI, File, Results,
             _ when is_binary(Actual) ->
                 {<<"error">>, Actual}
         end,
-    OldI = OldI0#istate{progress = silent},
-    FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
-    ResStr = double_ilog(OldI, "~sFAIL at ~s\n",
-                         [?TAG("result"), FullLineNo]),
     FailBin =
         iolist_to_binary(
           [
@@ -454,8 +472,44 @@ print_fail(OldI0, NewI, File, Results,
     double_ilog(OldI, "actual ~s\n\"~s\"\n",
                 [NewActual, lux_utils:to_string(NewRest)]),
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
-    {ok, fail, File, FullLineNo, NewI#istate.case_log_dir,
+    {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir, Warnings,
      Results, FailBin, Opaque}.
+
+unstable_warnings(#istate{unstable=U, unstable_unless=UU} = I, FullLineNo) ->
+    F = fun(Var, NameVal) -> filter_unstable(I, FullLineNo, Var, NameVal) end,
+    Unstable = lists:zf(fun(Val) -> F("unstable", Val) end, U),
+    UnstableUnless = lists:zf(fun(Val) -> F("unstable_unless", Val) end, UU),
+    Unstable ++ UnstableUnless.
+
+filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
+    case Var of
+        "unstable" ->
+            {IsSet, Name} = test_var(I, NameVal),
+            case IsSet of
+                false ->
+                    false;
+                true ->
+                    Format = "Fail but UNSTABLE as variable ~s is set",
+                    Reason = iolist_to_binary(io_lib:format(Format, [Name])),
+                    {true, {warning, File, FullLineNo, Reason}}
+            end;
+        "unstable_unless" ->
+            {IsSet, Name} = test_var(I, NameVal),
+            case IsSet of
+                true ->
+                    false;
+                false ->
+                    Format = "Fail but UNSTABLE as variable ~s is not set",
+                    Reason = iolist_to_binary(io_lib:format(Format, [Name])),
+                    {true, {warning, File, FullLineNo, Reason}}
+            end
+    end.
+
+test_var(#istate{builtin_vars = BuiltinVars,
+                 system_vars  = SystemVars},
+              VarVal) ->
+    MultiVars = [BuiltinVars, SystemVars],
+    lux_utils:test_var(MultiVars, VarVal).
 
 full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),
@@ -548,6 +602,8 @@ user_config_keys() ->
      debug_file,
      skip,
      skip_unless,
+     unstable_unless,
+     unstable,
      require,
      case_prefix,
      progress,

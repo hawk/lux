@@ -73,6 +73,8 @@
          debug_file                 :: string(),
          skip = []                  :: [string()],
          skip_unless = []           :: [string()],
+         unstable = []              :: [string()],
+         unstable_unless = []       :: [string()],
          require = []               :: [string()],
          case_prefix = ""           :: string(),
          config_dir = undefined     :: undefined | string(),

@@ -48,9 +48,24 @@ test case         : .*examples/skip.lux
 result            : SKIP as variable SHELL is set
 """
 """?
+test case         : .*examples/unstable.lux
+result            : WARNING at 8
+expected
+	bar
+actual timeout
+"""
+"""?
+test case         : .*examples/warning.lux
+result            : WARNING
+"""
+"""?
 successful        : 3
 skipped           : 1
 	.*examples/skip.lux:5
+warnings          : 3
+	.*examples/unstable.lux:8 - Fail but UNSTABLE as variable SHELL is set
+	.*examples/unstable.lux:8 - Fail but UNSTABLE as variable QWERTY is not set
+	.*examples/warning.lux:3 - Trailing whitespaces
 failed            : 2
 	.*examples/fail.lux:32 - timeout
 	.*examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"

@@ -6,7 +6,9 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_utils).
--export([version/0, timestamp/0, builtin_vars/0, system_vars/0, expand_vars/3,
+-export([version/0, timestamp/0,
+         builtin_vars/0, system_vars/0, expand_vars/3,
+         test_var/2, split_var/2,
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2, normalize/1,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
@@ -91,7 +93,8 @@ do_expand_vars(MultiVars, {variable, []}, [${=H | T], Acc, MissingVar) ->
 do_expand_vars(MultiVars, {variable, RevName}, [H | T], Acc, MissingVar) ->
     case is_var(H) of
         true ->
-            do_expand_vars(MultiVars, {variable, [H|RevName]}, T, Acc, MissingVar);
+            do_expand_vars(MultiVars, {variable, [H|RevName]}, T,
+                           Acc, MissingVar);
         false ->
             %% Found a variable name "prefix$var/suffix"
             Name = lists:reverse(RevName),
@@ -160,6 +163,42 @@ do_lookup_var([H|VarVal], [H|Name]) ->
 do_lookup_var([$=|Val], []) ->
     Val;
 do_lookup_var(_, _) ->
+    false.
+
+test_var(Vars, VarVal) ->
+    case split_var(VarVal, []) of
+        {Var, Val} ->
+            ok;
+        false ->
+            Var = VarVal,
+            Val = false
+    end,
+    UnExpanded = [$$ | Var],
+    try
+        Expanded = expand_vars(Vars, UnExpanded, error),
+        %% Variable is set
+        if
+            Val =:= false ->
+                %% Variable exists
+                {true, Var};
+            Val =:= Expanded ->
+                %% Value matches. Possible empty.
+                {true, Var};
+            true ->
+                %% Value does not match
+                {false, Var}
+        end
+    catch
+        throw:{no_such_var, _} ->
+            %% Variable is not set
+            {false, Var}
+    end.
+
+split_var([$= | Val], Var) ->
+    {lists:reverse(Var), Val};
+split_var([H | T], Var) ->
+    split_var(T, [H | Var]);
+split_var([], _Var) ->
     false.
 
 summary(Old, New) ->

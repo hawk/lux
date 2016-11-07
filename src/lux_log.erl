@@ -390,16 +390,17 @@ run_result({result, Res}) ->
     run_result(Res);
 run_result(Res) ->
     case Res of
-        success                                       -> success;
-        warning                                       -> warning;
-        {skip, _}                                     -> skip;
-        {fail, _LineNo, _Expected, _Actual, _Details} -> fail;
-        {error, _Reason}                              -> fail;
-        <<"SUCCESS">>                                 -> success;
-        <<"SKIP", _/binary>>                          -> skip;
-        <<"FAIL", _/binary>>                          -> fail;
-        <<"ERROR", _/binary>>                         -> fail;
-        <<"WARNING", _/binary>>                       -> warning
+        success                                          -> success;
+        warning                                          -> warning;
+        {skip, _}                                        -> skip;
+        {warning, _LineNo, _Expected, _Actual, _Details} -> warning;
+        {fail, _LineNo, _Expected, _Actual, _Details}    -> fail;
+        {error, _Reason}                                 -> fail;
+        <<"SUCCESS">>                                    -> success;
+        <<"SKIP", _/binary>>                             -> skip;
+        <<"FAIL", _/binary>>                             -> fail;
+        <<"ERROR", _/binary>>                            -> fail;
+        <<"WARNING", _/binary>>                          -> warning
     end.
 
 find_config(Key, Tuples, Default) ->
@@ -738,6 +739,27 @@ parse_result(RawResult) ->
                 {error, [Reason | Rest]};
             <<"INTERNAL_ERROR ", Reason/binary>> ->
                 {error, [Reason | Rest]};
+            <<"WARNING at ", Fail/binary>> ->
+                [<<"expected">>, Expected,
+                 <<"actual ", Actual/binary>>, Details | _] = Rest,
+                RawLineNo =
+                    case binary:split(Fail, <<":">>) of
+                        [_] -> % Main
+                            Fail;
+                        [Before, After] -> % Nested
+                            try
+                                _ = list_to_integer(?b2l(Before)),
+                                Fail
+                            catch
+                                _:badarg ->
+                                    After
+                            end
+                    end,
+                {quote, Expected2} = unquote(Expected),
+                Expected3 = split_lines(Expected2),
+                {quote, Details2} = unquote(Details),
+                Details3 = split_lines(Details2),
+                {warning, RawLineNo, Expected3, Actual, Details3};
             <<"FAIL at ", Fail/binary>> ->
                 [<<"expected">>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,

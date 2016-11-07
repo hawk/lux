@@ -554,8 +554,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
     TmpR = OrigR#rstate{warnings = [], file_args = []},
     case parse_script(TmpR, SuiteFile, Script) of
         {ok, NewR, Script2, Cmds, Opts} ->
-            NewWarnings = NewR#rstate.warnings,
-            AllWarnings = OrigR#rstate.warnings ++ NewWarnings,
+            ParseWarnings = NewR#rstate.warnings,
             case NewR#rstate.mode of
                 list ->
                     run_cases(NewR, Scripts, OldSummary, Results,
@@ -569,22 +568,23 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                               [lux_utils:drop_prefix(Script2)]),
                     [io:format("~s~s\n", [lists:duplicate(Level, $\t), Str]) ||
                         #cmd{arg = {Level, Str}} <- Docs],
-                    case NewWarnings of
+                    case ParseWarnings of
                         [] ->
                             NewSummary = OldSummary,
                             Results2 = Results;
                         _ ->
                             Summary = warning,
                             NewSummary = lux_utils:summary(OldSummary, Summary),
-                            Results2 = [{Summary, Script2, NewWarnings} |
+                            Results2 = [{Summary, Script2, ParseWarnings} |
                                         Results]
                     end,
+                    AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
                     run_cases(NewR#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, Results2,
                               CC+1, List, Opaque);
                 validate ->
                     init_case_rlog(NewR, PrefixedRelScript, Script),
-                    case NewWarnings of
+                    case ParseWarnings of
                         [] ->
                             Summary = success,
                             NewSummary = OldSummary,
@@ -592,12 +592,13 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                         _ ->
                             Summary = warning,
                             NewSummary = lux_utils:summary(OldSummary, Summary),
-                            Results2 = [{NewSummary, Script2, NewWarnings} |
+                            Results2 = [{NewSummary, Script2, ParseWarnings} |
                                         Results]
                     end,
                     double_rlog(NewR, "~s~s\n",
                                 [?TAG("result"),
                                  string:to_upper(atom_to_list(Summary))]),
+                    AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
                     run_cases(NewR#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, Results2,
                               CC+1, List, Opaque);
@@ -605,11 +606,11 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                     lux:trace_me(70, suite, 'case', PrefixedRelScript, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, PrefixedRelScript, Script),
-                    Res = lux:interpret_commands(Script2, Cmds, NewWarnings,
+                    Res = lux:interpret_commands(Script2, Cmds, ParseWarnings,
                                                  Opts, Opaque),
                     SkipReason = "",
                     case Res of
-                        {ok, Summary, _, FullLineNo, CaseLogDir,
+                        {ok, Summary, _, FullLineNo, CaseLogDir, RunWarnings,
                          Events, FailBin, NewOpaque} ->
                             lux:trace_me(70, 'case', suite, Summary,
                                          []),
@@ -622,6 +623,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                             NewScripts = Scripts;
                         {error, MainFile, FullLineNo, CaseLogDir, ErrorMsg}
                           when ErrorMsg =:= <<"suite_timeout" >> ->
+                            RunWarnings = ParseWarnings,
                             Res2 = {error, MainFile, FullLineNo, ErrorMsg},
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
@@ -633,6 +635,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                             NewScripts = [],
                             NewOpaque  = Opaque;
                         {error, MainFile, FullLineNo, CaseLogDir, ErrorMsg} ->
+                            RunWarnings = ParseWarnings,
                             Res2 = {error, MainFile, FullLineNo, ErrorMsg},
                             Summary = error,
                             lux:trace_me(70, 'case', suite, Summary,
@@ -644,6 +647,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                             NewScripts = Scripts,
                             NewOpaque  = Opaque
                     end,
+                    AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
                     NewR2 = NewR#rstate{warnings = AllWarnings},
                     annotate_event_log(NewR2, Script, NewSummary,
                                        NewResults, CaseLogDir, Opts),
@@ -676,8 +680,8 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
             Res = {ok, Summary, Script2, FullLineNo,
                    NewR#rstate.log_dir, [], <<>>, []},
             Results2 = [Res | Results],
-            NewWarnings = NewR#rstate.warnings,
-            AllWarnings = OrigR#rstate.warnings ++ NewWarnings,
+            ParseWarnings = NewR#rstate.warnings,
+            AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
             run_cases(NewR#rstate{warnings = AllWarnings},
                       Scripts, NewSummary, Results2,
                       CC+1, List, Opaque);
