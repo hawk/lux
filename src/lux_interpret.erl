@@ -715,8 +715,7 @@ interpret_loop(I) ->
             interpret_loop(I2);
         {break_pattern_matched, _Pid, LoopCmd} ->
             %% Top down search
-            LoopStack = I#istate.loop_stack,
-            I2 = break_loop(I, LoopCmd, lists:reverse(LoopStack), []),
+            I2 = break_loop(I, LoopCmd),
             interpret_loop(I2#istate{want_more = true});
         {more, Pid, _Name} ->
             if
@@ -755,13 +754,23 @@ interpret_loop(I) ->
             interpret_loop(I2)
     end.
 
-break_loop(I, LoopCmd, [Loop|_Stack] = AllStack, Acc)
-  when Loop#loop.cmd =:= LoopCmd ->
+break_all_loops(#istate{loop_stack = LoopStack} = I) ->
+    Breaks = [L#loop{mode = break} || L <- LoopStack],
+    I#istate{loop_stack = Breaks}.
+
+break_loop(#istate{loop_stack = LoopStack} = I, LoopCmd) ->
+    break_loop(I, LoopCmd, lists:reverse(LoopStack), []).
+
+break_loop(I, LoopCmd, RevStack, Acc)
+  when (hd(RevStack))#loop.cmd =:= LoopCmd ->
     %% Break all inner loops
-    Breaks = [L#loop{mode = break} || L <- AllStack],
-    I#istate{loop_stack = Breaks  ++ Acc};
-break_loop(I, LoopCmd, [Loop|Stack], Acc) ->
-    break_loop(I, LoopCmd, Stack, [Loop|Acc]).
+    RevBreaks = [L#loop{mode = break} || L <- RevStack],
+    I#istate{loop_stack = lists:reverse(RevBreaks) ++ Acc};
+break_loop(I, LoopCmd, [Loop|RevStack], Acc) ->
+    break_loop(I, LoopCmd, RevStack, [Loop|Acc]);
+break_loop(I, _LoopCmd, [], _Acc) ->
+    %% Ignore missing loop
+    I.
 
 stopped_by_user(I, Scope) ->
     %% Ordered to stop by user
@@ -799,24 +808,26 @@ premature_stop(I, TimeoutType, TimeoutMillis) ->
     Seconds = TimeoutMillis div timer:seconds(1),
     Multiplier = I#istate.multiplier / 1000,
     ilog(I, "~s(~p): ~p (~p seconds * ~.3f)\n",
-         [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno,
+         [I#istate.active_name,
+          (I#istate.latest_cmd)#cmd.lineno,
           TimeoutType,
           Seconds,
           Multiplier]),
-    case I#istate.mode of
+    I2 = break_all_loops(I),
+    case I2#istate.mode of
         running ->
             %% The test case (or suite) has timed out.
-            prepare_stop(I, dummy_pid, {fail, TimeoutType});
+            prepare_stop(I2, dummy_pid, {fail, TimeoutType});
         cleanup ->
             %% Timeout during cleanup
 
             %% Initiate stop by sending shutdown to all shells.
-            multicast(I, {shutdown, self()}),
+            multicast(I2, {shutdown, self()}),
             I#istate{mode = stopping, cleanup_reason = TimeoutType};
         stopping ->
             %% Shutdown has already been sent to the shells.
             %% Continue to collect their states.
-            I
+            I2
     end.
 
 sync_return(I) ->
