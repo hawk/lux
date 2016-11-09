@@ -748,6 +748,8 @@ interpret_loop(I) ->
             lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
             io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
                       [IgnoreMsg]),
+            io:format("\nDEBUG(~p):\n\t~p\n",
+                      [?LINE, process_info(self(), messages)]),
             interpret_loop(I)
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
@@ -1540,14 +1542,14 @@ cast(#istate{active_shell = #shell{pid =Pid}, active_name = Name}, Msg) ->
 trace_msg(#shell{name = Name}, Msg) ->
     lux:trace_me(50, 'case', Name, element(1, Msg), [Msg]).
 
-multisync(I, Msg) when Msg =:= flush;
-                       Msg =:= immediate;
-                       Msg =:= wait_for_expect ->
-    Pids = multicast(I, {sync, self(), Msg}),
+multisync(I, When) when When =:= flush;
+                        When =:= immediate;
+                        When =:= wait_for_expect ->
+    Pids = multicast(I, {sync, self(), When}),
     lux:trace_me(50, 'case', waiting,
                  [{active_shell, I#istate.active_shell},
                   {shells, I#istate.shells},
-                  Msg]),
+                  When]),
     I2 = wait_for_reply(I, Pids, sync_ack, undefined, infinity),
     lux:trace_me(50, 'case', collected, []),
     I2.
@@ -1556,8 +1558,8 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
     receive
         {Expect, Pid} ->
             wait_for_reply(I, Pids, Expect, Fun, FlushTimeout);
-        {Expect, Pid, Expected} when Expect =:= expected, Pids =:= [] ->
-            Expected;
+%%      {Expect, Pid, Expected} when Expect =:= expected, Pids =:= [] ->
+%%          Expected;
         {stop, SomePid, Res} ->
             I2 = prepare_stop(I, SomePid, Res),
             wait_for_reply(I2, [Pid|Pids], Expect, Fun, FlushTimeout);
@@ -1572,6 +1574,11 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
             lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
             io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
                       [IgnoreMsg]),
+            io:format("DEBUG(~p): ~p ~p\n\t~p\n\t~p\n\t~p\n",
+                      [?LINE, Expect, [Pid|Pids],
+                       process_info(self(), messages),
+                       process_info(Pid, messages),
+                       process_info(Pid, current_stacktrace)]),
             wait_for_reply(I, [Pid|Pids], Expect, Fun, FlushTimeout)
     after FlushTimeout ->
             I

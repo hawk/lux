@@ -895,16 +895,17 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
             {Res, _Multi} = match(Actual, BreakCmd),
             case Res of
                 {match, Matches} ->
+                    C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
                     LoopCmd = Loop#loop.cmd,
                     BreakLoop = {break_pattern_matched, self(), LoopCmd},
-                    send_reply(C, C#cstate.parent, BreakLoop),
-                    C2 = clear_expected(C, " (break loop)"),
-                    {C3, _Match} =
-                        post_match(C2, Actual, Matches,
+                    send_reply(C2, C2#cstate.parent, BreakLoop),
+                    C3 = clear_expected(C2, " (break loop)"),
+                    {C4, _Match} =
+                        post_match(C3, Actual, Matches,
                                    <<"loop break pattern matched ">>),
                     %% Break all inner loops
                     Breaks = [L#loop{mode = break} || L <- AllStack],
-                    C3#cstate{loop_stack = Breaks  ++ Acc};
+                    C4#cstate{loop_stack = Breaks  ++ Acc};
                 nomatch ->
                     match_break_patterns(C, Actual, Stack, [Loop|Acc]);
                 {{'EXIT', Reason}, _} ->
@@ -1133,7 +1134,8 @@ stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
                   rest = C#cstate.actual,
                   events = lists:reverse(C#cstate.events)},
     lux:trace_me(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
-    C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+%%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+    C2 = C#cstate{expected = undefined},
     C3 = close_logs(C2),
     send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
@@ -1208,7 +1210,8 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                       [Reason, Error, Res, ?stacktrace()]),
             clog(C, 'INTERNAL ERROR', "\"~p@~p\"", [Why, Cmd#cmd.lineno])
     end,
-    C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+%%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+    C2 = C#cstate{expected = undefined},
     C3 = close_logs(C2),
     send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     close_and_exit(C3, Reason, Res).

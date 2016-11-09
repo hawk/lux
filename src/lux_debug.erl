@@ -86,8 +86,16 @@ loop(Ipid, PrevCmd, CmdState, N) ->
 call(Ipid, Cmd, CmdState) when is_list(Cmd); is_function(Cmd, 2) ->
     %% io:format("DEBUG: ~p\n", [CmdStr]),
     Ipid ! {debug_call, self(), Cmd, CmdState},
+    wait_for_reply(Ipid, 5000).
+
+wait_for_reply(Ipid, Timeout) ->
     receive
-        {debug_call, Ipid, NewCmdState} -> NewCmdState
+        {debug_reply, Ipid, NewCmdState} ->
+            NewCmdState
+    after Timeout ->
+            Info = process_info(Ipid, [current_stacktrace, messages]),
+            io:format("\nInterpreter info:\n\t~p\n", [Info]),
+            wait_for_reply(Ipid, infinity)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -95,7 +103,7 @@ call(Ipid, Cmd, CmdState) when is_list(Cmd); is_function(Cmd, 2) ->
 
 eval_cmd(I, Dpid, Cmd, CmdState) ->
     {CmdState2, I2} = do_eval_cmd(I, Cmd, CmdState),
-    Dpid ! {debug_call, self(), CmdState2},
+    Dpid ! {debug_reply, self(), CmdState2},
     I2.
 
 do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
