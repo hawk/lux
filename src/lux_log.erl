@@ -847,7 +847,7 @@ format_config(Config) ->
         fun({Tag, Types, Val}) ->
                 lists:flatten(format_config(Tag, Val, Types));
            ({Tag, Val}) ->
-                {ok, _Pos, Types} = lux_interpret:config_type(Tag),
+                {ok, _Pos, Types} = lux_case:config_type(Tag),
                 lists:flatten(format_config(Tag, Val, Types))
         end,
     lists:map(Fun, Config).

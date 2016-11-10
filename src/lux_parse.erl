@@ -32,8 +32,8 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
     try
         File = lux_utils:normalize(RelFile),
         RevFile = lux_utils:filename_split(File),
-        DefaultI = lux_interpret:default_istate(File),
-        case lux_interpret:parse_iopts(DefaultI, Opts) of
+        DefaultI = lux_case:default_istate(File),
+        case lux_case:parse_iopts(DefaultI, Opts) of
             {ok, I} ->
                 MultiVars =
                     [I#istate.global_vars,
@@ -90,14 +90,14 @@ extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
 parse_config(I0, Config) ->
     Fun =
         fun({Name, Vals}, {{ok, I}, U}) ->
-            case lux_interpret:config_type(Name) of
+            case lux_case:config_type(Name) of
                 {ok, Pos, Types = [{std_list, _}]} ->
-                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I, U);
+                    lux_case:set_config_vals(Name, Vals, Types, Pos, I, U);
                 {ok, Pos, Types = [{reset_list, _}]} ->
-                    lux_interpret:set_config_vals(Name, Vals, Types, Pos, I, U);
+                    lux_case:set_config_vals(Name, Vals, Types, Pos, I, U);
                 {ok, Pos, Types} ->
                     Val = lists:last(Vals),
-                    lux_interpret:set_config_val(Name, Val, Types, Pos, I, U);
+                    lux_case:set_config_val(Name, Val, Types, Pos, I, U);
                 {error, Reason} ->
                     {{error, Reason}, U}
             end;
@@ -108,7 +108,7 @@ parse_config(I0, Config) ->
     element(1, Res).
 
 updated_opts(I, DefaultI) ->
-    Candidates = lux_interpret:user_config_types(),
+    Candidates = lux_case:user_config_types(),
     Filter = fun({Tag, Pos, Types}) ->
                      Old = element(Pos, DefaultI),
                      New = element(Pos, I),

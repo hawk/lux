@@ -9,6 +9,7 @@ VSN=$(LUX_VSN)
 
 ERL_MODULES = \
 	lux \
+	lux_case \
 	lux_debug \
 	lux_html_gen \
 	lux_html_parse \

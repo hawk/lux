@@ -666,7 +666,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
             init_case_rlog(NewR, PrefixedRelScript, Script),
             double_rlog(NewR, "~s~s\n",
                         [?TAG("result"), SkipReason]),
-            {ok, _} = lux_interpret:copy_orig(NewR#rstate.log_dir, Script2),
+            {ok, _} = lux_case:copy_orig(NewR#rstate.log_dir, Script2),
             Summary =
                 case binary_to_list(SkipReason) of
                     "FAIL" ++ _ -> fail;
@@ -1103,7 +1103,7 @@ config_type(Name) ->
         {ok, Type} ->
             {ok, Type};
         {error, _Reason} ->
-            case lux_interpret:config_type(Name) of
+            case lux_case:config_type(Name) of
                 {ok, _Pos, Type} ->
                     {ok, Type};
                 {error, Reason} ->
@@ -1112,7 +1112,7 @@ config_type(Name) ->
     end.
 
 is_case_config_type(Name) ->
-    case lux_interpret:config_type(Name) of
+    case lux_case:config_type(Name) of
         {ok, _Pos, _Type} -> true;
         {error, _Reason}  -> false
     end.

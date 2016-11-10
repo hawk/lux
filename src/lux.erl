@@ -56,7 +56,7 @@ parse_file(File, RunMode, SkipSkip, Opts) ->
              [{ok, summary(), filename(), [result()]} | error()]).
 
 interpret_commands(File, Cmds, Warnings, Opts, Opaque) ->
-    lux_interpret:interpret_commands(File, Cmds, Warnings, Opts, Opaque).
+    lux_case:interpret_commands(File, Cmds, Warnings, Opts, Opaque).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate log file(s)
