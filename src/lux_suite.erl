@@ -949,6 +949,13 @@ real_hostname() ->
         _          -> "localhost"
     end.
 
+user_prefix() ->
+    case os:getenv("USER") of
+        false -> "";
+        ""    -> "";
+        User  -> User ++ "@"
+    end.
+
 double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),
     case Fd of
@@ -1161,8 +1168,9 @@ tap_suite_begin(R, Scripts, Directive)
             ok = lux_tap:plan(TAP, length(Scripts), Directive),
             ok = lux_tap:diag(TAP, "\n"),
             %% ok = lux_tap:diag(TAP, "LUX - LUcid eXpect scripting"),
+            OptUser = user_prefix(),
             Host = real_hostname(),
-            ok = lux_tap:diag(TAP, "ssh " ++ Host),
+            ok = lux_tap:diag(TAP, "ssh " ++ OptUser ++ Host),
             {ok, Cwd} = file:get_cwd(),
             ok = lux_tap:diag(TAP, "cd " ++ Cwd),
             Args = string:join(tl(R#rstate.orig_args), " "),
