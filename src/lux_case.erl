@@ -10,7 +10,7 @@
 -include("lux.hrl").
 
 -export([
-         interpret_commands/5,
+         interpret_commands/6,
          default_istate/1,
          parse_iopts/2,
          config_type/1,
@@ -21,7 +21,7 @@
          case_log_dir/2
         ]).
 
-interpret_commands(Script, Cmds, Warnings, Opts, Opaque) ->
+interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     I = default_istate(Script),
     case lists:keyfind(stopped_by_user, 1, Opaque) of
         {_, Context = suite} -> ok;
@@ -54,7 +54,7 @@ interpret_commands(Script, Cmds, Warnings, Opts, Opaque) ->
                                                     LogFun, Verbose) of
                             {ok, EventLog, EventFd} ->
                                 Docs = docs(I5#istate.orig_file, Cmds),
-                                eval(I5, Progress, Verbose, LogFun,
+                                eval(I5, StartTime, Progress, Verbose, LogFun,
                                      EventLog, EventFd, ConfigFd, Docs);
                             {error, FileReason} ->
                                 internal_error(I5,
@@ -114,7 +114,8 @@ case_log_dir(SuiteLogDir, AbsScript) ->
     RelDir = filename:dirname(RelScript),
     filename:join([SuiteLogDir, RelDir]).
 
-eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
+eval(OldI, StartTime, Progress, Verbose,
+     LogFun, EventLog, EventFd, ConfigFd, Docs) ->
     NewI = OldI#istate{event_log_fd =  {Verbose, EventFd},
                        config_log_fd = {Verbose, ConfigFd}},
     Flag = process_flag(trap_exit, true),
@@ -131,7 +132,7 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
         Interpret =
             fun() ->
                     lux_debug:start_link(OldI#istate.debug_file),
-                    Res = lux_interpret:init(NewI),
+                    Res = lux_interpret:init(NewI, StartTime),
                     lux:trace_me(70, 'case', shutdown, []),
                     unlink(ReplyTo),
                     ReplyTo ! {done, self(), Res},
@@ -148,7 +149,8 @@ eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
     after
         process_flag(trap_exit, Flag),
         lux_log:close_event_log(EventFd),
-        file:write(ConfigFd, "\n"), file:close(ConfigFd) % Don't care of failure
+        file:write(ConfigFd, "\n"),
+        file:close(ConfigFd) % Don't care of failure
     end.
 
 internal_error(I, ReasonTerm) ->

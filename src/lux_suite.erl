@@ -57,7 +57,11 @@
         }).
 
 run(Files, Opts, OrigArgs) when is_list(Files) ->
-    case parse_ropts(Opts, #rstate{files = Files, orig_args = OrigArgs}) of
+    SuiteStartTime = lux_utils:timestamp(),
+    R0 = #rstate{files = Files,
+                 orig_args = OrigArgs,
+                 start_time = SuiteStartTime},
+    case parse_ropts(Opts, R0) of
         {ok, R, _UserLogDir}
           when R#rstate.mode =:= list;
                R#rstate.mode =:= list_dir;
@@ -174,6 +178,9 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
                 run_suite(R2, R2#rstate.files, InitialSummary, InitialRes),
             print_results(R3, Summary, Results),
             _ = write_results(R3, Summary, Results),
+            SuiteEndTime = lux_utils:now_to_string(lux_utils:timestamp()),
+            EndConfig = [{'end time', [string], SuiteEndTime}],
+            write_config_log(SummaryLog, ConfigData ++ EndConfig),
             lux_log:close_summary_log(SummaryFd, SummaryLog),
             annotate_final_summary_log(R3, Summary, HtmlPrio,
                                        SummaryLog, Results);
@@ -196,9 +203,7 @@ initial_res(_R, true, _InitialSummary, _HtmlPrio, _ConfigData, SummaryLog) ->
             []
     end;
 initial_res(R, false, InitialSummary, HtmlPrio, ConfigData, SummaryLog) ->
-    LogDir = filename:dirname(SummaryLog),
-    ConfigLog = filename:join([LogDir, "lux_config.log"]),
-    ok = lux_log:write_config_log(ConfigLog, ConfigData),
+    write_config_log(SummaryLog, ConfigData),
     lux_log:write_results(R#rstate.progress, SummaryLog, skip, [], []),
     InitialSummaryPrio = lux_utils:summary_prio(InitialSummary),
     if
@@ -212,6 +217,11 @@ initial_res(R, false, InitialSummary, HtmlPrio, ConfigData, SummaryLog) ->
         true ->
             []
     end.
+
+write_config_log(SummaryLog, ConfigData) ->
+    LogDir = filename:dirname(SummaryLog),
+    ConfigLog = filename:join([LogDir, "lux_config.log"]),
+    ok = lux_log:write_config_log(ConfigLog, ConfigData).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
     SuiteLogDir = filename:dirname(LogFile),
@@ -411,8 +421,7 @@ parse_ropts([], R) ->
     {ok, adjust_log_dir(R2, UserLogDir), UserLogDir}.
 
 adjust_log_dir(R, UserLogDir) ->
-    Now = lux_utils:timestamp(),
-    UniqStr = uniq_str(Now),
+    UniqStr = uniq_str(R#rstate.start_time),
     UniqRun = "run_" ++ UniqStr,
     Run =
         case R#rstate.run of
@@ -442,8 +451,7 @@ adjust_log_dir(R, UserLogDir) ->
                 AbsLogDir0
         end,
     UserArgs = opts_to_args([{log_dir, AbsLogDir}], R#rstate.user_args),
-    R#rstate{start_time = Now,
-             run = Run,
+    R#rstate{run = Run,
              log_dir = AbsLogDir,
              user_args = UserArgs}.
 
@@ -552,6 +560,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
     PrefixedRelScript = prefixed_rel_script(OrigR, Script),
     RunMode = OrigR#rstate.mode,
     TmpR = OrigR#rstate{warnings = [], file_args = []},
+    CaseStartTime = lux_utils:timestamp(),
     case parse_script(TmpR, SuiteFile, Script) of
         {ok, NewR, Script2, Cmds, Opts} ->
             ParseWarnings = NewR#rstate.warnings,
@@ -606,7 +615,9 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                     lux:trace_me(70, suite, 'case', PrefixedRelScript, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, PrefixedRelScript, Script),
-                    Res = lux:interpret_commands(Script2, Cmds, ParseWarnings,
+                    Res = lux:interpret_commands(Script2, Cmds,
+                                                 ParseWarnings,
+                                                 CaseStartTime,
                                                  Opts, Opaque),
                     SkipReason = "",
                     case Res of

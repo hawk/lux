@@ -11,12 +11,7 @@
 
 -include("lux.hrl").
 
--define(micros, 1000000).
-
-%% -define(end_of_script(C),
-%%         C#cstate.no_more_input =:= true andalso
-%%         C#cstate.timer =:= undefined andalso
-%%         C#cstate.expected =:= []).
+-define(match_fail, match_timeout).
 
 -record(pattern,
         {cmd       :: #cmd{},
@@ -41,7 +36,7 @@
          multiplier              :: non_neg_integer(),
          poll_timeout            :: non_neg_integer(),
          flush_timeout           :: non_neg_integer(),
-         timeout                 :: non_neg_integer() | infinity,
+         match_timeout           :: non_neg_integer() | infinity,
          shell_wrapper           :: undefined | string(),
          shell_cmd               :: string(),
          shell_args              :: [string()],
@@ -89,7 +84,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 multiplier = I#istate.multiplier,
                 poll_timeout = I#istate.poll_timeout,
                 flush_timeout = I#istate.flush_timeout,
-                timeout = I#istate.default_timeout,
+                match_timeout = I#istate.default_timeout,
                 shell_wrapper = I#istate.shell_wrapper,
                 shell_cmd = I#istate.shell_cmd,
                 shell_args = I#istate.shell_args,
@@ -252,10 +247,10 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{state_changed = true,
                      actual = <<OldData/binary, NewData/binary>>,
                      events = save_event(C, recv, NewData)};
-        timeout ->
+        match_timeout ->
             C#cstate{state_changed = true,
                      timed_out = true,
-                     events = save_event(C, recv, timeout)};
+                     events = save_event(C, recv, ?match_fail)};
         {wakeup, Secs} ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             dlog(C, ?dmore,"mode=resume (wakeup)", []),
@@ -582,7 +577,7 @@ shell_eval(#cstate{name = Name} = C0,
                     clog(C, change, "expect timeout to ~p seconds",
                          [Millis div timer:seconds(1)])
             end,
-            C#cstate{timeout = Millis};
+            C#cstate{match_timeout = Millis};
         cleanup ->
             C2 = cancel_timer(C),
             case C#cstate.fail of
@@ -714,8 +709,8 @@ expect(#cstate{state_changed = true,
                     C2 =  match_patterns(C, Actual),
                     Earlier = C2#cstate.timer_started_at,
                     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
-                    clog(C2, timer, "fail (~p seconds)", [Diff div ?micros]),
-                    stop(C2, fail, timeout);
+                    clog(C2, timer, "failed (after ~p micro seconds)", [Diff]),
+                    stop(C2, fail, ?match_fail);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C, Actual),
@@ -1032,24 +1027,25 @@ do_flush_port(Port, Timeout, N, Acc) ->
             {N, Acc}
     end.
 
-start_timer(#cstate{timer = undefined, timeout = infinity} = C) ->
-    clog(C, timer, "start (infinity)", []),
+start_timer(#cstate{timer = undefined, match_timeout = infinity} = C) ->
+    clog(C, timer, "started (infinity)", []),
     C#cstate{timer = infinity, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{timer = undefined} = C) ->
-    Seconds = C#cstate.timeout div timer:seconds(1),
+    Seconds = C#cstate.match_timeout div timer:seconds(1),
     Multiplier = C#cstate.multiplier / 1000,
-    clog(C, timer, "start (~p seconds * ~.3f)", [Seconds, Multiplier]),
-    Timer = safe_send_after(C, C#cstate.timeout, self(), timeout),
+    clog(C, timer, "started (~p seconds * ~.3f multiplier)",
+         [Seconds, Multiplier]),
+    Timer = safe_send_after(C, C#cstate.match_timeout, self(), match_timeout),
     C#cstate{timer = Timer, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{} = C) ->
-    clog(C, timer, "keep", []),
+    clog(C, timer, "already set", []),
     C.
 
 cancel_timer(#cstate{timer = undefined} = C) ->
     C;
 cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
-    clog(C, timer, "cancel (~p seconds)",
-        [timer:now_diff(lux_utils:timestamp(), Earlier) div ?micros]),
+    Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
+    clog(C, timer, "canceled (after ~p micro seconds)", [Diff]),
     case Timer of
         infinity -> ok;
         _        -> erlang:cancel_timer(Timer)

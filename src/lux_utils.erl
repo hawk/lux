@@ -456,18 +456,22 @@ filename_split(FileName) ->
     FileName2 = drop_prefix(FileName),
     lists:reverse(filename:split(FileName2)).
 
-now_to_string(Now) ->
+now_to_string({_Mega, _Secs, Micros} = Now) ->
     DateTime = calendar:now_to_local_time(Now),
-    datetime_to_string(DateTime).
+    datetime_to_string(DateTime, [".", p(Micros, 6)]).
 
-datetime_to_string({{Year, Month, Day}, {Hour, Min, Sec}}) ->
+datetime_to_string(DateTime) ->
+    datetime_to_string(DateTime, []).
+
+datetime_to_string({{Year, Month, Day}, {Hour, Min, Sec}}, Decimals) ->
     lists:concat([Year, "-", p(Month), "-", p(Day), " ",
-                  p(Hour), ":", p(Min), ":", p(Sec)]).
+                  p(Hour), ":", p(Min), ":", p(Sec)] ++ Decimals).
 
-p(Int) when Int >= 0, Int < 10 ->
-    [$0 | integer_to_list(Int)];
-p(Int) when Int < 100 ->
-    integer_to_list(Int).
+p(Int) ->
+    p(Int, 2).
+
+p(Int, Len) ->
+    string:right(integer_to_list(Int), Len, $0).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Verbatim match

@@ -10,7 +10,7 @@
 -include("lux.hrl").
 
 -export([
-         init/1,
+         init/2,
          lookup_macro/2,
          opt_dispatch_cmd/1,
          flush_logs/1,
@@ -18,7 +18,10 @@
          expand_vars/3
         ]).
 
-init(I) ->
+init(I, StartTime) ->
+    ilog(I,
+         "lux(0): start_time \"~s\"\n",
+         [lux_utils:now_to_string(StartTime)]),
     Ref = safe_send_after(I, I#istate.case_timeout, self(),
                           {case_timeout, I#istate.case_timeout}),
     OrigCmds = I#istate.commands,
@@ -43,13 +46,17 @@ init(I) ->
                 true ->
                     I2
             end,
-        Res = interpret_loop(I4),
+        Res = loop(I4),
         {ok, Res}
     catch
         throw:{error, Reason, I5} ->
             {error, Reason, I5}
     after
-        safe_cancel_timer(Ref)
+        safe_cancel_timer(Ref),
+        EndTime = lux_utils:timestamp(),
+        lux_interpret:ilog(I,
+                           "lux(0): end_time \"~s\"\n",
+                           [lux_utils:now_to_string(EndTime)])
     end.
 
 collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
@@ -84,35 +91,35 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
         end,
     lux_utils:foldl_cmds(Collect, [], OrigFile, [], OrigCmds).
 
-interpret_loop(#istate{mode = stopping,
+loop(#istate{mode = stopping,
                        shells = [],
                        active_shell = undefined} = I) ->
     %% Stop main
     I;
-interpret_loop(#istate{commands = [], call_level = CallLevel} = I)
+loop(#istate{commands = [], call_level = CallLevel} = I)
   when CallLevel > 1 ->
     %% Stop include
     I2 = multisync(I, wait_for_expect),
     %% Check for stop and down before popping the cmd_stack
     sync_return(I2);
-interpret_loop(I) ->
+loop(I) ->
     Timeout = timeout(I),
     receive
         {debug_call, Pid, Cmd, CmdState} ->
             I2 = lux_debug:eval_cmd(I, Pid, Cmd, CmdState),
-            interpret_loop(I2);
+            loop(I2);
         {stopped_by_user, Scope} ->
             %% Ordered to stop by user
             I2 = stopped_by_user(I, Scope),
-            interpret_loop(I2);
+            loop(I2);
         {stop, Pid, Res} ->
             %% One shell has finished. Stop the others if needed
             I2 = prepare_stop(I, Pid, Res),
-            interpret_loop(I2);
+            loop(I2);
         {break_pattern_matched, _Pid, LoopCmd} ->
             %% Top down search
             I2 = break_loop(I, LoopCmd),
-            interpret_loop(I2#istate{want_more = true});
+            loop(I2#istate{want_more = true});
         {more, Pid, _Name} ->
             if
                 Pid =/= I#istate.active_shell#shell.pid ->
@@ -120,36 +127,36 @@ interpret_loop(I) ->
                     %%      [I#istate.active_name,
                     %%       (I#istate.latest_cmd)#cmd.lineno,
                     %%       Name]),
-                    interpret_loop(I);
+                    loop(I);
                 I#istate.blocked, not I#istate.want_more ->
                     %% Block more
                     I2 = I#istate{old_want_more = true},
-                    interpret_loop(I2);
+                    loop(I2);
                 not I#istate.blocked, I#istate.old_want_more =:= undefined ->
                     dlog(I, ?dmore, "want_more=true (got more)", []),
                     I2 = I#istate{want_more = true},
-                    interpret_loop(I2)
+                    loop(I2)
             end;
         {submatch_vars, _From, SubVars} ->
             I2 = I#istate{submatch_vars = SubVars},
-            interpret_loop(I2);
+            loop(I2);
         {'DOWN', _, process, Pid, Reason} ->
             I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
-            interpret_loop(I2);
+            loop(I2);
         {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
                                           TimeoutType =:= case_timeout ->
             I2 = premature_stop(I, TimeoutType, TimeoutMillis),
-            interpret_loop(I2);
+            loop(I2);
         IgnoreMsg ->
             lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
             io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
                       [IgnoreMsg]),
             io:format("\nDEBUG(~p):\n\t~p\n",
                       [?LINE, process_info(self(), messages)]),
-            interpret_loop(I)
+            loop(I)
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
-            interpret_loop(I2)
+            loop(I2)
     end.
 
 break_all_loops(#istate{loop_stack = LoopStack} = I) ->
@@ -474,7 +481,7 @@ eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo,
               InclFile, InclCmds, InclCmd, DefaultFun, false).
 
 get_eval_fun() ->
-    fun(I) when is_record(I, istate) -> interpret_loop(I) end.
+    fun(I) when is_record(I, istate) -> loop(I) end.
 
 eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
           CmdFile, Body, #cmd{type = Type} = Cmd, Fun, IsRootLoop) ->

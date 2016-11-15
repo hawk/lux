@@ -38,7 +38,7 @@
     [progress run1]
     [invoke eval 0 "cp $run/src/success/success.lux $run/src/mix/worse.lux"]
     [invoke eval 0 "cp $run/src/fail/fail.lux $run/src/mix/better.lux"]
-    [invoke eval 0 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/success1 --run=run1 --revision=rev1             --suite=success --html=validate $run/src/success"]
+    [invoke eval 0 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/success1 --run=run1 --revision=rev1              --suite=success --html=validate $run/src/success"]
     [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/fail1    --run=run1 --revision=rev1 --extend_run --suite=fail    --html=validate $run/src/fail"]
     [invoke eval 1 "../bin/lux --progress=summary --timeout=5000 --log_dir=$run/logs/mix1     --run=run1 --revision=rev1 --extend_run --suite=mix     --html=validate $run/src/mix"]
 
