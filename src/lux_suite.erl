@@ -246,7 +246,7 @@ annotate_event_log(R, Script, NewSummary, NewResults, CaseLogDir, Opts) ->
                                       Base ++ ".event.log"]),
             SuiteLogDir = R#rstate.log_dir,
             NoHtmlOpts = lists:keydelete(html, 1, Opts),
-            annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts),
+            ok = annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts),
             annotate_tmp_summary_log(R, NewSummary, NewResults, NoHtmlOpts);
         true ->
             ok
@@ -257,9 +257,14 @@ annotate_tmp_summary_log(R, NewSummary, NewResults, Opts) ->
     _ = write_results(R, NewSummary, NewResults),
     SummaryLog = R#rstate.summary_log,
     TmpLog = SummaryLog ++ ".tmp",
-    SummaryHtml = SummaryLog++".html",
-    file:rename(TmpLog++".html", SummaryHtml),
-    annotate_log(false, SummaryHtml, Opts).
+    case annotate_log(false, TmpLog, Opts) of
+        ok ->
+            TmpHtml =  TmpLog ++ ".html",
+            SummaryHtml = SummaryLog ++ ".html",
+            ok = file:rename(TmpHtml, SummaryHtml);
+        {error, Reasnon} ->
+            {error, Reasnon}
+    end.
 
 annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
     SummaryPrio = lux_utils:summary_prio(Summary),
@@ -660,8 +665,8 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                     end,
                     AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
                     NewR2 = NewR#rstate{warnings = AllWarnings},
-                    annotate_event_log(NewR2, Script, NewSummary,
-                                       NewResults, CaseLogDir, Opts),
+                    ok = annotate_event_log(NewR2, Script, NewSummary,
+                                            NewResults, CaseLogDir, Opts),
                     run_cases(NewR2, NewScripts, NewSummary, NewResults,
                               CC+1, List, NewOpaque)
             end;
