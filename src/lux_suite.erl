@@ -228,7 +228,7 @@ annotate_log(IsRecursive, LogFile, Opts) ->
     annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts).
 
 annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
-    case lux_html_gen:annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) of
+    case lux_html_annotate:generate(IsRecursive, LogFile, SuiteLogDir, Opts) of
         ok ->
             HtmlFile = LogFile ++ ".html",
             lux_html_parse:validate_html(HtmlFile, Opts);

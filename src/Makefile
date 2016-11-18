@@ -11,8 +11,10 @@ ERL_MODULES = \
 	lux \
 	lux_case \
 	lux_debug \
-	lux_html_gen \
+	lux_html_annotate \
+	lux_html_history \
 	lux_html_parse \
+	lux_html_utils \
 	lux_interpret \
 	lux_log \
 	lux_suite \

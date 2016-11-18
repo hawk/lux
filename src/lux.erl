@@ -77,7 +77,7 @@ annotate_log(LogFile, Opts) ->
              ok | error()).
 
 history(LogDir, HtmlFile, Opts) ->
-    lux_html_gen:history(LogDir, HtmlFile, Opts).
+    lux_html_history:generate(LogDir, HtmlFile, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Enable simplified tracing and viewing it as a sequence chart
