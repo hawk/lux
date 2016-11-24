@@ -77,7 +77,12 @@ annotate_log(LogFile, Opts) ->
              ok | error()).
 
 history(LogDir, HtmlFile, Opts) ->
-    lux_html_history:generate(LogDir, HtmlFile, Opts).
+    case lux_html_history:generate(LogDir, HtmlFile, Opts) of
+        {ok, HtmlFile} ->
+            lux_html_parse:validate_html(HtmlFile, Opts);
+        {error, File, Reason} ->
+            {error, File, Reason}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Enable simplified tracing and viewing it as a sequence chart
