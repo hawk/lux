@@ -171,9 +171,8 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             R2 = R#rstate{log_fd = SummaryFd, summary_log = SummaryLog},
             HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
             InitialSummary = success,
-            InitialRes =
-                initial_res(R2, Exists, InitialSummary, HtmlPrio,
-                            ConfigData, SummaryLog),
+            InitialRes = initial_res(R2, Exists, ConfigData,
+                                     SummaryLog, InitialSummary),
             {R3, Summary, Results} =
                 run_suite(R2, R2#rstate.files, InitialSummary, InitialRes),
             print_results(R3, Summary, Results),
@@ -194,29 +193,21 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             {error, SummaryLog, FileErr}
     end.
 
-initial_res(_R, true, _InitialSummary, _HtmlPrio, _ConfigData, SummaryLog) ->
+initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
+  when Exists =:= true ->
     TmpLog = SummaryLog ++ ".tmp",
     case lux_log:parse_summary_log(TmpLog) of
         {ok, _, Groups, _, _, _} ->
-            initial_results(Groups);
+            flatten_results(Groups);
         {error, _, _} ->
             []
     end;
-initial_res(R, false, InitialSummary, HtmlPrio, ConfigData, SummaryLog) ->
+initial_res(R, Exists, ConfigData, SummaryLog, Summary)
+  when Exists =:= false ->
     write_config_log(SummaryLog, ConfigData),
     lux_log:write_results(R#rstate.progress, SummaryLog, skip, [], []),
-    InitialSummaryPrio = lux_utils:summary_prio(InitialSummary),
-    if
-        InitialSummaryPrio >= HtmlPrio,
-        R#rstate.mode =/= list,
-        R#rstate.mode =/= list_dir ->
-            %% Generate initial html log
-            NoHtmlOpts = [{case_prefix, R#rstate.case_prefix}],
-            annotate_tmp_summary_log(R, skip, [], NoHtmlOpts),
-            [];
-        true ->
-            []
-    end.
+    annotate_tmp_summary_log(R, Summary, undefined),
+    [].
 
 write_config_log(SummaryLog, ConfigData) ->
     LogDir = filename:dirname(SummaryLog),
@@ -235,7 +226,7 @@ annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
             {error, File, Reason}
     end.
 
-annotate_event_log(R, Script, NewSummary, NewResults, CaseLogDir, Opts) ->
+annotate_event_log(R, Script, NewSummary, CaseLogDir, Opts) ->
     HtmlPrio = lux_utils:summary_prio(R#rstate.html),
     SummaryPrio = lux_utils:summary_prio(NewSummary),
     if
@@ -245,30 +236,42 @@ annotate_event_log(R, Script, NewSummary, NewResults, CaseLogDir, Opts) ->
                                       Base ++ ".event.log"]),
             SuiteLogDir = R#rstate.log_dir,
             NoHtmlOpts = lists:keydelete(html, 1, Opts),
-            ok = annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts),
-            annotate_tmp_summary_log(R, NewSummary, NewResults, NoHtmlOpts);
+            ok = annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts);
         true ->
             ok
     end.
 
-annotate_tmp_summary_log(R, NewSummary, NewResults, Opts) ->
-    file:sync(R#rstate.log_fd), % Flush summary log
-    _ = write_results(R, NewSummary, NewResults),
-    SummaryLog = R#rstate.summary_log,
-    TmpLog = SummaryLog ++ ".tmp",
-    case annotate_log(false, TmpLog, Opts) of
-        ok ->
-            TmpHtml =  TmpLog ++ ".html",
-            SummaryHtml = SummaryLog ++ ".html",
-            ok = file:rename(TmpHtml, SummaryHtml);
-        {error, Reasnon} ->
-            {error, Reasnon}
+annotate_tmp_summary_log(R, Summary, NextScript) ->
+    HtmlPrio = lux_utils:summary_prio(R#rstate.html),
+    SummaryPrio = lux_utils:summary_prio(Summary),
+    if
+        SummaryPrio >= HtmlPrio,
+        R#rstate.mode =/= doc,
+        R#rstate.mode =/= list,
+        R#rstate.mode =/= list_dir ->
+            %% Generate premature html log
+            NoHtmlOpts = [{case_prefix, R#rstate.case_prefix},
+                          {next_script, NextScript}],
+            SummaryLog = R#rstate.summary_log,
+            TmpLog = SummaryLog ++ ".tmp",
+            file:sync(R#rstate.log_fd), % Flush summary log
+            case annotate_log(false, TmpLog, NoHtmlOpts) of
+                ok ->
+                    TmpHtml =  TmpLog ++ ".html",
+                    SummaryHtml = SummaryLog ++ ".html",
+                    ok = file:rename(TmpHtml, SummaryHtml);
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        true ->
+            ok
     end.
 
 annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
     SummaryPrio = lux_utils:summary_prio(Summary),
     if
         SummaryPrio >= HtmlPrio,
+        R#rstate.mode =/= doc,
         R#rstate.mode =/= list,
         R#rstate.mode =/= list_dir ->
             Opts = [{case_prefix, R#rstate.case_prefix},
@@ -304,7 +307,7 @@ compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc) ->
     LatestRes =
         case lux_log:parse_summary_log(OldLog) of
             {ok, _, Groups, _, _, _} ->
-                initial_results(Groups);
+                flatten_results(Groups);
             {error, _, _} ->
                 []
         end,
@@ -336,7 +339,7 @@ filter_rerun_files(R, InitialRes) ->
         end,
     lists:zf(Filter, InitialRes).
 
-initial_results(Groups) ->
+flatten_results(Groups) ->
     Fun =
         fun(Script, {result, Res}) ->
                 case Res of
@@ -544,7 +547,9 @@ r2(String) when is_list(String) ->
 
 run_cases(R, [{_SuiteFile,{error,_Reason}}|Scripts],
           OldSummary, Results, CC, List, Opaque)
-  when R#rstate.mode =:= list; R#rstate.mode =:= list_dir ->
+  when R#rstate.mode =:= list;
+       R#rstate.mode =:= list_dir;
+       R#rstate.mode =:= doc ->
     run_cases(R, Scripts, OldSummary, Results, CC+1, List, Opaque);
 run_cases(R, [{SuiteFile, {error,Reason}}|Scripts],
           OldSummary, Results, CC, List, Opaque) ->
@@ -616,6 +621,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                               Scripts, NewSummary, Results2,
                               CC+1, List, Opaque);
                 execute ->
+                    annotate_tmp_summary_log(NewR, OldSummary, Script),
                     lux:trace_me(70, suite, 'case', PrefixedRelScript, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, PrefixedRelScript, Script),
@@ -665,7 +671,8 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}} | Scripts],
                     AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
                     NewR2 = NewR#rstate{warnings = AllWarnings},
                     ok = annotate_event_log(NewR2, Script, NewSummary,
-                                            NewResults, CaseLogDir, Opts),
+                                            CaseLogDir, Opts),
+                    _ = write_results(NewR2, NewSummary, NewResults),
                     run_cases(NewR2, NewScripts, NewSummary, NewResults,
                               CC+1, List, NewOpaque)
             end;

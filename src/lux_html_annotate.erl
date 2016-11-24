@@ -73,7 +73,7 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
                         fun(EventLog0) ->
                                 RelEventLog = drop_run_log_prefix(A, EventLog0),
                                 EventLog = filename:join([SuiteLogDir,
-                                                         RelEventLog]),
+                                                          RelEventLog]),
                                 case generate(IsRecursive,
                                               EventLog,
                                               A#astate.suite_log_dir,
@@ -133,9 +133,41 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
 
 html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
     %% io:format("Sections: ~p\n", [Sections]),
-    ResultString = choose_tmp(IsTmp, "Temporary ","Final "),
+    ResultString = choose_tmp(IsTmp, "Preliminary ", "Final "),
+    PrelScriptSection =
+        case lux_utils:pick_opt(next_script, A#astate.opts, undefined) of
+            undefined ->
+                "";
+            NextScript ->
+                Base = filename:basename(NextScript),
+                SuiteLogDir = A#astate.suite_log_dir,
+                CaseLogDir = lux_case:case_log_dir(SuiteLogDir, NextScript),
+                EventLog = filename:join([CaseLogDir, Base ++ ".event.log"]),
+                ConfigLog = filename:join([CaseLogDir, Base ++ ".config.log"]),
+                LogFun =
+                    fun(L, S) ->
+                            ["    <td><strong>",
+                             lux_html_utils:html_href(drop_prefix(SuiteLogDir,
+                                                                  L), S),
+                             "</strong></td>\n"]
+                    end,
+                [
+                 "\n<h2>Premature logs for current test case:",
+                 "</h2>\n",
+                 "<table border=\"1\">\n",
+                 "  <tr>\n",
+                 "    <td><strong>",
+                 drop_run_dir_prefix(A, NextScript),
+                 "</strong></td>\n",
+                 LogFun(EventLog, "Event"),
+                 LogFun(ConfigLog, "Config"),
+                 "  </tr>\n",
+                 "</table>\n\n<br\>\n"
+                ]
+        end,
     [
      "\n<h2>", ResultString, "result: ", Summary, "</h2>\n",
+     PrelScriptSection,
      "<div class=\"case\"><pre>",
      [html_summary_section(A, S, Groups) || S <- Sections],
      "</pre></div>"
