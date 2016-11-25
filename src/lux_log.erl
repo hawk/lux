@@ -7,7 +7,8 @@
 
 -module(lux_log).
 
--export([is_temporary/1, parse_summary_log/1, parse_run_summary/6,
+-export([
+         is_temporary/1, parse_summary_log/1, parse_run_summary/6,
          open_summary_log/3, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
@@ -15,7 +16,8 @@
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
          parse_events/2, parse_io_logs/2,
          open_config_log/3, close_config_log/2,
-         safe_format/5, safe_write/4]).
+         safe_format/5, safe_write/4
+        ]).
 
 -include_lib("kernel/include/file.hrl").
 -include("lux.hrl").
@@ -342,7 +344,7 @@ split_config(ConfigBins) ->
         end,
     lists:zf(Split, ConfigBins).
 
-parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName,
+parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, AbsName, AbsEventLog, _Doc, _HtmlLog, CaseRes})
   when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
@@ -358,7 +360,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName,
          id = RunId,
          result = run_result(CaseRes),
          log = Log,
-         start_time = Start,
+         start_time = StartTime,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,
@@ -366,7 +368,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName,
          rel_dir = RelDir,
          repos_rev = ReposRev,
          details = []};
-parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName, Suite,
+parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName, Suite,
                RunId, ReposRev, {result_case, AbsName, Res, _Reason})
   when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
        is_list(AbsName) ->
@@ -375,7 +377,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, Start, Host, ConfigName, Suite,
          id = RunId,
          result = run_result(Res),
          log = ?DEFAULT_LOG,
-         start_time = Start,
+         start_time = StartTime,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,

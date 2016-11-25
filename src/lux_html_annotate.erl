@@ -19,6 +19,8 @@
          log_file,
          script_file,
          case_prefix,
+         start_time,
+         end_time,
          html,
          opts}).
 
@@ -62,8 +64,12 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
             ConfigProps = lux_log:split_config(ConfigBins),
             RunDir = pick_run_dir(ConfigProps),
             RunLogDir = pick_log_dir(ConfigProps),
+            StartTime = pick_time_prop(<<"start time">>, ConfigProps),
+            EndTime = pick_time_prop(<<"end time">>, ConfigProps),
             A = A0#astate{run_dir = RunDir,
-                          run_log_dir = RunLogDir},
+                          run_log_dir = RunLogDir,
+                          start_time = StartTime,
+                          end_time = EndTime},
             Html = html_groups(A, AbsSummaryLog, Result, Groups, ConfigSection),
             case IsRecursive of
                 true ->
@@ -165,8 +171,18 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
                  "</table>\n\n<br\>\n"
                 ]
         end,
+    TimeHtml =
+        case elapsed_time(A#astate.start_time, A#astate.end_time) of
+            undefined ->
+                ["<h3>Start time: ", A#astate.start_time, "</h3>\n"];
+            MicrosDiff ->
+                DiffStr = elapsed_time_to_str(MicrosDiff),
+                ["<h3>Elapsed time: ", DiffStr, "</h3>\n"]
+        end,
+
     [
-     "\n<h2>", ResultString, "result: ", Summary, "</h2>\n",
+     TimeHtml,
+     "<h2>", ResultString, "result: ", Summary, "</h2>\n",
      PrelScriptSection,
      "<div class=\"case\"><pre>",
      [html_summary_section(A, S, Groups) || S <- Sections],
@@ -287,18 +303,21 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
         case lux_log:scan_events(EventLog) of
             {ok, EventLog2, ConfigLog,
              Script, EventBins, ConfigBins, LogBins, ResultBins} ->
+                Events = lux_log:parse_events(EventBins, []),
+                io:format("Events: ~p\n", [Events]),
+                StartTime = pick_event_time(<<"start_time">>, Events),
+                EndTime = pick_event_time(<<"end_time">>, Events),
                 ConfigProps = lux_log:split_config(ConfigBins),
                 RunDir = pick_run_dir(ConfigProps),
                 RunLogDir = pick_log_dir(ConfigProps),
                 A2 = A#astate{run_dir = RunDir,
-                              run_log_dir = RunLogDir},
+                              run_log_dir = RunLogDir,
+                              start_time = StartTime,
+                              end_time = EndTime},
                 OrigScript = orig_script(A2, Script),
                 A3 = A2#astate{script_file = OrigScript},
-                Events = lux_log:parse_events(EventBins, []),
-                %% io:format("Events: ~p\n", [Events]),
                 Logs = lux_log:parse_io_logs(LogBins, []),
                 Result = lux_log:parse_result(ResultBins),
-
                 {Annotated, Files} =
                     interleave_code(A3, Events, Script, 1, 999999, [], []),
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
@@ -317,6 +336,17 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
             io:format("~s\n", [ReasonStr]),
             {error, EventLog, ReasonStr}
     end.
+
+pick_event_time(Tag, {event, 0, <<"lux">>, Tag, [Time]}) ->
+    ?b2l(Time);
+pick_event_time(Tag, Events = [_|_]) ->
+    case Tag of
+        <<"start_time">> -> pick_event_time(Tag, hd(Events));
+        <<"end_time">>   -> pick_event_time(Tag, lists:last(Events));
+        _                -> pick_event_time(Tag, [])
+    end;
+pick_event_time(_Tag, _Event) ->
+    "unknown".
 
 interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
   when is_list(Script) ->
@@ -433,16 +463,29 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
                  "</strong></td>\n"]
         end,
     PrefixScript = A#astate.case_prefix ++ drop_run_dir_prefix(A, Script),
+    TimeHtml =
+        case elapsed_time(A#astate.start_time, A#astate.end_time) of
+            undefined ->
+                ["<h3>Start time: ", A#astate.start_time, "</h3>\n"];
+            MicrosDiff ->
+                DiffStr = elapsed_time_to_str(MicrosDiff),
+                ["<h3>Elapsed time: ", DiffStr, "</h3>\n"]
+        end,
+    RelEventLogDir = filename:split(drop_run_log_prefix(A, EventLogDir)),
+    RelSummaryLogDir = filename:join([".." || _ <- RelEventLogDir]),
+    RelSummaryLog = filename:join([RelSummaryLogDir, "lux_summary.log.html"]),
     [
      lux_html_utils:html_header(["Lux event log (", Dir, ")"]),
      "\n", lux_html_utils:html_href("h2", "", "", "#annotate", PrefixScript),
      html_result("h2", Result, ""),
+     TimeHtml,
      lux_html_utils:html_href("h3", "", "", "#config", "Script configuration"),
      lux_html_utils:html_href("h3", "", "", "#cleanup", "Cleanup"),
      "\n<h3>Source files: ",
      html_scripts(A, Files, main),
      "\n</h3>",
      "\n<h3>Log files:</h3>\n ",
+     lux_html_utils:html_href("h4", "", "", RelSummaryLog, "Summary log"),
      "<table border=\"1\">\n",
      "  <tr>\n",
      LogFun(EventLog, "Event"),
@@ -811,6 +854,9 @@ pick_run_dir(ConfigProps) ->
 pick_log_dir(ConfigProps) ->
     pick_prop(<<"log_dir">>, ConfigProps).
 
+pick_time_prop(Tag, ConfigProps) ->
+    ?b2l(lux_log:find_config(Tag, ConfigProps, <<"unknown">>)).
+
 pick_prop(Tag, ConfigProps) ->
     ?b2l(lux_log:find_config(Tag, ConfigProps, undefined)).
 
@@ -840,3 +886,47 @@ rel_orig_script(A, AbsScript, Level) when is_list(AbsScript) ->
         Level =:= main             -> drop_rel_dir_prefix(A, RelScript);
         Level =:= include          -> add_up_dir(A, RelScript, Level)
     end.
+
+elapsed_time(StartStr, EndStr) ->
+    Start = parse_time(StartStr),
+    End = parse_time(EndStr),
+    if
+        Start =:= undefined ->
+            undefined;
+        End =:= undefined ->
+            undefined;
+        true ->
+            {StartDateTime, StartMicros} = Start,
+            {EndDateTime, EndMicros} = End,
+            MicrosDiff = EndMicros - StartMicros,
+            if
+                StartDateTime =:= EndDateTime ->
+                    MicrosDiff;
+                true ->
+                    {Days, Time} = calendar:time_difference(StartDateTime,
+                                                            EndDateTime),
+                    {Hours, Mins, Secs} = Time,
+                    Hours2 = Hours + (Days * 24),
+                    Secs2 = calendar:time_to_seconds({Hours2, Mins, Secs}),
+                    (Secs2 * 1000000) + MicrosDiff
+            end
+    end.
+
+%% Format: 2016-11-25 10:51:18.307279
+parse_time("unknown") ->
+    undefined;
+parse_time(DateTime) ->
+    [Date, Time] = string:tokens(DateTime, " "),
+    [Year, Mon, Day] = string:tokens(Date, "-"),
+    [Time2, Millis] = string:tokens(Time, "."),
+    [Hour, Min, Sec] = string:tokens(Time2, ":"),
+    {{{list_to_integer(Year), list_to_integer(Mon), list_to_integer(Day)},
+      {list_to_integer(Hour), list_to_integer(Min), list_to_integer(Sec)}},
+     list_to_integer(Millis)}.
+
+elapsed_time_to_str(MicrosDiff) ->
+    TotalSecs = MicrosDiff div 1000000,
+    Micros = MicrosDiff - (TotalSecs * 1000000),
+    {Hours, Mins, Secs} = calendar:seconds_to_time(TotalSecs),
+    lists:concat([Hours, ":", Mins, ":", Secs, ".",
+                  string:right(integer_to_list(Micros), 6, $0), " (h:m:s.us)"]).
