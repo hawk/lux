@@ -35,8 +35,11 @@ generate(IsRecursive, LogFile, SuiteLogDir, Opts)
             false -> annotate_summary_log(IsRecursive, A)
         end,
     case Res of
-        {ok, IoList} ->
-            lux_html_utils:safe_write_file(AbsLogFile ++ ".html", IoList);
+        {ok, "", Html} ->
+            lux_html_utils:safe_write_file(AbsLogFile ++ ".html", Html);
+        {ok, Csv, Html} ->
+            lux_html_utils:safe_write_file(AbsLogFile ++ ".csv", Csv),
+            lux_html_utils:safe_write_file(AbsLogFile ++ ".html", Html);
         {error, _File, _ReasonStr} = Error ->
             Error
     end.
@@ -95,7 +98,7 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
                 false ->
                     ignore
             end,
-            {ok, Html};
+            {ok, "", Html};
         {error, _File, _Reason} = Error ->
             Error
     end.
@@ -304,7 +307,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
             {ok, EventLog2, ConfigLog,
              Script, EventBins, ConfigBins, LogBins, ResultBins} ->
                 Events = lux_log:parse_events(EventBins, []),
-                io:format("Events: ~p\n", [Events]),
+                %% io:format("Events: ~p\n", [Events]),
                 StartTime = pick_event_time(<<"start_time">>, Events),
                 EndTime = pick_event_time(<<"end_time">>, Events),
                 ConfigProps = lux_log:split_config(ConfigBins),
@@ -314,6 +317,13 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
                               run_log_dir = RunLogDir,
                               start_time = StartTime,
                               end_time = EndTime},
+                Timers = lux_log:extract_timers(Events),
+                %% io:format("\nTimers for ~s:\n\t~p\n",
+                %%           [drop_run_dir_prefix(A2, Script), Timers]),
+                Csv = lux_log:timers_to_csv(Timers),
+                %% io:format("\nTimers for ~s:\t~s\n",
+                %%           [drop_run_dir_prefix(A2, Script),
+                %%            lists:flatten(Csv)]),
                 OrigScript = orig_script(A2, Script),
                 A3 = A2#astate{script_file = OrigScript},
                 Logs = lux_log:parse_io_logs(LogBins, []),
@@ -322,7 +332,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
                     interleave_code(A3, Events, Script, 1, 999999, [], []),
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
                                    Files, Logs, Annotated, ConfigBins),
-                {ok, Html};
+                {ok, Csv, Html};
             {error, _File, _ReasonStr} = Error ->
                 Error
         end
@@ -337,15 +347,18 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
             {error, EventLog, ReasonStr}
     end.
 
-pick_event_time(Tag, {event, 0, <<"lux">>, Tag, [Time]}) ->
+pick_event_time(Op, #event{lineno =  0,
+                           shell = <<"lux">>,
+                           op = Op,
+                           data = [Time]}) ->
     ?b2l(Time);
-pick_event_time(Tag, Events = [_|_]) ->
-    case Tag of
-        <<"start_time">> -> pick_event_time(Tag, hd(Events));
-        <<"end_time">>   -> pick_event_time(Tag, lists:last(Events));
-        _                -> pick_event_time(Tag, [])
+pick_event_time(Op, Events = [_|_]) ->
+    case Op of
+        <<"start_time">> -> pick_event_time(Op, hd(Events));
+        <<"end_time">>   -> pick_event_time(Op, lists:last(Events));
+        _                -> pick_event_time(Op, [])
     end;
-pick_event_time(_Tag, _Event) ->
+pick_event_time(_Op, _Event) ->
     "unknown".
 
 interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
@@ -374,8 +387,14 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
     do_interleave_code(A, Events, Events, ScriptComps, CodeLines2,
                        FirstLineNo, MaxLineNo, Acc, CmdStack, Files2).
 
-do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
-                       {event, SingleLineNo, Shell, Op, Data2} | Events],
+do_interleave_code(A, [#event{lineno = SingleLineNo,
+                              shell = Shell,
+                              op = Op,
+                              data = Data} = E,
+                       #event{lineno =  SingleLineNo,
+                              shell = Shell,
+                              op = Op,
+                              data = Data2} | Events],
                    OrigEvents,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) when Op =:= <<"recv">>,
@@ -385,11 +404,14 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data},
     [Last | Rev] = lists:reverse(Data),
     [First | Rest] = Data2,
     Data3 = lists:reverse(Rev, [<<Last/binary, First/binary>> | Rest]),
-    do_interleave_code(A, [{event, SingleLineNo, Shell, Op, Data3} | Events],
+    do_interleave_code(A, [E#event{data = Data3} | Events],
                        OrigEvents,
                        ScriptComps, CodeLines, CodeLineNo,
                        MaxLineNo, Acc, CmdStack, Files);
-do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
+do_interleave_code(A, [#event{lineno =  SingleLineNo,
+                              shell = Shell,
+                              op =_Op,
+                              data = Data} | Events],
                    OrigEvents,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
                    Acc, CmdStack, Files) ->
@@ -405,21 +427,22 @@ do_interleave_code(A, [{event, SingleLineNo, Shell, _Op, Data} | Events],
                        OrigEvents,
                        ScriptComps, CodeLines2, CodeLineNo2,
                        MaxLineNo, Acc2, CmdStack, Files);
-do_interleave_code(A, [{body, InvokeLineNo, FirstLineNo, LastLineNo,
-                        SubScript, SubEvents} | Events],
+do_interleave_code(A, [#body{} = B | Events],
                    OrigEvents,
                    ScriptComps, CodeLines, CodeLineNo, MaxLineNo,
-                   Acc, CmdStack, Files) when is_list(SubScript) ->
+                   Acc, CmdStack, Files) ->
     InvokePos = #cmd_pos{rev_file = ScriptComps,
-                         lineno = InvokeLineNo,
+                         lineno = B#body.invoke_lineno,
                          type = undefined},
     CmdStack2 = [InvokePos | CmdStack],
+    SubScript = B#body.file,
     OrigSubScript = orig_script(A, SubScript),
     SubA = A#astate{script_file = OrigSubScript},
     {SubAnnotated, Files2} =
-        interleave_code(SubA, SubEvents, SubScript, FirstLineNo, LastLineNo,
+        interleave_code(SubA, B#body.events, SubScript,
+                        B#body.first_lineno, B#body.last_lineno,
                         CmdStack2, Files),
-    Event = {body_html, CmdStack2, FirstLineNo, SubScript,
+    Event = {body_html, CmdStack2, B#body.first_lineno, SubScript,
              OrigSubScript, SubAnnotated},
     do_interleave_code(A, Events,
                        OrigEvents,
@@ -485,7 +508,6 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      html_scripts(A, Files, main),
      "\n</h3>",
      "\n<h3>Log files:</h3>\n ",
-     lux_html_utils:html_href("h4", "", "", RelSummaryLog, "Summary log"),
      "<table border=\"1\">\n",
      "  <tr>\n",
      LogFun(EventLog, "Event"),
@@ -496,7 +518,9 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      end,
      html_logs(A, Logs),
      "  </tr>\n",
-     "</table>\n\n",
+     "</table>\n",
+     lux_html_utils:html_href("h3", "", "", RelSummaryLog,
+                              "Back to summary log"),
 
      "\n", lux_html_utils:html_anchor("h2", "", "annotate",
                                       "Annotated source code"),"\n",

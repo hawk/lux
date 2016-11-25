@@ -1289,7 +1289,7 @@ clog(#cstate{progress = Progress,
              name = Shell,
              latest_cmd = Cmd},
      Op, Format, Args) ->
-    E = {event, Cmd#cmd.lineno, Shell, Op, Format, Args},
+    E = {log_event, Cmd#cmd.lineno, Shell, Op, Format, Args},
     lux_log:write_event(Progress, LogFun, Fd, E).
 
 dlog(C, Level, Format, Args) when C#cstate.debug_level >= Level ->

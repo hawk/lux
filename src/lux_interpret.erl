@@ -212,7 +212,7 @@ premature_stop(I, TimeoutType, TimeoutMillis) ->
     lux:trace_me(70, 'case', TimeoutType, [{premature, TimeoutMillis}]),
     Seconds = TimeoutMillis div timer:seconds(1),
     Multiplier = I#istate.multiplier / 1000,
-    ilog(I, "~s(~p): ~p (~p seconds * ~.3f)\n",
+    ilog(I, "~s(~p): ~p (~p seconds * ~.3f multiplier)\n",
          [I#istate.active_name,
           (I#istate.latest_cmd)#cmd.lineno,
           TimeoutType,
@@ -584,6 +584,11 @@ invoke_macro(I,
     AfterI = eval_body(BeforeI, LineNo, FirstLineNo, LastLineNo,
                        MacroFile, Body, MacroCmd, DefaultFun, false),
 
+    ilog(I, "~s(~p): exit_~s \"~s\"\n",
+         [I#istate.active_name,
+          LineNo,
+          Name,
+          lists:flatten(string:join(MacroVars, " "))]),
     AfterI#istate{macro_vars = OldMacroVars};
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
     BinName = list_to_binary(Name),

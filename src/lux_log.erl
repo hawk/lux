@@ -14,7 +14,7 @@
          write_results/5, print_results/5, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/3,
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
-         parse_events/2, parse_io_logs/2,
+         parse_events/2, extract_timers/1, timers_to_csv/1, parse_io_logs/2,
          open_config_log/3, close_config_log/2,
          safe_format/5, safe_write/4
         ]).
@@ -569,11 +569,11 @@ open_event_log(LogDir, Script, Progress, LogFun, Verbose)
 close_event_log(EventFd) ->
     file:close(EventFd).
 
-write_event(Progress, LogFun, Fd, {event, LineNo, Shell, Op, "", []}) ->
+write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, "", []}) ->
     Data = io_lib:format("~s(~p): ~p\n", [Shell, LineNo, Op]),
     safe_write(Progress, LogFun, Fd, Data);
-write_event(Progress, LogFun, Fd, {event, LineNo, Shell, Op, Format, Args}) ->
-    Data = io_lib:format(Format, Args),
+write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
+    Data = io_lib:format(Fmt, Args),
     Data2 = lux_utils:normalize_newlines(Data),
     Data3 = io_lib:format("~s(~p): ~p ~s\n", [Shell, LineNo, Op, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
@@ -653,7 +653,10 @@ do_parse_events([Event | Events], Acc) ->
                         [C]
                 end
         end,
-    E = {event, LineNo, Shell, Op, Data},
+    E = #event{lineno = LineNo,
+               shell = Shell,
+               op = Op,
+               data = Data},
     do_parse_events(Events, [E | Acc]);
 do_parse_events([], Acc) ->
     lists:reverse(Acc).
@@ -679,7 +682,11 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
     LastLineNo = list_to_integer(binary_to_list(RawLastLineNo)),
     SubEvents2 = parse_events(SubEvents, []),
     SubFile4 = binary_to_list(SubFile3),
-    E = {body, LineNo, FirstLineNo, LastLineNo, SubFile4, SubEvents2},
+    E = #body{invoke_lineno = LineNo,
+              first_lineno = FirstLineNo,
+              last_lineno = LastLineNo,
+              file = SubFile4,
+              events = SubEvents2},
     do_parse_events(Events2, [E | Acc]).
 
 split_lines(<<"">>) ->
@@ -692,6 +699,139 @@ split_lines(Bin) ->
            <<"\\n">>, <<"\\r">>],
     Normalized = lists:foldl(Replace, Bin, NLs),
     binary:split(Normalized, <<"\n">>, Opts).
+
+extract_timers(Events) ->
+    lists:reverse(extract_timers(Events, [], [<<"">>], [], [])).
+
+extract_timers([E | Events], SendNo, Calls, Nums, Acc) ->
+    case E of
+        #event{op = <<"send">>} ->
+            NewSendNo = [E#event.lineno | Nums],
+            extract_timers(Events, NewSendNo, Calls, Nums, Acc);
+        #event{op = <<"start">>} ->
+            NewSendNo = [E#event.lineno | Nums],
+            extract_timers(Events, NewSendNo, Calls, Nums, Acc);
+        #event{op = <<"invoke_", Macro/binary>>} ->
+            NewCalls = [Macro | Calls],
+            extract_timers(Events, SendNo, NewCalls, Nums, Acc);
+        #event{op = <<"exit_", Macro/binary>>} ->
+            [Macro | NewCalls] = Calls,
+            extract_timers(Events, SendNo, NewCalls, Nums, Acc);
+        #event{op = <<"timer">>, data = [Data]} ->
+            case parse_timer(Data) of
+                {started, MaxTime} ->
+                    MatchNo = [E#event.lineno | Nums],
+                    T = #timer{send_lineno = SendNo,
+                               match_lineno = MatchNo,
+                               shell = E#event.shell,
+                               macro = hd(Calls),
+                               max_time = MaxTime,
+                               status = started},
+                    extract_timers(Events, SendNo, Calls, Nums, [T|Acc]);
+                {canceled, Elapsed} ->
+                    [T | NewAcc] = Acc,
+                    NewT = T#timer{status = matched,
+                                   elapsed_time = Elapsed},
+                    extract_timers(Events, SendNo, Calls, Nums, [NewT|NewAcc]);
+                {failed, Elapsed} ->
+                    [T | NewAcc] = Acc,
+                    NewT = T#timer{status = failed,
+                                   elapsed_time = Elapsed},
+                    extract_timers(Events, SendNo, Calls, Nums, [NewT|NewAcc])
+                end;
+        #event{} ->
+            extract_timers(Events, SendNo, Calls, Nums, Acc);
+        #body{events = EventsB} = B ->
+            TmpNums = [B#body.invoke_lineno | Nums],
+            NewAcc = extract_timers(EventsB, SendNo, Calls, TmpNums, Acc),
+            extract_timers(Events, SendNo, Calls, Nums, NewAcc)
+    end;
+extract_timers([], _SendNo, _Calls, _Nums, Acc) ->
+    Acc.
+
+%% ---------
+%% new timer
+%% ---------
+%% started (10 seconds * 1.000 multiplier)
+%% canceled (after 552 micro seconds)
+%% failed (after 10000764 micro seconds)
+%% ---------
+%% old timer
+%% ---------
+%% started (10 seconds * 1.000)
+%% canceled (after 0 seconds)
+%% failed (after 10 seconds)
+parse_timer(Data) ->
+    case string:tokens(?b2l(Data), "() ") of
+        ["started", Secs, "seconds", "*", Multiplier] ->
+            CeiledSecs = trunc((list_to_integer(Secs) *
+                                    list_to_float(Multiplier)) + 0.5),
+            {started, CeiledSecs * 1000000};
+        ["started", Secs, "seconds", "*", Multiplier, "multiplier"] ->
+            CeiledSecs = trunc((list_to_integer(Secs) *
+                                    list_to_float(Multiplier)) + 0.5),
+            {started, CeiledSecs * 1000000};
+        ["canceled", "after", Secs, "seconds"] ->
+            {canceled, list_to_integer(Secs) * 1000000};
+        ["canceled", "after", MicroSecs, "micro", "seconds"] ->
+            {canceled, list_to_integer(MicroSecs)};
+        ["failed", "after", Secs, "seconds"] ->
+            {failed, list_to_integer(Secs) * 1000000};
+        ["failed", "after", MicroSecs, "micro", "seconds"] ->
+            {failed, list_to_integer(MicroSecs)}
+    end.
+
+timers_to_csv(Timers) ->
+    Header0 =
+        [
+         "Send",
+         "Match",
+         "Shell",
+         "Macro",
+         "MaxTime",
+         "Status",
+         "Elapsed"
+        ],
+    Header = [q(H) || H <- Header0],
+    ElemLines = [timer_to_elems(T) || T <- Timers],
+    Sep = ";",
+    [[join(Sep, E), "\n"] || E <- [Header | ElemLines]].
+
+join(_Sep, []) ->
+    [];
+join(Sep, [H|T]) ->
+    [H|[[Sep, E] || E <- T]].
+
+timer_to_elems(#timer{send_lineno  = SendStack,
+                      match_lineno = MatchStack,
+                      shell        = Shell,
+                      macro        = Macro,
+                      max_time     = MaxTime,
+                      status       = Status,
+                      elapsed_time = Elapsed}) ->
+    [
+     case SendStack of
+         [] -> q("0");
+         _  -> q(lux_utils:pretty_full_lineno(SendStack))
+     end,
+     q(lux_utils:pretty_full_lineno(MatchStack)),
+     q(Shell),
+     q(Macro),
+     integer_to_list(MaxTime),
+     q(atom_to_list(Status)),
+     if
+         Elapsed =:= undefined,
+         Status =:= started ->
+             "";
+         is_integer(Elapsed),
+         Status =/= started ->
+             integer_to_list(Elapsed)
+     end
+    ].
+
+q(List) ->
+    Replace = fun(C) -> case C of $; -> "<SEMI>"; _ -> C end end,
+    ["\"", lists:map(Replace, binary_to_list(iolist_to_binary(List))), "\""].
 
 scan_config(ConfigLog) when is_list(ConfigLog) ->
     case read_log(ConfigLog, ?CONFIG_TAG) of

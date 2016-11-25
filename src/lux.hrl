@@ -139,6 +139,28 @@
          repos_rev,
          details}).
 
+-record(event,
+        {lineno  :: non_neg_integer(),
+         shell   :: binary(),
+         op      :: binary(),
+         data    :: term()}).
+
+-record(body,
+        {invoke_lineno :: integer(),
+         first_lineno  :: non_neg_integer(),
+         last_lineno   :: non_neg_integer(),
+         file          :: file:filename(),
+         events        :: [#event{}]}).
+
+-record(timer,
+        {send_lineno  :: [integer()], % Reversed stack of lineno
+         match_lineno :: [integer()], % Reversed stack of lineno
+         shell        :: binary(),                        % Name
+         macro        :: binary(),                        % Name
+         max_time     :: non_neg_integer(),               % Micros
+         status       :: started | matched | failed,
+         elapsed_time :: undefined | non_neg_integer()}). % Micros
+
  -define(DEFAULT_LOG, <<"unknown">>).
  -define(DEFAULT_HOSTNAME, <<"unknown">>).
  -define(DEFAULT_CONFIG_NAME, <<"unknown">>).
