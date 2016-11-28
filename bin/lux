@@ -95,7 +95,7 @@ specs() ->
      {"-t",                   ["--progress=silent", "--tap=stdout"]},
      {"-d",                   ["--debug"]},
      {"-D",                   ["--internal_debug"]},
-     {"-e",                   ["--event_trace"]},
+     {"-E",                   ["--event_trace"]},
      {"-T",                   ["--internal_trace"]},
      {?FILES,                 "",          string,                 mandatory},
      {"--help",               false,       boolean,                none},
