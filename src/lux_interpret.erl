@@ -965,7 +965,7 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
 %%          Expected;
         {stop, SomePid, Res} ->
             I2 = prepare_stop(I, SomePid, Res),
-            wait_for_reply(I2, [Pid|Pids], Expect, Fun, FlushTimeout);
+            wait_for_reply(I2, Pids, Expect, Fun, FlushTimeout);
         {'DOWN', _, process, Pid, Reason} ->
             opt_apply(Fun),
             shell_crashed(I, Pid, Reason);

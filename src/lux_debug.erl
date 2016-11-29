@@ -93,8 +93,15 @@ wait_for_reply(Ipid, Timeout) ->
         {debug_reply, Ipid, NewCmdState} ->
             NewCmdState
     after Timeout ->
-            Info = process_info(Ipid, [current_stacktrace, messages]),
-            io:format("\nInterpreter info:\n\t~p\n", [Info]),
+            %% Display process info for interpreter and its children
+            io:format("\nInterpreter: ~p\n", [Ipid]),
+            Show = fun(Pid) ->
+                           Info = process_info(Pid,
+                                               [current_stacktrace, messages]),
+                           io:format("Info for ~p:\n\t~p\n", [Pid, Info])
+                   end,
+            Pids = [P || P <- processes(), P > Ipid],
+            lists:foreach(Show, [Ipid | Pids]),
             wait_for_reply(Ipid, infinity)
     end.
 
