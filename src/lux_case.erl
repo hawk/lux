@@ -357,12 +357,12 @@ wait_for_done(I, Pid, Docs) ->
             Pid ! {suite_timeout, SuiteTimeout},
             case wait_for_done(I, Pid, Docs) of
                 {ok, _Summary, File, FullLineNo, CaseLogDir,
-                 _Events, _FailBin, _NewOpaque} ->
+                 _Warnings, _Results, _FailBin, _NewOpaque} ->
                     ok;
-                {error, File, CaseLogDir, FullLineNo, _} ->
+                {error, File, FullLineNo, CaseLogDir, _} ->
                     ok
             end,
-            {error, File, CaseLogDir, FullLineNo, <<"suite_timeout">>};
+            {error, File, FullLineNo, CaseLogDir, <<"suite_timeout">>};
         {done, Pid, Res} ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
