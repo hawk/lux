@@ -69,13 +69,14 @@ validate_links({error, Abs, Line, Col, Reason}, _Orig, _EnoEnt, Acc) ->
 
 do_validate_links({link, External, Internal}, Abs, Orig, EnoEnt, Acc) ->
     AbsDir = filename:dirname(Abs),
-    {Type, AbsExternal} =
+    {Type, AbsExternal0} =
         case External of
             ""            -> {local,  Abs};
             "http:"  ++ _ -> {remote, External};
             "https:" ++ _ -> {remote, External};
             _             -> {local,  filename:join([AbsDir, External])}
         end,
+    AbsExternal = lux_utils:normalize(AbsExternal0),
     case Type of
         remote ->
             Reason = External,
@@ -114,7 +115,8 @@ do_validate_links({anchor, _Name}, _Abs, _Orig, _EnoEnt, Acc) ->
     Acc.
 
 deep_parse_files([Rel|Rest], Acc) ->
-    Abs = filename:absname(Rel),
+    Abs0 = filename:absname(Rel),
+    Abs = lux_utils:normalize(Abs0),
     case lists:keymember(Abs, 2, Acc) of
         true ->
             %% Already parsed
