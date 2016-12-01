@@ -112,10 +112,6 @@ loop(I) ->
             %% Ordered to stop by user
             I2 = stopped_by_user(I, Scope),
             loop(I2);
-        {stop, Pid, Res} ->
-            %% One shell has finished. Stop the others if needed
-            I2 = prepare_stop(I, Pid, Res),
-            loop(I2);
         {break_pattern_matched, _Pid, LoopCmd} ->
             %% Top down search
             I2 = break_loop(I, LoopCmd),
@@ -140,6 +136,10 @@ loop(I) ->
         {submatch_vars, _From, SubVars} ->
             I2 = I#istate{submatch_vars = SubVars},
             loop(I2);
+        {stop, Pid, Res} ->
+            %% One shell has finished. Stop the others if needed
+            I2 = prepare_stop(I, Pid, Res),
+            loop(I2);
         {'DOWN', _, process, Pid, Reason} ->
             I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
             loop(I2);
@@ -147,10 +147,14 @@ loop(I) ->
                                           TimeoutType =:= case_timeout ->
             I2 = premature_stop(I, TimeoutType, TimeoutMillis),
             loop(I2);
-        IgnoreMsg ->
-            lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
+        Unexpected ->
+            lux:trace_me(70, 'case', ignore_msg,
+                         [{interpreter_got, Unexpected}]),
+            ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
+                 [I#istate.active_name,
+                  (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
             io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
-                      [IgnoreMsg]),
+                      [Unexpected]),
             io:format("\nDEBUG(~p):\n\t~p\n",
                       [?LINE, process_info(self(), messages)]),
             loop(I)
@@ -966,22 +970,29 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
     receive
         {Expect, Pid} ->
             wait_for_reply(I, Pids, Expect, Fun, FlushTimeout);
-%%      {Expect, Pid, Expected} when Expect =:= expected, Pids =:= [] ->
-%%          Expected;
+        %%      {Expect, Pid, Expected} when Expect =:= expected, Pids =:= [] ->
+        %%          Expected;
         {stop, SomePid, Res} ->
             I2 = prepare_stop(I, SomePid, Res),
-            wait_for_reply(I2, Pids, Expect, Fun, FlushTimeout);
+            %% Flush spurious message
+            receive {Expect, SomePid} -> ok after 0 -> ok end,
+            OtherPids = [Pid|Pids] -- [SomePid],
+            wait_for_reply(I2, OtherPids, Expect, Fun, FlushTimeout);
         {'DOWN', _, process, Pid, Reason} ->
             opt_apply(Fun),
             shell_crashed(I, Pid, Reason);
         {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
                                           TimeoutType =:= case_timeout ->
             I2 = premature_stop(I, TimeoutType, TimeoutMillis),
-            wait_for_reply(I2, [], Expect, Fun, 500);
-        IgnoreMsg when FlushTimeout =/= infinity ->
-            lux:trace_me(70, 'case', ignore_msg, [{interpreter_got,IgnoreMsg}]),
+            wait_for_reply(I2, [Pid|Pids], Expect, Fun, 500);
+        Unexpected when FlushTimeout =/= infinity ->
+            lux:trace_me(70, 'case', ignore_msg,
+                         [{interpreter_got,Unexpected}]),
+            ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
+                 [I#istate.active_name,
+                  (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
             io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
-                      [IgnoreMsg]),
+                      [Unexpected]),
             io:format("DEBUG(~p): ~p ~p\n\t~p\n\t~p\n\t~p\n",
                       [?LINE, Expect, [Pid|Pids],
                        process_info(self(), messages),
@@ -1211,11 +1222,11 @@ flush_stop(I, [undefined | Shells]) ->
     flush_stop(I, Shells);
 flush_stop(I, [#shell{pid = Pid} | Shells]) ->
     receive
-        {'DOWN', _, process, P, Reason} when P =:= Pid ->
-            I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
-            flush_stop(I2, Shells);
-        {stop, P, Res} when P =:= Pid ->
+        {stop, Pid, Res} ->
             %% One shell has finished. Stop the others if needed
             I2 = prepare_stop(I, Pid, Res),
+            flush_stop(I2, Shells);
+        {'DOWN', _, process, Pid, Reason} ->
+            I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
             flush_stop(I2, Shells)
     end.

@@ -275,7 +275,12 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         Unexpected ->
             lux:trace_me(70, C#cstate.name, internal_error,
                          [{shell_got, Unexpected}]),
-            exit({shell_got, Unexpected})
+            clog(C, internal, "\"shell_got_msg ~p\"", [element(1, Unexpected)]),
+            io:format("\nINTERNAL LUX ERROR: Shell got: ~p\n",
+                      [Unexpected]),
+            io:format("\nDEBUG(~p):\n\t~p\n",
+                      [?LINE, process_info(self(), messages)]),
+            C
     after multiply(C, Timeout) ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
@@ -601,6 +606,7 @@ shell_eval(#cstate{name = Name} = C0,
             dlog(C3, ?dmore, "expected=undefined (cleanup)", []),
             opt_late_sync_reply(C3);
         Unexpected ->
+            clog(C, shell_got_msg, "~p\n", [element(1, Unexpected)]),
             Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
                                 [Name, Unexpected, Arg]),
             stop(C, error, iolist_to_binary(Err))
