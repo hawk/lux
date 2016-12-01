@@ -811,10 +811,10 @@ timer_to_elems(#timer{send_lineno  = SendStack,
                       elapsed_time = Elapsed}) ->
     [
      case SendStack of
-         [] -> q("0");
-         _  -> q(lux_utils:pretty_full_lineno(SendStack))
+         [] -> q("@0");
+         _  -> q(["@", lux_utils:pretty_full_lineno(SendStack)])
      end,
-     q(lux_utils:pretty_full_lineno(MatchStack)),
+     q(["@", lux_utils:pretty_full_lineno(MatchStack)]),
      q(Shell),
      q(Macro),
      integer_to_list(MaxTime),
