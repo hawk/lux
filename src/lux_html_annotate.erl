@@ -376,7 +376,7 @@ interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
                         CodeLines
                 end;
             {error, FileReason} ->
-                ReasonStr = ?b2l(OrigScript) ++ ": " ++
+                ReasonStr = OrigScript ++ ": " ++
                     file:format_error(FileReason),
                 io:format("ERROR(lux): ~s\n", [ReasonStr]),
                 []
