@@ -331,7 +331,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
                 {Annotated, Files} =
                     interleave_code(A3, Events, Script, 1, 999999, [], []),
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
-                                   Files, Logs, Annotated, ConfigBins),
+                                   Timers, Files, Logs, Annotated, ConfigBins),
                 {ok, Csv, Html};
             {error, _File, _ReasonStr} = Error ->
                 Error
@@ -472,8 +472,8 @@ pick_code(_ScriptComps, Lines, CodeLineNo, _LineNo, _Flush, Acc, _CmdStack) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Return event log as HTML
 
-html_events(A, EventLog, ConfigLog, Script, Result, Files,
-            Logs, Annotated, ConfigBins)
+html_events(A, EventLog, ConfigLog, Script, Result,
+            Timers, Files, Logs, Annotated, ConfigBins)
   when is_list(EventLog), is_list(ConfigLog), is_list(Script) ->
     EventLogDir = A#astate.new_log_dir,
     EventLogBase = filename:join([EventLogDir, filename:basename(Script)]),
@@ -503,6 +503,7 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
      html_result("h2", Result, ""),
      TimeHtml,
      lux_html_utils:html_href("h3", "", "", "#config", "Script configuration"),
+     lux_html_utils:html_href("h3", "", "", "#stats", "Script statistics"),
      lux_html_utils:html_href("h3", "", "", "#cleanup", "Cleanup"),
      "\n<h3>Source files: ",
      html_scripts(A, Files, main),
@@ -528,9 +529,101 @@ html_events(A, EventLog, ConfigLog, Script, Result, Files,
 
      "<div class=\"code\"><pre><a name=\"cleanup\"></a></pre></div>\n",
 
+     lux_html_utils:html_anchor("h2", "", "stats", "Script statistics:"),
+     LogFun(EventLog ++ ".csv", "Csv data file"),
+     html_csv(Timers),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
      lux_html_utils:html_footer()
+    ].
+
+html_csv(OrigTimers) ->
+    Timers = strip_timers(OrigTimers, []),
+    [
+     "<table border=\"0\">\n",
+     "  <tr>\n",
+     "    <td>\n",
+     html_timers(#timer.shell, "Shells", Timers, OrigTimers),
+     "    </td>\n",
+     "    <td>\n",
+     html_timers(#timer.macro, "Macros", Timers, OrigTimers),
+     "    </td>\n",
+     "  </tr>\n",
+     "</table>\n"
+    ].
+
+strip_timers([T | Timers], Acc) ->
+    case T#timer.send_lineno =:= T#timer.match_lineno andalso
+         not lists:keymember(T#timer.shell, #timer.shell, Acc) of
+        true  -> strip_timers(Timers, Acc); % Strip shell start
+        false -> strip_timers(Timers, [T | Acc])
+    end;
+strip_timers([], Acc) ->
+    lists:reverse(Acc).
+
+html_timers(Pos, Label, Timers, _OrigTimers) ->
+    SplitTimers = keysplit(Pos, Timers),
+    Calc = fun({Tag, List}) ->
+                   Sum = lists:sum([E || #timer{elapsed_time = E,
+                                                status = matched} <- List]),
+                   {Tag, Sum, List}
+           end,
+    SplitSums = lists:reverse(lists:keysort(2, lists:map(Calc, SplitTimers))),
+    Total = lists:sum([Sum || {_Tag, Sum, _List} <- SplitSums]),
+    F = fun(L) ->
+                P = lux_utils:pretty_full_lineno(L),
+                lux_html_utils:html_href(["#", P], P)
+        end,
+    Row = fun(Lab, Sum, List) ->
+                  [
+                   "  <tr>\n",
+                   "    <td>", Lab, "</td>\n",
+                   if
+                       Sum =:= undefined ->
+                           [
+                            "    <td></td>\n",
+                            "    <td></td>\n"
+                           ];
+                       is_integer(Sum) ->
+                           Perc =
+                               case Total of
+                                   0 -> 0;
+                                   _ -> (Sum*100) div Total
+                               end,
+                           [
+                            "    <td align=\"right\">", ?i2l(Sum), "</td>\n",
+                            "    <td align=\"right\">", ?i2l(Perc), "%</td>\n"
+                           ]
+                   end,
+                   case List of
+                       [] ->
+                           [
+                            "    <td>", "Match", "</td>\n",
+                            "    <td>", "Send", "</td>\n"
+                           ];
+                       _ ->
+                           [
+                            "    <td></td>\n",
+                            "    <td></td>\n"
+                           ]
+                   end,
+                   "  </tr>\n",
+                   [["  <tr>\n",
+                     "    <td></td>\n",
+                     "    <td>", ?i2l(T#timer.elapsed_time), "</td>\n",
+                     "    <td></td>\n",
+                     "    <td>", F(T#timer.match_lineno), "</td>\n",
+                     "    <td>", F(T#timer.send_lineno), "</td>\n",
+                     "  </tr>\n"] || T <- List]
+
+                  ]
+          end,
+%% Send match max elapsed percent
+    [
+     "<table border=\"1\">\n",
+     Row(["<strong>", Label, "</strong>"], Total, []),
+     [Row(Tag, Sum, List) || {Tag, Sum, List} <- SplitSums],
+     "</table>\n\n"
     ].
 
 html_result(Tag, {result, Result}, HtmlLog) ->
@@ -954,3 +1047,28 @@ elapsed_time_to_str(MicrosDiff) ->
     {Hours, Mins, Secs} = calendar:seconds_to_time(TotalSecs),
     lists:concat([Hours, ":", Mins, ":", Secs, ".",
                   string:right(integer_to_list(Micros), 6, $0), " (h:m:s.us)"]).
+
+%% Collect list of tuples and group them according to their tag
+%%
+%% The internal ordering is kept:
+%%
+%%   keysplit(1, [{3,3},{3,1},{3,2},{1,1},{1,2},{2,2},{2,1},{1,3}]).
+%%   -> [{3,[{3,3},{3,1},{3,2}]},
+%%       {1,[{1,1},{1,2},{1,3}]},
+%%       {2,[{2,2},{2,1}]}]
+
+keysplit(Pos, List) ->
+    do_keysplit(Pos, List, []).
+
+do_keysplit(Pos, [H | T], Acc) ->
+    Tag = element(Pos, H),
+    case lists:keyfind(Tag, 1, Acc) of
+        false ->
+            NewAcc = [{Tag, [H]} | Acc],
+            do_keysplit(Pos, T, NewAcc);
+        {Tag, Old} ->
+            NewAcc = lists:keyreplace(Tag, 1, Acc, {Tag, [H|Old]}),
+            do_keysplit(Pos, T, NewAcc)
+    end;
+do_keysplit(_Pos, [], Acc) ->
+    lists:reverse([{Tag, lists:reverse(List)} || {Tag, List} <- Acc]).

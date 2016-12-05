@@ -12,6 +12,7 @@
 
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), iolist_to_binary(L)).
+-define(i2l(I), integer_to_list(I)).
 -define(stacktrace(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
 -define(APPLICATION, lux).
 -define(TAG_WIDTH, 20).
