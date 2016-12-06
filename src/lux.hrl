@@ -144,7 +144,7 @@
         {lineno  :: non_neg_integer(),
          shell   :: binary(),
          op      :: binary(),
-         data    :: term()}).
+         data    :: [binary()]}).
 
 -record(body,
         {invoke_lineno :: integer(),
@@ -154,12 +154,14 @@
          events        :: [#event{}]}).
 
 -record(timer,
-        {send_lineno  :: [integer()], % Reversed stack of lineno
-         match_lineno :: [integer()], % Reversed stack of lineno
+        {match_lineno :: [integer()], % Reversed stack of lineno
+         match_data   :: [binary()],
+         send_lineno  :: [integer()], % Reversed stack of lineno
+         send_data    :: [binary()],
          shell        :: binary(),                        % Name
          macro        :: binary(),                        % Name
          max_time     :: non_neg_integer(),               % Micros
-         status       :: started | matched | failed,
+         status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
 
  -define(DEFAULT_LOG, <<"unknown">>).

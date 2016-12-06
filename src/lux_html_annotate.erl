@@ -531,13 +531,13 @@ html_events(A, EventLog, ConfigLog, Script, Result,
 
      lux_html_utils:html_anchor("h2", "", "stats", "Script statistics:"),
      LogFun(EventLog ++ ".csv", "Csv data file"),
-     html_csv(Timers),
+     html_stats(Timers),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
      lux_html_utils:html_footer()
     ].
 
-html_csv(OrigTimers) ->
+html_stats(OrigTimers) ->
     Timers = strip_timers(OrigTimers, []),
     [
      "<table border=\"0\">\n",
@@ -570,14 +570,25 @@ html_timers(Pos, Label, Timers, _OrigTimers) ->
            end,
     SplitSums = lists:reverse(lists:keysort(2, lists:map(Calc, SplitTimers))),
     Total = lists:sum([Sum || {_Tag, Sum, _List} <- SplitSums]),
-    F = fun(L) ->
-                P = lux_utils:pretty_full_lineno(L),
-                lux_html_utils:html_href(["#", P], P)
+    F = fun(L, Data) ->
+                Pretty = lux_utils:pretty_full_lineno(L),
+                ToolTip = lux_utils:expand_lines(Data),
+                [
+                 "\n<a href=\"#", lux_html_utils:html_quote(Pretty),
+                 "\" title=\"", lux_html_utils:html_quote(ToolTip),
+                 "\">", Pretty, "</a>"
+                ]
         end,
     Row = fun(Lab, Sum, List) ->
                   [
                    "  <tr>\n",
-                   "    <td>", Lab, "</td>\n",
+                   "    <td>",
+                   case Lab of
+                       ""   -> "N/A";
+                       <<>> -> "N/A";
+                       _    -> Lab
+                   end,
+                   "</td>\n",
                    if
                        Sum =:= undefined ->
                            [
@@ -595,6 +606,7 @@ html_timers(Pos, Label, Timers, _OrigTimers) ->
                             "    <td align=\"right\">", ?i2l(Perc), "%</td>\n"
                            ]
                    end,
+                   "    <td></td>\n",
                    case List of
                        [] ->
                            [
@@ -610,15 +622,19 @@ html_timers(Pos, Label, Timers, _OrigTimers) ->
                    "  </tr>\n",
                    [["  <tr>\n",
                      "    <td></td>\n",
-                     "    <td>", ?i2l(T#timer.elapsed_time), "</td>\n",
                      "    <td></td>\n",
-                     "    <td>", F(T#timer.match_lineno), "</td>\n",
-                     "    <td>", F(T#timer.send_lineno), "</td>\n",
+                     "    <td></td>\n",
+                     "    <td align=\"right\">",
+                     ?i2l(T#timer.elapsed_time),
+                     "</td>\n",
+                     "    <td>", F(T#timer.match_lineno,
+                                   T#timer.match_data), "</td>\n",
+                     "    <td>", F(T#timer.send_lineno,
+                                   T#timer.send_data), "</td>\n",
                      "  </tr>\n"] || T <- List]
 
                   ]
           end,
-%% Send match max elapsed percent
     [
      "<table border=\"1\">\n",
      Row(["<strong>", Label, "</strong>"], Total, []),

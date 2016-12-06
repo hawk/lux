@@ -162,7 +162,7 @@ read_log(Log, ExpectedTag) when is_list(Log) ->
                   {error, Reason, Bin}
           end;
       {error, Reason} ->
-          {error, file:format_error(Reason), <<"">>}
+          {error, file:format_error(Reason), <<>>}
   end.
 
 write_log(File, Tag, Version, Sections) when is_list(File) ->
@@ -689,7 +689,7 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
               events = SubEvents2},
     do_parse_events(Events2, [E | Acc]).
 
-split_lines(<<"">>) ->
+split_lines(<<>>) ->
     [];
 split_lines(Bin) ->
     Opts = [global],
@@ -701,53 +701,64 @@ split_lines(Bin) ->
     binary:split(Normalized, <<"\n">>, Opts).
 
 extract_timers(Events) ->
-    lists:reverse(extract_timers(Events, [], [<<"">>], [], [])).
+    {_SendEvent, RevTimers} =
+        extract_timers(Events, undefined, [<<>>], [], []),
+    lists:reverse(RevTimers).
 
-extract_timers([E | Events], SendNo, Calls, Nums, Acc) ->
+extract_timers([E | Events], Send, Calls, Nums, Acc) ->
     case E of
         #event{op = <<"send">>} ->
-            NewSendNo = [E#event.lineno | Nums],
-            extract_timers(Events, NewSendNo, Calls, Nums, Acc);
+            NewSend = {E, Nums},
+            extract_timers(Events, NewSend, Calls, Nums, Acc);
         #event{op = <<"start">>} ->
-            NewSendNo = [E#event.lineno | Nums],
-            extract_timers(Events, NewSendNo, Calls, Nums, Acc);
-        #event{op = <<"invoke_", Macro/binary>>} ->
-            NewCalls = [Macro | Calls],
-            extract_timers(Events, SendNo, NewCalls, Nums, Acc);
-        #event{op = <<"exit_", Macro/binary>>} ->
-            [Macro | NewCalls] = Calls,
-            extract_timers(Events, SendNo, NewCalls, Nums, Acc);
+            NewSend = {E, Nums},
+            extract_timers(Events, NewSend, Calls, Nums, Acc);
+        #event{op = <<"expect">>} ->
+            {SendE, SendNums} = Send,
+            SendLineNo = [SendE#event.lineno | SendNums],
+            MatchLineNo = [E#event.lineno | Nums],
+            T = #timer{match_lineno = MatchLineNo,
+                       match_data = E#event.data,
+                       send_lineno = SendLineNo,
+                       send_data = SendE#event.data,
+                       shell = E#event.shell,
+                       macro = hd(Calls),
+                       status = expected},
+            extract_timers(Events, Send, Calls, Nums, [T | Acc]);
         #event{op = <<"timer">>, data = [Data]} ->
-            case parse_timer(Data) of
-                {started, MaxTime} ->
-                    MatchNo = [E#event.lineno | Nums],
-                    T = #timer{send_lineno = SendNo,
-                               match_lineno = MatchNo,
-                               shell = E#event.shell,
-                               macro = hd(Calls),
-                               max_time = MaxTime,
-                               status = started},
-                    extract_timers(Events, SendNo, Calls, Nums, [T|Acc]);
-                {canceled, Elapsed} ->
-                    [T | NewAcc] = Acc,
+            case {parse_timer(Data), Acc} of
+                {{started, MaxTime}, [T | NewAcc]}
+                  when T#timer.status =:= expected  ->
+                    NewT = T#timer{max_time = MaxTime,
+                                   status = started},
+                    extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc]);
+                {{canceled, Elapsed}, [T | NewAcc]}
+                  when T#timer.status =:= started ->
                     NewT = T#timer{status = matched,
                                    elapsed_time = Elapsed},
-                    extract_timers(Events, SendNo, Calls, Nums, [NewT|NewAcc]);
-                {failed, Elapsed} ->
-                    [T | NewAcc] = Acc,
+                    extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc]);
+                {{failed, Elapsed}, [T | NewAcc]}
+                  when T#timer.status =:= started ->
                     NewT = T#timer{status = failed,
                                    elapsed_time = Elapsed},
-                    extract_timers(Events, SendNo, Calls, Nums, [NewT|NewAcc])
-                end;
+                    extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc])
+            end;
+        #event{op = <<"invoke_", Macro/binary>>} ->
+            NewCalls = [Macro | Calls],
+            extract_timers(Events, Send, NewCalls, Nums, Acc);
+        #event{op = <<"exit_", Macro/binary>>} ->
+            [Macro | NewCalls] = Calls,
+            extract_timers(Events, Send, NewCalls, Nums, Acc);
         #event{} ->
-            extract_timers(Events, SendNo, Calls, Nums, Acc);
+            extract_timers(Events, Send, Calls, Nums, Acc);
         #body{events = EventsB} = B ->
             TmpNums = [B#body.invoke_lineno | Nums],
-            NewAcc = extract_timers(EventsB, SendNo, Calls, TmpNums, Acc),
-            extract_timers(Events, SendNo, Calls, Nums, NewAcc)
+    {NewSend, NewAcc} =
+                extract_timers(EventsB, Send, Calls, TmpNums, Acc),
+            extract_timers(Events, NewSend, Calls, Nums, NewAcc)
     end;
-extract_timers([], _SendNo, _Calls, _Nums, Acc) ->
-    Acc.
+extract_timers([], Send, _Calls, _Nums, Acc) ->
+    {Send, Acc}.
 
 %% ---------
 %% new timer
@@ -802,8 +813,9 @@ join(_Sep, []) ->
 join(Sep, [H|T]) ->
     [H|[[Sep, E] || E <- T]].
 
-timer_to_elems(#timer{send_lineno  = SendStack,
-                      match_lineno = MatchStack,
+timer_to_elems(#timer{match_lineno = MatchStack,
+                      send_lineno  = SendStack,
+                      send_data    = _SendData,
                       shell        = Shell,
                       macro        = Macro,
                       max_time     = MaxTime,
