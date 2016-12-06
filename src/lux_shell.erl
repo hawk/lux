@@ -135,7 +135,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason},
                {"LUX_EXTRA_LOGS", ExtraLogs}],
-               WorkDir = filename:dirname(C#cstate.orig_file),
+               WorkDir = filename:dirname(C2#cstate.orig_file),
     Opts = [binary, stream, use_stdio, stderr_to_stdout, exit_status,
             {args, Args}, {cd, WorkDir}, {env, PortEnv}],
     try
@@ -156,7 +156,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
                                                file:format_error(LoopReason)]),
                 io:format("~s\n~p\n", [LoopBinErr, erlang:get_stacktrace()]),
                 stop(C2, error, LoopBinErr)
-                     end
+        end
     catch
         error:InitReason ->
             InitBinErr = iolist_to_binary([FlatExec, ": ",
@@ -483,7 +483,7 @@ shell_eval(#cstate{name = Name} = C0,
             C2#cstate{state_changed = true, expected = Cmd};
         expect when element(2, Arg) =:= expect_add;
                     element(2, Arg) =:= expect_add_strict ->
-            %% Add alternate regxp
+            %% Add alternate regexp
             Tag = element(2, Arg),
             RegExp = extract_regexp(Arg),
             clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
@@ -512,9 +512,11 @@ shell_eval(#cstate{name = Name} = C0,
             RegExp = extract_regexp(Arg),
             clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             PreExpected = [Cmd | C#cstate.pre_expected],
-            C2 = start_timer(C),
-            dlog(C2, ?dmore, "expected=regexp (expect)", []),
-            rebuild_regexps(C2, PreExpected);
+            {ok, C2, NewRegExp} = rebuild_regexps(C, PreExpected),
+            clog(C2, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
+            C3 = start_timer(C2),
+            dlog(C3, ?dmore, "expected=regexp (expect)", []),
+            C3;
         fail when Arg =:= reset ->
             clog(C, fail, "pattern ~p", [Arg]),
             Pattern = #pattern{cmd = undefined,
@@ -585,17 +587,17 @@ shell_eval(#cstate{name = Name} = C0,
             C#cstate{match_timeout = Millis};
         cleanup ->
             C2 = cancel_timer(C),
-            case C#cstate.fail of
+            case C2#cstate.fail of
                 undefined -> ok;
                 _         -> clog(C2, fail, "pattern reset", [])
             end,
-            case C#cstate.success of
+            case C2#cstate.success of
                 undefined  -> ok;
                 _          -> clog(C2, success, "pattern reset", [])
             end,
-            LoopStack = C#cstate.loop_stack,
+            LoopStack = C2#cstate.loop_stack,
             LoopStack2  = [L#loop{mode = break} || L <- LoopStack],
-            case lists:keymember(pattern, 1, C#cstate.loop_stack) of
+            case lists:keymember(pattern, 1, C2#cstate.loop_stack) of
                 false -> ok;
                 true  -> clog(C2, break, "pattern reset", [])
             end,
@@ -723,7 +725,7 @@ expect(#cstate{state_changed = true,
                     C3 = cancel_timer(C2),
                     ExitStatus =
                         list_to_binary(integer_to_list(C3#cstate.exit_status)),
-                    try_match(C, ExitStatus, C#cstate.expected, Actual),
+                    try_match(C3, ExitStatus, C3#cstate.expected, Actual),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
@@ -754,7 +756,7 @@ try_match(C, Actual, Expected, AltSkip) ->
             %% Successful match
             C2 = cancel_timer(C),
             {Skip, Rest} =
-                split_multi(C, Actual, Matches, Multi, Context, AltSkip),
+                split_multi(C2, Actual, Matches, Multi, Context, AltSkip),
             SubMatches = [], % Don't bother about subpatterns
             match_more(C2, Skip, Rest, SubMatches);
         {nomatch, _} when AltSkip =:= undefined ->
@@ -1050,6 +1052,7 @@ start_timer(#cstate{} = C) ->
 cancel_timer(#cstate{timer = undefined} = C) ->
     C;
 cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
+    %% io:format("\n\n========>\n\t~p\n", [?stacktrace()]),
     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
     clog(C, timer, "canceled (after ~p micro seconds)", [Diff]),
     case Timer of
@@ -1084,16 +1087,17 @@ rebuild_regexps(C, PreExpected0) ->
     [First | Rest] = [add_skip(Type, P) || P <- Perms],
     NewRegExp = iolist_to_binary(["(", First, ")",
                                   [["|(", R, ")"] ||  R <- Rest]]),
-    clog(C, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
     Opts = [dupnames, multiline, {newline, anycrlf}],
     case re:compile(NewRegExp, Opts) of
         {ok, NewMP} ->
             Cmd = hd(PreExpected),
             NewCmd = Cmd#cmd{arg = {mp, regexp, NewRegExp, NewMP, Multi}},
-            C#cstate{latest_cmd = NewCmd,
-                     state_changed = true,
-                     expected = NewCmd,
-                     pre_expected = []};
+            {ok,
+             C#cstate{latest_cmd = NewCmd,
+                      state_changed = true,
+                      expected = NewCmd,
+                      pre_expected = []},
+             NewRegExp};
         {error, {Reason, _Pos}} ->
             Err = ["Syntax error: ", Reason, " in regexp '", NewRegExp, "'"],
             stop(C, error, list_to_binary(Err))

@@ -703,7 +703,9 @@ split_lines(Bin) ->
 extract_timers(Events) ->
     {_SendEvent, RevTimers} =
         extract_timers(Events, undefined, [<<>>], [], []),
-    lists:reverse(RevTimers).
+    Timers = lists:reverse(RevTimers),
+    %% io:format("\ntimers: ~p\n", [Timers]),
+    Timers.
 
 extract_timers([E | Events], Send, Calls, Nums, Acc) ->
     case E of
@@ -713,7 +715,7 @@ extract_timers([E | Events], Send, Calls, Nums, Acc) ->
         #event{op = <<"start">>} ->
             NewSend = {E, Nums},
             extract_timers(Events, NewSend, Calls, Nums, Acc);
-        #event{op = <<"expect">>} ->
+        #event{op = <<"expect", _/binary>>} ->
             {SendE, SendNums} = Send,
             SendLineNo = [SendE#event.lineno | SendNums],
             MatchLineNo = [E#event.lineno | Nums],
@@ -724,21 +726,25 @@ extract_timers([E | Events], Send, Calls, Nums, Acc) ->
                        shell = E#event.shell,
                        macro = hd(Calls),
                        status = expected},
-            extract_timers(Events, Send, Calls, Nums, [T | Acc]);
+            case Acc of
+                [AddT | NewAcc] when AddT#timer.status =:= expected ->
+                    ok; % Skip prev (expect_add | expect_add_strict) timer
+                NewAcc ->
+                    ok
+            end,
+            extract_timers(Events, Send, Calls, Nums, [T | NewAcc]);
         #event{op = <<"timer">>, data = [Data]} ->
-            case {parse_timer(Data), Acc} of
-                {{started, MaxTime}, [T | NewAcc]}
-                  when T#timer.status =:= expected  ->
+            [T | NewAcc] = Acc,
+            case parse_timer(Data) of
+                {started, MaxTime} when T#timer.status =:= expected  ->
                     NewT = T#timer{max_time = MaxTime,
                                    status = started},
                     extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc]);
-                {{canceled, Elapsed}, [T | NewAcc]}
-                  when T#timer.status =:= started ->
+                {canceled, Elapsed} when T#timer.status =:= started ->
                     NewT = T#timer{status = matched,
                                    elapsed_time = Elapsed},
                     extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc]);
-                {{failed, Elapsed}, [T | NewAcc]}
-                  when T#timer.status =:= started ->
+                {failed, Elapsed} when T#timer.status =:= started ->
                     NewT = T#timer{status = failed,
                                    elapsed_time = Elapsed},
                     extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc])

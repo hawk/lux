@@ -22,6 +22,7 @@
         ]).
 
 interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
+    %% io:format("\nCmds ~p\n", [Cmds]),
     I = default_istate(Script),
     case lists:keyfind(stopped_by_user, 1, Opaque) of
         {_, Context = suite} -> ok;

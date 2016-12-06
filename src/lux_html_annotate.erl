@@ -631,7 +631,8 @@ html_timers(Pos, Label, Timers, _OrigTimers) ->
                                    T#timer.match_data), "</td>\n",
                      "    <td>", F(T#timer.send_lineno,
                                    T#timer.send_data), "</td>\n",
-                     "  </tr>\n"] || T <- List]
+                     "  </tr>\n"] || T <- List,
+                                     T#timer.status =:= matched]
 
                   ]
           end,
