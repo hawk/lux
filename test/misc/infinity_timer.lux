@@ -1,0 +1,15 @@
+[config case_timeout=infinity]
+[config timeout=infinity]
+[config cleanup_timeout=infinity]
+
+[shell test]
+    [timeout infinity]
+    !echo foo
+    ?foo
+    ?foo
+
+[cleanup]
+    [timeout infinity]
+    !echo foo
+    ?foo
+    ?foo

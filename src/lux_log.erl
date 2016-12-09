@@ -780,6 +780,8 @@ extract_timers([], Send, _Calls, _Nums, Acc) ->
 %% failed (after 10 seconds)
 parse_timer(Data) ->
     case string:tokens(?b2l(Data), "() ") of
+        ["started", "infinity"] ->
+            {started, infinity};
         ["started", Secs, "seconds", "*", Multiplier] ->
             CeiledSecs = trunc((list_to_integer(Secs) *
                                     list_to_float(Multiplier)) + 0.5),
@@ -835,7 +837,10 @@ timer_to_elems(#timer{match_lineno = MatchStack,
      q(["@", lux_utils:pretty_full_lineno(MatchStack)]),
      q(Shell),
      q(Macro),
-     integer_to_list(MaxTime),
+     case MaxTime of
+         infinity -> q("infinity");
+         _        -> integer_to_list(MaxTime)
+     end,
      q(atom_to_list(Status)),
      if
          Elapsed =:= undefined,

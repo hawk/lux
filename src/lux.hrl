@@ -160,7 +160,7 @@
          send_data    :: [binary()],
          shell        :: binary(),                        % Name
          macro        :: binary(),                        % Name
-         max_time     :: non_neg_integer(),               % Micros
+         max_time     :: infinity | non_neg_integer(),    % Micros
          status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
 
