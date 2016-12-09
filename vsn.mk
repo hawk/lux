@@ -3,4 +3,4 @@
 # See the file "LICENSE" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-LUX_VSN=1.14.6.1
+LUX_VSN=1.15
