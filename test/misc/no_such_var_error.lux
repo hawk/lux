@@ -1,0 +1,6 @@
+[shell test]
+    !echo $no_such_var
+
+[cleanup]
+    !echo foo
+    ?foo
