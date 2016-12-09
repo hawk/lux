@@ -151,11 +151,11 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
         try
             shell_loop(C3, C3)
         catch
-            error:LoopReason ->
-                LoopBinErr = iolist_to_binary(["Internal lux error: ",
-                                               file:format_error(LoopReason)]),
-                io:format("~s\n~p\n", [LoopBinErr, erlang:get_stacktrace()]),
-                stop(C2, error, LoopBinErr)
+            error:ShellReason ->
+                ErrBin = iolist_to_binary(io_lib:format("~p", [ShellReason])),
+                io:format("\nINTERNAL LUX ERROR: Shell crashed: ~s\n~p\n",
+                          [ErrBin, ?stacktrace()]),
+                stop(C2, error, ErrBin)
         end
     catch
         error:InitReason ->

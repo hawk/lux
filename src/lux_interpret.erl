@@ -49,7 +49,12 @@ init(I, StartTime) ->
         {ok, Res}
     catch
         throw:{error, Reason, I5} ->
-            {error, Reason, I5}
+            {error, Reason, I5};
+        error:Reason ->
+            ErrBin = iolist_to_binary(io_lib:format("~p", [Reason])),
+            io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
+                      [ErrBin, ?stacktrace()]),
+            {error, ErrBin, I}
     after
         safe_cancel_timer(Ref),
         EndTime = lux_utils:timestamp(),
