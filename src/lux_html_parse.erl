@@ -10,6 +10,7 @@
 -export([validate_file/1, parse_file/1, format_results/1,
          validate_html/1, validate_html/2]).
 
+-include_lib("lux.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
 validate_html(HtmlFile, Opts) ->
@@ -290,6 +291,6 @@ format_result(Res, Cwd) ->
 opt_pos(0, _Col) ->
     ": ";
 opt_pos(Line, 0) ->
-    [":", integer_to_list(Line), ": "];
+    [":", ?i2l(Line), ": "];
 opt_pos(Line, Col) ->
-    [":", integer_to_list(Line), ": column ", integer_to_list(Col), ": "].
+    [":", ?i2l(Line), ": column ", ?i2l(Col), ": "].

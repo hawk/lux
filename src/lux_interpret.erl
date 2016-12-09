@@ -81,7 +81,7 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
                                      "Ambiguous macro ", Name, " at ",
                                      MacroFile,
                                      ":",
-                                     integer_to_list(LineNo)
+                                     ?i2l(LineNo)
                                     ],
                                 throw({error, iolist_to_binary(Reason), I})
                         end;
@@ -410,7 +410,7 @@ dispatch_cmd(I,
             Suffix =
                 case call_level(I4) of
                     1 -> "";
-                    N -> integer_to_list(N)
+                    N -> ?i2l(N)
                 end,
             ShellCmd = Cmd#cmd{type = shell, arg = "cleanup" ++ Suffix},
             ensure_shell(I4, ShellCmd);
@@ -613,7 +613,7 @@ macro_vars(_I, [], [], _Invoke) ->
     [];
 macro_vars(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
     BinName = list_to_binary(Name),
-    BinLineNo = list_to_binary(integer_to_list(LineNo)),
+    BinLineNo = list_to_binary(?i2l(LineNo)),
     Reason = <<"at ", BinLineNo/binary,
                ": Argument mismatch in macro: ", BinName/binary>>,
     throw_error(I, Reason).
@@ -676,7 +676,7 @@ parse_int(I, Chars, Cmd) ->
                 error:_ ->
                     BinErr =
                         list_to_binary(["Syntax error at line ",
-                                        integer_to_list(Cmd#cmd.lineno),
+                                        ?i2l(Cmd#cmd.lineno),
                                         ": '", Chars2, "' integer expected"]),
                     throw_error(I, BinErr)
             end;
@@ -764,7 +764,7 @@ pick_item([Item|Items])                                                 ->
                         true ->
                             lists:reverse(lists:seq(To, From, Incr))
                     end,
-                [NewItem|NewItems] = [integer_to_list(I) || I <- Seq],
+                [NewItem|NewItems] = [?i2l(I) || I <- Seq],
                 {item, NewItem, NewItems ++ Items}
             catch
                 _:_ ->
@@ -862,7 +862,7 @@ prepare_result(#istate{latest_cmd = LatestCmd,
 
 goto_cleanup(OldI, CleanupReason) ->
     lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
-    LineNo = integer_to_list((OldI#istate.latest_cmd)#cmd.lineno),
+    LineNo = ?i2l((OldI#istate.latest_cmd)#cmd.lineno),
     NewLineNo =
         case OldI#istate.results of
             [#result{actual= <<"fail pattern matched ", _/binary>>}|_] ->
@@ -1207,7 +1207,7 @@ multiply(#istate{multiplier = Factor}, Timeout) ->
 throw_error(#istate{active_shell = ActiveShell, shells = Shells,
                     file = _File, latest_cmd = _Cmd} = I, Reason)
   when is_binary(Reason) ->
-    %% Reason = iolist_to_binary([File, ":", integer_to_list(Cmd#cmd.lineno),
+    %% Reason = iolist_to_binary([File, ":", ?i2l(Cmd#cmd.lineno),
     %%                            ": ", Reason0]),
     lux:trace_me(50, 'case', error,
                  [{active_shell, ActiveShell}, {shells, Shells}, Reason]),

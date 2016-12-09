@@ -91,8 +91,7 @@ html_quote(IoList) ->
 safe_ctrl(Char) ->
     if
         Char < 32, Char =/= 10 ->
-            ["<ctrl char \\", integer_to_list(Char),
-             " - see plain lux log for details>"];
+            ["<ctrl char \\", ?i2l(Char), " - see plain lux log for details>"];
         true ->
             Char
     end.
@@ -102,12 +101,12 @@ safe_latin1(<<>>, Acc) ->
 safe_latin1(Bin, Acc) ->
     case unicode:characters_to_binary(Bin, utf8, latin1) of
         {error, Good, _Rest} ->
-            BadSz = integer_to_list(byte_size(Bin) - byte_size(Good)),
+            BadSz = ?i2l(byte_size(Bin) - byte_size(Good)),
             Reason = ["<illegal char(s) - skipped ", BadSz,
                       " bytes - see plain lux log for details>"],
             safe_latin1(<<>>, [Reason, Good | Acc]);
         {incomplete, Good, _Rest} ->
-            BadSz = integer_to_list(byte_size(Bin) - byte_size(Good)),
+            BadSz = ?i2l(byte_size(Bin) - byte_size(Good)),
             Reason = ["<incomplete char - skipped ", BadSz,
                       " bytes - see plain lux log for details>"],
             safe_latin1(<<>>, [Reason, Good | Acc]);

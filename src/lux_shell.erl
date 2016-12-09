@@ -197,7 +197,7 @@ progress_token(#cstate{idle_count = IdleCount} = C) ->
             {C, "."};
         1 ->
             {C#cstate{idle_count = IdleCount+1},
-             integer_to_list((C#cstate.latest_cmd)#cmd.lineno) ++ "?"};
+             ?i2l((C#cstate.latest_cmd)#cmd.lineno) ++ "?"};
         _ ->
             {C, "?"}
     end.
@@ -724,7 +724,7 @@ expect(#cstate{state_changed = true,
                     C2 = match_patterns(C, Actual),
                     C3 = cancel_timer(C2),
                     ExitStatus =
-                        list_to_binary(integer_to_list(C3#cstate.exit_status)),
+                        list_to_binary(?i2l(C3#cstate.exit_status)),
                     try_match(C3, ExitStatus, C3#cstate.expected, Actual),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
@@ -794,7 +794,7 @@ submatch_vars([SubMatches | Rest], N) ->
         nosubmatch ->
             submatch_vars(Rest, N+1); % Omit $N as its value is undefined
         Val ->
-            VarVal = integer_to_list(N) ++ "=" ++ binary_to_list(Val),
+            VarVal = ?i2l(N) ++ "=" ++ binary_to_list(Val),
             [VarVal | submatch_vars(Rest, N+1)]
     end;
 submatch_vars([], _) ->

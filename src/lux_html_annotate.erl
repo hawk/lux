@@ -1063,7 +1063,7 @@ elapsed_time_to_str(MicrosDiff) ->
     Micros = MicrosDiff - (TotalSecs * 1000000),
     {Hours, Mins, Secs} = calendar:seconds_to_time(TotalSecs),
     lists:concat([Hours, ":", Mins, ":", Secs, ".",
-                  string:right(integer_to_list(Micros), 6, $0), " (h:m:s.us)"]).
+                  string:right(?i2l(Micros), 6, $0), " (h:m:s.us)"]).
 
 %% Collect list of tuples and group them according to their tag
 %%

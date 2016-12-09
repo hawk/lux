@@ -538,10 +538,10 @@ uniq_str({_MegaSecs, _Secs, MicroSecs} = Now) ->
         calendar:now_to_universal_time(Now),
     lists:concat([Year, "_", r2(Month), "_", r2(Day), "_",
                   r2(Hour), "_", r2(Min), "_", r2(Sec), "_",
-                  integer_to_list(MicroSecs)]).
+                  ?i2l(MicroSecs)]).
 
 r2(Int) when is_integer(Int) ->
-    r2(integer_to_list(Int));
+    r2(?i2l(Int));
 r2(String) when is_list(String) ->
     string:right(String, 2, $0).
 
@@ -1209,9 +1209,7 @@ tap_suite_begin(R, _Scripts, _Directive) ->
 
 tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results)
   when TAP =/= undefined ->
-    Len = fun(Res, Tag) ->
-                  integer_to_list(length(lux_log:pick_result(Res, Tag)))
-          end,
+    Len = fun(Res, Tag) -> ?i2l(length(lux_log:pick_result(Res, Tag))) end,
     ok = lux_tap:diag(TAP, "\n"),
     lux_tap:diag(TAP, ["Errors:     ", Len(Results, error)]),
     lux_tap:diag(TAP, ["Failed:     ", Len(Results, fail)]),

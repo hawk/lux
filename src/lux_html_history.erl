@@ -120,7 +120,7 @@ header(Section, AllRuns, ConfigTables, HostTables,
      lux_utils:now_to_string(lux_utils:timestamp()),
      "</h1>",
 
-     "<h3>", integer_to_list(N),
+     "<h3>", ?i2l(N),
      " runs within this range of repository revisions</h3>\n",
      "<table border=\"0\">\n",
      "  <tr>\n",

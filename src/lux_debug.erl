@@ -1307,13 +1307,11 @@ collect_break(#cmd{type = Type, lineno = LineNo},
 
 pretty_break_pos({RevFile, LineNo}) when is_integer(LineNo) ->
     %% Static
-    lists:flatten([lux_utils:pretty_filename(RevFile),
-                   ":", integer_to_list(LineNo)]);
+    lists:flatten([lux_utils:pretty_filename(RevFile), ":", ?i2l(LineNo)]);
 %% pretty_break_pos([LineNo]) when is_integer(LineNo) ->
 %%     %% Dynamic
-%%     integer_to_list(LineNo);
+%%     ?i2l(LineNo);
 pretty_break_pos(RevLineNoList) when length(RevLineNoList) > 1 ->
     %% Dynamic
     [LineNo | LineNoList] = lists:reverse(RevLineNoList),
-    lists:flatten([integer_to_list(LineNo),
-                   [[":", integer_to_list(L)] || L <- LineNoList]]).
+    lists:flatten([?i2l(LineNo), [[":", ?i2l(L)] || L <- LineNoList]]).

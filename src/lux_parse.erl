@@ -332,7 +332,7 @@ parse_oper(P, Fd, LineNo, OrigLine) ->
         <<"#",      D/binary>> -> {comment,           undefined, D};
         _ ->
             parse_error(P, Fd, LineNo,
-                        ["Syntax error at line ", integer_to_list(LineNo),
+                        ["Syntax error at line ", ?i2l(LineNo),
                          ": '", OrigLine, "'"])
     end.
 
@@ -382,7 +382,7 @@ parse_var(P, Fd, Cmd, Scope, String) ->
         false ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
-                        ["Syntax error at line ", integer_to_list(LineNo),
+                        ["Syntax error at line ", ?i2l(LineNo),
                          ": illegal ", atom_to_list(Scope),
                          " variable "," '", String, "'"])
     end.
@@ -430,7 +430,7 @@ parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
             parse(NewP, NewFd, NewLineNo+1, NewTokens);
         _ ->
             parse_error(P2, Fd, LineNo,
-                        ["Syntax error at line ", integer_to_list(LineNo),
+                        ["Syntax error at line ", ?i2l(LineNo),
                          ": ']' is expected to be at end of line"])
     end.
 
@@ -447,7 +447,7 @@ parse_body(#pstate{mode = RunMode} = P,
         eof = NewFd ->
             parse_error(P, NewFd, LineNo,
                         ["Syntax error after line ",
-                         integer_to_list(LineNo),
+                         ?i2l(LineNo),
                          ": [" ++ EndKeyword ++ "] expected"]);
         {line, _EndMacro, NewFd, Incr}
           when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
@@ -505,7 +505,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     parse_error(P, Fd, LineNo,
                                 ["Illegal prefix of doc string" ,
                                  Text2, " on line ",
-                                 integer_to_list(LineNo)])
+                                 ?i2l(LineNo)])
             end;
         "cleanup" ++ Name ->
             {P, Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
@@ -596,7 +596,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
-                                 integer_to_list(LineNo),
+                                 ?i2l(LineNo),
                                  ": missing macro name"])
             end;
         "invoke" ++ Head ->
@@ -606,7 +606,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
-                                 integer_to_list(LineNo),
+                                 ?i2l(LineNo),
                                  ": missing macro name"])
             end;
         "loop" ->
@@ -621,13 +621,13 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                 _ ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
-                                 integer_to_list(LineNo),
+                                 ?i2l(LineNo),
                                  ": missing loop variable"])
             end;
         Bad ->
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ",
-                         integer_to_list(LineNo),
+                         ?i2l(LineNo),
                          ": Unknown meta command '",
                          Bad, "'"])
     end.
@@ -689,7 +689,7 @@ expand_vars(P, Fd, Val, LineNo) ->
         throw:{no_such_var, BadVar} ->
             Reason = ["Variable $", BadVar,
                       " is not set on line ",
-                      integer_to_list(LineNo)],
+                      ?i2l(LineNo)],
             parse_error(P, Fd, LineNo, Reason);
         error:Reason ->
             erlang:error(Reason)
@@ -698,7 +698,7 @@ expand_vars(P, Fd, Val, LineNo) ->
 split_invoke_args(P, Fd, LineNo, [], quoted, Arg, _Args) ->
     parse_error(P, Fd, LineNo,
                 ["Syntax error at line ",
-                 integer_to_list(LineNo),
+                 ?i2l(LineNo),
                  ": Unterminated quote '",
                  lists:reverse(Arg), "'"]);
 split_invoke_args(_P, _ArgsFd, _LineNo, [], normal, [], Args) ->
@@ -733,7 +733,7 @@ split_invoke_args(P, Fd, LineNo, [H | T], quoted = Mode, Arg, Args) ->
 parse_multi(P, Fd, <<>>,
             #cmd{lineno = LineNo}, _Tokens) ->
     parse_error(P, Fd, LineNo,
-                ["Syntax error at line ", integer_to_list(LineNo),
+                ["Syntax error at line ", ?i2l(LineNo),
                  ": '\"\"\"' command expected"]);
 parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
             #cmd{lineno = LineNo, orig = OrigLine} = Cmd, Tokens) ->
@@ -745,14 +745,14 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
         eof = NewFd ->
             parse_error(P2, NewFd, LastLineNo0,
                         ["Syntax error after line ",
-                         integer_to_list(LineNo),
+                         ?i2l(LineNo),
                          ": '\"\"\"' expected"]);
         {line, _, NewFd, Incr} when RemPrefixLen =/= 0 ->
             LastLineNo = LastLineNo0+Incr,
             parse_error(P2, NewFd, LastLineNo,
-                        ["Syntax error at line ", integer_to_list(LastLineNo),
+                        ["Syntax error at line ", ?i2l(LastLineNo),
                          ": multi line block must end in same column as"
-                         " it started on line ", integer_to_list(LineNo)]);
+                         " it started on line ", ?i2l(LineNo)]);
         {line, _EndOfMulti, NewFd, Incr}
           when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
             %% Skip command

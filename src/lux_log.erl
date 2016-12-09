@@ -839,7 +839,7 @@ timer_to_elems(#timer{match_lineno = MatchStack,
      q(Macro),
      case MaxTime of
          infinity -> q("infinity");
-         _        -> integer_to_list(MaxTime)
+         _        -> ?i2l(MaxTime)
      end,
      q(atom_to_list(Status)),
      if
@@ -848,7 +848,7 @@ timer_to_elems(#timer{match_lineno = MatchStack,
              "";
          is_integer(Elapsed),
          Status =/= started ->
-             integer_to_list(Elapsed)
+             ?i2l(Elapsed)
      end
     ].
 
@@ -1034,7 +1034,7 @@ to_printable(Chars) ->
     Fun = fun(Char) ->
                   case Char >= $\ andalso io_lib:printable_list([Char]) of
                       true  -> Char;
-                      false -> [$\\, string:right(integer_to_list(Char),3, $0)]
+                      false -> [$\\, string:right(?i2l(Char),3, $0)]
                   end
           end,
     lists:flatten(lists:map(Fun, Chars)).
@@ -1060,7 +1060,7 @@ try_format_val(Tag, Val, Type) ->
         {atom, _Atoms} when is_atom(Val) ->
             [atom_to_list(Val)];
         {integer, _Min, _Max} when is_integer(Val) ->
-            [integer_to_list(Val)];
+            [?i2l(Val)];
         {integer, _Min, _Max} when Val =:= infinity ->
             [atom_to_list(Val)];
         {std_list, SubTypes} ->

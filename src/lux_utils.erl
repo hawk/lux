@@ -446,8 +446,8 @@ pretty_full_lineno(FullStack) ->
     FullStack2 = lists:dropwhile(fun(FL) -> Pick(FL) < 0 end, FullStack),
     [FileLine | Incl] = lists:reverse(FullStack2),
     LineNo = Pick(FileLine),
-    LineNoSuffix = [[":", integer_to_list(Pick(FL))] || FL <- Incl],
-    lists:flatten([integer_to_list(LineNo), LineNoSuffix]).
+    LineNoSuffix = [[":", ?i2l(Pick(FL))] || FL <- Incl],
+    lists:flatten([?i2l(LineNo), LineNoSuffix]).
 
 pretty_filename(RevFile) ->
     filename:join(lists:reverse(RevFile)).
@@ -471,7 +471,7 @@ p(Int) ->
     p(Int, 2).
 
 p(Int, Len) ->
-    string:right(integer_to_list(Int), Len, $0).
+    string:right(?i2l(Int), Len, $0).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Verbatim match

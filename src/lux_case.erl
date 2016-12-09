@@ -412,7 +412,7 @@ handle_done(OldI, NewI0, Docs) ->
 
 print_success(I, File, Results) ->
     LatestCmd = I#istate.latest_cmd,
-    FullLineNo = integer_to_list(LatestCmd#cmd.lineno),
+    FullLineNo = ?i2l(LatestCmd#cmd.lineno),
     Warnings = I#istate.warnings,
     Outcome =
         if
