@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.15 - 2016-12-09
+Version 1.15.1 - 2016-12-13
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
