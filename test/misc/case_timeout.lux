@@ -1,0 +1,4 @@
+[config case_timeout=500]
+
+[shell test]
+    ?THIS SHOULD NEVER MATCH

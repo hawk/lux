@@ -227,7 +227,7 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
           TimeoutType,
           Seconds,
           Multiplier]),
-    premature_stop(I, {fail, TimeoutType}, TimeoutType).
+    premature_stop(I, {fail, TimeoutType}, {fail, TimeoutType}).
 
 premature_stop(I, CleanupReason, StopRes) ->
     I2 = break_all_loops(I),
