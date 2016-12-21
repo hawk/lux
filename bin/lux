@@ -1070,7 +1070,21 @@ ensure_lux_app_dir(Retry) ->
         {error, _Reason} when Retry =:= true ->
             %% Add application ebin to the code path and see if it works
             ThisEscript = resolve_path(escript:script_name()),
-            AppDir = filename:dirname(filename:dirname(ThisEscript)),
+            TopDir = filename:dirname(filename:dirname(ThisEscript)),
+            case filename:extension(ThisEscript) of
+                ".escript" ->
+                    %% Standalone installation
+                    Wildcard = filename:join([TopDir, "lib", "lux*"]),
+                    case lists:sort(filelib:wildcard(Wildcard)) of
+                        [] ->
+                            AppDir = TopDir;
+                        [AppDir | _] ->
+                            ok
+                    end;
+                _ ->
+                    %% Development
+                    AppDir = TopDir
+            end,
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
             %%           [AppName, EbinDir]),
@@ -1081,6 +1095,9 @@ ensure_lux_app_dir(Retry) ->
                     io:format("ADD PATH FAILED: ~s ~p\n", [EbinDir, AddReason])
             end,
             ensure_lux_app_dir(false);
+        {error, bad_name} ->
+            fatal_error(2, "The mandatory application '~p' is missing\n",
+                        [AppName]);
         {error, Reason} ->
             fatal_error(2, "The mandatory application '~p' is missing: ~p\n",
                         [AppName, Reason]);
