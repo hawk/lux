@@ -184,7 +184,7 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
         end,
 
     [
-     TimeHtml,
+     "\n", TimeHtml,
      "<h2>", ResultString, "result: ", Summary, "</h2>\n",
      PrelScriptSection,
      "<div class=\"case\"><pre>",
@@ -501,7 +501,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      lux_html_utils:html_header(["Lux event log (", Dir, ")"]),
      "\n", lux_html_utils:html_href("h2", "", "", "#annotate", PrefixScript),
      html_result("h2", Result, ""),
-     TimeHtml,
+     "\n", TimeHtml,
      lux_html_utils:html_href("h3", "", "", "#config", "Script configuration"),
      lux_html_utils:html_href("h3", "", "", "#stats", "Script statistics"),
      lux_html_utils:html_href("h3", "", "", "#cleanup", "Cleanup"),
@@ -708,7 +708,8 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              [
               "\n<div class=\"event\"><pre>",
               lux_utils:expand_lines(HtmlDiff),
-              "</pre></div>"
+              "</pre></div>",
+              lux_html_utils:html_anchor("failed", "")
              ]
             ]
     end.
@@ -793,7 +794,7 @@ html_color([{Prefix, Color, Style, Clean, [Line|Lines]} | LineSpec], Delay) ->
 html_color([{_Prefix, _Color, _Style, _Clean, []} | LineSpec], _Delay) ->
     html_color(LineSpec, false);
 html_color([], _Delay) ->
-    [lux_html_utils:html_anchor("failed", "")].
+    [].
 
 opt_clean(Prefix, Clean, Line) ->
     [

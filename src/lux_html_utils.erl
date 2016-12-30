@@ -67,12 +67,12 @@ html_href(Name, Label) ->
 
 html_anchor(Tag, Prefix, Name, Label) ->
     [
-     "\n<", Tag, ">", Prefix, html_anchor(Name, Label), "</", Tag, ">\n"
+     "<", Tag, ">", Prefix, html_anchor(Name, Label), "</", Tag, ">"
     ].
 
 html_anchor(Name, Label) ->
     [
-     "\n<a name=\"", Name, "\">", html_quote(Label), "</a>"
+     "<a name=\"", Name, "\">", html_quote(Label), "</a>"
     ].
 
 html_quote(IoList) ->
