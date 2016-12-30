@@ -1,0 +1,54 @@
+[doc Demonstrate partitial matches of permutations in event log]
+
+[shell sloppy]
+    """!
+    cat > /dev/null
+    FW000333xxx222yyy444zzz111
+    ${_CTRL_D_}
+    """
+    ?FW
+    ?+1+
+    ?+2+
+    ?+3+
+    ?4+
+
+[shell strict]
+    !echo "333222444111"
+    ?++1+
+    ?++2+
+    ?++3+
+    ?4+
+
+[shell success]
+    """!
+    cat > /dev/null
+    333
+    xxx
+    222
+    yyy
+    444
+    zzz
+    111
+    ${_CTRL_D_}
+    """
+    ?+1+
+    ?+2+
+    ?+3+
+    ?4+
+
+[shell fail]
+    [timeout 2]
+    """!
+    cat > /dev/null
+    xxx
+    333
+    yyy
+    222
+    zzz
+    ${_CTRL_D_}
+    """
+    ?+1+
+    ?+2+
+    ?+3+
+    # Next command will fail
+    ?4+

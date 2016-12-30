@@ -810,7 +810,8 @@ timers_to_csv(Timers) ->
          "Elapsed"
         ],
     Header = [q(H) || H <- Header0],
-    ElemLines = [timer_to_elems(T) || T <- Timers],
+    ElemLines = [timer_to_elems(T) || T <- Timers,
+                                      T#timer.status =/= expected],
     Sep = ";",
     [[join(Sep, E), "\n"] || E <- [Header | ElemLines]].
 

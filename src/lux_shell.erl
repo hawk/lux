@@ -289,7 +289,7 @@ interpreter_died(C, Reason) ->
     Waste = flush_port(C,
                        C#cstate.flush_timeout,
                        C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    clog_skip(C, Waste),
     close_and_exit(C,
                    {error, internal},
                    {internal_error, interpreter_died,
@@ -423,7 +423,7 @@ sync_reply(C, From) ->
 assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     %% Assert - sender must be parent
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    clog_skip(C, Waste),
     close_and_exit(C,
                    {error, internal},
                    {internal_error, invalid_sender,
@@ -444,7 +444,7 @@ assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
     ok;
 assert_eval(C, Cmd, _From) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    clog_skip(C, Waste),
     close_and_exit(C,
                    {error, internal},
                    {internal_error, invalid_type,
@@ -466,7 +466,7 @@ shell_eval(#cstate{name = Name} = C0,
                     <<>> ->
                         C2#cstate.events;
                     Waste ->
-                        clog(C2, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+                        clog_skip(C2, Waste),
                         save_event(C2, recv, Waste)
                 end,
             clog(C2, output, "reset", []),
@@ -512,7 +512,7 @@ shell_eval(#cstate{name = Name} = C0,
             RegExp = extract_regexp(Arg),
             clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             PreExpected = [Cmd | C#cstate.pre_expected],
-            {ok, C2, NewRegExp} = rebuild_regexps(C, PreExpected),
+            {ok, C2, NewRegExp} = rebuild_multi_regexps(C, PreExpected),
             clog(C2, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
             C3 = start_timer(C2),
             dlog(C3, ?dmore, "expected=regexp (expect)", []),
@@ -718,7 +718,9 @@ expect(#cstate{state_changed = true,
                     Earlier = C2#cstate.timer_started_at,
                     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
                     clog(C2, timer, "failed (after ~p micro seconds)", [Diff]),
-                    stop(C2, fail, ?match_fail);
+                    {C3, AltExpected, AltActual} =
+                        log_multi_nomatch(C2, Arg, Actual),
+                    stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C, Actual),
@@ -749,22 +751,24 @@ try_match(C, Actual, Expected, AltSkip) ->
             %% Successful single match
             C2 = cancel_timer(C),
             {Skip, Rest, SubMatches} =
-                split_submatches(C2, Matches, Actual, Context, AltSkip),
+                split_single_match(C2, Matches, Actual, Context, AltSkip),
             match_more(C2, Skip, Rest, SubMatches);
         {{match, Matches}, {multi, Multi}}  ->
             %% Successful match
             C2 = cancel_timer(C),
             {Skip, Rest} =
-                split_multi(C2, Actual, Matches, Multi, Context, AltSkip),
+                split_multi_match(C2, Actual, Matches, Multi, Context),
             SubMatches = [], % Don't bother about subpatterns
             match_more(C2, Skip, Rest, SubMatches);
         {nomatch, _} when AltSkip =:= undefined ->
             %% Main pattern does not match
             %% Wait for more input
             match_patterns(C, Actual);
-        {nomatch, _} ->
+        {nomatch, OptMulti} ->
             C2 = cancel_timer(C),
-            stop(C2, fail, Actual);
+            {C3, AltExpected, AltActual} =
+                log_multi_nomatch(C2, OptMulti, Actual),
+            stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
         {{'EXIT', Reason}, _} ->
             RegExp = extract_regexp(Expected#cmd.arg),
             Err = io_lib:format("Bad regexp:\n\t~p\n"
@@ -799,49 +803,65 @@ submatch_vars([SubMatches | Rest], N) ->
 submatch_vars([], _) ->
     [].
 
-split_multi(C, Actual, Matches, Multi, Context, AltSkip) ->
-    SortedMatches = lists:sort(Matches),
-    {First, TotLen} = calc_total(SortedMatches),
-    {Skip, _Match, Keep} = split_total(Actual, First, TotLen, AltSkip),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
-    log_multi(C, Actual, Matches, Multi, Context),
-    {Skip, Keep}.
-
-calc_total(SortedMatches) ->
-    {First, _} = hd(SortedMatches),
-    {Last0, Len0} = lists:last(SortedMatches),
-    Last = (Last0 + Len0),
-    TotLen = Last - First,
-    {First, TotLen}.
-
-log_multi(C, Actual, SortedMatches, Multi, Context) ->
-     Zip =
-        fun({Name, RegExp, Cmd}, {Start, Len}) ->
-                {Name, Start, Len, RegExp, Cmd}
+split_multi_match(C, Actual, Matches, Multi, Context) ->
+    Zip =
+        fun({Name, NamedRegExp, Cmd}, {Start, Len}) ->
+                {Name, Start, Len, NamedRegExp, Cmd}
         end,
-    NewMulti = lists:zipwith(Zip, Multi, SortedMatches),
+    NewMulti = lists:zipwith(Zip, Multi, Matches),
     SortedMulti = lists:keysort(2, NewMulti),
-    do_log_multi(C, Actual, SortedMulti, Context).
+    log_multi_match(C, 0, Actual, SortedMulti, Context, undefined).
 
-do_log_multi(C, Actual, [{_Name, Pos, Len, _RegExp, Cmd} | More], Context) ->
-    {_Skip, Rest} = split_binary(Actual, Pos),
-    {Match, Keep} = split_binary(Rest, Len),
+log_multi_match(C, Offset, Actual, [Multi | More], Context, OptSkip) ->
+    {_Name, Pos, Len, _NamedRegExp, Cmd} = Multi,
+    {Skip, TmpActual} = split_binary(Actual, Pos - Offset),
     TmpC = C#cstate{latest_cmd = Cmd},
+    clog_skip(TmpC, Skip),
+    {Match, Rest} = split_binary(TmpActual, Len),
     clog(TmpC, match, "~s\"~s\"",
          [Context, lux_utils:to_string(Match)]),
-    EndPos = Pos+Len,
-    case More of
-        [{_, NextPos, _, _, _} | _] when EndPos =/= NextPos ->
-            SkipLen = NextPos-EndPos,
-            {Skip, _Keep} = split_binary(Keep, SkipLen),
-            clog(TmpC, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
-            ok;
-        _ ->
-            ok
-    end,
-    do_log_multi(C, Actual, More, Context);
-do_log_multi(_C, _Actual, [], _Context) ->
-    ok.
+    NewOffset = Offset + byte_size(Skip) + byte_size(Match),
+    NewSkip =
+        if
+            OptSkip =:= undefined -> Skip;
+            true                  -> OptSkip
+        end,
+    log_multi_match(C, NewOffset, Rest, More, Context, NewSkip);
+log_multi_match(_C, _Offset, Rest, [], _Context, Skip) ->
+    {Skip, Rest}.
+
+log_multi_nomatch(C, {multi, Multi}, Actual) ->
+    Log = fun({_Name, _NamedRegExp, #cmd{arg = Arg}}, {E, A}) ->
+                  {mp, _RegExpOper, RegExp, MP, []} = Arg,
+                  Context = "",
+                  P = lux_utils:to_string(RegExp),
+                  clog(C, partitial, "~s\"~s\"", [Context, P]),
+                  PE = ["Partitial: ", P, "\n"],
+                  F = lux_utils:to_string(".*"),
+                  FE = ["    Found: ", F, "\n"],
+                  {OptMatch, single} = match_single(Actual, MP),
+                  case OptMatch of
+                      {match, [{First, TotLen} | _] = _Matches} ->
+                          {_Skip, Match, _Rest} =
+                              split_total(Actual, First, TotLen, undefined),
+                          clog(C, found, "~s\"~s\"", [Context, F]),
+                          FA = ["    Found: ",
+                                lux_utils:to_string(Match), "\n"],
+                          {[FE, PE | E], [FA, PE | A]};
+                      nomatch ->
+                          clog(C, missing, "~s", [Context]),
+                          FA = ["    Missing\n"],
+                          {[FE, PE | E], [FA, PE | A]}
+                  end
+          end,
+    {RevAltExpected, RevAltActual} = lists:foldl(Log, {[], []}, Multi),
+    {C, ?l2b(lists:reverse(RevAltExpected)), ?l2b(lists:reverse(RevAltActual))};
+log_multi_nomatch(C, {mp, regexp, _RegExp, _Mp, Multi}, _Actual) ->
+    log_multi_nomatch(C, {multi, Multi}, _Actual);
+log_multi_nomatch(C, _Single, Actual) ->
+    Cmd = C#cstate.latest_cmd,
+    Expected = lux_utils:cmd_expected(Cmd),
+    {C, Expected, Actual}.
 
 match_patterns(C, Actual) ->
     C2 = match_fail_pattern(C, Actual),
@@ -850,7 +870,7 @@ match_patterns(C, Actual) ->
     C4#cstate{state_changed = false}.
 
 match_fail_pattern(C, Actual) ->
-    {Res, _Multi} = match(Actual, C#cstate.fail),
+    {Res, _OptMulti} = match(Actual, C#cstate.fail),
     case Res of
         {match, Matches} ->
             {C2, Actual2} = prepare_stop(C, Actual, Matches,
@@ -867,7 +887,7 @@ match_fail_pattern(C, Actual) ->
     end.
 
 match_success_pattern(C, Actual) ->
-    {Res, _Multi} = match(Actual, C#cstate.success),
+    {Res, _OptMulti} = match(Actual, C#cstate.success),
     case Res of
         {match, Matches} ->
             {C2, Actual2} = prepare_stop(C, Actual, Matches,
@@ -894,7 +914,7 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
         break ->
             match_break_patterns(C, Actual, Stack, [Loop|Acc]);
         BreakCmd = #cmd{type = break} ->
-            {Res, _Multi} = match(Actual, BreakCmd),
+            {Res, _OptMulti} = match(Actual, BreakCmd),
             case Res of
                 {match, Matches} ->
                     C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
@@ -941,14 +961,15 @@ clear_expected(C, Context) ->
 post_match(C, Actual, [{First, TotLen} | _], Context) ->
     {Skip, Rest} = split_binary(Actual, First),
     {Match, _Actual2} = split_binary(Rest, TotLen),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
+    clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{actual = Actual},
     {C2, Match}.
 
-split_submatches(C, [{First, TotLen} | SubMatches], Actual, Context, AltSkip) ->
+split_single_match(C, Matches, Actual, Context, AltSkip) ->
+    [{First, TotLen} | SubMatches] = Matches,
     {Skip, Match, Rest} = split_total(Actual, First, TotLen, AltSkip),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]),
+    clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     Extract =
         fun(PosLen) ->
@@ -979,9 +1000,7 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
                 {verbatim, _RegExpOper, Expected} ->
                     {lux_utils:verbatim_match(Actual, Expected), single};
                 {mp, _RegExpOper, _RegExp, MP, []} -> % Single
-                    Opts = [{newline,any},notempty,
-                            {capture,all,index}],
-                    {catch re:run(Actual, MP, Opts), single};
+                    match_single(Actual, MP);
                 {mp, _RegExpOper, _RegExp, MP, Multi} ->
                     case erlang:system_info(otp_release) of
                         "R" ++ _ -> % Pre 17.0
@@ -992,11 +1011,13 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
                             {catch re:run(Actual, MP, Opts), {multi, Multi}}
                     end;
                 {endshell, single, _RegExp, MP} ->
-                    Opts = [{newline,any},notempty,
-                            {capture,all,index}],
-                    {catch re:run(Actual, MP, Opts), single}
+                    match_single(Actual, MP)
             end
     end.
+
+match_single(Actual, MP) ->
+    Opts = [{newline,any},notempty, {capture,all,index}],
+    {catch re:run(Actual, MP, Opts), single}.
 
 pre_r17_fix(Actual, Multi) ->
     Names = lists:sort([list_to_atom(?b2l(N)) || {N, _, _} <- Multi]),
@@ -1077,7 +1098,7 @@ extract_regexp(ExpectArg) ->
             RegExp
     end.
 
-rebuild_regexps(C, PreExpected0) ->
+rebuild_multi_regexps(C, PreExpected0) ->
     PreExpected = lists:reverse(PreExpected0),
     Multi = named_regexps(PreExpected, 1, []),
     Perms = lux_utils:perms([Re || {_,Re,_} <- Multi]),
@@ -1131,10 +1152,8 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
             Rest = C#cstate.actual
     end,
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    clog_skip(C, Waste),
     clog(C, stop, "~p", [Outcome]),
-    Cmd = C#cstate.latest_cmd,
-    Expected = lux_utils:cmd_expected(Cmd),
     {NewOutcome, Extra} = prepare_outcome(C, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
                   name = C#cstate.name,
@@ -1143,11 +1162,11 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
                   expected = Expected,
                   extra = Extra,
                   actual = Actual,
-                  rest = C#cstate.actual,
+                  rest = Rest,
                   events = lists:reverse(C#cstate.events)},
     lux:trace_me(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
 %%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
-    C2 = C#cstate{expected = undefined},
+    C2 = C#cstate{expected = undefined, actual = <<>>},
     C3 = close_logs(C2),
     send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
@@ -1230,7 +1249,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
+    clog_skip(C, Waste),
     catch file:close(element(2, InFd)),
     catch file:close(element(2, OutFd)),
     C#cstate{log_fun = closed,
@@ -1307,6 +1326,11 @@ clog(#cstate{progress = Progress,
      Op, Format, Args) ->
     E = {log_event, Cmd#cmd.lineno, Shell, Op, Format, Args},
     lux_log:write_event(Progress, LogFun, Fd, E).
+
+clog_skip(_C, <<>>) ->
+    ok;
+clog_skip(C, Skip) ->
+    clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]).
 
 dlog(C, Level, Format, Args) when C#cstate.debug_level >= Level ->
     clog(C, debug, Format, Args);
