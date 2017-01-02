@@ -575,10 +575,10 @@ numerate_lines([], _N, Acc) ->
                   To   :: non_neg_integer()} |
                   binary().
 
--type diff() :: {common,[binary()]} |
-                {insert,[binary()]} |
-                {delete,[binary()]} |
-                {replace,[binary()],[binary()]}.
+-type diff() :: {'=',[binary()]} |
+                {'+',[binary()]} |
+                {'-',[binary()]} |
+                {'!',[binary()],[binary()]}.
 
 -spec diff(New :: [{non_neg_integer(),binary()}],
            Old :: [{non_neg_integer(),binary()}],
@@ -676,13 +676,13 @@ merge([{From,To}|Patch], Old, Next, Acc) ->
             From > Next ->
                 %% Add missing lines
                 {_, Delete} = get_lines(Next, From-1, Old, []),
-                add({common,Common}, add({delete,Delete}, Acc));
+                add({'=',Common}, add({'-',Delete}, Acc));
             true ->
-                add({common,Common},Acc)
+                add({'=',Common},Acc)
         end,
     merge(Patch, Old, Next2, Acc2);
 merge([Insert|Patch], Old, Next, Acc) ->
-    merge(Patch, Old, Next, add({insert,[Insert]},Acc));
+    merge(Patch, Old, Next, add({'+',[Insert]},Acc));
 merge([], Old, Next, Acc) ->
     %% Add missing lines in the end
     Fun = fun({N,L}, A) when N >= Next -> [L|A];
@@ -691,7 +691,7 @@ merge([], Old, Next, Acc) ->
     Acc2 =
         case lists:foldl(Fun, [], Old) of
             []     -> Acc;
-            Delete -> add({delete,lists:reverse(Delete)}, Acc)
+            Delete -> add({'-',lists:reverse(Delete)}, Acc)
         end,
     lists:reverse(Acc2).
 
@@ -702,10 +702,14 @@ get_lines(From, To, [{From,Line}|Rest], Acc) ->
 get_lines(From, To, [_|Rest], Acc) ->
     get_lines(From, To, Rest, Acc).
 
-add({insert,Curr}, [{insert,Prev}|Merge]) ->
-    [{insert,Prev++Curr}|Merge];
-add({delete,Delete}, [{insert,Insert}|Merge]) ->
-    [{replace,Insert,Delete}|Merge];
+add({'+',Curr}, [{'+',Prev}|Merge]) ->
+    [{'+',Prev++Curr}|Merge];
+add({'-',Curr}, [{'-',Prev}|Merge]) ->
+    [{'-',Prev++Curr}|Merge];
+add({'-',Delete}, [{'+',Insert}|Merge]) ->
+    [{'!',Insert,Delete}|Merge];
+add({'+',Insert}, [{'-',Delete}|Merge]) ->
+    [{'!',Delete,Insert}|Merge];
 add(Curr, Merge) ->
     [Curr|Merge].
 

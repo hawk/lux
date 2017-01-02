@@ -721,21 +721,21 @@ html_diff([H|T], Acc, Where, Rep) ->
     Plain = "",
     Bold = "b",
     case H of
-        {common, Com} ->
+        {'=', Com} ->
             html_diff(T, [{<<"  ">>, "black",Bold,clean,Com}|Acc], middle, Rep);
-        {insert, Ins} when Where =/= first, element(1,hd(T)) =:= common ->
+        {'+', Ins} when Where =/= first, element(1,hd(T)) =:= common ->
             html_diff(T, [{<<"+ ">>,"blue",Bold,clean,Ins}|Acc], middle, Rep);
-        {insert, Ins} ->
+        {'+', Ins} ->
             html_diff(T, [{<<"  ">>,"black",Plain,clean,Ins}|Acc], middle, Rep);
-        {delete, Del} ->
+        {'-', Del} ->
             html_diff(T, [{<<"- ">>,"red",Bold,clean,Del}|Acc], middle, Rep);
-        {replace, Ins, Del} when Where =:= first, T =:= [] ->
+        {'!', Ins, Del} when Where =:= first, T =:= [] ->
             %% Display single replace as insert
             {Clean, _Del2, Ins2} = html_part(Del, Ins),
 %%          html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
 %%                        {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle, true)
             html_diff(T, [{<<"  ">>,"black",Bold,Clean,Ins2}|Acc],middle, true);
-        {replace, Ins, Del} ->
+        {'!', Ins, Del} ->
             {Clean, Del2, Ins2} = html_part(Del, Ins),
             html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
                           {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle, true)
@@ -752,22 +752,22 @@ html_part(Del, Ins) ->
 html_part_diff([H|T], DelAcc, InsAcc) ->
     Underline = "u",
     case H of
-        {common, Com} ->
+        {'=', Com} ->
             CleanCom = lux_html_utils:html_quote(Com),
             html_part_diff(T,
                            [CleanCom|DelAcc],
                            [CleanCom|InsAcc]);
-        {insert, Ins} ->
+        {'+', Ins} ->
             html_part_diff(T,
                            DelAcc,
                            [tag(Underline,
                                 lux_html_utils:html_quote(Ins))|InsAcc]);
-        {delete, Del} ->
+        {'-', Del} ->
             html_part_diff(T,
                            [tag(Underline,
                                 lux_html_utils:html_quote(Del))|DelAcc],
                            InsAcc);
-        {replace, Ins, Del} ->
+        {'!', Ins, Del} ->
             html_part_diff(T,
                            [tag(Underline,
                                 lux_html_utils:html_quote(Del))|DelAcc],
