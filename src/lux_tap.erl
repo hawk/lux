@@ -8,7 +8,7 @@
 -module(lux_tap).
 
 -export([open/1, close/1]).
--export([plan/3, test/4, diag/2, bail_out/2]).
+-export([plan/3, test/5, diag/2, bail_out/2]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TAP - Test Anything Protocol
@@ -80,14 +80,21 @@ plan(TAP, N, Dir) when is_integer(N), N >= 0 ->
                   write(TAP, ["1..", N, dir(Dir)])
                  ]).
 
-test(TAP, Outcome, Descr, Dir) ->
+test(TAP, Outcome, Descr, Dir, Pos) ->
     Outcome2 =
         case Outcome of
             ok       -> "ok    ";
             not_ok   -> "not ok";
             'not ok' -> "not ok"
         end,
-    write(TAP, [Outcome2, descr(Descr), dir(Dir)]).
+    Dir2 = dir(Dir),
+    Indent =
+        if
+            Dir2 =:= ""       -> "";
+            Pos =:= undefined -> "";
+            is_integer(Pos)   -> lists:duplicate(Pos, " ")
+        end,
+    write(TAP, [Outcome2, descr(Descr), Indent ++ Dir2]).
 
 diag(TAP, Descr) when Descr =:= "\n" ->
     write(TAP, "");
