@@ -152,15 +152,15 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
             shell_loop(C3, C3)
         catch
             error:ShellReason ->
-                ErrBin = iolist_to_binary(io_lib:format("~p", [ShellReason])),
+                ErrBin = ?l2b(io_lib:format("~p", [ShellReason])),
                 io:format("\nINTERNAL LUX ERROR: Shell crashed: ~s\n~p\n",
                           [ErrBin, ?stacktrace()]),
                 stop(C2, error, ErrBin)
         end
     catch
         error:InitReason ->
-            InitBinErr = iolist_to_binary([FlatExec, ": ",
-                                           file:format_error(InitReason)]),
+            InitBinErr = ?l2b([FlatExec, ": ",
+                               file:format_error(InitReason)]),
             io:format("~s\n~p\n", [InitBinErr, erlang:get_stacktrace()]),
             stop(C2, error, InitBinErr)
     end.
@@ -172,8 +172,8 @@ open_logfile(C, Slogan) ->
             {LogFile, Fd};
         {error, FileReason} ->
             String = file:format_error(FileReason),
-            BinErr = iolist_to_binary(["Failed to open logfile: ", LogFile,
-                                       " -> ", String]),
+            BinErr = ?l2b(["Failed to open logfile: ", LogFile,
+                           " -> ", String]),
             io:format("~s\n~p\n", [BinErr, ?stacktrace()]),
             stop(C, error, BinErr)
     end.
@@ -492,7 +492,7 @@ shell_eval(#cstate{name = Name} = C0,
                 element(2, (hd(C#cstate.pre_expected))#cmd.arg) =/= Tag ->
                     Err = io_lib:format("Illegal syntax: "
                                         "?+ cannot be mixed with ?++\n", []),
-                    stop(C, error, iolist_to_binary(Err));
+                    stop(C, error, ?l2b(Err));
                 true ->
                     C#cstate{pre_expected = [Cmd | C#cstate.pre_expected]}
             end;
@@ -611,7 +611,7 @@ shell_eval(#cstate{name = Name} = C0,
             clog(C, shell_got_msg, "~p\n", [element(1, Unexpected)]),
             Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
                                 [Name, Unexpected, Arg]),
-            stop(C, error, iolist_to_binary(Err))
+            stop(C, error, ?l2b(Err))
     end.
 
 dequote([$\\,$\\|T]) ->
@@ -723,8 +723,7 @@ expect(#cstate{state_changed = true,
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C, Actual),
                     C3 = cancel_timer(C2),
-                    ExitStatus =
-                        list_to_binary(?i2l(C3#cstate.exit_status)),
+                    ExitStatus = ?l2b(?i2l(C3#cstate.exit_status)),
                     try_match(C3, ExitStatus, C3#cstate.expected, Actual),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
@@ -771,7 +770,7 @@ try_match(C, Actual, Expected, AltSkip) ->
             Err = io_lib:format("Bad regexp:\n\t~p\n"
                                 "Reason:\n\t~p\n",
                                 [RegExp, Reason]),
-            stop(C, error, iolist_to_binary(Err))
+            stop(C, error, ?l2b(Err))
     end.
 
 match_more(C, Skip, Rest, SubMatches) ->
@@ -794,7 +793,7 @@ submatch_vars([SubMatches | Rest], N) ->
         nosubmatch ->
             submatch_vars(Rest, N+1); % Omit $N as its value is undefined
         Val ->
-            VarVal = ?i2l(N) ++ "=" ++ binary_to_list(Val),
+            VarVal = ?i2l(N) ++ "=" ++ ?b2l(Val),
             [VarVal | submatch_vars(Rest, N+1)]
     end;
 submatch_vars([], _) ->
@@ -864,7 +863,7 @@ match_fail_pattern(C, Actual) ->
             Err = io_lib:format("Bad regexp:\n\t~p\n"
                                 "Reason:\n\t~p\n",
                                 [RegExp, Reason]),
-            stop(C, error, iolist_to_binary(Err))
+            stop(C, error, ?l2b(Err))
     end.
 
 match_success_pattern(C, Actual) ->
@@ -881,7 +880,7 @@ match_success_pattern(C, Actual) ->
             Err = io_lib:format("Bad regexp:\n\t~p\n"
                                 "Reason:\n\t~p\n",
                                 [RegExp, Reason]),
-            stop(C, error, iolist_to_binary(Err))
+            stop(C, error, ?l2b(Err))
     end.
 
 match_break_patterns(C, Actual) ->
@@ -916,7 +915,7 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
                     Err = io_lib:format("Bad regexp:\n\t~p\n"
                                         "Reason:\n\t~p\n",
                                         [RegExp, Reason]),
-                    stop(C, error, iolist_to_binary(Err))
+                    stop(C, error, ?l2b(Err))
             end
     end;
 match_break_patterns(C, _Actual, [], Acc) ->
@@ -1000,12 +999,11 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
     end.
 
 pre_r17_fix(Actual, Multi) ->
-    Names = lists:sort([list_to_atom(binary_to_list(N)) ||
-                           {N, _, _} <- Multi]),
+    Names = lists:sort([list_to_atom(?b2l(N)) || {N, _, _} <- Multi]),
     Perms = lux_utils:perms([Re || {_,Re,_} <- Multi]),
     Type = element(2, (element(3, hd(Multi)))#cmd.arg),
     Perms2 = [add_skip(Type, P) || P <- Perms],
-    RegExps = [iolist_to_binary(Re) || Re <- Perms2],
+    RegExps = [?l2b(Re) || Re <- Perms2],
     Opts = [dupnames, multiline, {newline, anycrlf},
             notempty,{capture,Names,index}],
     pre_r17_fix(Actual, RegExps, Opts).
@@ -1085,8 +1083,7 @@ rebuild_regexps(C, PreExpected0) ->
     Perms = lux_utils:perms([Re || {_,Re,_} <- Multi]),
     Type = element(2, (hd(PreExpected))#cmd.arg),
     [First | Rest] = [add_skip(Type, P) || P <- Perms],
-    NewRegExp = iolist_to_binary(["(", First, ")",
-                                  [["|(", R, ")"] ||  R <- Rest]]),
+    NewRegExp = ?l2b(["(", First, ")", [["|(", R, ")"] ||  R <- Rest]]),
     Opts = [dupnames, multiline, {newline, anycrlf}],
     case re:compile(NewRegExp, Opts) of
         {ok, NewMP} ->
@@ -1100,15 +1097,15 @@ rebuild_regexps(C, PreExpected0) ->
              NewRegExp};
         {error, {Reason, _Pos}} ->
             Err = ["Syntax error: ", Reason, " in regexp '", NewRegExp, "'"],
-            stop(C, error, list_to_binary(Err))
+            stop(C, error, ?l2b(Err))
     end.
 
 named_regexps([Cmd | Cmds], N, Acc) ->
     String = lists:concat(["LUX", N]),
-    Name = list_to_binary(String),
-    RegExp0 = extract_regexp(Cmd#cmd.arg),
-    RegExp = <<"(?<", Name/binary, ">", RegExp0/binary, ")">>,
-    named_regexps(Cmds, N+1, [{Name, RegExp, Cmd} | Acc]);
+    Name = ?l2b(String),
+    OrigRegExp = extract_regexp(Cmd#cmd.arg),
+    NamedRegExp = <<"(?<", Name/binary, ">", OrigRegExp/binary, ")">>,
+    named_regexps(Cmds, N+1, [{Name, NamedRegExp, Cmd} | Acc]);
 named_regexps([], _N, Acc) ->
     lists:reverse(Acc).
 
@@ -1122,8 +1119,17 @@ stop(C, Outcome, _Actual) when C#cstate.pre_expected =/= [],
                                Outcome =/= error,
                                Outcome =/= fail ->
     Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
-    stop(C#cstate{pre_expected = []}, error, iolist_to_binary(Err));
-stop(C, Outcome, Actual) when is_binary(Actual); is_atom(Actual) ->
+    stop(C#cstate{pre_expected = []}, error, ?l2b(Err));
+stop(C, Outcome0, Actual) when is_binary(Actual);
+                               is_atom(Actual) ->
+    Cmd = C#cstate.latest_cmd,
+    case Outcome0 of
+        {Outcome, Expected, Rest} ->
+            ok;
+        Outcome ->
+            Expected = lux_utils:cmd_expected(Cmd),
+            Rest = C#cstate.actual
+    end,
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Waste)]),
     clog(C, stop, "~p", [Outcome]),

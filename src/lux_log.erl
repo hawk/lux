@@ -120,7 +120,7 @@ do_parse_summary_log(SummaryLog) ->
              [{test_group, "", Cases}], SummaryConfig, FI, EventLogs};
         {ok, Version, _Sections} ->
             {error, SummaryLog,
-             "Illegal summary log version: " ++ binary_to_list(Version)};
+             "Illegal summary log version: " ++ ?b2l(Version)};
         {error, FileReason, _} ->
             {error, SummaryLog, FileReason}
     end.
@@ -150,14 +150,14 @@ read_log(Log, ExpectedTag) when is_list(Log) ->
                       true ->
                           Reason =
                               "Illegal log type: " ++
-                              binary_to_list(ExpectedTag) ++
+                              ?b2l(ExpectedTag) ++
                               " expected",
                           {error, Reason, Bin}
                   end;
               _ ->
                   Reason =
                       "Illegal log type: " ++
-                      binary_to_list(ExpectedTag) ++
+                      ?b2l(ExpectedTag) ++
                       " expected",
                   {error, Reason, Bin}
           end;
@@ -199,7 +199,7 @@ split_cases([Case | Cases], Acc, EventLogs) ->
     [NameRow | Sections] = binary:split(Case, <<"\n">>, [global]),
     Name =
         case binary:split(NameRow, <<": ">>) of
-            [<<"test case", _/binary>>, NameBin] -> binary_to_list(NameBin);
+            [<<"test case", _/binary>>, NameBin] -> ?b2l(NameBin);
             [<<>>]                               -> "unknown"
         end,
     case Sections of
@@ -211,7 +211,7 @@ split_cases([Case | Cases], Acc, EventLogs) ->
                 {[<<"event log", _/binary>>, RawEventLog], _} ->
                     {Doc, ResultCase} = split_doc(DocAndResult, []),
                     Result = parse_result(ResultCase),
-                    EventLog = binary_to_list(RawEventLog),
+                    EventLog = ?b2l(RawEventLog),
                     HtmlLog = EventLog ++ ".html",
                     Res = {test_case, Name, EventLog, Doc, HtmlLog, Result},
                     split_cases(Cases, [Res | Acc], [EventLog|EventLogs]);
@@ -284,7 +284,7 @@ do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
             ConfigProps = split_config(ConfigBins),
             Ctime0 = FI#file_info.ctime,
-            Ctime = list_to_binary(lux_utils:datetime_to_string(Ctime0)),
+            Ctime = ?l2b(lux_utils:datetime_to_string(Ctime0)),
             StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
             case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
@@ -306,11 +306,9 @@ do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
             RunId = find_config(<<"run">>, ConfigProps, R#run.id),
             ReposRev =
                 find_config(<<"revision">>, ConfigProps, R#run.repos_rev),
-            CwdBin = list_to_binary(Cwd),
-            RunDir =
-                binary_to_list(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
-            RunLogDir =
-                binary_to_list(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
+            CwdBin = ?l2b(Cwd),
+            RunDir = ?b2l(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
+            RunLogDir = ?b2l(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
             Cases = [parse_run_case(RelDir, RunDir, RunLogDir, StartTime,
                                     HostName, ConfigName,
                                     Suite, RunId, ReposRev, Case) ||
@@ -355,7 +353,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName,
             "" -> RelEventLog;
             _  -> filename:join([RelDir, RelEventLog])
         end,
-    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunDir, AbsName)),
+    RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(CaseRes),
@@ -372,7 +370,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName, Suite,
                RunId, ReposRev, {result_case, AbsName, Res, _Reason})
   when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
        is_list(AbsName) ->
-    RelNameBin = list_to_binary(lux_utils:drop_prefix(RunDir, AbsName)),
+    RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(Res),
@@ -426,7 +424,7 @@ parse_summary_result(LogDir) when is_list(LogDir) ->
             {ok, split_result(Sections)};
         {ok, Version, _Sections} ->
             {error, ResultLog,
-             "Illegal result log version: " ++ binary_to_list(Version)};
+             "Illegal result log version: " ++ ?b2l(Version)};
         {error, Reason, _} ->
             {error, ResultLog, Reason}
     end.
@@ -541,9 +539,9 @@ pick_result(Results, Outcome) ->
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),
     if
-        Fd =:= undefined    -> list_to_binary(IoList);
+        Fd =:= undefined    -> ?l2b(IoList);
         Fd =:= standard_io,
-        Progress =:= silent -> list_to_binary(IoList);
+        Progress =:= silent -> ?l2b(IoList);
         IsTmp               -> double_write(Progress, Fd, IoList);
         true                -> safe_write(Fd, IoList)
     end.
@@ -584,7 +582,7 @@ scan_events(EventLog) when is_list(EventLog) ->
             do_scan_events(EventLog, Sections);
         {ok, Version, _Sections} ->
             {error, EventLog,
-             "Illegal event log version: " ++ binary_to_list(Version)};
+             "Illegal event log version: " ++ ?b2l(Version)};
         {error, FileReason, _} ->
             {error, EventLog, FileReason}
     end.
@@ -596,7 +594,7 @@ do_scan_events(EventLog, EventSections) ->
         [[ScriptBin], EventBins, ResultBins] -> ok;
         [[ScriptBin], ResultBins]            -> EventBins = []
     end,
-    Script = binary_to_list(ScriptBin),
+    Script = ?b2l(ScriptBin),
     Dir = filename:dirname(EventLog),
     Base = filename:basename(EventLog, ".event.log"),
     ConfigLog = filename:join([Dir, Base ++ ".config.log"]),
@@ -613,7 +611,7 @@ do_scan_events(EventLog, EventSections) ->
              Script, EventBins, ConfigProps, LogBins, ResultBins};
         {ok, Version, _Sections} ->
             {error, ConfigLog,
-             "Illegal config log version: " ++ binary_to_list(Version)};
+             "Illegal config log version: " ++ ?b2l(Version)};
         {error, FileReason} ->
             {error, ConfigLog, file:format_error(FileReason)}
     end.
@@ -636,7 +634,7 @@ do_parse_events([<<"include_begin ", SubFile/binary>> | Events], Acc) ->
 do_parse_events([Event | Events], Acc) ->
     [Prefix, Details] = binary:split(Event, <<"): ">>),
     [Shell, RawLineNo] = binary:split(Prefix, <<"(">>),
-    LineNo = list_to_integer(binary_to_list(RawLineNo)),
+    LineNo = list_to_integer(?b2l(RawLineNo)),
     [Op | RawContents] = binary:split(Details, <<" ">>),
     Data =
         case RawContents of
@@ -677,11 +675,11 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
         binary:split(RawLineNoRange, <<" ">>, [global]),
     Len = byte_size(SubFile2) - 1 ,
     <<SubFile3:Len/binary, _/binary>> = SubFile2,
-    LineNo = list_to_integer(binary_to_list(RawLineNo)),
-    FirstLineNo = list_to_integer(binary_to_list(RawFirstLineNo)),
-    LastLineNo = list_to_integer(binary_to_list(RawLastLineNo)),
+    LineNo = list_to_integer(?b2l(RawLineNo)),
+    FirstLineNo = list_to_integer(?b2l(RawFirstLineNo)),
+    LastLineNo = list_to_integer(?b2l(RawLastLineNo)),
     SubEvents2 = parse_events(SubEvents, []),
-    SubFile4 = binary_to_list(SubFile3),
+    SubFile4 = ?b2l(SubFile3),
     E = #body{invoke_lineno = LineNo,
               first_lineno = FirstLineNo,
               last_lineno = LastLineNo,
@@ -854,7 +852,7 @@ timer_to_elems(#timer{match_lineno = MatchStack,
 
 q(List) ->
     Replace = fun(C) -> case C of $; -> "<SEMI>"; _ -> C end end,
-    ["\"", lists:map(Replace, binary_to_list(iolist_to_binary(List))), "\""].
+    ["\"", lists:map(Replace, ?b2l(?l2b(List))), "\""].
 
 scan_config(ConfigLog) when is_list(ConfigLog) ->
     case read_log(ConfigLog, ?CONFIG_TAG) of
@@ -862,7 +860,7 @@ scan_config(ConfigLog) when is_list(ConfigLog) ->
             {ok, Sections};
         {ok, Version, _Sections} ->
             {error, ConfigLog,
-             "Illegal config log version: " ++ binary_to_list(Version)};
+             "Illegal config log version: " ++ ?b2l(Version)};
         {error, FileReason, _} ->
             {error, ConfigLog, FileReason}
     end.
@@ -875,7 +873,7 @@ parse_config(ConfigSection) when is_binary(ConfigSection) ->
 parse_io_logs([StdinLog, StdoutLog | Logs], Acc) ->
     [_, Shell, Stdin] = binary:split(StdinLog, <<": ">>, [global]),
     [_, Shell, Stdout] = binary:split(StdoutLog, <<": ">>, [global]),
-    L = {log, Shell, binary_to_list(Stdin), binary_to_list(Stdout)},
+    L = {log, Shell, ?b2l(Stdin), ?b2l(Stdout)},
     %% io:format("Logs: ~p\n", [L]),
     parse_io_logs(Logs, [L | Acc]);
 parse_io_logs([<<>>], Acc) ->
@@ -1056,7 +1054,7 @@ try_format_val(Tag, Val, Type) ->
         string when is_list(Val) ->
             [Val];
         binary when is_binary(Val) ->
-            [binary_to_list(Val)];
+            [?b2l(Val)];
         {atom, _Atoms} when is_atom(Val) ->
             [atom_to_list(Val)];
         {integer, _Min, _Max} when is_integer(Val) ->
@@ -1074,7 +1072,7 @@ safe_format(Fd, Format, Args) ->
     safe_write(Fd, IoList).
 
 safe_write(OptFd, IoList) when is_list(IoList) ->
-    safe_write(OptFd, list_to_binary(IoList));
+    safe_write(OptFd, ?l2b(IoList));
 safe_write(OptFd, Bin) when is_binary(Bin) ->
     case OptFd of
         undefined ->
@@ -1099,7 +1097,7 @@ safe_format(Progress, LogFun, Fd, Format, Args) ->
     safe_write(Progress, LogFun, Fd, IoList).
 
 safe_write(Progress, LogFun, Fd, IoList) when is_list(IoList) ->
-    safe_write(Progress, LogFun, Fd, list_to_binary(IoList));
+    safe_write(Progress, LogFun, Fd, ?l2b(IoList));
 safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
     case Fd0 of
         undefined ->
@@ -1119,7 +1117,7 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
             ok;
         compact when Verbose ->
             try
-                io:format("~s", [binary_to_list(Bin)])
+                io:format("~s", [?b2l(Bin)])
             catch
                 _:CReason ->
                     exit({safe_write, compact, Bin, CReason})
@@ -1128,7 +1126,7 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
             ok;
         verbose when Verbose ->
             try
-                io:format("~s", [lux_utils:dequote(binary_to_list(Bin))])
+                io:format("~s", [lux_utils:dequote(?b2l(Bin))])
             catch
                 _:VReason ->
                     exit({safe_write, verbose, Bin, VReason})

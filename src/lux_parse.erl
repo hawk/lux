@@ -139,7 +139,7 @@ parse_file2(P) ->
             {P2, FirstLineNo, LastLineNo, Cmds};
         {error, FileReason} ->
             NewFd = eof,
-            Reason = iolist_to_binary([lux_utils:drop_prefix(P#pstate.file),
+            Reason = ?l2b([lux_utils:drop_prefix(P#pstate.file),
                                        ": ", file:format_error(FileReason)]),
             parse_error(P, NewFd, 0, Reason)
     end.
@@ -281,7 +281,7 @@ backslash_chop(Line) ->
 
 backslash_merge([First|Rest], Last) ->
     Lines = [lux_utils:strip_leading_whitespaces(Line) || Line <- Rest],
-    iolist_to_binary([First,Lines,Last]).
+    ?l2b([First,Lines,Last]).
 
 parse(P, Fd, LineNo, Tokens) ->
     case file_next_wrapper(Fd) of
@@ -472,17 +472,17 @@ merge_body([Line | Lines], Acc, Pending, Decr) ->
         {true, Chopped} ->
             merge_body(Lines, Acc, [Chopped | Pending], Decr+1);
         false ->
-            NewLine = iolist_to_binary([lists:reverse(Pending), Line]),
+            NewLine = ?l2b([lists:reverse(Pending), Line]),
             merge_body(Lines, [NewLine | Acc], [], Decr)
     end;
 merge_body([], Acc, [], Decr) ->
     {lists:reverse(Acc), Decr};
 merge_body([], Acc, Pending, Decr) ->
-    NewLine = iolist_to_binary(lists:reverse(Pending)),
+    NewLine = ?l2b(lists:reverse(Pending)),
     {lists:reverse([NewLine | Acc]), Decr}.
 
 parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
-    case binary_to_list(Meta) of
+    case ?b2l(Meta) of
         "doc" ++ Text ->
             Text2 =
                 case Text of
@@ -498,7 +498,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             try
                 Level = list_to_integer(LevelStr),
                 if Level > 0 -> ok end, % assert
-                Doc = list_to_binary(string:strip(Text3)),
+                Doc = ?l2b(string:strip(Text3)),
                 {P, Cmd#cmd{type = doc, arg = {Level, Doc}}}
             catch
                 error:_ ->
@@ -539,7 +539,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     {P, Cmd#cmd{type = shell, arg = Name2}}
             end;
         "endshell" ++ Data ->
-            case list_to_binary(string:strip(Data)) of
+            case ?l2b(string:strip(Data)) of
                 %% <<>>   -> RegExp = <<"0">>;
                 <<>>   -> RegExp = <<".*">>;
                 RegExp -> ok
@@ -737,7 +737,7 @@ parse_multi(P, Fd, <<>>,
                  ": '\"\"\"' command expected"]);
 parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
             #cmd{lineno = LineNo, orig = OrigLine} = Cmd, Tokens) ->
-    PrefixLen = count_prefix_len(binary_to_list(OrigLine), 0),
+    PrefixLen = count_prefix_len(?b2l(OrigLine), 0),
     {P2, RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
         scan_multi(P, Fd, Cmd, PrefixLen, [], 0),
     LastLineNo0 = LineNo+MultiIncr+length(RevBefore)+1,
@@ -829,7 +829,7 @@ scan_single(P, Fd, Cmd, Line, PrefixLen, Incr) ->
             if
                 Left < 0 -> % Too much leading whitespace
                     Spaces = lists:duplicate(abs(Left), $\ ),
-                    {more, P, iolist_to_binary([Spaces, Line])};
+                    {more, P, ?l2b([Spaces, Line])};
                 true ->
                     scan_single(P, Fd, Cmd, Rest, Left, Incr)
             end;
@@ -845,7 +845,7 @@ parse_error(P, Fd, LineNo, IoList) ->
 
 parse_error(P, Fd, Tag, LineNo, IoList) ->
     NewPosStack = cmd_pos_stack(P, LineNo),
-    NewIoList = iolist_to_binary(IoList),
+    NewIoList = ?l2b(IoList),
     reparse_error(Fd, Tag, NewPosStack, NewIoList).
 
 reparse_error(Fd, Tag, PosStack, IoList) ->
@@ -855,7 +855,7 @@ reparse_error(Fd, Tag, PosStack, IoList) ->
 make_warning(P, Cmd, IoList) ->
     File = P#pstate.orig_file,
     FullLineNo = full_lineno(P, Cmd),
-    {warning, File, FullLineNo, iolist_to_binary(IoList)}.
+    {warning, File, FullLineNo, ?l2b(IoList)}.
 
 add_warning(P, Cmd, IoList) ->
     Warning = make_warning(P, Cmd, IoList),

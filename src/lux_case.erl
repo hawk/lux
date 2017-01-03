@@ -75,7 +75,7 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
 
 default_istate(File) ->
     #istate{file = lux_utils:normalize(File),
-            log_fun = fun(Bin) -> console_write(binary_to_list(Bin)), Bin end,
+            log_fun = fun(Bin) -> console_write(?b2l(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),
             system_vars = lux_utils:system_vars()}.
@@ -155,15 +155,13 @@ eval(OldI, StartTime, Progress, Verbose,
     end.
 
 internal_error(I, ReasonTerm) ->
-    ReasonBin = list_to_binary(io_lib:format("INTERNAL LUX ERROR: ~p\n",
+    ReasonBin = ?l2b(io_lib:format("INTERNAL LUX ERROR: ~p\n",
                                              [ReasonTerm])),
     fatal_error(I, ReasonBin).
 
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     FullLineNo = full_lineno(I, I#istate.latest_cmd, I#istate.cmd_stack),
-    double_ilog(I, "~sERROR ~s\n",
-                [?TAG("result"),
-                 binary_to_list(ReasonBin)]),
+    double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
     {error, I#istate.file, FullLineNo, I#istate.case_log_dir, ReasonBin}.
 
 parse_iopts(I, Opts) ->
@@ -262,7 +260,7 @@ config_type(Name) ->
         system_env ->
             {ok, #istate.system_vars, [{std_list, [string]}]};
         _ ->
-            {error, iolist_to_binary(lists:concat(["Bad argument: ", Name]))}
+            {error, ?l2b(lists:concat(["Bad argument: ", Name]))}
     end.
 
 user_config_types() ->
@@ -284,7 +282,7 @@ set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
                 {{ok, setelement(Pos, I, Val2)}, U2};
             binary when is_list(Val) ->
                 Val2 = lux_interpret:expand_vars(I, Val, error),
-                set_config_val(Name, list_to_binary(Val2), [Type], Pos, I, U);
+                set_config_val(Name, ?l2b(Val2), [Type], Pos, I, U);
             {atom, Atoms} when is_atom(Val) ->
                 true = lists:member(Val, Atoms),
                 {{ok, setelement(Pos, I, Val)}, U2};
@@ -317,12 +315,12 @@ set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
         throw:{no_such_var, BadName} ->
             Msg = ["Bad argument: ", Name, "=", Val,
                    "; $", BadName, " is not set"],
-            {{error, iolist_to_binary(lists:concat(Msg))}, U};
+            {{error, ?l2b(lists:concat(Msg))}, U};
         _Class:_Reason ->
             set_config_val(Name, Val, Types, Pos, I, U)
     end;
 set_config_val(Name, Val, [], _Pos, _I, Updated) ->
-    {{error, iolist_to_binary(lists:concat(["Bad argument: ",
+    {{error, ?l2b(lists:concat(["Bad argument: ",
                                             Name, "=", Val]))},
      [Name | Updated]}.
 
@@ -465,7 +463,7 @@ print_fail(OldI0, NewI, File, Results,
                 {<<"error">>, Actual}
         end,
     FailBin =
-        iolist_to_binary(
+        ?l2b(
           [
            io_lib:format("expected\n\t~s\n",
                          [simple_to_string(Expected)]),
@@ -502,7 +500,7 @@ filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
                     false;
                 true ->
                     Format = "Fail but UNSTABLE as variable ~s is set",
-                    Reason = iolist_to_binary(io_lib:format(Format, [Name])),
+                    Reason = ?l2b(io_lib:format(Format, [Name])),
                     {true, {warning, File, FullLineNo, Reason}}
             end;
         "unstable_unless" ->
@@ -512,7 +510,7 @@ filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
                     false;
                 false ->
                     Format = "Fail but UNSTABLE as variable ~s is not set",
-                    Reason = iolist_to_binary(io_lib:format(Format, [Name])),
+                    Reason = ?l2b(io_lib:format(Format, [Name])),
                     {true, {warning, File, FullLineNo, Reason}}
             end
     end.
@@ -540,7 +538,7 @@ post_ilog(#istate{progress = Progress,
         fun(Bin) ->
                 case Progress of
                     silent -> ok;
-                    _      -> console_write(binary_to_list(Bin))
+                    _      -> console_write(?b2l(Bin))
                 end,
                 (I#istate.log_fun)(Bin),
                 Bin
@@ -558,10 +556,10 @@ docs(File, OrigCmds) ->
     lists:reverse(lux_utils:foldl_cmds(Fun, [], File, [], OrigCmds)).
 
 log_doc(#istate{log_fun = LogFun}, Docs) ->
-    Prefix = list_to_binary(?TAG("doc")),
+    Prefix = ?l2b(?TAG("doc")),
     Fun =
         fun({Level, Doc}) ->
-                Tabs = list_to_binary(lists:duplicate(Level-1, $\t)),
+                Tabs = ?l2b(lists:duplicate(Level-1, $\t)),
                 LogFun(<<Prefix/binary, Tabs/binary, Doc/binary, "\n">>)
         end,
     lists:foreach(Fun, Docs).
@@ -569,7 +567,7 @@ log_doc(#istate{log_fun = LogFun}, Docs) ->
 simple_to_string(Atom) when is_atom(Atom) ->
     simple_to_string(atom_to_list(Atom));
 simple_to_string(Bin) when is_binary(Bin) ->
-    simple_to_string(binary_to_list(Bin));
+    simple_to_string(?b2l(Bin));
 simple_to_string([$\r | T]) ->
     simple_to_string(T);
 simple_to_string([$\n | T]) ->

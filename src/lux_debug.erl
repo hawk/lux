@@ -227,7 +227,7 @@ parse_param(I, Type, Val) ->
             [Single] = [Elem || Elem <- List, lists:prefix(Val, Elem)],
             Single;
         binary ->
-            list_to_binary(Val);
+            ?l2b(Val);
         atom ->
             list_to_atom(Val);
         existing_atom ->
@@ -298,10 +298,8 @@ parse_lineno(I, Val) ->
     end.
 
 split(Str, Seps) when is_list(Str), is_list(Seps) ->
-    [binary_to_list(Token) ||
-        Token <- binary:split(list_to_binary(Str),
-                              list_to_binary(Seps),
-                              [global])].
+    [?b2l(Token) ||
+        Token <- binary:split(?l2b(Str), ?l2b(Seps), [global])].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Specification of all available debugger commands
@@ -1134,7 +1132,7 @@ cmd_load(I, Args, CmdState) ->
                           {CS2, IS2} = do_eval_cmd(IS, CmdStr, CS),
                           {CS2, IS2, LineNo+1}
                   end,
-            Lines = string:tokens(binary_to_list(Bin), "\n"),
+            Lines = string:tokens(?b2l(Bin), "\n"),
             {_CmdState, I2, _} = lists:foldl(Fun, {CmdState, I, 1}, Lines),
             {undefined, I2};
         {error, Reason} ->

@@ -114,18 +114,20 @@ doc_run(R) ->
             {error, MainFile, ErrorBin}
     end.
 
-run_suite(R0, SuiteFiles, Summary, Results) ->
+run_suite(R0, SuiteFiles, OldSummary, Results) ->
     {Scripts, Max} = expand_suite(R0,  SuiteFiles, [], 0),
     lux:trace_me(80, suite, string:join(SuiteFiles, " "), []),
     {ok, R} = tap_suite_begin(R0, Scripts, ""),
     try
-        {NewR, NewSummary0, NewResults} =
-            run_cases(R, Scripts, Summary, Results, Max, 1, [], []),
+        {NewR, Summary, NewResults} =
+            run_cases(R, Scripts, OldSummary, Results, Max, 1, [], []),
         NewSummary =
-            case NewResults of
-                [] -> warning;
-                _  -> NewSummary0
-                end,
+            if
+                NewResults =:= [] ->
+                    lux_utils:summary(Summary, warning);
+                true ->
+                    Summary
+            end,
         lux:trace_me(80, suite, NewSummary, []),
         tap_suite_end(NewR, NewSummary, NewResults),
         {NewR, NewSummary, NewResults}
@@ -362,14 +364,14 @@ flatten_results(Groups) ->
                     {error, [Reason]} ->
                         case binary:split(Reason, <<": ">>, [global]) of
                             [_, <<"Syntax error at line ", N/binary>>, _] ->
-                                {error, Script, binary_to_list(N), Reason};
+                                {error, Script, ?b2l(N), Reason};
                             _ ->
                                 {error, Script, "0", Reason}
                         end;
                     {error, Reason} ->
                         {error, Script, "0", Reason};
                     {fail, RawLineNo, _Expected, _Actual, _Details} ->
-                        {ok, fail, Script, binary_to_list(RawLineNo), []}
+                        {ok, fail, Script, ?b2l(RawLineNo), []}
                 end
         end,
     [Fun(Script, Res) ||
@@ -555,12 +557,21 @@ r2(Int) when is_integer(Int) ->
 r2(String) when is_list(String) ->
     string:right(String, 2, $0).
 
-run_cases(R, [{_SuiteFile,{error,_Reason}, _P, _LenP}|Scripts],
+run_cases(R, [{SuiteFile,{error=Summary,Reason}, _P, _LenP}|Scripts],
           OldSummary, Results, Max, CC, List, Opaque)
   when R#rstate.mode =:= list;
        R#rstate.mode =:= list_dir;
        R#rstate.mode =:= doc ->
-    run_cases(R, Scripts, OldSummary, Results, Max, CC+1, List, Opaque);
+    ReasonStr = file:format_error(Reason),
+    io:format("~s:\n", [lux_utils:drop_prefix(SuiteFile)]),
+    io:format("\tERROR ~s\n", [ReasonStr]),
+    NewSummary = lux_utils:summary(OldSummary, Summary),
+    ListErr = ?l2b(io_lib:format( "~s~s: ~s\n",
+                                  [?TAG("error"),
+                                   SuiteFile,
+                                   ReasonStr])),
+    Results2 = [{error, SuiteFile, ListErr} | Results],
+    run_cases(R, Scripts, NewSummary, Results2, Max, CC+1, List, Opaque);
 run_cases(R, [{SuiteFile, {error,Reason}, P, LenP}|Scripts],
           OldSummary, Results, Max, CC, List, Opaque) ->
     init_case_rlog(R, P, SuiteFile),
@@ -687,9 +698,20 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     run_cases(NewR2, NewScripts, NewSummary, NewResults,
                               Max, CC+1, List, NewOpaque)
             end;
-        {skip, NewR, _ErrorStack, _SkipReason}
-          when RunMode =:= list; RunMode =:= list_dir ; RunMode =:= doc ->
-            run_cases(NewR, Scripts, OldSummary, Results,
+        {skip, NewR, _ErrorStack, SkipReason}
+          when RunMode =:= list;
+               RunMode =:= list_dir;
+               RunMode =:= doc ->
+            Summary =
+                case ?b2l(SkipReason) of
+                    "FAIL" ++ _ -> fail;
+                    _           -> skip
+                end,
+            NewSummary = lux_utils:summary(OldSummary, Summary),
+            ParseWarnings = NewR#rstate.warnings,
+            AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
+            NewR2 = NewR#rstate{warnings = AllWarnings},
+            run_cases(NewR2, Scripts, NewSummary, Results,
                       Max, CC+1, List, Opaque);
         {skip, NewR, ErrorStack, SkipReason} ->
             #cmd_pos{rev_file = RevScript2} = lists:last(ErrorStack),
@@ -701,7 +723,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                         [?TAG("result"), SkipReason]),
             {ok, _} = lux_case:copy_orig(NewR#rstate.log_dir, Script2),
             Summary =
-                case binary_to_list(SkipReason) of
+                case ?b2l(SkipReason) of
                     "FAIL" ++ _ -> fail;
                     _           -> skip
                 end,
@@ -709,7 +731,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
             #cmd_pos{lineno = FullLineNo} = stack_error(ErrorStack, SkipReason),
             tap_case_end(NewR, CC, Script,
                          P, LenP, Max, Summary,
-                         FullLineNo, binary_to_list(SkipReason), <<>>),
+                         FullLineNo, ?b2l(SkipReason), <<>>),
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Res = {ok, Summary, Script2, FullLineNo,
                    NewR#rstate.log_dir, [], <<>>, []},
@@ -719,12 +741,27 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
             run_cases(NewR#rstate{warnings = AllWarnings},
                       Scripts, NewSummary, Results2,
                       Max, CC+1, List, Opaque);
-        {error, _ErrR, _ErrorStack, _ErrorBin}
-          when RunMode =:= list; RunMode =:= list_dir ->
-            run_cases(OrigR, Scripts, OldSummary, Results,
+        {error = Summary, _ErrR, _ErrorStack, _ErrorBin}
+          when RunMode =:= list;
+               RunMode =:= list_dir ->
+            NewSummary = lux_utils:summary(OldSummary, Summary),
+            run_cases(OrigR, Scripts, NewSummary, Results,
                       Max, CC+1, [Script|List], Opaque);
-        {error, _ErrR, _ErrorStack, _ErrorBin} when RunMode =:= doc ->
-            run_cases(OrigR, Scripts, OldSummary, Results,
+        {error = Summary, ErrR, ErrorStack, ErrorBin}
+          when RunMode =:= doc ->
+            #cmd_pos{rev_file = RevMainFile,
+                     lineno = FullLineNo,
+                     type = ErrorBin2} =
+                stack_error(ErrorStack, ErrorBin),
+            io:format("~s:\n", [lux_utils:drop_prefix(Script)]),
+            io:format("\tERROR ~s\n", [ErrorBin]),
+            MainFile = lux_utils:pretty_filename(RevMainFile),
+            Results2 = [{error, MainFile, FullLineNo, ErrorBin2} | Results],
+            NewWarnings = ErrR#rstate.warnings,
+            AllWarnings = OrigR#rstate.warnings ++ NewWarnings,
+            NewSummary = lux_utils:summary(OldSummary, Summary),
+            run_cases(OrigR#rstate{warnings = AllWarnings},
+                      Scripts, NewSummary, Results2,
                       Max, CC+1, List, Opaque);
         {error, ErrR, ErrorStack, ErrorBin} ->
             #cmd_pos{rev_file = RevMainFile,
@@ -913,7 +950,7 @@ parse_config_file(R, AbsConfigFile) ->
         {skip, _ErrorStack, _SkipBin} ->
             {[], []};
         {error, ErrorStack, ErrorBin} ->
-            Enoent = list_to_binary(file:format_error(enoent)),
+            Enoent = ?l2b(file:format_error(enoent)),
             if
                 ErrorBin =:= Enoent ->
                     {[], []};
@@ -943,7 +980,7 @@ stack_error(ErrorStack, ErrorBin) ->
                      type = ErrorBin};
         true ->
             ErrorFile = lux_utils:pretty_filename(RevErrorFile),
-            FileBin = list_to_binary(ErrorFile),
+            FileBin = ?l2b(ErrorFile),
             ErrorBin2 = <<FileBin/binary, ": ", ErrorBin/binary>>,
             #cmd_pos{rev_file = RevMainFile,
                      lineno = FullLineNo,
@@ -994,7 +1031,7 @@ user_prefix() ->
 double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
     IoList = io_lib:format(Format, Args),
     case Fd of
-        undefined -> list_to_binary(IoList);
+        undefined -> ?l2b(IoList);
         _         -> lux_log:double_write(Progress, Fd, IoList)
     end.
 
@@ -1004,7 +1041,7 @@ init_case_rlog(#rstate{progress = Progress, log_fd = Fd},
     AbsIoList = io_lib:format("\n~s~s\n", [Tag, AbsScript]),
     case Fd of
         undefined ->
-            list_to_binary(AbsIoList);
+            ?l2b(AbsIoList);
         _ ->
             AbsBin = lux_log:safe_write(Fd, AbsIoList),
             case Progress of
@@ -1012,7 +1049,7 @@ init_case_rlog(#rstate{progress = Progress, log_fd = Fd},
                     ok;
                 _ ->
                     RelIoList = io_lib:format("\n~s~s\n", [Tag, RelScript]),
-                    lux_log:safe_write(undefined, list_to_binary(RelIoList))
+                    lux_log:safe_write(undefined, ?l2b(RelIoList))
             end,
             AbsBin
     end.
@@ -1187,7 +1224,7 @@ suite_config_type(Name) ->
         tap ->
             {ok, [{std_list, [string]}]};
         _ ->
-            {error, iolist_to_binary(lists:concat(["Bad argument: ", Name]))}
+            {error, ?l2b(lists:concat(["Bad argument: ", Name]))}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1268,7 +1305,7 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings},
     lux_tap:test(TAP, Outcome, Descr, Directive, Max-LenP),
     Format = fun({warning, _File, LineNo, W}) ->
                      ok = lux_tap:diag(TAP, "WARNING at line " ++ LineNo),
-                     ok = lux_tap:diag(TAP,  binary_to_list(W))
+                     ok = lux_tap:diag(TAP,  ?b2l(W))
              end,
     lists:foreach(Format, Warnings),
     case Details of
@@ -1277,10 +1314,10 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings},
         _ ->
             Prefix = string:to_upper(atom_to_list(Result)),
             Lines = [
-                     iolist_to_binary([Prefix, " at line ", FullLineNo]) |
+                     ?l2b([Prefix, " at line ", FullLineNo]) |
                      binary:split(Details, <<"\n">>, [global])
                     ],
-            [ok = lux_tap:diag(TAP, binary_to_list(F)) ||
+            [ok = lux_tap:diag(TAP, ?b2l(F)) ||
                 F <- Lines, F =/= <<>>]
     end;
 tap_case_end(#rstate{}, _CaseCount, _Script,

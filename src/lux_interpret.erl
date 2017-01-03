@@ -51,7 +51,7 @@ init(I, StartTime) ->
         throw:{error, Reason, I5} ->
             {error, Reason, I5};
         error:Reason ->
-            ErrBin = iolist_to_binary(io_lib:format("~p", [Reason])),
+            ErrBin = ?l2b(io_lib:format("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
                       [ErrBin, ?stacktrace()]),
             {error, ErrBin, I}
@@ -87,7 +87,7 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
                                      ":",
                                      ?i2l(LineNo)
                                     ],
-                                throw({error, iolist_to_binary(Reason), I})
+                                throw({error, ?l2b(Reason), I})
                         end;
                     _ ->
                         Acc
@@ -464,7 +464,7 @@ dispatch_cmd(I,
                     Reason =
                         ["Cannot copy file ", InclFile, " to ", CaseLogDir,
                          ": ", file:format_error(FileReason)],
-                    handle_error(I, iolist_to_binary(Reason))
+                    handle_error(I, ?l2b(Reason))
             end;
         macro ->
             I;
@@ -473,7 +473,7 @@ dispatch_cmd(I,
                 {ok, NewCmd, MatchingMacros} ->
                     invoke_macro(I, NewCmd, MatchingMacros);
                 {error, BadName} ->
-                    E = list_to_binary(["Variable $", BadName, " is not set"]),
+                    E = ?l2b(["Variable $", BadName, " is not set"]),
                     ilog(I, "~s(~p): ~s\n",
                          [I#istate.active_name, LineNo, E]),
                     OrigLine =
@@ -638,10 +638,10 @@ invoke_macro(I,
             I2
     end;
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
-    BinName = list_to_binary(Name),
+    BinName = ?l2b(Name),
     handle_error(I, <<"No such macro: ", BinName/binary>>);
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
-    BinName = list_to_binary(Name),
+    BinName = ?l2b(Name),
     handle_error(I, <<"Ambiguous macro: ", BinName/binary>>).
 
 macro_vars(I, [Name | Names], [Val | Vals], Invoke) ->
@@ -659,8 +659,8 @@ macro_vars(I, [Name | Names], [Val | Vals], Invoke) ->
 macro_vars(_I, [], [], _Invoke) ->
     {ok, []};
 macro_vars(I, _Names, _Vals, #cmd{arg = {invoke, Name, _}, lineno = LineNo}) ->
-    BinName = list_to_binary(Name),
-    BinLineNo = list_to_binary(?i2l(LineNo)),
+    BinName = ?l2b(Name),
+    BinLineNo = ?l2b(?i2l(LineNo)),
     Reason = <<"at ", BinLineNo/binary,
                ": Argument mismatch in macro: ", BinName/binary>>,
     {bad_vars, handle_error(I, Reason)}.
@@ -695,8 +695,8 @@ compile_regexp(I, Cmd, {regexp, RegExpOper, RegExp}) ->
                 {ok, MP3} ->
                     {ok, Cmd#cmd{arg = {mp, RegExpOper, RegExp3, MP3, []}}};
                 {error, {Reason, _Pos}} ->
-                    BinErr = list_to_binary(["Syntax error: ", Reason,
-                                             " in regexp '", RegExp3, "'"]),
+                    BinErr = ?l2b(["Syntax error: ", Reason,
+                                   " in regexp '", RegExp3, "'"]),
                     {bad_regexp, handle_error(I, BinErr)}
             end;
         {no_such_var, BadName} ->
@@ -713,7 +713,7 @@ expand_send(I, Cmd, Arg) ->
     end.
 
 no_such_var(I, Cmd, LineNo, BadName) ->
-    E = list_to_binary(["Variable $", BadName, " is not set"]),
+    E = ?l2b(["Variable $", BadName, " is not set"]),
     ilog(I, "~s(~p): ~s\n", [I#istate.active_name, LineNo, E]),
     OrigLine = lux_utils:strip_leading_whitespaces(Cmd#cmd.orig),
     handle_error(I, <<E/binary, ". Bad line: ", OrigLine/binary>>).
@@ -726,9 +726,9 @@ parse_int(I, Chars, Cmd) ->
             catch
                 error:_ ->
                     BinErr =
-                        list_to_binary(["Syntax error at line ",
-                                        ?i2l(Cmd#cmd.lineno),
-                                        ": '", Chars2, "' integer expected"]),
+                        ?l2b(["Syntax error at line ",
+                              ?i2l(Cmd#cmd.lineno),
+                              ": '", Chars2, "' integer expected"]),
                     {bad_int, handle_error(I, BinErr)}
             end;
         {no_such_var, BadName} ->
@@ -1120,12 +1120,11 @@ prepare_shell_prompt(I, Cmd) ->
     Wait = Cmd#cmd{type = expect,
                    arg = {regexp, single, <<".+">>}},
     %% Set the prompt (after the rc files has ben run)
-    CmdStr = iolist_to_binary([I#istate.shell_prompt_cmd,
-                               "\n"]),
+    CmdStr = ?l2b([I#istate.shell_prompt_cmd, "\n"]),
     Prompt = Cmd#cmd{type = send,
                      arg = CmdStr},
     %% Wait for the prompt
-    CmdRegExp = list_to_binary(I#istate.shell_prompt_regexp),
+    CmdRegExp = ?l2b(I#istate.shell_prompt_regexp),
     Sync = Cmd#cmd{type = expect,
                    arg = {regexp, single, CmdRegExp}},
     Cmds = [Wait, Prompt, Sync | I#istate.commands],
@@ -1153,7 +1152,7 @@ shell_switch(OldI, Cmd, #shell{health = alive, name = NewName} = NewShell) ->
 shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
     ilog(OldI, "~s(~p): zombie shell at cleanup\n",
          [Name, (OldI#istate.latest_cmd)#cmd.lineno]),
-    handle_error(OldI, list_to_binary(Name ++ " is a zombie shell")).
+    handle_error(OldI, ?l2b(Name ++ " is a zombie shell")).
 
 inactivate_shell(#istate{active_shell = undefined} = I, _WantMore) ->
     I;
@@ -1212,8 +1211,8 @@ shell_crashed(I, Pid, Reason) ->
             {error, ErrBin} ->
                 ErrBin;
             _ ->
-                iolist_to_binary([What, " crashed during ",
-                                  I#istate.latest_cmd#cmd.type, " command"])
+                ?l2b([What, " crashed during ",
+                      I#istate.latest_cmd#cmd.type, " command"])
         end,
     io:format("\nINTERNAL LUX ERROR: ~s\n~p\n", [ErrBin2, ?stacktrace()]),
     handle_error(I, ErrBin2).

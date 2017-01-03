@@ -66,7 +66,7 @@ system_vars() ->
 expand_vars(MultiVars, String, MissingVar) when is_list(String) ->
     do_expand_vars(MultiVars, normal, String, [], MissingVar);
 expand_vars(MultiVars, Bin, MissingVar) when is_binary(Bin) ->
-    list_to_binary(expand_vars(MultiVars, binary_to_list(Bin), MissingVar)).
+    ?l2b(expand_vars(MultiVars, binary_to_list(Bin), MissingVar)).
 
 do_expand_vars(MultiVars, normal = Mode, [H | T], Acc, MissingVar) ->
     case H of
@@ -234,7 +234,7 @@ drop_prefix(File) ->
 drop_prefix(Prefix, File) when is_binary(Prefix) ->
     drop_prefix(binary_to_list(Prefix), File);
 drop_prefix(Prefix, File) when is_binary(File) ->
-    list_to_binary(drop_prefix(Prefix, binary_to_list(File)));
+    ?l2b(drop_prefix(Prefix, binary_to_list(File)));
 drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
     SplitPrefix = filename:split(Prefix),
     SplitFile = filename:split(File),
@@ -250,7 +250,7 @@ do_drop_prefix(_Prefix, _Rest, OrigFile) ->
     filename:join(OrigFile).
 
 normalize(File) when is_binary(File) ->
-    list_to_binary(normalize(binary_to_list(File)));
+    ?l2b(normalize(binary_to_list(File)));
 normalize(File) ->
     do_normalize(filename:split(filename:absname(File)), []).
 
