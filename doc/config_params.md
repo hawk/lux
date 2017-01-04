@@ -38,18 +38,28 @@ Test case control
 **--mode Mode**  
 Mode can be one of :
 
-* `execute`  - evaluates the test cases. This is default.
+* `execute`  - evaluate the test cases. This is default.
 * `validate` - parse all script files and configuration files and
                report syntax errors and warnings.
 * `list`     - display a list of all (non-skipped) test cases.
                One file per line.
 * `list_dir` - display a list of all directories with non-skipped
                test cases. One directory per line.
-* `doc`      - extract all `[doc]` strings and display them on a
-               simple format. First the main file name is printed on
-               an own line ending with a colon, followed by all doc
-               strings, one on each line. The doc strings are indented
-               with a tab char for each doc level.
+* `doc`      - extract all `[doc]` and `[docN]` strings and display
+               them on a simple format which is as follows.
+               First the script file name is printed on an own line
+               ending with a colon, followed by all doc strings, each
+               one on a separate line. The doc strings are indented
+               with a tab char for each doc level. See [docN].
+
+**--doc Level**  
+Implies `--mode=doc`. Restricts how many documentation levels which
+should be displayed. `--doc=1` only shows documentation on level 1,
+`--doc=2` shows documentation both on level 1 and 2.
+
+The first `[doc]` documentation string in a script is a bit special as
+it is regarded as a one line summary of the script. With `--doc=0`
+only the oneline summary lines are displayed.
 
 **--rerun Result**  
 Rerun old test cases. The test case candidates are found by parsing

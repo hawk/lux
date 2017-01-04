@@ -487,10 +487,38 @@ variable.
 A test case slogan displayed in the summary log. It is also possible
 to document parts of a test case by specifying a documentation level
 `N`. In that case the doc statement should look like `[docN String]`
-where `N` is a integer. `doc2` would mean that the documentation is on
+where `N` is an integer. `doc2` would mean that the documentation is on
 level 2. Doc strings can be extracted from the scripts and written to
-stdout with the`--mode=doc` command line option. It gives a quick
-overview of the test cases and can be seen as a poor mans test spec.
+stdout with the`--mode=doc` and `--doc=N` command line options. It
+gives a quick overview of the test cases and can be seen as a poor
+mans test spec.
+
+The first `[doc]` documentation string in a script is a bit special as
+it is regarded as a one line summary of the script. With `--doc=0`
+only the oneline summary lines are displayed.
+
+**\[doc\]**  
+  ...  
+**\[enddoc\]**  
+Multi line documentation, typically to be used first in the script.
+The first line is regarded as a one line summary (on level 1) and
+the remaining lines on next level (2). Third line must be preceded
+by empty line.
+
+>     [doc]
+>     One line summary
+>
+>     Details
+>     More details
+>     Yet more details
+>     [enddoc]
+
+would have been the same as
+
+>     [doc One line summary]
+>     [doc2 Details]
+>     [doc2 More details]
+>     [doc2 Yet more details]
 
 **\[timeout\]**  
 **\[timeout Seconds\]**  
@@ -550,6 +578,7 @@ Lux perform other tasks.
 * --annotate
 * --history
 * --mode
+* --doc
 
 Script execution
 ----------------
@@ -676,18 +705,28 @@ Test case control
 **--mode Mode**  
 Mode can be one of :
 
-* `execute`  - evaluates the test cases. This is default.
+* `execute`  - evaluate the test cases. This is default.
 * `validate` - parse all script files and configuration files and
                report syntax errors and warnings.
 * `list`     - display a list of all (non-skipped) test cases.
                One file per line.
 * `list_dir` - display a list of all directories with non-skipped
                test cases. One directory per line.
-* `doc`      - extract all `[doc]` strings and display them on a
-               simple format. First the main file name is printed on
-               an own line ending with a colon, followed by all doc
-               strings, one on each line. The doc strings are indented
-               with a tab char for each doc level.
+* `doc`      - extract all `[doc]` and `[docN]` strings and display
+               them on a simple format which is as follows.
+               First the script file name is printed on an own line
+               ending with a colon, followed by all doc strings, each
+               one on a separate line. The doc strings are indented
+               with a tab char for each doc level. See [docN].
+
+**--doc Level**  
+Implies `--mode=doc`. Restricts how many documentation levels which
+should be displayed. `--doc=1` only shows documentation on level 1,
+`--doc=2` shows documentation both on level 1 and 2.
+
+The first `[doc]` documentation string in a script is a bit special as
+it is regarded as a one line summary of the script. With `--doc=0`
+only the oneline summary lines are displayed.
 
 **--rerun Result**  
 Rerun old test cases. The test case candidates are found by parsing

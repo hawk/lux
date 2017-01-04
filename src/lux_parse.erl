@@ -1,4 +1,4 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2012-2017 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
@@ -7,7 +7,7 @@
 
 -module(lux_parse).
 
--export([parse_file/4]).
+-export([parse_file/5]).
 
 -include("lux.hrl").
 
@@ -19,7 +19,8 @@
           mode       :: run_mode(),
           skip_skip  :: boolean(),
           multi_vars :: [[string()]], % ["name=val"]
-          warnings   :: [binary()]
+          warnings   :: [binary()],
+          top_doc    :: undefined | non_neg_integer()
         }).
 
 -define(TAB_LEN, 8).
@@ -28,7 +29,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse
 
-parse_file(RelFile, RunMode, SkipSkip, Opts) ->
+parse_file(RelFile, RunMode, SkipSkip, CheckDoc, Opts) ->
     try
         File = lux_utils:normalize(RelFile),
         RevFile = lux_utils:filename_split(File),
@@ -45,7 +46,8 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                             mode = RunMode,
                             skip_skip = SkipSkip,
                             multi_vars = MultiVars,
-                            warnings = []},
+                            warnings = [],
+                            top_doc = undefined},
                 test_user_config(P, I),
                 {P2, _FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
@@ -55,7 +57,15 @@ parse_file(RelFile, RunMode, SkipSkip, Opts) ->
                     {ok, I2} ->
                         File2 = I2#istate.file,
                         UpdatedOpts = updated_opts(I2, I),
-                        {ok, File2, Cmds, UpdatedOpts, P2#pstate.warnings};
+                        P3 =
+                            if
+                                CheckDoc, P2#pstate.top_doc =/= 1 ->
+                                    add_warning(P2, undefined,
+                                                <<"Missing summary doc">>);
+                                true ->
+                                    P2
+                            end,
+                        {ok, File2, Cmds, UpdatedOpts, P3#pstate.warnings};
                     {error, Reason} ->
                         {error,
                          [#cmd_pos{rev_file= RevFile, lineno = 0, type = main}],
@@ -149,7 +159,8 @@ file_open(Lines) when is_list(Lines) ->
 file_open(#pstate{file = File, mode = RunMode}) ->
     do_file_open(File, RunMode).
 
-do_file_open( File, RM) when RM =:= validate; RM =:= execute ->
+do_file_open( File, RunMode) when RunMode =:= validate;
+                                  RunMode =:= execute ->
     %% Bulk read file
     case file:read_file(File) of
         {ok, Bin} ->
@@ -158,7 +169,9 @@ do_file_open( File, RM) when RM =:= validate; RM =:= execute ->
         {error, FileReason} ->
             {error, FileReason}
     end;
-do_file_open(File, RM) when RM =:= doc; RM =:= list; RM =:= list_dir ->
+do_file_open(File, RunMode) when RunMode =:= list;
+                                 RunMode =:= list_dir;
+                                 RunMode =:= doc ->
     %% Read lines on demand
     case file:open(File, [raw, binary, read_ahead]) of
         {ok, Io} ->
@@ -307,10 +320,13 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
             parse_meta(P, Fd, UnStripped, Cmd, Tokens);
         Type =:= multi ->
             parse_multi(P, Fd, UnStripped, Cmd, Tokens);
-        RunMode =:= validate; RunMode =:= execute ->
+        RunMode =:= validate;
+        RunMode =:= execute ->
             Cmd2 = parse_single(Cmd, UnStripped),
             parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
-        RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
+        RunMode =:= list;
+        RunMode =:= list_dir;
+        RunMode =:= doc ->
             %% Skip command
             parse(P, Fd, LineNo+Incr+1, Tokens)
     end.
@@ -406,6 +422,8 @@ parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                         parse_body(P3, Fd, MetaCmd, "endmacro", LineNo);
                     loop ->
                         parse_body(P3, Fd, MetaCmd, "endloop", LineNo);
+                    doc ->
+                        parse_doc(P3, Fd, MetaCmd, LineNo);
                     _ ->
                         {P3, Fd, LineNo, MetaCmd}
                 end,
@@ -421,10 +439,13 @@ parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                     RunMode =/= list,
                     RunMode =/= list_dir ->
                         [NewCmd | Tokens];
-                    RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
+                    RunMode =:= list;
+                    RunMode =:= list_dir;
+                    RunMode =:= doc ->
                         %% Skip command
                         Tokens;
-                    RunMode =:= validate; RunMode =:= execute ->
+                    RunMode =:= validate;
+                    RunMode =:= execute ->
                         [NewCmd | Tokens]
                 end,
             parse(NewP, NewFd, NewLineNo+1, NewTokens);
@@ -434,9 +455,36 @@ parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                          ": ']' is expected to be at end of line"])
     end.
 
+parse_doc(P, Fd, #cmd{arg = {_Level, Suffix, <<>>}} = Cmd, LineNo) ->
+    %% Multi line
+    EndKeyword = "enddoc" ++ Suffix,
+    parse_body(P, Fd, Cmd, EndKeyword, LineNo);
+parse_doc(P, Fd, #cmd{arg = {Level, _Suffix, Doc}} = Cmd, LineNo) ->
+    %% Single line
+    {P, Fd, LineNo, Cmd#cmd{arg = [{Level, Doc}]}}.
+
+parse_multi_doc(Level, UnStripped) ->
+    Stripped = [?l2b(string:strip(?b2l(Line))) || Line <- UnStripped],
+    Pred = fun(Line) -> Line =:= <<>>  end,
+    case lists:dropwhile(Pred, Stripped) of
+        [] ->
+            {warning, "Missing summary line", []};
+        [Oneliner] ->
+            {ok, [{Level, Oneliner}]};
+        [Oneliner, <<>>] ->
+            {warning, "More documentation lines expected after empty line",
+             [{Level, Oneliner}]};
+        [Oneliner, <<>> | Rest] ->
+            Details = [{Level+1, Line} || Line <- Rest],
+            {ok, [{Level, Oneliner} | Details]};
+        [Oneliner | _Rest] ->
+            {warning, "Empty line expected after summary line",
+             [{Level, Oneliner}]}
+    end.
+
 parse_body(#pstate{mode = RunMode} = P,
            Fd,
-           #cmd{arg = {body, Tag, Name, Items}} = Cmd,
+           #cmd{type = Type, arg = Arg} = Cmd,
            EndKeyword,
            LineNo) ->
     {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
@@ -450,21 +498,44 @@ parse_body(#pstate{mode = RunMode} = P,
                          ?i2l(LineNo),
                          ": [" ++ EndKeyword ++ "] expected"]);
         {line, _EndMacro, NewFd, Incr}
-          when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
+          when Type =:= doc ->
+            %% Do not parse body
+            BodyLen = length(BodyLines)+BodyIncr,
+            LastLineNo = LineNo+Incr+BodyLen+1,
+            {Level, _Suffix, _EmptyDoc} = Arg,
+            case parse_multi_doc(Level, BodyLines) of
+                {ok, MultiDoc} ->
+                    {P, NewFd, LastLineNo, Cmd#cmd{arg = MultiDoc}};
+                {warning, Reason, MultiDoc} ->
+                    {add_warning(P, Cmd, Reason),
+                     NewFd, LastLineNo, Cmd#cmd{arg = MultiDoc}};
+                {error, Reason} ->
+                    parse_error(P, NewFd, LineNo,
+                                ["Syntax error after line ",
+                                 ?i2l(LineNo),
+                                 ": ",
+                                 Reason])
+            end;
+        {line, _EndMacro, NewFd, Incr}
+          when RunMode =:= list;
+               RunMode =:= list_dir;
+               RunMode =:= doc ->
             %% Do not parse body
             BodyLen = length(BodyLines)+BodyIncr,
             LastLineNo = LineNo+Incr+BodyLen+1,
             {P, NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
         {line, _EndMacro, NewFd, Incr}
-          when RunMode =:= validate; RunMode =:= execute ->
+          when RunMode =:= validate;
+               RunMode =:= execute ->
             %% Parse body
             BodyLen = length(BodyLines)+BodyIncr,
             FdBody = file_open(BodyLines),
             {P2, eof, RevBodyCmds} = parse(P, FdBody, LineNo+Incr+1, []),
             BodyCmds = lists:reverse(RevBodyCmds),
             LastLineNo = LineNo+Incr+BodyLen+1,
-            Arg = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
-            {P2, NewFd, LastLineNo, Cmd#cmd{arg = Arg}}
+            {body, Tag, Name, Items} = Arg,
+            Arg2 = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
+            {P2, NewFd, LastLineNo, Cmd#cmd{arg = Arg2}}
     end.
 
 merge_body([Line | Lines], Acc, Pending, Decr) ->
@@ -484,29 +555,7 @@ merge_body([], Acc, Pending, Decr) ->
 parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
     case ?b2l(Meta) of
         "doc" ++ Text ->
-            Text2 =
-                case Text of
-                    [$\   | _Text] ->
-                        "1" ++ Text;
-                    [Char | _Text] when Char >= $0, Char =< $9 ->
-                        Text;
-                    _Text ->
-                        "1 " ++ Text
-                end,
-            Pred = fun(Char) -> Char =/= $\  end,
-            {LevelStr, Text3} = lists:splitwith(Pred, Text2),
-            try
-                Level = list_to_integer(LevelStr),
-                if Level > 0 -> ok end, % assert
-                Doc = ?l2b(string:strip(Text3)),
-                {P, Cmd#cmd{type = doc, arg = {Level, Doc}}}
-            catch
-                error:_ ->
-                    parse_error(P, Fd, LineNo,
-                                ["Illegal prefix of doc string" ,
-                                 Text2, " on line ",
-                                 ?i2l(LineNo)])
-            end;
+            parse_meta_doc(P, Fd, Cmd, LineNo, Text);
         "cleanup" ++ Name ->
             {P, Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
         "shell" ++ Name ->
@@ -632,6 +681,47 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                          Bad, "'"])
     end.
 
+parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
+    {Suffix, Unstripped} =
+        case Text of
+            "" ->
+                {"", Text};
+            " " ++  _ ->
+                {"", Text};
+            _ ->
+                Pred = fun(Char) -> Char =/= $\  end,
+                lists:splitwith(Pred, Text)
+        end,
+    {P2, Doc} =
+        case ?l2b(string:strip(Unstripped)) of
+            <<>> when Unstripped =/= ""  ->
+                Reason = <<"Missing doc text">>,
+                {add_warning(P, Cmd, Reason), ?l2b(Unstripped)};
+            Stripped ->
+                {P, Stripped}
+        end,
+    Level =
+        try
+            if
+                Suffix =:= "" ->
+                    1;
+                true ->
+                    Level0 = list_to_integer(Suffix),
+                    if Level0 > 0 -> Level0 end % assert
+            end
+        catch
+            error:_ ->
+                parse_error(P2, Fd, LineNo,
+                            ["Syntax error at line ", ?i2l(LineNo),
+                             ": Illegal doc level \"", Suffix, "\""])
+        end,
+    case P2#pstate.top_doc of
+        undefined -> TopDoc = Level;
+        TopDoc    -> ok
+    end,
+    {P2#pstate{top_doc = TopDoc},
+     Cmd#cmd{type = doc, arg = {Level, Suffix, Doc}}}.
+
 test_user_config(P, I) ->
     T =
         fun(Var, NameVal) ->
@@ -754,7 +844,9 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
                          ": multi line block must end in same column as"
                          " it started on line ", ?i2l(LineNo)]);
         {line, _EndOfMulti, NewFd, Incr}
-          when RunMode =:= list; RunMode =:= list_dir; RunMode =:= doc ->
+          when RunMode =:= list;
+               RunMode =:= list_dir;
+               RunMode =:= doc ->
             %% Skip command
             LastLineNo = LastLineNo0+Incr,
             parse(P2, NewFd, LastLineNo+1, Tokens);
@@ -852,15 +944,17 @@ reparse_error(Fd, Tag, PosStack, IoList) ->
     file_close(Fd),
     throw({Tag, PosStack, IoList}).
 
-make_warning(P, Cmd, IoList) ->
+make_warning(P, OptCmd, IoList) ->
     File = P#pstate.orig_file,
-    FullLineNo = full_lineno(P, Cmd),
+    FullLineNo = full_lineno(P, OptCmd),
     {warning, File, FullLineNo, ?l2b(IoList)}.
 
-add_warning(P, Cmd, IoList) ->
-    Warning = make_warning(P, Cmd, IoList),
+add_warning(P, OptCmd, IoList) ->
+    Warning = make_warning(P, OptCmd, IoList),
     P#pstate{warnings = P#pstate.warnings ++ [Warning]}.
 
+full_lineno(_P, undefined) ->
+    "0";
 full_lineno(P, #cmd{lineno = LineNo}) ->
     FullStack = cmd_pos_stack(P, LineNo),
     lux_utils:pretty_full_lineno(FullStack).

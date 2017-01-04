@@ -600,11 +600,16 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     run_cases(NewR, Scripts, OldSummary, Results,
                               Max, CC+1, [Script|List], Opaque);
                 doc ->
-                    Docs = extract_doc(Script2, Cmds),
-                    io:format("~s:\n",
-                              [lux_utils:drop_prefix(Script2)]),
-                    [io:format("~s~s\n", [lists:duplicate(Level, $\t), Str]) ||
-                        #cmd{arg = {Level, Str}} <- Docs],
+                    DocCmds = extract_doc(Script2, Cmds),
+                    Script3 = lux_utils:drop_prefix(Script2),
+                    io:format("~s:\n", [Script3]),
+                    DisplayDoc =
+                        fun({Level, Doc}) ->
+                                Indent = lists:duplicate(Level, $\t),
+                                io:format("~s~s\n", [Indent, Doc])
+                        end,
+                    [DisplayDoc(Doc) || #cmd{arg = MultiDoc} <- DocCmds,
+                                        Doc <- MultiDoc],
                     case ParseWarnings of
                         [] ->
                             NewSummary = OldSummary,
@@ -829,7 +834,7 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
 
 parse_script(R, _SuiteFile, Script) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
-    case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, Opts0) of
+    case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, true,Opts0) of
         {ok, Script2, Cmds, FileOpts, NewWarnings} ->
             FileArgs = opts_to_args(FileOpts, R#rstate.file_args),
             R2 = R#rstate{internal_args = [],
@@ -933,7 +938,7 @@ config_name() ->
 parse_config_file(R, AbsConfigFile) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
     SkipSkip = true,
-    case lux:parse_file(AbsConfigFile, R#rstate.mode, SkipSkip, Opts0) of
+    case lux:parse_file(AbsConfigFile, R#rstate.mode, SkipSkip, false, Opts0) of
         {ok, _File, _Cmds, UpdatedOpts, NewWarnings} ->
             Key = config_dir,
             Opts2 =
@@ -1207,6 +1212,8 @@ suite_config_type(Name) ->
             {ok, [{atom, [true, false]}]};
         mode ->
             {ok, [{atom, [list, list_dir, doc, validate, execute]}]};
+        doc ->
+            {ok, [{integer, 0, infinity}]};
         config_name ->
             {ok, [string]};
         suite ->

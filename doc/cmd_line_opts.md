@@ -16,6 +16,7 @@ Lux perform other tasks.
 * --annotate
 * --history
 * --mode
+* --doc
 
 Script execution
 ----------------

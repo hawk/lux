@@ -403,14 +403,17 @@ dispatch_cmd(I,
                     end
             end;
         doc ->
-            {Level, Doc} = Arg,
-            Indent = lists:duplicate((Level-1)*4, $\ ),
-            ilog(I, "~s(~p): doc \"~s~s\"\n",
-                 [I#istate.active_name, LineNo, Indent, Doc]),
-            case I#istate.progress of
-                doc -> io:format("\n~s~s\n", [Indent, Doc]);
-                _   -> ok
-            end,
+            DisplayDoc =
+                fun({Level, Doc}) ->
+                        Indent = lists:duplicate((Level-1)*4, $\ ),
+                        ilog(I, "~s(~p): doc \"~s~s\"\n",
+                             [I#istate.active_name, LineNo, Indent, Doc]),
+                        case I#istate.progress of
+                            doc -> io:format("\n~s~s\n", [Indent, Doc]);
+                            _   -> ok
+                        end
+                end,
+            lists:foreach(DisplayDoc, Arg),
             I;
         config ->
             {config, Var, Val} = Arg,

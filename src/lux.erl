@@ -7,7 +7,7 @@
 
 -module(lux).
 
--export([run/3, parse_file/4, interpret_commands/6, annotate_log/2, history/3]).
+-export([run/3, parse_file/5, interpret_commands/6, annotate_log/2, history/3]).
 -export([trace_me/4, trace_me/5]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -39,11 +39,11 @@ run(File, Opts, OrigArgs) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file
 
--spec(parse_file(filename(), run_mode(), boolean(), opts()) ->
+-spec(parse_file(filename(), run_mode(), boolean(), boolean(), opts()) ->
              {ok, filename(), cmds(), opts()} | skip() | error()).
 
-parse_file(File, RunMode, SkipSkip, Opts) ->
-    lux_parse:parse_file(File, RunMode, SkipSkip,Opts).
+parse_file(File, RunMode, SkipSkip, CheckDoc, Opts) ->
+    lux_parse:parse_file(File, RunMode, SkipSkip, CheckDoc, Opts).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Interpret parsed script

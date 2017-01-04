@@ -504,10 +504,44 @@ PS1              - shell prompt variable set by Lux
 A test case slogan displayed in the summary log. It is also possible
 to document parts of a test case by specifying a documentation level
 <code>N</code>. In that case the doc statement should look like <code>[docN String]</code>
-where <code>N</code> is a integer. <code>doc2</code> would mean that the documentation is on
+where <code>N</code> is an integer. <code>doc2</code> would mean that the documentation is on
 level 2. Doc strings can be extracted from the scripts and written to
-stdout with the<code>--mode=doc</code> command line option. It gives a quick
-overview of the test cases and can be seen as a poor mans test spec.</p>
+stdout with the<code>--mode=doc</code> and <code>--doc=N</code> command line options. It
+gives a quick overview of the test cases and can be seen as a poor
+mans test spec.</p>
+
+<p>The first <code>[doc]</code> documentation string in a script is a bit special as
+it is regarded as a one line summary of the script. With <code>--doc=0</code>
+only the oneline summary lines are displayed.</p>
+
+<p><strong>[doc]</strong><br/>
+ &#8230;<br/>
+<strong>[enddoc]</strong><br/>
+Multi line documentation, typically to be used first in the script.
+The first line is regarded as a one line summary (on level 1) and
+the remaining lines on next level (2). Third line must be preceded
+by empty line.</p>
+
+<blockquote>
+<pre><code>[doc]
+One line summary
+
+Details
+More details
+Yet more details
+[enddoc]
+</code></pre>
+</blockquote>
+
+<p>would have been the same as</p>
+
+<blockquote>
+<pre><code>[doc One line summary]
+[doc2 Details]
+[doc2 More details]
+[doc2 Yet more details]
+</code></pre>
+</blockquote>
 
 <p><strong>[timeout]</strong><br/>
 <strong>[timeout Seconds]</strong><br/>
@@ -567,6 +601,7 @@ Lux perform other tasks.</p>
 <li>&#8211;annotate</li>
 <li>&#8211;history</li>
 <li>&#8211;mode</li>
+<li>&#8211;doc</li>
 </ul>
 
 <h2 id="scriptexecution">Script execution</h2>
@@ -694,19 +729,29 @@ can be used to conditionally skip test cases.</p>
 Mode can be one of :</p>
 
 <ul>
-<li><code>execute</code> - evaluates the test cases. This is default.</li>
+<li><code>execute</code> - evaluate the test cases. This is default.</li>
 <li><code>validate</code> - parse all script files and configuration files and
  report syntax errors and warnings.</li>
 <li><code>list</code> - display a list of all (non-skipped) test cases.
  One file per line.</li>
 <li><code>list_dir</code> - display a list of all directories with non-skipped
  test cases. One directory per line.</li>
-<li><code>doc</code> - extract all <code>[doc]</code> strings and display them on a
- simple format. First the main file name is printed on
- an own line ending with a colon, followed by all doc
- strings, one on each line. The doc strings are indented
- with a tab char for each doc level.</li>
+<li><code>doc</code> - extract all <code>[doc]</code> and <code>[docN]</code> strings and display
+ them on a simple format which is as follows.
+ First the script file name is printed on an own line
+ ending with a colon, followed by all doc strings, each
+ one on a separate line. The doc strings are indented
+ with a tab char for each doc level. See [docN].</li>
 </ul>
+
+<p><strong>&#8211;doc Level</strong><br/>
+Implies <code>--mode=doc</code>. Restricts how many documentation levels which
+should be displayed. <code>--doc=1</code> only shows documentation on level 1,
+<code>--doc=2</code> shows documentation both on level 1 and 2.</p>
+
+<p>The first <code>[doc]</code> documentation string in a script is a bit special as
+it is regarded as a one line summary of the script. With <code>--doc=0</code>
+only the oneline summary lines are displayed.</p>
 
 <p><strong>&#8211;rerun Result</strong><br/>
 Rerun old test cases. The test case candidates are found by parsing
