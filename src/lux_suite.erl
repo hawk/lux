@@ -123,7 +123,7 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
             run_cases(R, Scripts, OldSummary, Results, Max, 1, [], []),
         NewSummary =
             if
-                NewResults =:= [] ->
+                NewResults =:= [], R#rstate.mode =/= validate ->
                     lux_utils:summary(Summary, warning);
                 true ->
                     Summary
