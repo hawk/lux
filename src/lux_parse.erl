@@ -16,7 +16,7 @@
           file       :: string(),
           orig_file  :: string(),
           pos_stack  :: [#cmd_pos{}],
-          mode       :: run_mode(),
+          mode       :: lux:run_mode(),
           skip_skip  :: boolean(),
           multi_vars :: [[string()]], % ["name=val"]
           warnings   :: [binary()],

@@ -130,6 +130,7 @@ specs() ->
      {"--revision",           undefined,   string,                 mandatory},
      {"--hostname",           undefined,   string,                 mandatory},
      {"--mode",               execute,     {enum, mode},           mandatory},
+     {"--doc",                infinity,    {integer, 0, infinity}, optional},
      {"--progress",           brief,       {enum, progress},       mandatory},
      {"--multiplier",         1000,        {integer, 0, infinity}, mandatory},
      {"--suite_timeout",      infinity,    {integer, 0, infinity}, mandatory},
@@ -754,6 +755,7 @@ translate_opts([
      {"--revision",           Revision},
      {"--hostname",           Hostname},
      {"--mode",               Mode},
+     {"--doc",                Doc},
      {"--progress",           Progress},
      {"--multiplier",         Multiplier},
      {"--suite_timeout",      SuiteTimeout},
@@ -772,6 +774,11 @@ translate_opts([
      {"--var",                Var},
      {"--tap",                Tap}
     ]) ->
+    Mode2 =
+        if
+            Doc =/= [] -> [doc];
+            true       -> Mode
+        end,
     Opts =
         [
          {debug,              Debug},
@@ -798,7 +805,8 @@ translate_opts([
          {require,            Require},
          {case_prefix,        CasePrefix},
          {var,                Var},
-         {mode,               Mode},
+         {mode,               Mode2},
+         {doc,                Doc},
          {config_dir,         ConfigDir},
          {config_name,        ConfigName},
          {suite,              Suite},

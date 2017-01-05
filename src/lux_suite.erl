@@ -17,7 +17,7 @@
 -record(rstate,
         {files                      :: [string()],
          orig_args                  :: [string()],
-         mode = execute             :: run_mode(),
+         mode = execute             :: lux:run_mode(),
          skip_skip = false          :: boolean(),
          progress = brief           :: silent | summary | brief |
                                        doc | compact | verbose,
@@ -604,12 +604,31 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     Script3 = lux_utils:drop_prefix(Script2),
                     io:format("~s:\n", [Script3]),
                     DisplayDoc =
-                        fun({Level, Doc}) ->
-                                Indent = lists:duplicate(Level, $\t),
-                                io:format("~s~s\n", [Indent, Doc])
+                        fun({Level, Doc}, MaxLevel) ->
+                                Print =
+                                    fun() ->
+                                        Indent = lists:duplicate(Level, $\t),
+                                        io:format("~s~s\n", [Indent, Doc])
+                                    end,
+                                if
+                                    MaxLevel =:= once_only ->
+                                        MaxLevel;
+                                    MaxLevel =:= 0,
+                                    Level =:= 1 ->
+                                        Print(),
+                                        once_only;
+                                    MaxLevel =:= infinity;
+                                    Level =< MaxLevel ->
+                                        Print(),
+                                        MaxLevel;
+                                    true ->
+                                        MaxLevel
+                                end
                         end,
-                    [DisplayDoc(Doc) || #cmd{arg = MultiDoc} <- DocCmds,
-                                        Doc <- MultiDoc],
+                    Docs =  [Doc || #cmd{arg = MultiDoc} <- DocCmds,
+                                    Doc <- MultiDoc],
+                    MaxLevel = pick_val(doc, NewR, infinity),
+                    lists:foldl(DisplayDoc, MaxLevel, Docs),
                     case ParseWarnings of
                         [] ->
                             NewSummary = OldSummary,

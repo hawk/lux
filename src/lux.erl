@@ -26,6 +26,9 @@
 -type skip()     :: {skip, filename(), string()}.
 -type error()    :: {error, filename(), string()}.
 -type result()   :: {ok, filename(), summary(), lineno(), [warning()]}.
+-type run_mode() :: list | list_dir | doc | validate | execute.
+
+-export_type([run_mode/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Run a test suite
