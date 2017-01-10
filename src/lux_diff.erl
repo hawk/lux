@@ -103,32 +103,43 @@ merge_cleanup([{Sign, P}|Rest], Acc) ->
 merge_cleanup([Keep|Rest], Acc) ->
     merge_cleanup_keep(Rest, Acc, Keep).
 
-merge_cleanup_sign(_Sign, [], Acc, []) ->
-    Acc;
-merge_cleanup_sign(Sign, [], Acc, AddAcc) ->
-    [{Sign,AddAcc}|Acc];
-merge_cleanup_sign(Sign, [{_, []}|Rest], Acc, AddAcc) ->
-    merge_cleanup_sign(Sign, Rest, Acc, AddAcc);
-merge_cleanup_sign(Sign, [{Sign, Add}|Rest], Acc, AddAcc) ->
-    merge_cleanup_sign(Sign, Rest, Acc, Add++AddAcc);
 merge_cleanup_sign(_Sign, Rest, Acc, []) ->
+    %% Empty sublist
     merge_cleanup(Rest, Acc);
+merge_cleanup_sign(Sign, [{Sign,Add}|Rest], Acc, AddAcc) ->
+    %% Merge same sign
+    merge_cleanup_sign(Sign, Rest, Acc, Add++AddAcc);
+merge_cleanup_sign('-', [{'+',Add}|Rest], Acc, AddAcc) ->
+    %% Reorder consecutive signs - always keep same order
+    merge_cleanup_sign('+', [{'-',AddAcc}|Rest], Acc, Add);
+merge_cleanup_sign(Sign1, [{Sign2,Add}|Rest], Acc, AddAcc)
+  when Add =:= AddAcc, Sign1 =/= Sign2 ->
+    %% Merge add and delete of same sublist
+    merge_cleanup_keep(Rest, Acc, AddAcc);
+merge_cleanup_sign(Sign1, [{Sign2,Add2}, {Sign1,Add1}|Rest], Acc, AddAcc)
+  when Sign1 =/= Sign2 ->
+    %% Merge add and delete of for Add+Del+Add or Del+Add+Del
+    merge_cleanup_sign(Sign1,  [{Sign2,Add2}|Rest], Acc, Add1++AddAcc);
 merge_cleanup_sign(Sign, Rest, Acc, AddAcc) ->
+    %% Add to acc
     merge_cleanup(Rest, [{Sign, AddAcc}|Acc]).
 
-%% not liked by dialyzer :-(
-%% merge_cleanup_keep([], Acc, []) ->
-%%     Acc;
+merge_cleanup_keep(Rest, Acc, []) ->
+    %% Empty sublist
+    merge_cleanup(Rest, Acc);
 merge_cleanup_keep([], Acc, KeepAcc) ->
     [KeepAcc|Acc];
 merge_cleanup_keep([{_,[]}|Es], Acc, KeepAcc) ->
     merge_cleanup_keep(Es, Acc, KeepAcc);
-merge_cleanup_keep(Es=[{_,_}|_], Acc, []) ->
-    merge_cleanup(Es, Acc);
+merge_cleanup_keep(Es=[{_,_}|_], [Prev|Acc], KeepAcc) when is_list(Prev) ->
+    %% Merge subsequent common sublists
+    merge_cleanup(Es, [KeepAcc++Prev|Acc]);
 merge_cleanup_keep(Es=[{_,_}|_], Acc, KeepAcc) ->
+    %% Add to acc
     merge_cleanup(Es, [KeepAcc|Acc]);
-merge_cleanup_keep([K|Rest], Acc, KeepAcc) ->
-    merge_cleanup_keep(Rest, Acc, K++KeepAcc).
+merge_cleanup_keep([Keep|Rest], Acc, KeepAcc) ->
+    %% Merge subsequent common sublists
+    merge_cleanup_keep(Rest, Acc, Keep++KeepAcc).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Longest Common Subsequence
