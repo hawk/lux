@@ -12,7 +12,7 @@
 -module(lux_diff).
 
 -export([
-         compare/2, compare/3,
+         compare/2, compare2/3,
          split_diff/1,
          apply_verbose_diff/2, apply_compact_diff/2,
          test/0, test2/2
@@ -30,17 +30,13 @@
 %% both lists. The other elements can be merged in afterwards. This
 %% greatly speeds up the case when only a few elements are the same.
 
--spec(compare([elem()],[elem()]) -> compact_diff()).
-compare(A, B) ->
-    compare(A, B, default_match()).
-
--spec(compare(A :: elem_list(),B :: elem_list(), match_fun()) ->
-             compact_diff()).
-compare(A, A, _Fun) ->
+-spec(compare(A::elem_list(), B::elem_list()) -> compact_diff()).
+compare(A, A) ->
     [A];
-compare(A, B, Fun) ->
+compare(A, B) ->
     ASame = A -- (A -- B),
     BSame = B -- (B -- A),
+    Fun = default_match(),
     CompactDiff = compare2(ASame, BSame, Fun),
     merge_unique(A, B, CompactDiff, []).
 
@@ -80,7 +76,7 @@ grab_until([X|Xs], Y, Acc, Add) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Calcuate shortest edit list to go from A to B
 
--spec(compare2(A :: elem_list(),B :: elem_list(), match_fun()) ->
+-spec(compare2(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
              compact_diff()).
 compare2(A, B, Fun) ->
     DataA = list_to_tuple(A),
@@ -88,8 +84,10 @@ compare2(A, B, Fun) ->
     DownVector = ets:new(down, [private]),
     UpVector   = ets:new(up, [private]),
     try
-        Diff = lcs(DataA, 0, size(DataA), DataB, 0, size(DataB),
-                   DownVector, UpVector, Fun, []),
+        Diff = lcs(DataA, 0, size(DataA),
+                   DataB, 0, size(DataB),
+                   DownVector, UpVector,
+                   Fun, []),
         merge_cleanup(Diff,[])
     after
         ets:delete(DownVector),
@@ -144,7 +142,9 @@ merge_cleanup_keep([Keep|Rest], Acc, KeepAcc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Longest Common Subsequence
 
-lcs(DataA, LowerA0, UpperA0, DataB, LowerB0, UpperB0, DownVector, UpVector,
+lcs(DataA, LowerA0, UpperA0,
+    DataB, LowerB0, UpperB0,
+    DownVector, UpVector,
     Fun, Acc0) ->
     %% Skip equal lines at start
     {LowerA, LowerB, StartKeep} =
@@ -197,12 +197,18 @@ lcs(DataA, LowerA0, UpperA0, DataB, LowerB0, UpperB0, DownVector, UpVector,
         LowerB =:= UpperB ->
             acc_add(StartKeep++EndKeep, Acc0);
         true ->
-            {SX, SY} = sms(DataA, LowerA, UpperA, DataB, LowerB, UpperB,
-                           DownVector, UpVector, Fun),
-            Acc1 = lcs(DataA, LowerA, SX, DataB, LowerB, SY, DownVector,
-                       UpVector, Fun, acc_add(StartKeep,Acc0)),
-            Acc2 = lcs(DataA, SX, UpperA, DataB, SY, UpperB, DownVector,
-                       UpVector, Fun, Acc1),
+            {SX, SY} = sms(DataA, LowerA, UpperA,
+                           DataB, LowerB, UpperB,
+                           DownVector, UpVector,
+                           Fun),
+            Acc1 = lcs(DataA, LowerA, SX,
+                       DataB, LowerB, SY,
+                       DownVector, UpVector,
+                       Fun, acc_add(StartKeep,Acc0)),
+            Acc2 = lcs(DataA, SX, UpperA,
+                       DataB, SY, UpperB,
+                       DownVector, UpVector,
+                       Fun, Acc1),
             acc_add(EndKeep, Acc2)
     end.
 
@@ -216,7 +222,10 @@ acc_add(E, Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Find Shortest Middle Sname
 
-sms(DataA, LowerA, UpperA, DataB, LowerB, UpperB, DownVector, UpVector, Fun) ->
+sms(DataA, LowerA, UpperA,
+    DataB, LowerB, UpperB,
+    DownVector, UpVector,
+    Fun) ->
     DownK = LowerA - LowerB,
     UpK = UpperA - UpperB,
     %%
@@ -228,37 +237,59 @@ sms(DataA, LowerA, UpperA, DataB, LowerB, UpperB, DownVector, UpVector, Fun) ->
     vset(DownVector, DownK+1, LowerA),
     vset(UpVector, UpK-1, UpperA),
     %%
-    sms_d(0, MaxD, DataA, LowerA, UpperA, DataB, LowerB, UpperB, DownVector,
-          UpVector, DownK, UpK, Delta, OddDelta, Fun).
+    sms_d(0, MaxD,
+          DataA, LowerA, UpperA,
+          DataB, LowerB, UpperB,
+          DownVector, UpVector, DownK, UpK,
+          Delta, OddDelta, Fun).
 
 %% D loop
-sms_d(D, MaxD, _DataA, _LowerA, _UpperA, _DataB, _LowerB, _UpperB, _DownVector,
-      _UpVector, _DownK, _UpK, _Delta, _OddDelta, _Fun) when D > MaxD ->
+sms_d(D, MaxD,
+      _DataA, _LowerA, _UpperA,
+      _DataB, _LowerB, _UpperB,
+      _DownVector,_UpVector,_DownK,_UpK,
+      _Delta, _OddDelta, _Fun) when D > MaxD ->
     throw(error);
-sms_d(D, MaxD, DataA, LowerA, UpperA, DataB, LowerB, UpperB, DownVector,
-      UpVector, DownK, UpK, Delta, OddDelta, Fun) ->
-    case sms_d_k_f(DownK-D, D, DataA, LowerA, UpperA, DataB, LowerB, UpperB,
-                   DownVector, UpVector, DownK, UpK, Delta, OddDelta, Fun) of
+sms_d(D, MaxD,
+      DataA, LowerA, UpperA,
+      DataB, LowerB, UpperB,
+      DownVector, UpVector, DownK, UpK,
+      Delta, OddDelta, Fun) ->
+    case sms_d_k_f(DownK-D, D,
+                   DataA, LowerA, UpperA,
+                   DataB, LowerB, UpperB,
+                   DownVector, UpVector, DownK, UpK,
+                   Delta, OddDelta, Fun) of
         not_found ->
-            case sms_d_k_r(UpK-D, D, DataA, LowerA, UpperA, DataB, LowerB,
-                           UpperB, DownVector, UpVector, DownK, UpK,
+            case sms_d_k_r(UpK-D, D,
+                           DataA, LowerA, UpperA,
+                           DataB, LowerB, UpperB,
+                           DownVector, UpVector, DownK, UpK,
                            Delta, OddDelta, Fun) of
                 not_found ->
-                    sms_d(D+1, MaxD, DataA, LowerA, UpperA, DataB, LowerB,
-                          UpperB, DownVector, UpVector, DownK, UpK, Delta,
-                          OddDelta, Fun);
+                    sms_d(D+1, MaxD,
+                          DataA, LowerA, UpperA,
+                          DataB, LowerB, UpperB,
+                          DownVector, UpVector, DownK, UpK,
+                          Delta, OddDelta, Fun);
                 Point -> Point
             end;
         Point -> Point
     end.
 
 %% Forward snake
-sms_d_k_f(K, D, _DataA, _LowerA, _UpperA, _DataB, _LowerB, _UpperB,
-          _DownVector, _UpVector, DownK, _UpK, _Delta, _OddDelta, _Fun)
+sms_d_k_f(K, D,
+          _DataA, _LowerA, _UpperA,
+          _DataB, _LowerB, _UpperB,
+          _DownVector, _UpVector, DownK, _UpK,
+          _Delta, _OddDelta, _Fun)
   when K > (DownK+D) ->
     not_found;
-sms_d_k_f(K, D, DataA, LowerA, UpperA, DataB, LowerB, UpperB,
-          DownVector, UpVector, DownK, UpK, Delta, OddDelta, Fun) ->
+sms_d_k_f(K, D,
+          DataA, LowerA, UpperA,
+          DataB, LowerB, UpperB,
+          DownVector, UpVector, DownK, UpK,
+          Delta, OddDelta, Fun) ->
     if
         K =:= (DownK - D) ->
             X = vget(DownVector, K+1); %% Down
@@ -301,23 +332,33 @@ sms_d_k_f(K, D, DataA, LowerA, UpperA, DataB, LowerB, UpperB,
                 UpVK =< DownVK ->
                     {DownVK, DownVK-K};
                 true ->
-                    sms_d_k_f(K+2, D, DataA, LowerA, UpperA, DataB,
-                              LowerB, UpperB, DownVector, UpVector,
-                              DownK, UpK, Delta, OddDelta, Fun)
+                    sms_d_k_f(K+2, D,
+                              DataA, LowerA, UpperA,
+                              DataB, LowerB, UpperB,
+                              DownVector, UpVector, DownK, UpK,
+                              Delta, OddDelta, Fun)
             end;
         true ->
-            sms_d_k_f(K+2, D, DataA, LowerA, UpperA, DataB,
-                      LowerB, UpperB, DownVector, UpVector,
-                      DownK, UpK, Delta, OddDelta, Fun)
+            sms_d_k_f(K+2, D,
+                      DataA, LowerA, UpperA,
+                      DataB, LowerB, UpperB,
+                      DownVector, UpVector, DownK, UpK,
+                      Delta, OddDelta, Fun)
     end.
 
 %% Backward snake
-sms_d_k_r(K, D, _DataA, _LowerA, _UpperA, _DataB, _LowerB, _UpperB,
-          _DownVector, _UpVector, _DownK, UpK, _Delta, _OddDelta, _Fun)
+sms_d_k_r(K, D,
+          _DataA, _LowerA, _UpperA,
+          _DataB, _LowerB, _UpperB,
+          _DownVector, _UpVector, _DownK, UpK,
+          _Delta, _OddDelta, _Fun)
   when K > (UpK+D) ->
     not_found;
-sms_d_k_r(K, D, DataA, LowerA, UpperA, DataB, LowerB, UpperB,
-          DownVector, UpVector, DownK, UpK, Delta, OddDelta, Fun) ->
+sms_d_k_r(K, D,
+          DataA, LowerA, UpperA,
+          DataB, LowerB, UpperB,
+          DownVector, UpVector, DownK, UpK,
+          Delta, OddDelta, Fun) ->
     if
         K =:= (UpK+D) ->
             X = vget(UpVector, K-1); %% Up
@@ -360,14 +401,18 @@ sms_d_k_r(K, D, DataA, LowerA, UpperA, DataB, LowerB, UpperB,
                 UpVK =< DownVK ->
                     {DownVK, DownVK-K};
                 true ->
-                    sms_d_k_r(K+2, D, DataA, LowerA, UpperA, DataB, LowerB,
-                              UpperB, DownVector, UpVector, DownK, UpK, Delta,
-                              OddDelta, Fun)
+                    sms_d_k_r(K+2, D,
+                              DataA, LowerA, UpperA,
+                              DataB, LowerB, UpperB,
+                              DownVector, UpVector, DownK, UpK,
+                              Delta, OddDelta, Fun)
             end;
         true ->
-            sms_d_k_r(K+2, D, DataA, LowerA, UpperA, DataB, LowerB,
-                      UpperB, DownVector, UpVector, DownK, UpK, Delta,
-                      OddDelta, Fun)
+            sms_d_k_r(K+2, D,
+                      DataA, LowerA, UpperA,
+                      DataB, LowerB, UpperB,
+                      DownVector, UpVector, DownK, UpK,
+                      Delta, OddDelta, Fun)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -391,7 +436,7 @@ split_diff([[H|T]|Rest], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Apply diff to list
 
--spec(apply_verbose_diff(A :: elem_list(), Diff :: verbose_diff()) ->
+-spec(apply_verbose_diff(A::elem_list(), Diff::verbose_diff()) ->
              elem_list()).
 apply_verbose_diff(A, Diff) ->
     apply_verbose_diff(A, Diff, []).
@@ -405,7 +450,7 @@ apply_verbose_diff([A|As], [{'-',A}|Rest], Acc) ->
 apply_verbose_diff([A|As], [{'=',A}|Rest], Acc) ->
     apply_verbose_diff(As, Rest, [A|Acc]).
 
--spec(apply_compact_diff(A :: elem_list(), Diff :: compact_diff()) ->
+-spec(apply_compact_diff(A::elem_list(), Diff::compact_diff()) ->
              elem_list()).
 apply_compact_diff(A, Diff) ->
     apply_compact_diff(A, Diff, []).
@@ -509,9 +554,9 @@ test(N, Max, Var) ->
 test2(A, B) ->
     Fun = default_match(),
     erlang:garbage_collect(),
-    {Time2,CompactDiff1} = timer:tc(fun() -> compare(A,B,Fun) end),
+    {Time2,CompactDiff1} = timer:tc(fun() -> compare(A ,B) end),
     erlang:garbage_collect(),
-    {Time1,CompactDiff2} = timer:tc(fun() -> compare2(A,B,Fun) end),
+    {Time1,CompactDiff2} = timer:tc(fun() -> compare2(A, B, Fun) end),
     try
         [] = validate_diff(CompactDiff1, []),
         [] = validate_diff(CompactDiff2, []),

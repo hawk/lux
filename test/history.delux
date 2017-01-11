@@ -2,6 +2,8 @@
 
 [include include/macros.luxinc]
 
+[config timeout=20000]
+
 [shell plain]
     [progress plain]
     -LUX ERROR|0 test runs

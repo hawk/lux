@@ -96,8 +96,8 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
     lux_utils:foldl_cmds(Collect, [], OrigFile, [], OrigCmds).
 
 loop(#istate{mode = stopping,
-                       shells = [],
-                       active_shell = undefined} = I) ->
+             shells = [],
+             active_shell = undefined} = I) ->
     %% Stop main
     I;
 loop(#istate{commands = [], call_level = CallLevel} = I)

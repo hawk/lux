@@ -25,7 +25,7 @@ safe_write_file(File, IoList) when is_list(File) ->
     if
         Res =:= ok; Res =:= {error, eexist} ->
             TmpFile = File ++ ".tmp",
-            case file:write_file(TmpFile, IoList) of
+            case file:write_file(TmpFile, IoList, [raw]) of
                 ok ->
                     case file:rename(TmpFile, File) of
                         ok ->
@@ -90,7 +90,7 @@ html_quote(IoList) ->
 
 safe_ctrl(Char) ->
     if
-        Char < 32, Char =/= 10 ->
+        Char < 32, Char =/= $\t, Char =/= $\n, Char =/= $\r ->
             ["<ctrl char \\", ?i2l(Char), " - see plain lux log for details>"];
         true ->
             Char

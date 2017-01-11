@@ -16,7 +16,7 @@
          open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
          parse_events/2, extract_timers/1, timers_to_csv/1, parse_io_logs/2,
          open_config_log/3, close_config_log/2,
-         safe_format/5, safe_write/4
+         safe_format/5, safe_write/4, dequote/1
         ]).
 
 -include_lib("kernel/include/file.hrl").
@@ -687,17 +687,6 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
               events = SubEvents2},
     do_parse_events(Events2, [E | Acc]).
 
-split_lines(<<>>) ->
-    [];
-split_lines(Bin) ->
-    Opts = [global],
-    Replace = fun(NL, B) -> binary:replace(B , NL, <<"\n">>, Opts) end,
-    NLs = [<<"[\\r\\n]+">>, <<"\\r\\n">>,
-           <<"\n\r">>, <<"\r\n">>,
-           <<"\\n">>, <<"\\r">>],
-    Normalized = lists:foldl(Replace, Bin, NLs),
-    binary:split(Normalized, <<"\n">>, Opts).
-
 extract_timers(Events) ->
     {_SendEvent, RevTimers} =
         extract_timers(Events, undefined, [<<>>], [], []),
@@ -951,6 +940,31 @@ parse_result(RawResult) ->
     %% io:format("Result: ~p\n", [R]),
     {result, R}.
 
+normalize_newlines(IoList) ->
+    re:replace(IoList, <<"(\\\\r\\\\n|\\\\r|\\\\n)">>, <<"\\\\n">>,
+               [global, {return, binary}]).
+
+split_lines(IoList) ->
+    Normalized = normalize_newlines(IoList),
+    Lines = binary:split(Normalized, <<"\\n">>, [global]),
+    join_lines(Lines, []).
+
+join_lines([H | T], Acc) ->
+    Sz = byte_size(H)-1,
+    case H of
+        <<_:Sz/binary, "\\">> ->
+            case T of
+                [H2 | T2] ->
+                    join_lines(T2, [<<H/binary, "\\n", H2/binary>> | Acc]);
+                 [] ->
+                    join_lines(T, [H | Acc])
+            end;
+        _ ->
+            join_lines(T, [H | Acc])
+    end;
+join_lines([], Acc) ->
+    lists:reverse(Acc).
+
 unquote(Bin) ->
     Quote = <<"\"">>,
     Size = byte_size(Bin)-2,
@@ -960,6 +974,26 @@ unquote(Bin) ->
         Plain ->
             {plain, Plain}
     end.
+
+dequote(" expect " ++ _ = L) ->
+    re:replace(L, <<"\\\\\\\\R">>, <<"\n    ">>, [global, {return, list}]);
+dequote([$\"|T]) ->
+    [$\"|dequote1(T)];
+dequote([H|T]) ->
+    [H|dequote(T)];
+dequote([]) ->
+    [].
+
+dequote1([$\\,$\\|T]) ->
+    [$\\|dequote1(T)];
+dequote1([$\\,$r,$\\,$n|T]) ->
+    "\n    " ++ dequote1(T);
+dequote1([$\\,$n|T]) ->
+    "\n    " ++ dequote1(T);
+dequote1([H|T]) ->
+    [H|dequote1(T)];
+dequote1([]) ->
+    [].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Config log
@@ -1127,7 +1161,7 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
             ok;
         verbose when Verbose ->
             try
-                io:format("~s", [lux_utils:dequote(?b2l(Bin))])
+                io:format("~s", [dequote(?b2l(Bin))])
             catch
                 _:VReason ->
                     exit({safe_write, verbose, Bin, VReason})

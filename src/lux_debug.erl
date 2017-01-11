@@ -999,7 +999,7 @@ tail_format("compact", Format, Data) ->
     io:format(Format, Data);
 tail_format("verbose", Format, Data) ->
     Str = lists:flatten(io_lib:format(Format, Data)),
-    io:format(lux_utils:dequote(Str)).
+    io:format(lux_log:dequote(Str)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

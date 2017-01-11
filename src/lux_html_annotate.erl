@@ -330,6 +330,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
                 Result = lux_log:parse_result(ResultBins),
                 {Annotated, Files} =
                     interleave_code(A3, Events, Script, 1, 999999, [], []),
+
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
                                    Timers, Files, Logs, Annotated, ConfigBins),
                 {ok, Csv, Html};
@@ -495,8 +496,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
                 ["<h3>Elapsed time: ", DiffStr, "</h3>\n"]
         end,
     RelEventLogDir = filename:split(drop_run_log_prefix(A, EventLogDir)),
-    RelSummaryLogDir = filename:join([".." || _ <- RelEventLogDir]),
-    RelSummaryLog = filename:join([RelSummaryLogDir, "lux_summary.log.html"]),
+    RelSummaryLog = dotdot(RelEventLogDir, "lux_summary.log.html"),
     [
      lux_html_utils:html_header(["Lux event log (", Dir, ")"]),
      "\n", lux_html_utils:html_href("h2", "", "", "#annotate", PrefixScript),
@@ -536,6 +536,12 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      html_config(ConfigBins),
      lux_html_utils:html_footer()
     ].
+
+dotdot(["."], Base) ->
+    Base;
+dotdot(Path, Base) ->
+    DotDots = filename:join([".." || _ <- Path]),
+    filename:join([DotDots, Base]).
 
 html_stats(OrigTimers) ->
     Timers = strip_timers(OrigTimers, []),
@@ -667,152 +673,127 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              "<h3>Reason</h3>",
              html_div(<<"event">>, lux_utils:expand_lines(Reason))
             ];
-        {warning, RawLineNo, Expected0, Actual, Details} ->
+        {How, RawLineNo, Expected, Actual, Details}
+          when How =:= fail; How =:= warning ->
             Anchor = RawLineNo,
-            Expected = lux_utils:expand_lines(Expected0),
-            Expected2 = lux_utils:normalize_newlines(Expected),
-            Expected3 = binary:split(Expected2, <<"\\R">>, [global]),
-            Diff = lux_utils:diff(Expected3, Details),
-            HtmlDiff = html_diff(Diff),
+            HtmlDiff = html_diff(Expected, Details),
             [
              "\n<", Tag, ">Result: <strong>",
              lux_html_utils:html_href([HtmlLog, "#failed"], "FAILED"),
              " at line ",
              lux_html_utils:html_href([HtmlLog, "#", Anchor], Anchor),
              "</strong></", Tag, ">\n",
-             "<h3>Expected</h3>",
-              html_div(<<"event">>, lux_utils:expand_lines(Expected3)),
+
+             "<h3>Expected:</h3>",
+             html_div(<<"event">>, lux_utils:expand_lines(Expected)),
+
              "<h3>Actual: ", lux_html_utils:html_quote(Actual), "</h3>",
-             [
-              "\n<div class=\"event\"><pre>",
-              lux_utils:expand_lines(HtmlDiff),
-              "</pre></div>"
-             ]
-            ];
-        {fail, RawLineNo, Expected0, Actual, Details} ->
-            Anchor = RawLineNo,
-            Expected = lux_utils:expand_lines(Expected0),
-            Expected2 = lux_utils:normalize_newlines(Expected),
-            Expected3 = binary:split(Expected2, <<"\\R">>, [global]),
-            Diff = lux_utils:diff(Expected3, Details),
-            HtmlDiff = html_diff(Diff),
-            [
-             "\n<", Tag, ">Result: <strong>",
-             lux_html_utils:html_href([HtmlLog, "#failed"], "FAILED"),
-             " at line ",
-             lux_html_utils:html_href([HtmlLog, "#", Anchor], Anchor),
-             "</strong></", Tag, ">\n",
-             "<h3>Expected</h3>",
-              html_div(<<"event">>, lux_utils:expand_lines(Expected3)),
-             "<h3>Actual: ", lux_html_utils:html_quote(Actual), "</h3>",
-             [
-              "\n<div class=\"event\"><pre>",
-              lux_utils:expand_lines(HtmlDiff),
-              "</pre></div>",
-              lux_html_utils:html_anchor("failed", "")
-             ]
+             "<div class=\"event\"><pre>",
+             lux_html_utils:html_quote(lux_utils:expand_lines(Details)),
+             "</pre></div>",
+
+             lux_html_utils:html_anchor("failed", ""),
+             "\n<h3>Diff:</h3>",
+             "<div class=\"event\"><pre>",
+             HtmlDiff,
+             "</pre></div>"
             ]
     end.
 
-html_diff(Diff) ->
-    html_diff(Diff, [], first, false).
+html_diff(Expected, Details) ->
+    lux_utils:diff_iter(Expected, Details, deep, fun emit/4).
 
-html_diff([H|T], Acc, Where, Rep) ->
-    Plain = "",
-    Bold = "b",
-    case H of
-        {'=', Com} ->
-            html_diff(T, [{<<"  ">>, "black",Bold,clean,Com}|Acc], middle, Rep);
-        {'+', Ins} when Where =/= first, element(1,hd(T)) =:= common ->
-            html_diff(T, [{<<"+ ">>,"blue",Bold,clean,Ins}|Acc], middle, Rep);
-        {'+', Ins} ->
-            html_diff(T, [{<<"  ">>,"black",Plain,clean,Ins}|Acc], middle, Rep);
-        {'-', Del} ->
-            html_diff(T, [{<<"- ">>,"red",Bold,clean,Del}|Acc], middle, Rep);
-        {'!', Ins, Del} when Where =:= first, T =:= [] ->
-            %% Display single replace as insert
-            {Clean, _Del2, Ins2} = html_part(Del, Ins),
-%%          html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
-%%                        {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle, true)
-            html_diff(T, [{<<"  ">>,"black",Bold,Clean,Ins2}|Acc],middle, true);
-        {'!', Ins, Del} ->
-            {Clean, Del2, Ins2} = html_part(Del, Ins),
-            html_diff(T, [{<<"- ">>,"red",Bold,Clean,Del2},
-                          {<<"+ ">>,"blue",Bold,Clean,Ins2}|Acc], middle, true)
+emit(Op, Mode, Context, Acc) when Mode =:= flat;
+                                  Mode =:= deep ->
+    case Op of
+        {common, Common} ->
+            [Acc,
+             "\n", html_color(common, Mode, <<"  ">>,
+                              lux_utils:shrink_lines(Common))];
+        {del, Del} ->
+            [Acc,
+             "\n", html_color(del, Mode, <<"- ">>, Del)];
+        {add, Add} ->
+            Prefix =
+                case Context of
+                    first  -> <<"  ">>;
+                    middle -> <<"+ ">>;
+                    last   -> <<"  ">>
+                end,
+            [Acc,
+             "\n", html_color(add, Mode, Prefix, Add)];
+        {replace, Del, Add} when Mode =:= flat ->
+            [
+             Acc,
+             "\n", html_color(del, Mode, <<"- ">>, Del),
+             "\n", html_color(add, Mode, <<"+ ">>, Add)
+            ];
+        {nested, Del, Add, [_SingleNestedOp]} when Mode =:= deep ->
+            %% Skip underline
+            [
+             Acc,
+             "\n", html_color(del, Mode, <<"- ">>, Del),
+             "\n", html_color(add, Mode, <<"+ ">>, Add)
+            ];
+        {nested, _OrigDel, _OrigAdd, RevNestedAcc} when Mode =:= deep ->
+            NestedAcc = lists:reverse(RevNestedAcc),
+            Del = ?l2b(nested_emit(del, NestedAcc, [])),
+            Add = ?l2b(nested_emit(add, NestedAcc, [])),
+            Del2 = binary:split(Del, <<"\n">>, [global]),
+            Add2 = binary:split(Add, <<"\n">>, [global]),
+            [
+             Acc,
+             "\n", html_color(del, nested, <<"- ">>, Del2),
+             "\n", html_color(add, nested, <<"+ ">>, Add2)
+            ]
     end;
-html_diff([], Acc, _Where, Rep) ->
-    html_color(lists:reverse(Acc), Rep).
+emit(Op, Mode, _Context, Acc) when Mode =:= nested ->
+    [Op | Acc].
 
-html_part([Del], [Ins]) ->
-    Diff = lux_utils:diff(?b2l(Del), ?b2l(Ins)),
-    html_part_diff(Diff, [], []);
-html_part(Del, Ins) ->
-    {clean, Del, Ins}.
-
-html_part_diff([H|T], DelAcc, InsAcc) ->
-    Underline = "u",
-    case H of
-        {'=', Com} ->
-            CleanCom = lux_html_utils:html_quote(Com),
-            html_part_diff(T,
-                           [CleanCom|DelAcc],
-                           [CleanCom|InsAcc]);
-        {'+', Ins} ->
-            html_part_diff(T,
-                           DelAcc,
-                           [tag(Underline,
-                                lux_html_utils:html_quote(Ins))|InsAcc]);
-        {'-', Del} ->
-            html_part_diff(T,
-                           [tag(Underline,
-                                lux_html_utils:html_quote(Del))|DelAcc],
-                           InsAcc);
-        {'!', Ins, Del} ->
-            html_part_diff(T,
-                           [tag(Underline,
-                                lux_html_utils:html_quote(Del))|DelAcc],
-                           [tag(Underline,
-                                lux_html_utils:html_quote(Ins))|InsAcc])
+nested_emit(Op, [NestedOp | Rest], Acc) ->
+    case NestedOp of
+        {common, Common} ->
+            NewAcc = [Acc, lux_html_utils:html_quote(Common)],
+            nested_emit(Op, Rest, NewAcc);
+        {del, Del} when Op =:= del ->
+            NewAcc = [Acc, tag(<<"u">>, lux_html_utils:html_quote(Del))],
+            nested_emit(Op, Rest, NewAcc);
+        {add, Add} when Op =:= add ->
+            NewAcc = [Acc, tag(<<"u">>, lux_html_utils:html_quote(Add))],
+            nested_emit(Op, Rest, NewAcc);
+        {replace, Del, Add} ->
+            nested_emit(Op, [{del, Del}, {add, Add} | Rest], Acc);
+        _Ignore ->
+            nested_emit(Op, Rest, Acc)
     end;
-html_part_diff([], DelAcc, InsAcc) ->
-    {noclean,
-     [?l2b(lists:reverse(DelAcc))],
-     [?l2b(lists:reverse(InsAcc))]}.
+nested_emit(_Op, [], Acc) ->
+    Acc.
 
-html_color([{Prefix, Color, Style, Clean, [Line|Lines]} | LineSpec], Delay) ->
+html_color(Op, Mode, Prefix, Text) ->
+    Color =
+        case Op of
+            common -> <<"black">>;
+            del    -> <<"red">>;
+            add    -> <<"blue">>
+        end,
+    Bold = <<"b">>,
+    QuotedPrefix = lux_html_utils:html_quote(Prefix),
     [
-     ?l2b([if
-               Delay =:= true    -> "";
-               Color =:= "black" -> "";
-               true              -> lux_html_utils:html_anchor("failed", "")
-           end,
-           "<font color=\"",Color,"\">",
-           opt_tag(Style, opt_clean(Prefix, Clean, Line)),
-           "</font>"])
-     | html_color([{Prefix, Color, Style, Clean, Lines} | LineSpec], Delay)
-    ];
-html_color([{_Prefix, _Color, _Style, _Clean, []} | LineSpec], _Delay) ->
-    html_color(LineSpec, false);
-html_color([], _Delay) ->
-    [].
-
-opt_clean(Prefix, Clean, Line) ->
-    [
-     lux_html_utils:html_quote(Prefix),
-     case Clean of
-         clean   -> lux_html_utils:html_quote(Line);
-         noclean -> Line
-     end
+     <<"<font color=\"">>, Color, <<"\">">>,
+     tag(Bold, html_expand_lines(Text, QuotedPrefix, Mode)),
+     <<"</font>">>
     ].
 
-opt_tag(Tag, Text) ->
-    case Tag of
-        "" -> Text;
-        _  -> tag(Tag, Text)
-    end.
+html_expand_lines([], _QuotedPrefix, _Quote) ->
+    [];
+html_expand_lines([H|T], QuotedPrefix, nested) ->
+    [[QuotedPrefix, H] | [[<<"\n">>, QuotedPrefix, L] || L <- T]];
+html_expand_lines([H|T], QuotedPrefix, _Quotequote) ->
+    [[QuotedPrefix, lux_html_utils:html_quote(H)] |
+     [[<<"\n">>, QuotedPrefix, lux_html_utils:html_quote(L)] || L <- T]].
 
 tag(Tag, Text) ->
-    ["<", Tag, ">", Text, "</", Tag, ">"].
+    [<<"<">>, Tag, <<">">>, Text, <<"</">>, Tag, <<">">>].
 
 html_config(Config) when is_list(Config) ->
     html_div(<<"event">>, lux_utils:expand_lines(Config));
@@ -820,7 +801,6 @@ html_config(Config) when is_binary(Config) ->
     html_div(<<"event">>, Config).
 
 html_logs(A, [{log, ShellName, Stdin, Stdout} | Logs]) ->
-
     [
      "\n<tr>\n    ",
      "<td><strong>Shell ", ShellName, "</strong></td>",

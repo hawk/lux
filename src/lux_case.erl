@@ -457,18 +457,23 @@ print_fail(OldI0, NewI, File, Results,
                 {Actual, Rest};
             <<"success pattern matched ", _/binary>> ->
                 {Actual, Rest};
-            _ when is_atom(Actual) ->
+            _ when is_atom(Actual), is_binary(Rest) ->
                 {atom_to_list(Actual), Rest};
+            _ when is_atom(Actual), is_atom(Rest) ->
+                {atom_to_list(Actual), list_to_binary(atom_to_list(Rest))};
             _ when is_binary(Actual) ->
                 {<<"error">>, Actual}
         end,
+    Diff = lux_utils:shrink_diff(Expected, NewRest),
     FailBin =
         ?l2b(
           [
            io_lib:format("expected\n\t~s\n",
                          [simple_to_string(Expected)]),
-           io_lib:format("actual ~s\n\t~s",
-                         [NewActual, simple_to_string(NewRest)])
+           io_lib:format("actual ~s\n\t~s\n",
+                         [NewActual, simple_to_string(NewRest)]),
+           io_lib:format("diff\n\t~s",
+                         [simple_to_string(Diff)])
           ]),
     case OldI0#istate.progress of
         silent ->

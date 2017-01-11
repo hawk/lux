@@ -1,3 +1,5 @@
+[doc Demonstrate fail in nested loop]
+
 [config case_timeout=100000]
 
 [global inner_file=loop_nested_breaks_inner.tmp]

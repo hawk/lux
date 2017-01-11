@@ -1,3 +1,5 @@
+[doc Demonstrate a nested fail]
+
 # before include
 [include nested_fail_html.luxinc]
 # after include

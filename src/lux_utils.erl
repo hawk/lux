@@ -12,12 +12,12 @@
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2, normalize/1,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
-         normalize_newlines/1, expand_lines/1,
+         normalize_newlines/1, expand_lines/1, split_lines/1, shrink_lines/1,
          to_string/1, capitalize/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
-         pretty_full_lineno/1, pretty_filename/1, filename_split/1, dequote/1,
+         pretty_full_lineno/1, pretty_filename/1, filename_split/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
-         diff/2,
+         diff/2, equal/2, diff_iter/3, diff_iter/4, shrink_diff/2,
          cmd/1, cmd_expected/1, perms/1,
          pick_opt/3]).
 
@@ -293,26 +293,6 @@ capitalize([H | T]) ->
 capitalize([] = L) ->
     L.
 
-dequote(" expect " ++ _ = L) ->
-    re:replace(L, <<"\\\\\\\\R">>, <<"\n    ">>, [global, {return, list}]);
-dequote([$\"|T]) ->
-    [$\"|dequote1(T)];
-dequote([H|T]) ->
-    [H|dequote(T)];
-dequote([]) ->
-    [].
-
-dequote1([$\\,$\\|T]) ->
-    [$\\|dequote1(T)];
-dequote1([$\\,$r,$\\,$n|T]) ->
-    "\n    " ++ dequote1(T);
-dequote1([$\\,$n|T]) ->
-    "\n    " ++ dequote1(T);
-dequote1([H|T]) ->
-    [H|dequote1(T)];
-dequote1([]) ->
-    [].
-
 progress_write(Progress, String) ->
     case Progress of
         silent  -> ok;
@@ -542,176 +522,41 @@ verbatim_collect2(_Actual, _Expected, _Orig, _Base, _Pos, _Len) ->
     %% No match
     nomatch.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Diff
-
-%% diff_files(OldFile, NewFile) ->
-%%     {OldFile, {ok, OldBin}} = {OldFile, file:read_file(OldFile)},
-%%     {NewFile, {ok, NewBin}} = {NewFile, file:read_file(NewFile)},
-%%     diff(split_lines(OldBin), split_lines(NewBin)).
-%%
-%% split_lines(<<"">>) ->
-%%     [];
-%% split_lines(Bin) when is_binary(Bin) ->
-%%     Opts = [global],
-%%     Bin2 = normalize_regexp(Bin),
-%%     binary:split(Bin2, <<"\\\\R">>, Opts).
-
-diff(OldBins, NewBins) ->
-    Old = numerate_lines(OldBins),
-    New = numerate_lines(NewBins),
-    Patch = diff(New, Old, [], 0),
-    merge(Patch, Old).
-
-numerate_lines(List) ->
-    numerate_lines(List, 1, []).
-
-numerate_lines([H|T], N, Acc) ->
-    numerate_lines(T, N+1, [{N,H}|Acc]);
-numerate_lines([], _N, Acc) ->
-    lists:reverse(Acc).
-
--type patch() :: {From :: non_neg_integer(),
-                  To   :: non_neg_integer()} |
-                  binary().
-
--type diff() :: {'=',[binary()]} |
-                {'+',[binary()]} |
-                {'-',[binary()]} |
-                {'!',[binary()],[binary()]}.
-
--spec diff(New :: [{non_neg_integer(),binary()}],
-           Old :: [{non_neg_integer(),binary()}],
-           [patch()],
-           Min :: non_neg_integer()) ->
-          [patch()].
-
-diff([], _, Patch,_Min) ->
-    lists:reverse(Patch);
-diff([{_,Line}|T]=New, Old, Patch, Min) ->
-    case match(New, Old, Min) of
-        {yes, From, To, Rest} ->
-            diff(Rest, Old, [{From,To}|Patch], To);
-        no ->
-            diff(T, Old, [Line|Patch], Min)
-    end.
-
-match([{_,NewElem}|NewT]=New, [{From,OldElem}|OldT], Min) when From > Min ->
-    case equal(OldElem, NewElem) of
-        match   -> extend_match(NewT, OldT, From, From);
-        nomatch -> match(New, OldT, Min)
-    end;
-match(New, [_|T], Min) ->
-    match(New, T, Min);
-match(_New, [], _Min) ->
-    no.
-
-extend_match([{_,NewElem}|NewT]=New, [{To,OldElem}|OldT], From, PrevTo) ->
-    case equal(OldElem, NewElem) of
-        match   -> extend_match(NewT, OldT, From, To);
-        nomatch -> {yes, From, PrevTo, New}
-    end;
-extend_match(New, _, From, To) ->
-    {yes, From, To, New}.
-
-equal(Expected, Expected) ->
-    match;
-equal(<<"">>, _Actual) ->
-    nomatch;
-equal("", _Actual) ->
-    nomatch;
-equal(Expected0, Actual) when is_binary(Expected0); is_list(Expected0) ->
-    Expected = normalize_regexp(Expected0),
-    try
-        re:run(Actual, Expected,[{capture, none}, notempty])
-    catch _:_ ->
-            nomatch
-    end;
-equal(_Expected, _Actual) ->
-    nomatch.
-
-normalize_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
-  when Prefix =/= <<"^">> ->
-    normalize_regexp(<<"^", RegExp/binary>>);
-normalize_regexp(RegExp) when is_binary(RegExp) ->
-    Size = byte_size(RegExp)-1,
-    case RegExp of
-        <<_:Size/binary, "$">> ->
-            RegExp;
-        _ ->
-            normalize_regexp(<<RegExp/binary, "$">>)
-    end;
-normalize_regexp([Prefix|RegExp])
-  when Prefix =/= $^ ->
-    normalize_regexp([$^|RegExp]);
-normalize_regexp(RegExp) when is_list(RegExp) ->
-    case lists:last(RegExp) of
-        $\$ ->
-            RegExp;
-        _ ->
-            normalize_regexp(RegExp++"$")
-    end.
-
 normalize_newlines(IoList) ->
-    re:replace(IoList, <<"(\r\n|\r|\n)">>, <<"\\\\R">>,
-               [global, {return, binary}]).
+    normalize_newlines(IoList, <<"\\\\R">>).
 
-expand_lines([]) ->
-    [];
-expand_lines([Line]) ->
+normalize_newlines(IoList, To) ->
+    re:replace(IoList, <<"(\r\n|\r|\n)">>, To, [global, {return, binary}]).
+
+expand_lines([] = Line) ->
+    Line;
+expand_lines([_] = Line) ->
     Line;
 expand_lines([Line | Lines]) ->
     [Line, "\n", expand_lines(Lines)].
 
--spec merge([patch()], Old  :: [{non_neg_integer(),binary()}]) ->
-          [diff()].
+split_lines(IoList) ->
+    split_lines(IoList, <<"\\\\R">>).
 
-merge(Patch, Old) ->
-    merge(Patch, Old, 1, []).
+split_lines(IoList, To) ->
+    Normalized = normalize_newlines(IoList, To),
+    binary:split(Normalized, To, [global]).
 
-merge([{From,To}|Patch], Old, Next, Acc) ->
-    {Next2, Common} = get_lines(From, To, Old, []),
-    Acc2 =
-        if
-            From > Next ->
-                %% Add missing lines
-                {_, Delete} = get_lines(Next, From-1, Old, []),
-                add({'=',Common}, add({'-',Delete}, Acc));
-            true ->
-                add({'=',Common},Acc)
-        end,
-    merge(Patch, Old, Next2, Acc2);
-merge([Insert|Patch], Old, Next, Acc) ->
-    merge(Patch, Old, Next, add({'+',[Insert]},Acc));
-merge([], Old, Next, Acc) ->
-    %% Add missing lines in the end
-    Fun = fun({N,L}, A) when N >= Next -> [L|A];
-             (_,A)                    -> A
-          end,
-    Acc2 =
-        case lists:foldl(Fun, [], Old) of
-            []     -> Acc;
-            Delete -> add({'-',lists:reverse(Delete)}, Acc)
-        end,
-    lists:reverse(Acc2).
-
-get_lines(_, To, [{To,Line}|_Rest], Acc) ->
-    {To+1, lists:reverse([Line|Acc])};
-get_lines(From, To, [{From,Line}|Rest], Acc) ->
-    get_lines(From+1, To, Rest, [Line|Acc]);
-get_lines(From, To, [_|Rest], Acc) ->
-    get_lines(From, To, Rest, Acc).
-
-add({'+',Curr}, [{'+',Prev}|Merge]) ->
-    [{'+',Prev++Curr}|Merge];
-add({'-',Curr}, [{'-',Prev}|Merge]) ->
-    [{'-',Prev++Curr}|Merge];
-add({'-',Delete}, [{'+',Insert}|Merge]) ->
-    [{'!',Insert,Delete}|Merge];
-add({'+',Insert}, [{'-',Delete}|Merge]) ->
-    [{'!',Delete,Insert}|Merge];
-add(Curr, Merge) ->
-    [Curr|Merge].
+shrink_lines(Lines) ->
+    case Lines of
+        [H1, H2, H3 | HT] ->
+            case lists:reverse(HT) of
+                [T1, T2, T3, _T4, _T5, _T6 | TT] ->
+                    Len = ?l2b(?i2l(length(TT)+3)),
+                    [H1, H2, H3,
+                     <<"... ", Len/binary," lines not shown...">>,
+                     T3, T2, T1];
+                _ ->
+                    Lines
+            end;
+        _ ->
+            Lines
+    end.
 
 cmd(Cmd) ->
     Output = os:cmd(Cmd++"; echo $?"),
@@ -749,3 +594,134 @@ pick_opt(Tag, [{_Tag, _Val} | Opts], Val) ->
     pick_opt(Tag, Opts, Val);
 pick_opt(_Tag, [], Val) ->
     Val.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Diff
+
+diff(Old, New) ->
+    Equal =
+        fun(O, N) ->
+                case lux_utils:equal(O, N) of
+                    match   -> true;
+                    nomatch -> false
+                end
+        end,
+    lux_diff:compare2(Old, New, Equal).
+
+equal(Expected, Expected) ->
+    match;
+equal(Expected0, Actual) when is_binary(Expected0); is_list(Expected0) ->
+    Expected = normalize_regexp(Expected0),
+    try
+        re:run(Actual, Expected,[{capture, none}, notempty])
+    catch _:_ ->
+            nomatch
+    end.
+
+normalize_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
+  when Prefix =/= <<"^">> ->
+    normalize_regexp(<<"^", RegExp/binary>>);
+normalize_regexp(RegExp) when is_binary(RegExp) ->
+    Size = byte_size(RegExp)-1,
+    case RegExp of
+        <<_:Size/binary, "$">> ->
+            RegExp;
+        _ ->
+            normalize_regexp(<<RegExp/binary, "$">>)
+    end;
+normalize_regexp([Prefix|RegExp])
+  when Prefix =/= $^ ->
+    normalize_regexp([$^|RegExp]);
+normalize_regexp(RegExp) when is_list(RegExp) ->
+    case lists:last(RegExp) of
+        $\$ ->
+            RegExp;
+        _ ->
+            normalize_regexp(RegExp++"$")
+    end.
+
+-type elem() :: binary() | char().
+-type op() :: {common,[elem()]} |
+              {del, [elem()]} |
+              {add,[elem()]} |
+              {replace, Del :: [elem()], Add :: [elem()]} |
+              {nested, Del :: [elem()], Add :: [elem()], NestedAcc :: acc()}.
+-type context() :: first | middle | last. % Single diff implies 'last'
+-type mode() :: flat | deep | nested.
+-type acc() :: term().
+-type callback() :: fun((op(), mode(), context(), acc()) -> acc()).
+-spec diff_iter([binary()], [binary()], mode(), callback()) -> acc().
+-type diff() :: lux_diff:compact_diff().
+diff_iter(Old, New, Mode, Fun) when Mode =:= flat; Mode =:= deep ->
+    Diff = diff(Old, New),
+    diff_iter(Diff, Mode, Fun).
+
+-spec diff_iter(diff(), mode(), callback()) -> acc().
+diff_iter(Diff, Mode, Fun) ->
+    InitialAcc = [],
+    diff_iter_loop(Diff, Mode, Fun, InitialAcc).
+
+diff_iter_loop([H|T], Mode, Fun, Acc) ->
+    Context = context(Acc, T),
+    case H of
+        Common when is_list(Common) ->
+            NewAcc = Fun({common,Common}, Mode, Context, Acc),
+            diff_iter_loop(T, Mode, Fun, NewAcc);
+        {'-', Del} when element(1, hd(T)) =:= '+' ->
+            Add = element(2, hd(T)),
+            diff_iter_loop([{'!',Del,Add} | tl(T)], Mode, Fun, Acc);
+        {'-', Del} ->
+            NewAcc = Fun({del,Del}, Mode, Context, Acc),
+            diff_iter_loop(T, Mode, Fun, NewAcc);
+        {'+', Add} when element(1, hd(T)) =:= '-' ->
+            Del = element(2, hd(T)),
+            diff_iter_loop([{'!',Del,Add} | tl(T)], Mode, Fun, Acc);
+        {'+', Add} ->
+            NewAcc = Fun({add,Add}, Mode, Context, Acc),
+            diff_iter_loop(T, Mode, Fun, NewAcc);
+        {'!', Del, Add} when Mode =:= deep ->
+            DelChars = ?b2l(?l2b(expand_lines(Del))),
+            AddChars = ?b2l(?l2b(expand_lines(Add))),
+            NestedDiff = lux_diff:compare(DelChars, AddChars),
+            NestedAcc = diff_iter(NestedDiff, nested, Fun),
+            DeepAcc = Fun({nested,Del,Add,NestedAcc}, Mode, Context, Acc),
+            diff_iter_loop(T, Mode, Fun, DeepAcc);
+        {'!', Del, Add} when Mode =:= flat;
+                             Mode =:= nested ->
+            NewAcc = Fun({replace,Del,Add}, Mode, Context, Acc),
+            diff_iter_loop(T, Mode, Fun, NewAcc)
+    end;
+diff_iter_loop([], _Mode, _Fun, Acc) ->
+    Acc.
+
+context(_Acc, []) ->
+    last;
+context([], _Tail) ->
+    first;
+context(_Aacc, _Tail) ->
+    middle.
+
+shrink_diff(Old, New) when is_binary(Old), is_binary(New) ->
+    ToIoList =
+        fun ({Sign, Bin}) ->
+                Prefix =
+                    case Sign of
+                        '+' -> "+ ";
+                        '-' -> "- ";
+                        '=' -> "  "
+                    end,
+                [Prefix, Bin, "\n"]
+        end,
+    Diff = diff(split_lines(Old, <<"\n">>),
+                split_lines(New, <<"\n">>)),
+    ShrinkedDiff = shrink(Diff, []),
+    Expanded = lux_diff:split_diff(ShrinkedDiff),
+    iolist_to_binary(lists:map(ToIoList, Expanded)).
+
+shrink([Common | T], Acc) when is_list(Common) ->
+    Shrinked = shrink_lines(Common),
+    shrink(T, [Shrinked | Acc]);
+shrink([Other | T], Acc) ->
+    shrink(T, [Other | Acc]);
+shrink([], Acc) ->
+    lists:reverse(Acc).
