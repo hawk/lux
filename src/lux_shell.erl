@@ -1131,7 +1131,7 @@ named_regexps([], _N, Acc) ->
     lists:reverse(Acc).
 
 add_skip(expect_add, [First|Rest]) ->
-    AnyChar = <<"(.|\\R)*">>,
+    AnyChar = <<"(.|\\R)*?">>,
     [First, [[AnyChar, R] || R <- Rest]];
 add_skip(_PreExpected, Perms) ->
     Perms.
