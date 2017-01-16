@@ -1,0 +1,33 @@
+[doc Test big]
+
+[global file=gobig.txt]
+[global n=10000]
+
+[shell create]
+    -error
+    !rm -f $file
+    ?SH-PROMPT:
+
+    [loop i 1..$n]
+        !/bin/echo -n 1234567890 >> $file
+        ?SH-PROMPT:
+    [endloop]
+    !wc $file
+    """?
+    wc.*
+    \s+\S+\s+\S+\s+(\S+)\s+\S+
+    SH-PROMPT:
+    """
+    [progress $1 bytes]
+
+[shell test]
+    -error
+    !echo `cat $file`
+    [loop i 1..$n]
+        ?1234567890
+    [endloop]
+    ?SH-PROMPT:
+
+[cleanup]
+     !rm -f $file
+     ?SH-PROMPT:

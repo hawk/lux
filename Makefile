@@ -11,7 +11,7 @@ endif
 
 SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
 
-all install clean: Makefile
+all debug install clean: Makefile
 	@for d in $(SUBDIRS); do         \
 	   if test ! -d $$d ; then        \
 	       echo "=== Skipping subdir $$d" ; \

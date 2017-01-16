@@ -1,4 +1,4 @@
-all:
+all debug:
 	../bin/lux --file_pattern=.delux$$ .
 
 install:

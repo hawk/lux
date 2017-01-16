@@ -5,9 +5,18 @@
 
 include ../include.mk
 
+ifeq ($(DEBUG), true)
+CFLAGS = -g -ggdb -Wall -DDEBUG
+else
+CFLAGS += -O3
+endif
+
 PROG = ../priv/bin/runpty
 
 all: $(PROG)
+
+debug:
+	$(MAKE) DEBUG=true
 
 $(PROG): runpty.c
 	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $<

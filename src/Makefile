@@ -28,7 +28,7 @@ EBIN_FILES=$(ERL_MODULES:%=../ebin/%.$(EMULATOR)) ../ebin/lux.app
 LUXCFG=$(DESTDIR)/lib/lux-$(VSN)/priv/luxcfg
 APP_DIR=$(shell dirname $(PWD))
 
-all: $(EBIN_FILES)
+all debug: $(EBIN_FILES)
 
 $(EBIN_FILES): lux.hrl
 
