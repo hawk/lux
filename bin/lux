@@ -15,11 +15,14 @@
 -define(FILES, "--").
 
 -spec(main([string()]) -> no_return()).
+main(["--make" = Op]) ->
+    ExitCode = make(Op),
+    safe_halt(ExitCode);
 main(OrigArgs) ->
     ensure_lux_app_dir(true),
     LuxAppDir = require_app(undefined, ?APPLICATION),
     OpModes = ["--internal_trace", "--internal_debug", "--event_trace",
-               "--help", "--version", "--install", "--make",
+               "--help", "--version", "--install",
                "--annotate", "--history",
                "--reltool", "--xref", "--markdown"],
     Args  = expand_flags(OrigArgs, OpModes),
@@ -47,7 +50,6 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
                                                    OpModes, Specs, OrigArgs);
         {"--internal_trace", [_]}   -> internal_trace(Op, LuxAppDir, Opts,
                                                       OpModes, Specs, OrigArgs);
-        {"--make", [_]}             -> make(Op, LuxAppDir);
         {"--install", [InstallDir]} -> install(Op, LuxAppDir, InstallDir, Opts);
         {"--reltool", [_]}          -> reltool(Op, LuxAppDir, Opts);
         {"--xref", [_]}             -> xref(Op, LuxAppDir, Opts);
@@ -104,7 +106,6 @@ specs() ->
      {"--internal_debug",     false,       boolean,                none},
      {"--event_trace",        false,       boolean,                none},
      {"--internal_trace",     false,       boolean,                none},
-     {"--make",               false,       boolean,                none},
      {"--install",            "",          string,                 optional},
      {"--install_app",        undefined,   string,                 mandatory},
      {"--install_profile",    standalone,  {enum, profile},        mandatory},
@@ -178,7 +179,8 @@ usage(Specs, LuxAppDir) ->
     do_usage(Specs, LuxAppDir),
     1.
 
-do_usage(Specs, LuxAppDir) ->
+do_usage(Specs0, LuxAppDir) ->
+    Specs = [{"--make", false, boolean, none}] ++ Specs0,
     io:format("usage: ~s [OPTION]... [FILE]...\n", [script_base_name()]),
     P = fun(Atom) -> [H | T] = atom_to_list(Atom), [string:to_upper(H) | T] end,
     PrettyType = fun(Type) ->
@@ -351,9 +353,10 @@ forward_stdout(Port) ->
             forward_stdout(Port)
     end.
 
-make(MainOp, LuxAppDir) ->
+make(MainOp) ->
     io:format("Making ~p...\n", [?APPLICATION]),
     require_app(MainOp, tools),
+    {ok, LuxAppDir} = file:get_cwd(),
     SrcDir = filename:join([LuxAppDir, "src"]),
     EbinDir = filename:join([LuxAppDir, "ebin"]),
     {ok, SrcDir} = {file:set_cwd(SrcDir), SrcDir},
@@ -364,7 +367,23 @@ make(MainOp, LuxAppDir) ->
     io:format("Copy: ~s\n", [filename:basename(DestAppFile)]),
     {{ok, _}, SrcAppFile, DestAppFile} =
         {file:copy(SrcAppFile, DestAppFile), SrcAppFile, DestAppFile},
-    0.
+    ok = file:set_cwd(LuxAppDir),
+    c_compile("gcc -o priv/bin/runpty -g -O2 -Wall c_src/runpty.c").
+
+c_compile(Cmd) ->
+    io:format("Compile: ~s\n", [Cmd]),
+    {Output, Status} = cmd(Cmd),
+    io:format("~s\n", [Output]),
+    case Status of
+        0 -> 0;
+        _ -> 1
+    end.
+
+cmd(Cmd) ->
+    Output = os:cmd(Cmd++"; echo $?"),
+    Tokens = string:tokens(Output, "\n"),
+    [CmdStatus | Rest] = lists:reverse(Tokens),
+    {lists:reverse(Rest), CmdStatus}.
 
 install(MainOp, LuxAppDir, InstallDir, Opts) ->
     InstallProf = reltool_profile(Opts),
@@ -729,7 +748,6 @@ translate_opts([
      {"--internal_debug",     _InternalDebug},
      {"--event_trace",        _EventTrace},
      {"--internal_trace",     _InternalTrace},
-     {"--make",               _Make},
      {"--install",            _InstallDir},
      {"--install_app",        _InstallApp},
      {"--install_profile",    _InstallProfile},
