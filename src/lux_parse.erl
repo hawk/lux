@@ -307,7 +307,8 @@ parse(P, Fd, LineNo, Tokens) ->
 
 parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens) ->
     Token = #cmd{type = comment, lineno = LineNo, orig = OrigLine},
-    parse(P, Fd, LineNo+Incr+1, [Token | Tokens]);
+    NextLineNo = LineNo+Incr+1,
+    parse(P, Fd, NextLineNo, [Token | Tokens]);
 parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
     RunMode = P#pstate.mode,
     {Type, SubType, UnStripped} = parse_oper(P, Fd, LineNo, Line),
@@ -315,20 +316,21 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
                type = Type,
                arg = SubType,
                orig = OrigLine},
+    NextLineNo = LineNo+Incr+1,
     if
         Type =:= meta ->
-            parse_meta(P, Fd, UnStripped, Cmd, Tokens);
+            parse_meta(P, Fd, Incr, UnStripped, Cmd, Tokens);
         Type =:= multi ->
-            parse_multi(P, Fd, UnStripped, Cmd, Tokens);
+            parse_multi(P, Fd, Incr, UnStripped, Cmd, Tokens);
         RunMode =:= validate;
         RunMode =:= execute ->
             Cmd2 = parse_single(Cmd, UnStripped),
-            parse(P, Fd, LineNo+Incr+1, [Cmd2 | Tokens]);
+            parse(P, Fd, NextLineNo, [Cmd2 | Tokens]);
         RunMode =:= list;
         RunMode =:= list_dir;
         RunMode =:= doc ->
             %% Skip command
-            parse(P, Fd, LineNo+Incr+1, Tokens)
+            parse(P, Fd, NextLineNo, Tokens)
     end.
 
 parse_oper(P, Fd, LineNo, OrigLine) ->
@@ -403,7 +405,7 @@ parse_var(P, Fd, Cmd, Scope, String) ->
                          " variable "," '", String, "'"])
     end.
 
-parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+parse_meta(P, Fd, NextIncr, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
     Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
     P2 =
         if
@@ -419,13 +421,13 @@ parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
             {NewP, NewFd, NewLineNo, NewCmd} =
                 case MetaCmd#cmd.type of
                     macro ->
-                        parse_body(P3, Fd, MetaCmd, "endmacro", LineNo);
+                        parse_body(P3, Fd, NextIncr, MetaCmd, "endmacro");
                     loop ->
-                        parse_body(P3, Fd, MetaCmd, "endloop", LineNo);
+                        parse_body(P3, Fd, NextIncr, MetaCmd, "endloop");
                     doc ->
-                        parse_doc(P3, Fd, MetaCmd, LineNo);
+                        parse_doc(P3, Fd, NextIncr, MetaCmd);
                     _ ->
-                        {P3, Fd, LineNo, MetaCmd}
+                        {P3, Fd, LineNo+NextIncr, MetaCmd}
                 end,
             RunMode = NewP#pstate.mode,
             NewType = NewCmd#cmd.type,
@@ -455,13 +457,13 @@ parse_meta(P, Fd, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                          ": ']' is expected to be at end of line"])
     end.
 
-parse_doc(P, Fd, #cmd{arg = {_Level, Suffix, <<>>}} = Cmd, LineNo) ->
+parse_doc(P, Fd, NextIncr, #cmd{arg = {_Level, Suffix, <<>>}} = Cmd) ->
     %% Multi line
     EndKeyword = "enddoc" ++ Suffix,
-    parse_body(P, Fd, Cmd, EndKeyword, LineNo);
-parse_doc(P, Fd, #cmd{arg = {Level, _Suffix, Doc}} = Cmd, LineNo) ->
+    parse_body(P, Fd, NextIncr, Cmd, EndKeyword);
+parse_doc(P, Fd, NextIncr, #cmd{arg = {Level, _Suffix, Doc}} = Cmd) ->
     %% Single line
-    {P, Fd, LineNo, Cmd#cmd{arg = [{Level, Doc}]}}.
+    {P, Fd, Cmd#cmd.lineno+NextIncr, Cmd#cmd{arg = [{Level, Doc}]}}.
 
 parse_multi_doc(Level, UnStripped) ->
     Stripped = [?l2b(string:strip(?b2l(Line))) || Line <- UnStripped],
@@ -484,9 +486,9 @@ parse_multi_doc(Level, UnStripped) ->
 
 parse_body(#pstate{mode = RunMode} = P,
            Fd,
-           #cmd{type = Type, arg = Arg} = Cmd,
-           EndKeyword,
-           LineNo) ->
+           NextIncr,
+           #cmd{type = Type, arg = Arg, lineno = LineNo} = Cmd,
+           EndKeyword) ->
     {ok, MP} = re:compile("^[\s\t]*\\[" ++ EndKeyword ++ "\\]"),
     Pred = fun(L) -> re:run(L, MP, [{capture, none}]) =:= nomatch end,
     {FdAfter, BodyLines0} = file_takewhile(Fd, Pred, []),
@@ -501,7 +503,7 @@ parse_body(#pstate{mode = RunMode} = P,
           when Type =:= doc ->
             %% Do not parse body
             BodyLen = length(BodyLines)+BodyIncr,
-            LastLineNo = LineNo+Incr+BodyLen+1,
+            LastLineNo = LineNo+NextIncr+Incr+BodyLen+1,
             {Level, _Suffix, _EmptyDoc} = Arg,
             case parse_multi_doc(Level, BodyLines) of
                 {ok, MultiDoc} ->
@@ -522,7 +524,7 @@ parse_body(#pstate{mode = RunMode} = P,
                RunMode =:= doc ->
             %% Do not parse body
             BodyLen = length(BodyLines)+BodyIncr,
-            LastLineNo = LineNo+Incr+BodyLen+1,
+            LastLineNo = LineNo+NextIncr+Incr+BodyLen+1,
             {P, NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
         {line, _EndMacro, NewFd, Incr}
           when RunMode =:= validate;
@@ -532,7 +534,7 @@ parse_body(#pstate{mode = RunMode} = P,
             FdBody = file_open(BodyLines),
             {P2, eof, RevBodyCmds} = parse(P, FdBody, LineNo+Incr+1, []),
             BodyCmds = lists:reverse(RevBodyCmds),
-            LastLineNo = LineNo+Incr+BodyLen+1,
+            LastLineNo = LineNo+NextIncr+Incr+BodyLen+1,
             {body, Tag, Name, Items} = Arg,
             Arg2 = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
             {P2, NewFd, LastLineNo, Cmd#cmd{arg = Arg2}}
@@ -820,16 +822,16 @@ split_invoke_args(P, Fd, LineNo, [H | T], quoted = Mode, Arg, Args) ->
             split_invoke_args(P, Fd, LineNo, T, Mode, [Char | Arg], Args)
     end.
 
-parse_multi(P, Fd, <<>>,
+parse_multi(P, Fd, _NextIncr, <<>>,
             #cmd{lineno = LineNo}, _Tokens) ->
     parse_error(P, Fd, LineNo,
                 ["Syntax error at line ", ?i2l(LineNo),
                  ": '\"\"\"' command expected"]);
-parse_multi(#pstate{mode = RunMode} = P, Fd, Chars,
+parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
             #cmd{lineno = LineNo, orig = OrigLine} = Cmd, Tokens) ->
     PrefixLen = count_prefix_len(?b2l(OrigLine), 0),
     {P2, RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
-        scan_multi(P, Fd, Cmd, PrefixLen, [], 0),
+        scan_multi(P, Fd, Cmd, PrefixLen, [], NextIncr),
     LastLineNo0 = LineNo+MultiIncr+length(RevBefore)+1,
     case file_next_wrapper(FdAfter) of
         eof = NewFd ->
