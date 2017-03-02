@@ -16,6 +16,7 @@
 
 -record(rstate,
         {files                      :: [string()],
+         orig_files                 :: [string()],
          orig_args                  :: [string()],
          mode = execute             :: lux:run_mode(),
          skip_skip = false          :: boolean(),
@@ -59,6 +60,7 @@
 run(Files, Opts, OrigArgs) when is_list(Files) ->
     SuiteStartTime = lux_utils:timestamp(),
     R0 = #rstate{files = Files,
+                 orig_files = Files,
                  orig_args = OrigArgs,
                  start_time = SuiteStartTime},
     case parse_ropts(Opts, R0) of
@@ -68,8 +70,21 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                R#rstate.mode =:= doc ->
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
-            R2 = compute_files(R, LogDir, LogBase),
-            doc_run(R2);
+            try
+                R2 = compute_files(R, LogDir, LogBase),
+                doc_run(R2)
+            catch
+                throw:{error, FileErr, Reason} ->
+                    {error, FileErr, Reason};
+                Class:Reason ->
+                    ReasonStr =
+                        lists:flatten(io_lib:format("~p:~p ~p",
+                                                    [Class,
+                                                     Reason,
+                                                     erlang:get_stacktrace()])),
+                    {ok, Cwd} = file:get_cwd(),
+                    {error, Cwd, ReasonStr}
+            end;
         {ok, R, UserLogDir} ->
             TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
@@ -81,6 +96,9 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                 R4 = ensure_log_dir(R3, SummaryLog, UserLogDir),
                 full_run(R4, ConfigData, SummaryLog)
             catch
+                throw:{error, undefined, no_input_files} ->
+                    {ok, Cwd} = file:get_cwd(),
+                    {error, Cwd, "ERROR: No input files\n"};
                 throw:{error, FileErr, ReasonStr} ->
                     {error, FileErr, ReasonStr};
                 Class:Reason ->
@@ -105,14 +123,9 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
 
 doc_run(R) ->
     R2 = R#rstate{log_fd = undefined, summary_log = undefined},
-    try
-        {_ConfigData, R3} = parse_config(R2),
-        {R4, Summary, Results} = run_suite(R3, R3#rstate.files, success, []),
-        write_results(R4, Summary, Results)
-    catch
-        throw:{error, MainFile, ErrorBin} ->
-            {error, MainFile, ErrorBin}
-    end.
+    {_ConfigData, R3} = parse_config(R2),  % May throw error
+    {R4, Summary, Results} = run_suite(R3, R3#rstate.files, success, []),
+    write_results(R4, Summary, Results).
 
 run_suite(R0, SuiteFiles, OldSummary, Results) ->
     {Scripts, Max} = expand_suite(R0,  SuiteFiles, [], 0),
@@ -305,6 +318,10 @@ annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
             {ok, Summary, SummaryLog, Results}
     end.
 
+compute_files(R, _LogDir, _LogBase) when R#rstate.files =:= [],
+                                         R#rstate.orig_files =:= [],
+                                         R#rstate.rerun =:= disable ->
+    throw_error(undefined, no_input_files);
 compute_files(R, _LogDir, _LogBase) when R#rstate.rerun =:= disable ->
     R;
 compute_files(R, _LogDir, LogBase) when R#rstate.files =/= [] ->
@@ -486,20 +503,13 @@ ensure_log_dir(R, SummaryLog, UserLogDir) ->
             AbsFiles = [lux_utils:normalize(F) || F <- RelFiles],
             R#rstate{files = AbsFiles};
         summary_log_exists ->
-            throw({error,
-                   AbsLogDir,
-                   lux_log:safe_format(undefined,
-                                       "ERROR: Summary log file already exists:"
-                                       " ~s\n",
-                                       [SummaryLog])});
+            throw_error(AbsLogDir,
+                        "ERROR: Summary log file already exists: ~s\n",
+                        [SummaryLog]);
         {error, FileReason} ->
-            throw({error,
-                   AbsLogDir,
-                   lux_log:safe_format(undefined,
-                                       "ERROR: Failed to create log directory:"
-                                       " ~s -> ~s\n",
-                                       [AbsLogDir,
-                                        file:format_error(FileReason)])})
+            throw_error(AbsLogDir,
+                        "ERROR: Failed to create log directory: ~s -> ~s\n",
+                        [AbsLogDir, file:format_error(FileReason)])
     end.
 
 opt_create_latest_link(undefined, AbsLogDir) ->
@@ -531,7 +541,7 @@ check_file({Tag, File}) ->
                                            [Tag,
                                             File,
                                             file:format_error(enoent)]),
-                    throw({error, File, BinErr})
+                    throw_error(File, BinErr)
             end;
         file ->
             case filelib:is_file(File) of
@@ -541,7 +551,7 @@ check_file({Tag, File}) ->
                     BinErr = io_lib:format("~s: ~s \n",
                                            [File,
                                             file:format_error(enoent)]),
-                    throw({error, File, BinErr})
+                    throw_error(File, BinErr)
             end
     end.
 
@@ -982,7 +992,7 @@ parse_config_file(R, AbsConfigFile) ->
                     #cmd_pos{rev_file = MainFile,
                              type = ErrorBin2} =
                         stack_error(ErrorStack, ErrorBin),
-                    throw({error, MainFile, ErrorBin2})
+                    throw_error(MainFile, ErrorBin2)
             end
     end.
 
@@ -1351,3 +1361,10 @@ tap_case_end(#rstate{}, _CaseCount, _Script,
              _Result, _FullLineNo,
              _Reason, _Details) ->
     ok.
+
+throw_error(File, Reason) ->
+    throw({error, File, Reason}).
+
+throw_error(File, Format, Args) ->
+    throw_error(File,
+                lux_log:safe_format(undefined, Format, Args)).

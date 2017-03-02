@@ -25,6 +25,7 @@
 -type warning()  :: {warning, filename(), lineno(), string()}.
 -type skip()     :: {skip, filename(), string()}.
 -type error()    :: {error, filename(), string()}.
+-type no_input() :: {error, undefined, no_input_files}.
 -type result()   :: {ok, filename(), summary(), lineno(), [warning()]}.
 -type run_mode() :: list | list_dir | doc | validate | execute.
 
@@ -34,7 +35,7 @@
 %% Run a test suite
 
 -spec(run(filename(), opts(), [string()]) ->
-             {ok, summary(), filename(), [result()]} | error()).
+             {ok, summary(), filename(), [result()]} | error() | no_input()).
 
 run(File, Opts, OrigArgs) ->
     lux_suite:run(File, Opts, OrigArgs).

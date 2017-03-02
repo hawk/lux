@@ -713,6 +713,8 @@ run(Opts, OrigArgs) ->
             ok;
         {ok, Summary, _SummaryLog, _Results} -> % LUX
             ok;
+        {error, undefined, no_input_files} ->
+            Summary = error;
         {error, File, ReasonBin} ->
             io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
             Summary = error
