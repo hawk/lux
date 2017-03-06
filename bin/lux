@@ -1026,13 +1026,7 @@ safe_halt(RetCode) ->
     User = whereis(user),
     CloseStdout = fun(P) -> safe_port_close(P, connected, User, 0) end,
     lists:foreach(CloseStdout, Ports),
-    if RetCode =:= 0 -> ok; true -> timer:sleep(500) end,
-    try
-        erlang:halt(RetCode, [{flush,false}]) % Introduced in R16
-    catch
-        _:_ ->
-            erlang:halt(RetCode) % Backwards compat
-    end.
+    erlang:halt(RetCode).
 
 safe_port_close(Port, Item, Val, Timeout) ->
     case erlang:port_info(Port, Item) of
