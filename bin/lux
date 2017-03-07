@@ -1047,27 +1047,41 @@ fatal_error(RetCode, Format, Args) ->
     safe_halt(RetCode).
 
 safe_halt(RetCode) ->
-    Ports = erlang:ports(),
-    CloseStderr = fun(P) -> safe_port_close(P, name, "2/2", 300) end,
-    lists:foreach(CloseStderr, Ports),
     error_logger:tty(false),
-    User = whereis(user),
-    CloseStdout = fun(P) -> safe_port_close(P, connected, User, 0) end,
-    lists:foreach(CloseStdout, Ports),
-    erlang:halt(RetCode).
 
-safe_port_close(Port, Item, Val, Timeout) ->
+    Ports = erlang:ports(),
+    Timeout = timer:seconds(10),
+    CloseStderr =
+        fun(P, RC) -> safe_port_close(P, name, "2/2", RC, Timeout) end,
+    TmpRetCode = lists:foldl(CloseStderr, RetCode, Ports),
+
+    User = whereis(user),
+    CloseStdout =
+        fun(P, RC) -> safe_port_close(P, connected, User, RC, Timeout) end,
+    SafeRetCode = lists:foldl(CloseStdout, TmpRetCode, Ports),
+
+    if SafeRetCode =:= 0 -> ok; true -> timer:sleep(500) end,
+
+    try
+        erlang:halt(SafeRetCode, [{flush,false}]) % Introduced in OTP R16
+    catch
+        _:_ ->
+            erlang:halt(SafeRetCode) % May hang in some older OTP releases...
+    end.
+
+safe_port_close(Port, Item, Val, RetCode, Timeout) ->
     case erlang:port_info(Port, Item) of
         {Item, Val} ->
             erlang:port_connect(Port, self()),
             Port ! {self(), close},
             receive
-                {Port, closed} -> ok
+                {Port, closed} ->
+                    RetCode
             after Timeout ->
-                    ok
+                    5
             end;
         _ ->
-            ok
+            RetCode
     end.
 
 require_app(MainOp, AppName) ->
