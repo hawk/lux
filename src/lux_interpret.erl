@@ -157,10 +157,10 @@ loop(I) ->
             ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
                  [I#istate.active_name,
                   (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
-            io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
-                      [Unexpected]),
-            io:format("\nDEBUG(~p):\n\t~p\n",
-                      [?LINE, process_info(self(), messages)]),
+         io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
+                   [Unexpected]),
+         io:format("\nDEBUG(~p):\n\t~p\n",
+                   [?LINE, process_info(self(), messages)]),
             loop(I)
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
