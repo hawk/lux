@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.15.2 - 2017-03-06
+Version 1.16 - 2017-03-17
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1428,6 +1428,7 @@ Contributors:
 * Jan Lindblad (implemented a predecessor to Lux, called Qmscript, as a Python plugin to QMTest)
 * Sebastian Strollo (runpty)
 * Martin Björklund (Emacs mode)
+* Johan Bevemyr (LCS diff)
 <a name="references"/>
 
 References
