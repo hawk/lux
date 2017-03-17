@@ -157,10 +157,10 @@ loop(I) ->
             ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
                  [I#istate.active_name,
                   (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
-         io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
-                   [Unexpected]),
-         io:format("\nDEBUG(~p):\n\t~p\n",
-                   [?LINE, process_info(self(), messages)]),
+             %% io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
+             %%           [Unexpected]),
+             %% io:format("\nDEBUG(~p):\n\t~p\n",
+             %%        [?LINE, process_info(self(), messages)]),
             loop(I)
     after multiply(I, Timeout) ->
             I2 = opt_dispatch_cmd(I),
@@ -1046,13 +1046,13 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout) ->
             ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
                  [I#istate.active_name,
                   (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
-            io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
-                      [Unexpected]),
-            io:format("DEBUG(~p): ~p ~p\n\t~p\n\t~p\n\t~p\n",
-                      [?LINE, Expect, [Pid|Pids],
-                       process_info(self(), messages),
-                       process_info(Pid, messages),
-                       process_info(Pid, current_stacktrace)]),
+            %% io:format("\nINTERNAL LUX ERROR: Interpreter got: ~p\n",
+            %%           [Unexpected]),
+            %% io:format("DEBUG(~p): ~p ~p\n\t~p\n\t~p\n\t~p\n",
+            %%           [?LINE, Expect, [Pid|Pids],
+            %%            process_info(self(), messages),
+            %%            process_info(Pid, messages),
+            %%            process_info(Pid, current_stacktrace)]),
             wait_for_reply(I, [Pid|Pids], Expect, Fun, FlushTimeout)
     after FlushTimeout ->
             I
