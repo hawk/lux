@@ -10,9 +10,11 @@
          builtin_vars/0, system_vars/0, expand_vars/3,
          test_var/2, split_var/2,
          summary/2, summary_prio/1,
-         multiply/2, drop_prefix/1, drop_prefix/2, normalize/1,
+         multiply/2, drop_prefix/1, drop_prefix/2,
+         replace/2,
+         normalize_filename/1, normalize_newlines/1, normalize_match_regexp/1,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
-         normalize_newlines/1, expand_lines/1, split_lines/1, shrink_lines/1,
+         expand_lines/1, split_lines/1, shrink_lines/1,
          to_string/1, capitalize/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
          pretty_full_lineno/1, pretty_filename/1, filename_split/1,
@@ -249,12 +251,12 @@ do_drop_prefix([], Rest, _OrigFile) ->
 do_drop_prefix(_Prefix, _Rest, OrigFile) ->
     filename:join(OrigFile).
 
-normalize(File) when is_binary(File) ->
-    ?l2b(normalize(binary_to_list(File)));
-normalize(File) ->
-    do_normalize(filename:split(filename:absname(File)), []).
+normalize_filename(File) when is_binary(File) ->
+    ?l2b(normalize_filename(binary_to_list(File)));
+normalize_filename(File) ->
+    do_normalize_filename(filename:split(filename:absname(File)), []).
 
-do_normalize([H|T], Acc) ->
+do_normalize_filename([H|T], Acc) ->
     Acc2 =
         case H of
             "."                  -> Acc;
@@ -262,8 +264,8 @@ do_normalize([H|T], Acc) ->
             ".."                 -> tl(Acc);
             _                    -> [H|Acc]
         end,
-    do_normalize(T, Acc2);
-do_normalize([], Acc) ->
+    do_normalize_filename(T, Acc2);
+do_normalize_filename([], Acc) ->
     filename:join(lists:reverse(Acc)).
 
 strip_leading_whitespaces(Bin) when is_binary(Bin) ->
@@ -522,12 +524,6 @@ verbatim_collect2(_Actual, _Expected, _Orig, _Base, _Pos, _Len) ->
     %% No match
     nomatch.
 
-normalize_newlines(IoList) ->
-    normalize_newlines(IoList, <<"\\\\R">>).
-
-normalize_newlines(IoList, To) ->
-    re:replace(IoList, <<"(\r\n|\r|\n)">>, To, [global, {return, binary}]).
-
 expand_lines([] = Line) ->
     Line;
 expand_lines([_] = Line) ->
@@ -536,11 +532,38 @@ expand_lines([Line | Lines]) ->
     [Line, "\n", expand_lines(Lines)].
 
 split_lines(IoList) ->
-    split_lines(IoList, <<"\\\\R">>).
+    Normalized = normalize_newlines(IoList),
+    binary:split(Normalized, <<"\n">>, [global]).
 
-split_lines(IoList, To) ->
-    Normalized = normalize_newlines(IoList, To),
-    binary:split(Normalized, To, [global]).
+normalize_newlines(IoList) ->
+    replace(?l2b(IoList), [{crlf, <<"\n">>}]).
+
+normalize_match_regexp(IoList) ->
+    replace(?l2b(IoList), [{crlf, <<"\\R">>}]).
+
+replace(Bin, [Transform|Rest]) when is_binary(Bin) ->
+    Bin2 =
+        case Transform of
+            List when is_list(List) ->
+                replace(Bin, List);
+            Fun when is_function(Fun, 1) ->
+                Fun(Bin);
+            crlf ->
+                replace(Bin, [{crlf, <<"\n">>} | Rest]);
+            {crlf, To} ->
+                From = [<<"\\R">>, <<"\r\n">>, <<"\r">>, <<"\n">>],
+                replace(Bin, [{F, To} || F <- From]);
+            quoted_crlf ->
+                replace(Bin, [{quoted_crlf, <<"\\R">>} | Rest]);
+            {quoted_crlf, To} ->
+                From = [<<"\\\\R">>, <<"\\r\\n">>, <<"\\r">>, <<"\\n">>],
+                replace(Bin, [{F, To} || F <- From]);
+            {From, To} ->
+                binary:replace(Bin, From, To, [global])
+        end,
+    replace(Bin2, Rest);
+replace(Bin, []) when is_binary(Bin) ->
+    Bin.
 
 shrink_lines(Lines) ->
     case Lines of
@@ -611,33 +634,33 @@ diff(Old, New) ->
 equal(Expected, Expected) ->
     match;
 equal(Expected0, Actual) when is_binary(Expected0); is_list(Expected0) ->
-    Expected = normalize_regexp(Expected0),
+    Expected = normalize_diff_regexp(Expected0),
     try
         re:run(Actual, Expected,[{capture, none}, notempty])
     catch _:_ ->
             nomatch
     end.
 
-normalize_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
+normalize_diff_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
   when Prefix =/= <<"^">> ->
-    normalize_regexp(<<"^", RegExp/binary>>);
-normalize_regexp(RegExp) when is_binary(RegExp) ->
+    normalize_diff_regexp(<<"^", RegExp/binary>>);
+normalize_diff_regexp(RegExp) when is_binary(RegExp) ->
     Size = byte_size(RegExp)-1,
     case RegExp of
         <<_:Size/binary, "$">> ->
             RegExp;
         _ ->
-            normalize_regexp(<<RegExp/binary, "$">>)
+            normalize_diff_regexp(<<RegExp/binary, "$">>)
     end;
-normalize_regexp([Prefix|RegExp])
+normalize_diff_regexp([Prefix|RegExp])
   when Prefix =/= $^ ->
-    normalize_regexp([$^|RegExp]);
-normalize_regexp(RegExp) when is_list(RegExp) ->
+    normalize_diff_regexp([$^|RegExp]);
+normalize_diff_regexp(RegExp) when is_list(RegExp) ->
     case lists:last(RegExp) of
         $\$ ->
             RegExp;
         _ ->
-            normalize_regexp(RegExp++"$")
+            normalize_diff_regexp(RegExp++"$")
     end.
 
 -type elem() :: binary() | char().
@@ -712,8 +735,7 @@ shrink_diff(Old, New) when is_binary(Old), is_binary(New) ->
                     end,
                 [Prefix, Bin, "\n"]
         end,
-    Diff = diff(split_lines(Old, <<"\n">>),
-                split_lines(New, <<"\n">>)),
+    Diff = diff(split_lines(Old), split_lines(New)),
     ShrinkedDiff = shrink(Diff, []),
     Expanded = lux_diff:split_diff(ShrinkedDiff),
     iolist_to_binary(lists:map(ToIoList, Expanded)).

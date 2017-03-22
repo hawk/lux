@@ -74,7 +74,7 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     end.
 
 default_istate(File) ->
-    #istate{file = lux_utils:normalize(File),
+    #istate{file = lux_utils:normalize_filename(File),
             log_fun = fun(Bin) -> console_write(?b2l(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),
@@ -176,12 +176,12 @@ do_parse_iopts(I, [{Name, Val} | T], U) when is_atom(Name) ->
             Res
     end;
 do_parse_iopts(I, [], U) ->
-    File = lux_utils:normalize(I#istate.file),
+    File = lux_utils:normalize_filename(I#istate.file),
     case I#istate.shell_wrapper of
         "" -> ShellWrapper = undefined;
         ShellWrapper -> ok
     end,
-    SuiteLogDir = lux_utils:normalize(I#istate.suite_log_dir),
+    SuiteLogDir = lux_utils:normalize_filename(I#istate.suite_log_dir),
     I2 = I#istate{file = File,
                   orig_file = File,
                   shell_wrapper = ShellWrapper,

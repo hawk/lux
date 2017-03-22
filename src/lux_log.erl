@@ -558,7 +558,7 @@ open_event_log(LogDir, Script, Progress, LogFun, Verbose)
             safe_format(Progress, LogFun, {Verbose, EventFd},
                         "~s~s\n", [?TAG(?EVENT_TAG), ?EVENT_LOG_VERSION]),
             safe_format(Progress, LogFun, {Verbose, EventFd},
-                        "\n~s\n\n", [lux_utils:normalize(Script)]),
+                        "\n~s\n\n", [lux_utils:normalize_filename(Script)]),
             {ok, EventLog, EventFd};
         {error, Reason} ->
             {error, Reason}
@@ -572,7 +572,8 @@ write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, "", []}) ->
     safe_write(Progress, LogFun, Fd, Data);
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
     Data = io_lib:format(Fmt, Args),
-    Data2 = lux_utils:normalize_newlines(Data),
+%% ??   Data2 = lux_utils:normalize_match_regexp(Data),
+    Data2 = Data,
     Data3 = io_lib:format("~s(~p): ~p ~s\n", [Shell, LineNo, Op, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
 
@@ -645,7 +646,7 @@ do_parse_events([Event | Events], Acc) ->
                 case unquote(Contents) of
                     {quote, C} ->
                         %% cli(26): recv "echo ==$?==\r\n==0==\r\n$ "
-                        split_lines(C);
+                        split_quoted_lines(C);
                     {plain, C} ->
                         %% cli(70): timer start (10 seconds)
                         [C]
@@ -909,9 +910,9 @@ parse_result(RawResult) ->
                             end
                     end,
                 {quote, Expected2} = unquote(Expected),
-                Expected3 = split_lines(Expected2),
+                Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
-                Details3 = split_lines(Details2),
+                Details3 = split_quoted_lines(Details2),
                 {warning, RawLineNo, Expected3, Actual, Details3};
             <<"FAIL at ", Fail/binary>> ->
                 [<<"expected">>, Expected,
@@ -930,9 +931,9 @@ parse_result(RawResult) ->
                             end
                     end,
                 {quote, Expected2} = unquote(Expected),
-                Expected3 = split_lines(Expected2),
+                Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
-                Details3 = split_lines(Details2),
+                Details3 = split_quoted_lines(Details2),
                 {fail, RawLineNo, Expected3, Actual, Details3};
             <<"FAIL as ", _/binary>> = Fail->
                 {error, [Fail]}
@@ -940,30 +941,9 @@ parse_result(RawResult) ->
     %% io:format("Result: ~p\n", [R]),
     {result, R}.
 
-normalize_newlines(IoList) ->
-    re:replace(IoList, <<"(\\\\r\\\\n|\\\\r|\\\\n)">>, <<"\\\\n">>,
-               [global, {return, binary}]).
-
-split_lines(IoList) ->
-    Normalized = normalize_newlines(IoList),
-    Lines = binary:split(Normalized, <<"\\n">>, [global]),
-    join_lines(Lines, []).
-
-join_lines([H | T], Acc) ->
-    Sz = byte_size(H)-1,
-    case H of
-        <<_:Sz/binary, "\\">> ->
-            case T of
-                [H2 | T2] ->
-                    join_lines(T2, [<<H/binary, "\\n", H2/binary>> | Acc]);
-                 [] ->
-                    join_lines(T, [H | Acc])
-            end;
-        _ ->
-            join_lines(T, [H | Acc])
-    end;
-join_lines([], Acc) ->
-    lists:reverse(Acc).
+split_quoted_lines(IoList) ->
+    Normalized = lux_utils:replace(?l2b(IoList), [{quoted_crlf, <<"\n">>}]),
+    lux_utils:split_lines(Normalized).
 
 unquote(Bin) ->
     Quote = <<"\"">>,

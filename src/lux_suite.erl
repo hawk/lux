@@ -421,7 +421,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{progress = Val,
                                     user_args = UserArgs});
         config_dir when is_list(Val) ->
-            parse_ropts(T, R#rstate{config_dir = lux_utils:normalize(Val)});
+            parse_ropts(T, R#rstate{config_dir = lux_utils:normalize_filename(Val)});
         config_name when is_list(Val) ->
             parse_ropts(T, R#rstate{config_name = Val});
         suite when is_list(Val) ->
@@ -478,7 +478,7 @@ adjust_log_dir(R, UserLogDir) ->
             undefined -> filename:join(["lux_logs", UniqRun]);
             LogDir    -> LogDir
         end,
-    AbsLogDir0 = lux_utils:normalize(RelLogDir),
+    AbsLogDir0 = lux_utils:normalize_filename(RelLogDir),
     AbsLogDir =
         if
             UserLogDir =:= undefined, R#rstate.extend_run ->
@@ -487,7 +487,7 @@ adjust_log_dir(R, UserLogDir) ->
                 case file:read_link(Link0) of
                     {ok, LinkTo} ->
                         %% Reuse old log dir
-                        lux_utils:normalize(
+                        lux_utils:normalize_filename(
                           filename:join([ParentDir0, LinkTo]));
                     {error, _} ->
                         AbsLogDir0
@@ -509,7 +509,7 @@ ensure_log_dir(R, SummaryLog, UserLogDir) ->
     case opt_ensure_dir(R#rstate.extend_run, SummaryLog) of
         ok ->
             opt_create_latest_link(UserLogDir, AbsLogDir),
-            AbsFiles = [lux_utils:normalize(F) || F <- RelFiles],
+            AbsFiles = [lux_utils:normalize_filename(F) || F <- RelFiles],
             R#rstate{files = AbsFiles};
         summary_log_exists ->
             throw_error(AbsLogDir,
@@ -872,7 +872,11 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
 
 parse_script(R, _SuiteFile, Script) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
-    case lux:parse_file(Script, R#rstate.mode, R#rstate.skip_skip, true,Opts0) of
+    case lux:parse_file(Script,
+                        R#rstate.mode,
+                        R#rstate.skip_skip,
+                        true,
+                        Opts0) of
         {ok, Script2, Cmds, FileOpts, NewWarnings} ->
             FileArgs = opts_to_args(FileOpts, R#rstate.file_args),
             R2 = R#rstate{internal_args = [],
@@ -902,7 +906,7 @@ parse_config(R) ->
     %% Default opts
     DefaultBase = "luxcfg",
     PrivDir = code:lib_dir(?APPLICATION, priv),
-    DefaultDir = lux_utils:normalize(PrivDir),
+    DefaultDir = lux_utils:normalize_filename(PrivDir),
     DefaultFile = filename:join([DefaultDir, DefaultBase]),
     {DefaultOpts, DefaultWarnings} = parse_config_file(R, DefaultFile),
     DefaultArgs = opts_to_args(DefaultOpts, []),
@@ -913,7 +917,7 @@ parse_config(R) ->
         undefined    -> RelConfigDir = PrivDir;
         RelConfigDir -> ok
     end,
-    AbsConfigDir = lux_utils:normalize(RelConfigDir),
+    AbsConfigDir = lux_utils:normalize_filename(RelConfigDir),
     check_file({config_dir, AbsConfigDir}),
 
     %% Arch spec opts
@@ -986,7 +990,7 @@ parse_config_file(R, AbsConfigFile) ->
                     {_, Dir} ->
                         Top = filename:dirname(AbsConfigFile),
                         Dir2 = filename:absname(Dir, Top),
-                        Dir3 = lux_utils:normalize(Dir2),
+                        Dir3 = lux_utils:normalize_filename(Dir2),
                         lists:keystore(Key, 1, UpdatedOpts, {Key, Dir3})
                 end,
             {lists:keydelete(log_dir, 1, Opts2), NewWarnings};

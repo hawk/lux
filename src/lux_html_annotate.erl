@@ -44,8 +44,8 @@ generate(IsRecursive, LogFile, SuiteLogDir, Opts)
             Error
     end.
 
-init_astate(LogFile, SuiteLogDir, Opts) ->
-    AbsLogFile = lux_utils:normalize(LogFile),
+init_astate(LogFile, SuiteLogDir, Opts)                                     ->
+    AbsLogFile = lux_utils:normalize_filename(LogFile),
     LogDir = filename:dirname(AbsLogFile),
     CasePrefix = lux_utils:pick_opt(case_prefix, Opts, ""),
     Html = lux_utils:pick_opt(html, Opts, enable),
@@ -140,7 +140,7 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
      lux_html_utils:html_footer()
     ].
 
-html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
+html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
     %% io:format("Sections: ~p\n", [Sections]),
     ResultString = choose_tmp(IsTmp, "Preliminary ", "Final "),
     PrelScriptSection =
@@ -192,13 +192,13 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
      "</pre></div>"
     ].
 
-choose_tmp(IsTmp, TmpString, String) ->
+choose_tmp(IsTmp, TmpString, String)                                        ->
     case IsTmp of
         true  -> TmpString;
         false -> String
     end.
 
-html_summary_section(A, {section, Slogan, Count, FileBins}, Groups) ->
+html_summary_section(A, {section, Slogan, Count, FileBins}, Groups)         ->
     [
      "<strong>", lux_html_utils:html_quote(Slogan), ": ", Count, "</strong>\n",
      case FileBins of
@@ -232,12 +232,12 @@ html_summary_file(A, {file, FileBin, LineNo}, Groups)
              "\n"]
     end.
 
-html_groups2(A, [{test_group, _Group, Cases} | Groups]) ->
+html_groups2(A, [{test_group, _Group, Cases} | Groups])                     ->
     [
      html_cases(A, Cases),
      html_groups2(A, Groups)
     ];
-html_groups2(_A, []) ->
+html_groups2(_A, [])                                                        ->
     [].
 
 html_cases(A, [{test_case, AbsScript, _Log, Doc, HtmlLog, Res} | Cases])
@@ -279,12 +279,12 @@ html_cases(A, [{result_case, AbsScript, Reason, Details} | Cases])
      "</pre></div>",
      html_cases(A, Cases)
     ];
-html_cases(_A, []) ->
+html_cases(_A, [])                                                          ->
     [].
 
-html_doc(_Tag, []) ->
+html_doc(_Tag, [])                                                          ->
     [];
-html_doc(Tag, [Slogan | Desc]) ->
+html_doc(Tag, [Slogan | Desc])                                              ->
     [
      "\n<", Tag, ">Description: <strong>",
      lux_html_utils:html_quote(Slogan),
@@ -301,7 +301,7 @@ html_doc(Tag, [Slogan | Desc]) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate a lux with events from the log
 
-annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog) ->
+annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog)   ->
     try
         case lux_log:scan_events(EventLog) of
             {ok, EventLog2, ConfigLog,
@@ -353,13 +353,13 @@ pick_event_time(Op, #event{lineno =  0,
                            op = Op,
                            data = [Time]}) ->
     ?b2l(Time);
-pick_event_time(Op, Events = [_|_]) ->
+pick_event_time(Op, Events = [_|_])                                         ->
     case Op of
         <<"start_time">> -> pick_event_time(Op, hd(Events));
         <<"end_time">>   -> pick_event_time(Op, lists:last(Events));
         _                -> pick_event_time(Op, [])
     end;
-pick_event_time(_Op, _Event) ->
+pick_event_time(_Op, _Event)                                                ->
     "unknown".
 
 interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
@@ -537,13 +537,13 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      lux_html_utils:html_footer()
     ].
 
-dotdot(["."], Base) ->
+dotdot(["."], Base)                                                         ->
     Base;
-dotdot(Path, Base) ->
+dotdot(Path, Base)                                                          ->
     DotDots = filename:join([".." || _ <- Path]),
     filename:join([DotDots, Base]).
 
-html_stats(OrigTimers) ->
+html_stats(OrigTimers)                                                      ->
     Timers = strip_timers(OrigTimers, []),
     [
      "<table border=\"0\">\n",
@@ -558,16 +558,16 @@ html_stats(OrigTimers) ->
      "</table>\n"
     ].
 
-strip_timers([T | Timers], Acc) ->
+strip_timers([T | Timers], Acc)                                             ->
     case T#timer.send_lineno =:= T#timer.match_lineno andalso
          not lists:keymember(T#timer.shell, #timer.shell, Acc) of
         true  -> strip_timers(Timers, Acc); % Strip shell start
         false -> strip_timers(Timers, [T | Acc])
     end;
-strip_timers([], Acc) ->
+strip_timers([], Acc)                                                       ->
     lists:reverse(Acc).
 
-html_timers(Pos, Label, Timers, _OrigTimers) ->
+html_timers(Pos, Label, Timers, _OrigTimers)                                ->
     SplitTimers = keysplit(Pos, Timers),
     Calc = fun({Tag, List}) ->
                    Sum = lists:sum([E || #timer{elapsed_time = E,
@@ -649,7 +649,7 @@ html_timers(Pos, Label, Timers, _OrigTimers) ->
      "</table>\n\n"
     ].
 
-html_result(Tag, {result, Result}, HtmlLog) ->
+html_result(Tag, {result, Result}, HtmlLog)                                 ->
     case Result of
         success ->
             ["\n<", Tag, ">Result: <strong>SUCCESS</strong></", Tag, ">\n"];
@@ -675,8 +675,8 @@ html_result(Tag, {result, Result}, HtmlLog) ->
             ];
         {How, RawLineNo, Expected, Actual, Details}
           when How =:= fail; How =:= warning ->
-            Anchor = RawLineNo,
             HtmlDiff = html_diff(Expected, Details),
+            Anchor = RawLineNo,
             [
              "\n<", Tag, ">Result: <strong>",
              lux_html_utils:html_href([HtmlLog, "#failed"], "FAILED"),
@@ -756,10 +756,10 @@ nested_emit(Op, [NestedOp | Rest], Acc) ->
             NewAcc = [Acc, lux_html_utils:html_quote(Common)],
             nested_emit(Op, Rest, NewAcc);
         {del, Del} when Op =:= del ->
-            NewAcc = [Acc, tag(<<"u">>, lux_html_utils:html_quote(Del))],
+            NewAcc = [Acc, tag(<<"mark">>, lux_html_utils:html_quote(Del))],
             nested_emit(Op, Rest, NewAcc);
         {add, Add} when Op =:= add ->
-            NewAcc = [Acc, tag(<<"u">>, lux_html_utils:html_quote(Add))],
+            NewAcc = [Acc, tag(<<"mark">>, lux_html_utils:html_quote(Add))],
             nested_emit(Op, Rest, NewAcc);
         {replace, Del, Add} ->
             nested_emit(Op, [{del, Del}, {add, Add} | Rest], Acc);

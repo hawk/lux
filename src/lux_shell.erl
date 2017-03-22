@@ -331,7 +331,8 @@ switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
             Loop = hd(LoopStack),
             LoopCmd = Loop#loop.mode,
             RegExp = extract_regexp(LoopCmd#cmd.arg),
-            RegExp2 = lux_utils:normalize_newlines(RegExp),
+%% ??            RegExp2 = lux_utils:normalize_match_regexp(RegExp),
+            RegExp2 = RegExp,
             Actual = <<"Loop ended without match of \"", RegExp2/binary, "\"">>,
             C2 = do_prepare_stop(C),
             stop(C2, fail, Actual);
@@ -943,7 +944,8 @@ match_break_patterns(C, _Actual, [], Acc) ->
 
 prepare_stop(C, Actual, Matches, Context) ->
     {C2, Match} = post_match(C, Actual, Matches, Context),
-    Match2 = lux_utils:normalize_newlines(Match),
+%% ??    Match2 = lux_utils:normalize_match_regexp(Match),
+    Match2 = Match,
     Actual2 = <<Context/binary, "\"", Match2/binary, "\"">>,
     C3 = do_prepare_stop(C2),
     {C3, Actual2}.
@@ -1193,14 +1195,18 @@ prepare_outcome(C, Outcome, Actual) ->
             Fail = C#cstate.fail,
             FailCmd = Fail#pattern.cmd,
             Extra = element(2, FailCmd#cmd.arg),
-            Extra2 = lux_utils:normalize_newlines(lux_utils:to_string(Extra)),
+%% ??            Extra2 = lux_utils:normalize_match_regexp(
+%%                       lux_utils:to_string(Extra)),
+            Extra2 = lux_utils:to_string(Extra),
             clog(C, pattern, "\"~p\"", [Extra2]);
         Outcome =:= success, Context =:= success_pattern_matched ->
             NewOutcome = Outcome,
             Success = C#cstate.success,
             SuccessCmd = Success#pattern.cmd,
             Extra = element(2, SuccessCmd#cmd.arg),
-            Extra2 = lux_utils:normalize_newlines(lux_utils:to_string(Extra)),
+%% ??            Extra2 = lux_utils:normalize_match_regexp(
+%%                       lux_utils:to_string(Extra)),
+            Extra2 = lux_utils:to_string(Extra),
             clog(C, pattern, "\"~p\"", [Extra2]);
         Outcome =:= error ->
             NewOutcome = fail,

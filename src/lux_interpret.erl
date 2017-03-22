@@ -72,7 +72,7 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
                                 LineNo, _LastLineNo, _Body}} ->
                         RelFile = lux_utils:pretty_filename(RevFile),
                         AbsFile = filename:absname(RelFile),
-                        MacroFile = lux_utils:normalize(AbsFile),
+                        MacroFile = lux_utils:normalize_filename(AbsFile),
                         case lists:keymember(Name, #macro.name, Acc) of
                             false ->
                                 Macro = #macro{name = Name,
@@ -692,7 +692,7 @@ compile_regexp(I, Cmd, {template, RegExpOper, Template}) ->
 compile_regexp(I, Cmd, {regexp, RegExpOper, RegExp}) ->
     case safe_expand_vars(I, RegExp) of
         {ok, RegExp2} ->
-            RegExp3 = lux_utils:normalize_newlines(RegExp2),
+            RegExp3 = lux_utils:normalize_match_regexp(RegExp2),
             Opts = [multiline, {newline, anycrlf}],
             case re:compile(RegExp3, Opts) of
                 {ok, MP3} ->

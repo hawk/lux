@@ -20,8 +20,8 @@
 -record(cell,  {res, run, iolist}).
 
 generate(RelTopDir, RelHtmlFile, Opts) ->
-    AbsTopDir = lux_utils:normalize(RelTopDir),
-    AbsHtmlFile = lux_utils:normalize(RelHtmlFile),
+    AbsTopDir = lux_utils:normalize_filename(RelTopDir),
+    AbsHtmlFile = lux_utils:normalize_filename(RelHtmlFile),
     NewLogDir = filename:dirname(AbsHtmlFile),
     {AllRuns, Errors} = parse_summary_logs(AbsTopDir, [], [], Opts),
     io:format("~p test runs (~p errors)", [length(AllRuns), length(Errors)]),

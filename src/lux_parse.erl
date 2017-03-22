@@ -31,7 +31,7 @@
 
 parse_file(RelFile, RunMode, SkipSkip, CheckDoc, Opts) ->
     try
-        File = lux_utils:normalize(RelFile),
+        File = lux_utils:normalize_filename(RelFile),
         RevFile = lux_utils:filename_split(File),
         DefaultI = lux_case:default_istate(File),
         case lux_case:parse_iopts(DefaultI, Opts) of
@@ -621,7 +621,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             Dir = filename:dirname(CurrFile),
             RelFile2 = string:strip(expand_vars(P, Fd, RelFile, LineNo)),
             AbsFile = filename:absname(RelFile2, Dir),
-            AbsFile2 = lux_utils:normalize(AbsFile),
+            AbsFile2 = lux_utils:normalize_filename(AbsFile),
             try
                 NewPosStack = cmd_pos_stack(P, LineNo),
                 {P2, FirstLineNo, LastLineNo, InclCmds} =

@@ -76,17 +76,15 @@ html_anchor(Name, Label) ->
     ].
 
 html_quote(IoList) ->
-    Opts = [global],
-    lists:foldl(fun(Fun, Acc) -> Fun(Acc) end,
-                ?l2b(IoList),
-                [
-                 fun(B) -> ?l2b(lists:map(fun safe_ctrl/1, ?b2l(B))) end,
-                 fun(B) -> safe_latin1(B, []) end,
-                 fun(B) -> binary:replace(B, <<"&">>, <<"&amp;">>, Opts) end,
-                 fun(B) -> binary:replace(B, <<"<">>, <<"&lt;">>, Opts) end,
-                 fun(B) -> binary:replace(B, <<">">>, <<"&gt;">>, Opts) end,
-                 fun(B) -> binary:replace(B, <<"\"">>, <<"&quot;">>, Opts) end
-                ]).
+    lux_utils:replace(?l2b(IoList),
+                      [
+                       fun(B) -> ?l2b(lists:map(fun safe_ctrl/1, ?b2l(B))) end,
+                       fun(B) -> safe_latin1(B, []) end,
+                       {<<"&">>, <<"&amp;">>},
+                       {<<"<">>, <<"&lt;">>},
+                       {<<">">>, <<"&gt;">>},
+                       {<<"\"">>, <<"&quot;">>}
+                      ]).
 
 safe_ctrl(Char) ->
     if
