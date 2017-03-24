@@ -22,18 +22,30 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <sys/errno.h>
 
+#ifdef TRACE
+#define DEBUG
+#endif
+
 #ifdef DEBUG
 #define DBG(...) dprintf(dbgfd, __VA_ARGS__)
 #define DBGEXIT(status) { close(dbgfd); exit(status); }
+#define DBGDUMP(buf, len)                       \
+    {                                           \
+        dprintf(dbgfd, "\n<<<BEGIN>>>\n");      \
+        write(dbgfd, buf, len);                 \
+        dprintf(dbgfd, "\n<<<END>>>\n\n");      \
+    }
 #else
 #define DBG(...)
 #define DBGEXIT(status) {exit(status); }
+#define DBGDUMP(buf, len)
 #endif
 
 #define PRINT(reason)                                                   \
@@ -141,10 +153,22 @@ int main(int argc, char *argv[])
     int outcnt = 0;
 
 #ifdef DEBUG
-    int dbgfd = open("runpty.dbg", O_WRONLY|O_CREAT);
+    char* shellname = getenv("LUX_SHELLNAME");
+    char*  dbgfile;
+    if (shellname) {
+        asprintf(&dbgfile, "runpty.dbg.%s", shellname);
+    } else {
+        asprintf(&dbgfile, "runpty.dbg");
+    }
+    int dbgfd = open(dbgfile, O_WRONLY |O_CREAT | O_TRUNC);
     if (dbgfd < 0 ) {
         perror("open runpty.dbg failed");
         exit(1);
+    } else {
+        if (fchmod(dbgfd, S_IRUSR | S_IWUSR) < 0) {
+            perror("chmod runpty.dbg failed");
+            exit(1);
+        }
     }
 #endif
     if (argc < 2) {
@@ -232,7 +256,8 @@ int main(int argc, char *argv[])
         if (FD_ISSET(in, &readfdset)) {
             incnt++;
             inr = read(in, inbuf, sizeof(inbuf));
-            DBG("IN(%d):  Read    %d bytes", incnt, inr);
+            DBG("IN(%d):  Read    %d (%d) bytes",
+                incnt, inr, (int)sizeof(inbuf));
             if (inr < 1) QUIT("read in");
             inw = write(master, inbuf, inr);
             DBG(", wrote %d bytes\n", inw);
@@ -250,10 +275,16 @@ int main(int argc, char *argv[])
         if (FD_ISSET(master, &readfdset)) {
             outcnt++;
             outr = read(master, outbuf, sizeof(outbuf));
-            DBG("OUT(%d): Read    %d bytes", outcnt, outr);
+            DBG("OUT(%d): Read    %d (%d) bytes",
+                outcnt, outr, (int)sizeof(outbuf));
             if (outr < 1) QUIT("read out");
             outw = write(out, outbuf, outr);
             DBG(", wrote %d bytes\n", outw);
+#ifdef TRACE
+            if (outbuf[0] == '\r') DBG("\n<<<NEWLINE CR FIRST>>>\n");
+            DBGDUMP(outbuf, outw);
+            if (outbuf[outw-1] == '\r') DBG("\n<<<NEWLINE CR LAST>>>\n");
+#endif
             if (outw < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) outw = 0;
             if (outw < 0) QUIT("write out");
         }
@@ -261,6 +292,10 @@ int main(int argc, char *argv[])
             int left = outr-outw;
             int w = write(out, outbuf+outw, left);
             DBG("OUT(%d): Wrote   %d of %d bytes", outcnt, w, left);
+#ifdef TRACE
+            DBGDUMP(outbuf+outw, w);
+            if (outbuf[outw+w-1] == '\r') DBG("\n<<<NEWLINE CR2 LAST>>>\n");
+#endif
             if (w < 1) QUIT("write out");
             outw += w;
             DBG(", in total %d of %d\n", outw, outr);

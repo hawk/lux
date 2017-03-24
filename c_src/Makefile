@@ -9,12 +9,19 @@ ifeq ($(DEBUG), true)
 CFLAGS = -g -ggdb -Wall -DDEBUG
 endif
 
+ifeq ($(TRACE), true)
+CFLAGS = -g -ggdb -Wall -DTRACE
+endif
+
 PROG = ../priv/bin/runpty
 
 all: $(PROG)
 
 debug:
 	$(MAKE) DEBUG=true
+
+trace:
+	$(MAKE) TRACE=true
 
 $(PROG): runpty.c
 	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $<
