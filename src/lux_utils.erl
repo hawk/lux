@@ -231,7 +231,7 @@ multiply(Timeout, Factor) ->
 
 drop_prefix(File) ->
     {ok, Cwd} = file:get_cwd(),
-    lux_utils:drop_prefix(Cwd, File).
+    drop_prefix(Cwd, File).
 
 drop_prefix(Prefix, File) when is_binary(Prefix) ->
     drop_prefix(binary_to_list(Prefix), File);
@@ -369,8 +369,8 @@ foldl_cmds(Fun, Acc, File, CmdStack, Cmds, Depth) when is_atom(Depth) ->
     foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, undefined});
 foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, OptI})
   when Depth =:= main; Depth =:= include; Depth =:= static; Depth =:= dynamic ->
-    File2 = lux_utils:drop_prefix(File),
-    RevFile = lux_utils:filename_split(File2),
+    File2 = drop_prefix(File),
+    RevFile = filename_split(File2),
     do_foldl_cmds(Fun, Acc, File2, RevFile, CmdStack, Cmds, {Depth, OptI}).
 
 do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
@@ -624,7 +624,7 @@ pick_opt(_Tag, [], Val) ->
 diff(Old, New) ->
     Equal =
         fun(O, N) ->
-                case lux_utils:equal(O, N) of
+                case equal(O, N) of
                     match   -> true;
                     nomatch -> false
                 end
