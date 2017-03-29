@@ -24,82 +24,37 @@ on [GitHub](https://github.com/hawk/lux/blob/master/doc/lux.md).
 A sample script
 ---------------
 
-Here is an example of a test script `(lux/examples/intro.lux)`. It
-starts couple of concurrent shells and sends text to them with the
-`!` command and matches expected output with `?`.
+Here is an example of a test script. It starts couple of concurrent
+shells, sends text to them with the `!` command and matches expected
+output with `?`.
 
->     [doc Test of single and multi line regular expressions]
->
->     # A global variable is accessible in all shells
->     [global file=removeme.txt]
->
->     [shell single]
->         # The terminal echoes all input
->         !echo foo
->         ?echo foo
->
->     [shell multi]
->         # bar is indented 4 characters
->         !echo "foo"      > $file
->         !echo "    bar" >> $file
->         !echo "fum"     >> $file
->         !cat $file
->
->         # The first double quote char defines the
->         # first column of the multi line regexp
->         """?
->         foo
->             bar
->         fum
->         """
->
->     # Let single be the active shell again
->     [shell single]
->         ?^foo
->
->     # Cleanup is always executed, regardless if the script succeeds or fails
->     [cleanup]
->         # Match of command exit status. Observe the double dollar sign.
->         !rm -f $file
->         !echo ==$$?==
->         ?^==0==
+#include <examples/intro.lux>
 
 How to run the script
 ---------------------
 
 Run a single script like this:
 
->     /home/hm> lux lux/examples/intro.lux
->
->     summary log       : /home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log
->
->     test case         : /home/hm/lux/examples/intro.lux
->     progress          : ..:..:....:.....:...:...:..:..:..:.....c......:...:...:..:....
->     result            : SUCCESS
->
->     successful        : 1
->     summary           : SUCCESS
->
->     file:///home/hm/lux_logs/run_2012_03_22_12_44_42/lux_summary.log.html
->
->     /home/hm>
+#eval-include lux examples/intro.lux
 
 In this run we got a (brief) progress report of the test case on
 stdout and a link to a summary log containing (lots of) details.
+
 How to assemble the history of multiple runs
 --------------------------------------------
 
 In a nightly build environment it might be difficult to pinpoint when
 a certain test case/suite started to fail. This process is greatly
 simplified by running `lux` with the `--history` option as it will
-assemble all test results as a timeline (interleaved with changeset
+assemble all test results as a timeline (interleaved with change-set
 identities if provided with `--revision`).
 
->     /home/hm> lux --revision svn_4711 --run jenkins_17 lux/examples
->     /home/hm> lux --revision svn_4712 --run jenkins_20 lux/examples/intro.lux
->     /home/hm> lux --revision svn_4712 --run jenkins_20 lux/examples/fail.lux
->     /home/hm> lux --revision svn_4715 --run jenkins_22 lux/examples
->     /home/hm> lux --history .
->     Assembling history of logs in /home/hm.......4 test runs...ok
->
->     file:///home/hm/lux_history.html
+#eval-silent  lux --revision svn_4711 --run jenkins_17 examples
+
+#eval-silent  lux --revision svn_4712 --run jenkins_20 examples/intro.lux
+
+#eval-silent  lux --revision svn_4712 --run jenkins_20 examples/fail.lux
+
+#eval-silent  lux --revision svn_4715 --run jenkins_22 examples
+
+#eval-include lux --history .

@@ -1,35 +1,57 @@
 [doc Test of single and multi line regular expressions]
 
-# A global variable is accessible in all shells
+# Assign a global variable which is accessible in all shells
 [global file=removeme.txt]
 
+# Start a shell
 [shell single]
-    # The terminal echoes all input
+    # Send text to the active shell
     !echo foo
+    # Match output from the active shell
+    # The terminal echoes all input and here we match on the echoed input
     ?echo foo
 
+# Start yet another shell (and make it the active one)
 [shell multi]
-    # bar is indented 4 characters
+    # Create a file where bar and baz happens to be indented
+    # Variables are
     !echo "foo"      > $file
     !echo "    bar" >> $file
+    !echo "  baz"   >> $file
     !echo "fum"     >> $file
-    !cat $file
 
-    # The first double quote char defines the
-    # first column of the multi line regexp
+    # Single line matches
+    !cat $file
+    ?foo
+    ?bar
+    # Don't bother of matching baz. All output between bar and fum is skipped.
+    ?fum
+    # Match the predefined shell prompt
+    ?SH-PROMPT:
+
+    # Multi line match. The first double quote char defines the first
+    # column of the regexp. The indentation of bar and baz is significant.
+    !cat $file
     """?
     foo
         bar
+      baz
     fum
+    SH-PROMPT:
     """
 
-# Let single be the active shell again
+# Switch back to the first shell
 [shell single]
+    # Match the actual output from the echo command
     ?^foo
 
-# Cleanup is always executed, regardless if the script succeeds or fails
+# Cleanup side effects. The cleanup section is always executed,
+# regardless of the script succeeds or fails
 [cleanup]
-    # Match of command exit status. Observe the double dollar sign.
     !rm -f $file
+    ?SH-PROMPT:
+    # Match command exit status. Observe the double dollar sign which
+    # escapes the dollar sign, implying "echo ==$$?==" to be sent to
+    # the shell.
     !echo ==$$?==
     ?^==0==

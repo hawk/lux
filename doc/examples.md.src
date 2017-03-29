@@ -1,12 +1,118 @@
 Examples
 ========
 
-Intro
------
+A successful test case
+----------------------
+
+Here is an example of a test script. It starts couple of concurrent
+shells, sends text to them with the `!` command and matches expected
+output with `?`. The send and match operations are always performed in
+context of the active shell.
+
+Match operations search for a given pattern in the output stream. Once
+a match is found, the preceding characters are skipped. There are a
+few flavors of match operations. They may be single line or multi
+line. Evaluate regular expressions or verbatim. Variables can be
+expanded or not. When using regular expressions variables can be bound
+to parts of the output and used later in the test case.
+
+There are different variable scopes. They may be accessible from all
+shells (global), only accessible within the shell where they were set
+(local), only accessible with in their lexical scope (my) such as
+within a macro, loop etc.
+
+When a test case has side effects, such as creating files, start
+programs etc., the test case should have a `[cleanup]` section where
+the side effect is reversed. Otherwise subsequent test cases may
+fail. The cleanup section is always executed, regardless of the script
+succeeds or fails.
 
 #include <examples/intro.lux>
 
-Fail
-----
+A failing test case
+-------------------
+
+Test cases are executed until they succeed or fail. The script is
+aborted at the first failure. Which may occur when the expected output
+not has matched within the given timeout or when the fail pattern has
+matched. A fail pattern is local to the given shell and will cause
+abort when it matches.
+
+The (match) timeout may explicitly be set within the script, in a
+configuration file or given as a command line parameter. If the tests
+are run both on fast machines and slow machines, it may be hard to set
+an optimal timeout length. Then it may be appropriate to multiply the
+timeout with different factors depending on the machine capabilities.
+The config parameter called multiplier is used for this purpose. As
+all configuration parameters, it can be given a host specific setting
+or a architecture specific setting. Or even overridden on command
+line.
+
+As a test case may fail early or late in its execution the cleanup
+code must cope with this. For example if a test case which normally
+creates a file or starts a program fails before that point it must be
+written in a manner so it does not fail during the cleanup.
+
+Lux collects data in various logs. Such as an event log, one log per
+shell for stdin and stdout etc. But sometimes this is not enough. For
+example logs from the SUT (System Under Test). Such logs should be
+stored under $LUX_EXTRA_LOGS. The $LUX_EXTRA_LOGS is a built-in
+variable containing a suitable directory path. The SUT can either be
+configured to store its logs there or the logs may be copied during
+cleanup. In order to only copy the logs at failure the cleanup code
+may test on the variable $LUX_START_REASON which also is built-in. It
+is set to "fail" if the (cleanup) shell was started after a failure
+has encountered. These extra logs are located under lux log directory
+and it can (also) be reached via an HTML link from the annotated event
+log.
 
 #include <examples/fail.lux>
+
+Warnings and avoiding failures
+------------------------------
+
+At startup lux imports all environment variables as global lux
+variables. making them accessible vith `$var` syntax. Variables may
+also be set in architecture or host specific configuration files. This
+may be useful when certain test cases only can be run on some hosts
+due to missing libraries, lack of memory etc.
+
+Test cases may be skipped by testing of a certain variable is set at
+all `[config skip=VAR]` or is set to a certain value `[config
+skip=VAR=val]`.  The inverse is also possible, by using `[config
+skip_unless=VAR]` and `[config skip_unless=VAR=val]` respectively.
+
+During development when some test cases are unstable it is possible to
+classify those as unstable. This implies that they are run but instead
+of reporting a failed test case as failure it is reported as a
+warning.
+
+Here are few examples of a few config settings which may be useful in
+a hetrogenous lab environment:
+
+One config file `.../lux_config/Linux-i686.luxcfg`
+
+>     [config var=MAKE=make]
+>     [config var=USE_VALGRIND=true]
+>     [config multiplier=1000]
+
+and another `.../lux_config/SunOS-sun4u.luxcfg`
+
+>     [config var=MAKE=gmake]
+>     [config var=TEST_SUNOS=true]
+>     [config var=SKIP_JAVA=true]
+>     [config var=USE_VALGRIND=false]
+>     [config multiplier=3000]
+
+#include <examples/error.lux>
+
+#include <examples/warning.lux>
+
+#include <examples/skip.lux>
+
+#include <examples/unstable.lux>
+
+Here follow the output from the enclosed example test suite under
+`.../lux/examples`.
+
+#eval-include lux examples

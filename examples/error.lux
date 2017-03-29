@@ -1,0 +1,10 @@
+[doc Demonstrate an error]
+
+[config require=MAKE]
+
+[shell setup]
+    !$MAKE start
+
+
+[cleanup]
+    !$MAKE stop

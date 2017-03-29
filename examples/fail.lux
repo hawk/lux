@@ -5,7 +5,7 @@
 
 [doc2 Provoke a failure to get something interesting in the logs]
 
-[shell dc]
+[shell calculator]
     -$fail_pattern|SH-PROMPT:
     !erl
 
@@ -25,11 +25,16 @@
     ?5
     ?13
 
-    # Demonstrate a failure
+    # Shorten the match timeout as we deliberately will demo a fail
     [timeout 2]
     !5+13.
     # Next line will fail
     ?19
 
 [cleanup]
-    !echo "LUX_START_REASON=$LUX_START_REASON"
+    # Save logs at fail
+    ~if [ "$LUX_START_REASON" = "fail" ]; then
+    ~  mkdir -p $LUX_EXTRA_LOGS/erl;
+    ~  cp -r ./logs/* $LUX_EXTRA_LOGS/erl;
+    !fi; true
+    ?SH-PROMPT:

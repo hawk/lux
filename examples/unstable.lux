@@ -1,7 +1,6 @@
 [doc Demonstrate an unstable test]
 
-[config unstable=SHELL]
-[config unstable_unless=QWERTY]
+[config unstable_unless=TEST_DEVELOP]
 
 [shell foo]
     [timeout 1]
