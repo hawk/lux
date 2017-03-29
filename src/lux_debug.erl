@@ -12,7 +12,7 @@
          eval_cmd/4,
          cmd_attach/3,
          check_breakpoint/2,
-         markdown/0
+         gen_markdown/1
         ]).
 
 -include("lux.hrl").
@@ -484,16 +484,13 @@ lineno_help() ->
         "            on line 12 in outer and outer is included\n"
         "            on line 4 in main.\n\n".
 
-markdown() ->
+gen_markdown(File) ->
     Intro = intro_help(),
     {error, Ambiguous} = select(""),
     LineNo = lineno_help(),
-    Cmds = lists:flatten([["\n", pretty_cmd(Cmd)] ||
-                             Cmd <- lists:keysort(#debug_cmd.name, cmds())]),
-    io:format("~s\n", [Intro]),
-    io:format("~s\n", [Ambiguous]),
-    io:format("~s\n", [LineNo]),
-    io:format("~s\n", [Cmds]).
+    Cmds = [["\n", pretty_cmd(Cmd)] ||
+               Cmd <- lists:keysort(#debug_cmd.name, cmds())],
+    file:write_file(File, [Intro, "\n", Ambiguous, "\n", LineNo, "\n", Cmds]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

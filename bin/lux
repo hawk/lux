@@ -24,7 +24,8 @@ main(OrigArgs) ->
     OpModes = ["--internal_trace", "--internal_debug", "--event_trace",
                "--help", "--version", "--install",
                "--annotate", "--history",
-               "--reltool", "--xref", "--markdown"],
+               "--reltool", "--xref",
+               "--gen_markdown", "--pre_markdown"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
     Opts  = getopts(Args, Specs, LuxAppDir),
@@ -44,7 +45,8 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
     case {Op, Args} of
         {"--help", [_]}             -> help(LuxAppDir, Specs);
         {"--version", [_]}          -> version();
-        {"--markdown", [_]}         -> markdown();
+        {"--gen_markdown", [File]}  -> gen_markdown(File);
+        {"--pre_markdown", [File]}  -> pre_markdown(LuxAppDir, File);
         {"--internal_debug", [_]}   -> internal_debug(Op, OrigArgs);
         {"--event_trace", [_]}      -> event_trace(Op, LuxAppDir, Opts,
                                                    OpModes, Specs, OrigArgs);
@@ -102,7 +104,8 @@ specs() ->
      {?FILES,                 "",          string,                 mandatory},
      {"--help",               false,       boolean,                none},
      {"--version",            false,       boolean,                none},
-     {"--markdown",           false,       boolean,                none},
+     {"--gen_markdown",       undefined,   string,                 mandatory},
+     {"--pre_markdown",       undefined,   string,                 mandatory},
      {"--internal_debug",     false,       boolean,                none},
      {"--event_trace",        false,       boolean,                none},
      {"--internal_trace",     false,       boolean,                none},
@@ -231,9 +234,162 @@ version_str() ->
             "unknown"
     end.
 
-markdown() ->
-    lux_debug:markdown(),
-    0.
+gen_markdown(ToFile) ->
+    case lux_debug:gen_markdown(ToFile) of
+        ok ->
+            0;
+        {error, FileReason} ->
+            io:format("ERROR: ~s: ~s\n",
+                      [ToFile, file:format_error(FileReason)]),
+            1
+    end.
+
+pre_markdown(LuxAppDir, ToFile) ->
+    FromFile = ToFile ++ ".src",
+    AbsFileName0 = filename:absname(ToFile),
+    AbsFileName = lux_utils:normalize_filename(AbsFileName0),
+    RelFileName = lux_utils:drop_prefix(LuxAppDir, AbsFileName),
+    RelFileDir = filename:dirname(RelFileName),
+    {ok, Cwd} = file:get_cwd(),
+    RelWorkDir = lux_utils:drop_prefix(LuxAppDir, Cwd),
+    case file:read_file(FromFile) of
+        {ok, Bin} ->
+            try
+                Expand = fun(L, {Files, Lines}) ->
+                                 case markdown_line(RelWorkDir, L) of
+                                     {keep, Line} ->
+                                         {Files, [Line | Lines]};
+                                     {expand, InclFile, InclLines} ->
+                                         RelInclFile =
+                                             relpath(RelFileDir, InclFile),
+                                         {[RelInclFile | Files],
+                                          [InclLines | Lines]};
+                                     {expand, EvalLines} ->
+                                         {Files,
+                                          [EvalLines | Lines]}
+                                 end
+                         end,
+                Lines = lux_utils:split_lines(Bin),
+                {InclFiles, RevNewLines} =
+                    lists:foldl(Expand, {[], []}, Lines),
+                DepsIoList =
+                    [
+                     ToFile,
+                     ": ",
+                     lists:join(" ", [FromFile | lists:reverse(InclFiles)])
+                    ],
+                DepsFile = ToFile ++ ".d",
+                %% Make dependency file
+                case file:write_file(DepsFile, DepsIoList) of
+                    ok ->
+                        ok;
+                    {error, FileReason} ->
+                        throw({error,
+                               "~s: ~s", [DepsFile,
+                                          file:format_error(FileReason)]})
+                end,
+                IoList = lux_utils:expand_lines(lists:reverse(RevNewLines)),
+                %% Markdown file
+                case file:write_file(ToFile, IoList) of
+                    ok ->
+                        0;
+                    {error, FileReason2} ->
+                        throw({error,
+                               "~s: ~s", [ToFile,
+                                          file:format_error(FileReason2)]})
+                end
+            catch
+                throw:{error, Format, Args} ->
+                    io:format("ERROR: ~s: " ++ Format ++ "\n",
+                              [FromFile] ++ Args),
+                    1
+            end;
+        {error, FileReason} ->
+            io:format("ERROR: ~s: ~s\n",
+                      [FromFile, file:format_error(FileReason)]),
+            1
+    end.
+
+relpath(".", Path) ->
+    Path;
+relpath(Prefix, Path) ->
+    UpDir = filename:join([".." || _ <- filename:split(Prefix)]),
+    filename:join([UpDir, Path]).
+
+markdown_line(RelWorkDir, Line) ->
+    Incomplete = {error, "Incomplete include statement", []},
+    case string:strip(binary_to_list(Line), left) of
+        "#include " ++ InclFile ->
+            case string:strip(InclFile, both) of
+                "<" ->
+                    throw(Incomplete);
+                "<" ++ InclFile2 ->
+                    case lists:reverse(InclFile2) of
+                        ">" ++ RevInclFile ->
+                            InclFile3 = lists:reverse(RevInclFile),
+                            markup_include(InclFile3);
+                        _ ->
+                            throw(Incomplete)
+                    end;
+                _ ->
+                    throw(Incomplete)
+            end;
+        "#eval-include " ++ Cmd0 ->
+            Cmd = string:strip(Cmd0),
+            FullCmd =
+                case relpath(RelWorkDir, "") of
+                    "" -> Cmd;
+                    UpDir  -> "cd " ++ UpDir ++ " && " ++ Cmd
+                end,
+            io:format("\t~s\n", [FullCmd]),
+            {Output, RetCode} = lux_utils:cmd(FullCmd),
+            io:format("\techo $?\n\t~s\n", [RetCode]),
+            Prompt = ".../lux> ",
+            Prefix = ">     ",
+            {expand,
+             [
+              "Evaluate `", Cmd, "`\n\n",
+              Prefix, Prompt, Cmd, "\n",
+              lux_utils:expand_lines([[Prefix, L] || L <- Output]),
+              "\n",
+              Prefix, Prompt, "echo $?\n",
+              Prefix, RetCode, "\n"
+             ]};
+        "#eval-silent " ++ Cmd0 ->
+            Cmd = string:strip(Cmd0),
+            FullCmd =
+                case relpath(RelWorkDir, "") of
+                    "" -> Cmd;
+                    UpDir  -> "cd " ++ UpDir ++ " && " ++ Cmd
+                end,
+            io:format("\t~s\n", [FullCmd]),
+            {_Output, RetCode} = lux_utils:cmd(FullCmd),
+            io:format("\techo $?\n\t~s\n", [RetCode]),
+            {expand,
+             [
+              "Evaluate `", Cmd, "`\n"
+             ]};
+        _ ->
+            {keep, Line}
+    end.
+
+markup_include(RelFile) ->
+    AbsFile = filename:join(["..", RelFile]),
+    case file:read_file(AbsFile) of
+        {ok, Bin} ->
+            Lines = lux_utils:split_lines(binary_to_list(Bin)),
+            RelFile2 = filename:join(["...", "lux", RelFile]),
+            {expand,
+             RelFile,
+             [
+              "Snippet from the enclosed `", RelFile2, "` file:\n",
+              "\n",
+              lux_utils:expand_lines([[">     ", L] || L <- Lines])
+             ]};
+        {error, FileReason} ->
+            RelFile2 = filename:join(["..", "lux", RelFile]),
+            throw({error, "~s: ~s", [RelFile2, file:format_error(FileReason)]})
+    end.
 
 internal_debug(MainOp, Args) ->
     require_app(MainOp, debugger),
@@ -746,7 +902,8 @@ translate_opts([
      {?FILES,                 Files},
      {"--help",               _Help},
      {"--version",            _Version},
-     {"--markdown",           _Markdown},
+     {"--gen_markdown",       _GenMarkdown},
+     {"--pre_markdown",       _PreMarkdown},
      {"--internal_debug",     _InternalDebug},
      {"--event_trace",        _EventTrace},
      {"--internal_trace",     _InternalTrace},

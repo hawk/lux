@@ -18,6 +18,9 @@ ifeq ($(ETCDIR),)
   endif
 endif
 
+APP_DIR=$(shell dirname $(PWD))
+LUX=$(APP_DIR)/bin/lux
+
 # Erlang
 ERL="@ERL@"
 ERLC="@ERLC@"

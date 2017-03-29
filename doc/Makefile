@@ -12,11 +12,10 @@ include ../vsn.mk
 #
 # See http://www.daringfireball.net/projects/markdown
 
-HTML=../lux.html
-MD_TMP=lux.md
+LUX_HTML=../lux.html
+LUX_MD=lux.md
 GEN_TOC=toc
 GEN_DBG_CMDS=debug_cmds
-APP_DIR=$(shell dirname $(PWD))
 
 CHAPTERS= \
 	../README \
@@ -32,35 +31,40 @@ CHAPTERS= \
 	references
 
 MARKDOWNS=$(patsubst %,%.md,$(CHAPTERS))
+WILDCARD=$(patsubst %,%.src,$(MARKDOWNS))
+SRC_MD=$(wildcard $(WILDCARD))
+GEN_MD=$(patsubst %.md.src,%.md,$(SRC_MD))
+DEPS_MD=$(patsubst %.src,%.d,$(SRC_MD))
 
-all doc: $(HTML)
+all doc: $(LUX_HTML)
 
 clean:
-	rm -f $(HTML) $(HTML).tmp $(MD_TMP) $(GEN_TOC).md $(GEN_TOC).md.tmp
-	rm -f $(GEN_DBG_CMDS).md $(GEN_DBG_CMDS).md.tmp
+	rm -f $(LUX_HTML) $(LUX_HTML).tmp $(LUX_MD)
+	rm -f $(GEN_TOC).md $(GEN_TOC).md.tmp
+	rm -f $(GEN_MD) $(DEPS_MD)
 
-$(HTML): \
+$(LUX_HTML): \
     html.header \
     $(MARKDOWNS) \
     $(GEN_TOC).md \
     html.footer \
     ../include.mk \
     Makefile
-	-rm -f $(MD_TMP) $(HTML).tmp
-	cat html.header > $(HTML).tmp
-	cat $(GEN_TOC).md >> $(MD_TMP)
+	-rm -f $(LUX_MD) $(LUX_HTML).tmp
+	cat html.header > $(LUX_HTML).tmp
+	cat $(GEN_TOC).md >> $(LUX_MD)
 	@for f in $(CHAPTERS); do \
-		/bin/echo "<a name=\"$$f\"/>" >> $(MD_TMP); \
-		/bin/echo >> $(MD_TMP); \
-		cat $$f.md >> $(MD_TMP); \
+		/bin/echo "<a name=\"$$f\"/>" >> $(LUX_MD); \
+		/bin/echo >> $(LUX_MD); \
+		cat $$f.md >> $(LUX_MD); \
 	done
-	$(MARKDOWN) $(MD_TMP) >> $(HTML).tmp
-	cat html.footer >> $(HTML).tmp
-	mv $(HTML).tmp $(HTML)
+	$(MARKDOWN) $(LUX_MD) >> $(LUX_HTML).tmp
+	cat html.footer >> $(LUX_HTML).tmp
+	mv $(LUX_HTML).tmp $(LUX_HTML)
 	@/bin/echo
 	@/bin/echo "Read the documentation in the browser:"
 	@/bin/echo
-	@/bin/echo "file://$(PWD)/$(HTML)"
+	@/bin/echo "file://$(PWD)/$(LUX_HTML)"
 
 $(GEN_TOC).md: Makefile $(MARKDOWNS) ../vsn.mk
 	rm -f $@ $@.tmp
@@ -80,6 +84,11 @@ $(GEN_TOC).md: Makefile $(MARKDOWNS) ../vsn.mk
 	/bin/echo >> $@.tmp
 	mv $@.tmp $@
 
-$(GEN_DBG_CMDS).md: ../ebin/lux_debug.beam Makefile
-	$(APP_DIR)/bin/lux --markdown > $@.tmp
-	mv $@.tmp $@
+$(GEN_DBG_CMDS).md.src: ../ebin/lux_debug.beam
+	$(LUX) --gen_markdown=$@
+
+%.md: %.md.src
+	$(LUX) --pre_markdown=$@
+
+%.md.d: %.md.src
+	grep -IE '#include +<.*>' $< | sed -e 's#.*<#../#g' -e 's/>.*//g' > $@
