@@ -759,7 +759,7 @@ try_match(C, Actual, Expected, AltSkip) ->
             C2 = cancel_timer(C),
             {Skip, Rest} =
                 split_multi_match(C2, Actual, Matches, Multi, Context),
-            SubMatches = [], % Don't bother about subpatterns
+            SubMatches = [], % Don't bother about sub-patterns
             match_more(C2, Skip, Rest, SubMatches);
         {nomatch, _} when AltSkip =:= undefined ->
             %% Main pattern does not match
@@ -837,7 +837,7 @@ log_multi_nomatch(C, {multi, Multi}, Actual) ->
                   Context = "",
                   P = lux_utils:to_string(RegExp),
                   clog(C, partitial, "~s\"~s\"", [Context, P]),
-                  PE = ["Partitial: ", P, "\n"],
+                  PE = ["Sub-pattern: ", P, "\n"],
                   F = lux_utils:to_string(".*"),
                   FE = ["    Found: ", F, "\n"],
                   {OptMatch, single} = match_single(Actual, MP),

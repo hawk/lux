@@ -75,10 +75,10 @@ Such as ABC, ACB, BAC, BCA, CAB and CBA. It can be achieved by
 the relatively simple regexp `?(ABC)|(ACB)|(BAC)|(BCA)|CAB)|(CBA)`.
 But with larger regexps, possibly spanning multiple lines, it
 can be quite complex to just write the regexps. Performing the
-post mortem analyzis to determine which subpattern that is
+post mortem analyzis to determine which sub-pattern that is
 matching which part of the output will be even worse. In the
-following example `?+` is used to register a subpattern and `?`
-evaluates the permutations of all subpatterns (including the one
+following example `?+` is used to register a sub-pattern and `?`
+evaluates the permutations of all sub-patterns (including the one
 specified with `?).
 
     ?+A
