@@ -464,9 +464,9 @@ verbatim_match(_Actual, <<>>) ->
 verbatim_match(Actual, Expected) ->
     verbatim_search(Actual, Expected, Expected, 0).
 
+verbatim_normalize(<<"\r\r", Rest/binary>>) ->
+    verbatim_normalize(<<"\r", Rest/binary>>);
 verbatim_normalize(<<"\r\n", Rest/binary>>) ->
-    {1, <<"\n", Rest/binary>>};
-verbatim_normalize(<<"\n\r", Rest/binary>>) ->
     {1, <<"\n", Rest/binary>>};
 verbatim_normalize(<<"\r", Rest/binary>>) ->
     {0, <<"\n", Rest/binary>>};
@@ -548,16 +548,20 @@ replace(Bin, [Transform|Rest]) when is_binary(Bin) ->
                 replace(Bin, List);
             Fun when is_function(Fun, 1) ->
                 Fun(Bin);
+            crcr ->
+                replace(Bin, [{<<"\r+">>, <<"\r">>} | Rest]);
             crlf ->
                 replace(Bin, [{crlf, <<"\n">>} | Rest]);
             {crlf, To} ->
                 From = [<<"\\R">>, <<"\r\n">>, <<"\r">>, <<"\n">>],
-                replace(Bin, [{F, To} || F <- From]);
+                replace(Bin, [crcr | [{F, To} || F <- From]]);
+            quoted_crcr ->
+                replace(Bin, [{<<"(\\r)+">>, <<"\\r">>} | Rest]);
             quoted_crlf ->
                 replace(Bin, [{quoted_crlf, <<"\\R">>} | Rest]);
             {quoted_crlf, To} ->
                 From = [<<"\\\\R">>, <<"\\r\\n">>, <<"\\r">>, <<"\\n">>],
-                replace(Bin, [{F, To} || F <- From]);
+                replace(Bin, [quoted_crcr | [{F, To} || F <- From]]);
             {From, To} ->
                 binary:replace(Bin, From, To, [global])
         end,
