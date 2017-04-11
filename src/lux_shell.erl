@@ -764,7 +764,7 @@ try_match(C, Actual, Expected, AltSkip) ->
         {nomatch, _} when AltSkip =:= undefined ->
             %% Main pattern does not match
             %% Wait for more input
-            match_patterns(C, Actual);
+            C;
         {nomatch, OptMulti} ->
             C2 = cancel_timer(C),
             {C3, AltExpected, AltActual} =
