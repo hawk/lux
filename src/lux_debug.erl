@@ -318,7 +318,8 @@ cmds() ->
                           #debug_param{name = "duration",
                                        type = {enum, ["normal",
                                                       "temporary",
-                                                      "delete"]},
+                                                      "delete",
+                                                      "skip"]},
                                        presence = optional,
                                        help = "controls the duration of "
                                        "the breakpoint"}],
@@ -427,12 +428,12 @@ cmds() ->
                 help = "save debug state to file",
                 callback = fun cmd_save/3},
      #debug_cmd{name = "skip",
-                params = [#debug_param{name = "n_commands",
-                                       type = {integer, 1, infinity},
+                params = [#debug_param{name = "lineno",
+                                       type = lineno,
                                        presence = optional,
-                                       help = "number of commands"}],
+                                       help = "lineno in source file"}],
                 help = "skip execution of one or more commands. "
-                "A multi-line command counts as one command.",
+                "Skip until given lineno is reached.",
                 callback = fun cmd_skip/3}
     ].
 
@@ -501,27 +502,30 @@ cmd_attach(I, _, CmdState) ->
             {attach, next} ->
                 BreakPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
                 [{"n_lines", 1}, {"lineno", BreakPos}];
+            {attach, skip} ->
+                BreakPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
+                [{"n_lines", 1}, {"lineno", BreakPos}];
             _ ->
                 CurrentPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
                 io:format("\nBreak at \"~s\"\n",
                           [pretty_break_pos(CurrentPos)]),
                 [#cmd_pos{rev_file = RevFile,
                           lineno = LineNo,
-                          type = Type} | CmdStack] = CurrentFullLineNo,
-                {LineNo2, Type2} =
+                          type = CmdType} | CmdStack] = CurrentFullLineNo,
+                {LineNo2, CmdType2} =
                     if
                         LineNo > 3 ->
                             TmpLineNo = LineNo-2,
                             case lookup_cmd(RevFile, TmpLineNo, I) of
-                                false -> {LineNo, Type};
+                                false -> {LineNo, CmdType};
                                 Cmd   -> {TmpLineNo, Cmd#cmd.type}
                             end;
                         true->
-                            {LineNo, Type}
+                            {LineNo, CmdType}
                     end,
                 CmdPos2 = #cmd_pos{rev_file = RevFile,
                                   lineno = LineNo2,
-                                  type = Type2},
+                                  type = CmdType2},
                 FullLineNo = [CmdPos2 | CmdStack],
                 BreakPos = full_lineno_to_static_break_pos(FullLineNo),
                 [{"n_lines", 10}, {"lineno", BreakPos}]
@@ -563,11 +567,13 @@ cmd_break(I, Args, _CmdState) ->
             [{"lineno", BreakPos}, {"duration", Duration}] ->
                 case Duration of
                     "temporary"  ->
-                        add_break(I, BreakPos, temporary);
+                        add_break(I, BreakPos, temporary, false);
                     "next"  ->
-                        add_break(I, BreakPos, next);
+                        add_break(I, BreakPos, next, true);
+                    "skip"  ->
+                        add_break(I, BreakPos, skip, true);
                     "normal"  ->
-                        add_break(I, BreakPos, enabled);
+                        add_break(I, BreakPos, enabled, false);
                     "delete"  ->
                         Breaks = I#istate.breakpoints,
                         PrettyPos = pretty_break_pos(BreakPos),
@@ -585,16 +591,17 @@ cmd_break(I, Args, _CmdState) ->
                 end;
             [{"lineno", BreakPos}] ->
                 %% Normal breakpoint
-                add_break(I, BreakPos, enabled);
+                add_break(I, BreakPos, enabled, false);
             [] ->
                 %% List Breakpoints
                 Print =
-                    fun(#break{pos = BreakPos, type = Type}) ->
+                    fun(#break{pos = BreakPos, type = BreakType}) ->
                             Pretty = pretty_break_pos(BreakPos),
                             PrettyType =
-                                case Type of
+                                case BreakType of
                                     temporary -> "\ttemporary";
                                     next      -> "\tnext";
+                                    skip      -> "\tskip";
                                     enabled   -> "";
                                     disabled  -> ""
                                 end,
@@ -621,9 +628,9 @@ cmd_break(I, Args, _CmdState) ->
         end,
     {undefined, I2}.
 
-add_break(I, BreakPos, BreakType) ->
+add_break(I, BreakPos, BreakType, Invert) ->
     %% Search for matching command
-    case break_to_full_lineno(I, BreakPos) of
+    case break_to_full_lineno(I, BreakPos, rest) of
         false ->
             PrettyBreakPos = pretty_break_pos(BreakPos),
             io:format("\nERROR: No such lineno: ~p\n", [PrettyBreakPos]),
@@ -641,11 +648,19 @@ add_break(I, BreakPos, BreakType) ->
                               [PrettyBreakPos]);
                 next ->
                     ok;
+                skip when not Invert ->
+                    io:format("\nSkipping commands up to \"~s\"\n",
+                              [PrettyBreakPos]);
+                skip when Invert ->
+                    io:format("\nSkip command at \"~s\"\n",
+                              [PrettyBreakPos]);
                 _ ->
                     io:format("\nSet breakpoint at \"~s\"\n",
                               [PrettyBreakPos])
             end,
-            NewBreak = #break{pos = NewBreakPos, type = BreakType},
+            NewBreak = #break{pos = NewBreakPos,
+                              invert = Invert,
+                              type = BreakType},
             Breaks = replace_break(NewBreak, I#istate.breakpoints),
             I#istate{breakpoints = Breaks}
     end.
@@ -661,17 +676,25 @@ check_breakpoint(I, LineNo) ->
     Breaks = I#istate.breakpoints,
     case lookup_break(I, LineNo, Breaks) of
         false ->
-            {dispatch, I};
+            case lists:keymember(skip, #break.type, Breaks) of
+                true  -> {skip, I}; % At least one skip breakpoint is active
+                false -> {dispatch, I}
+            end;
         Break ->
-            Type = Break#break.type,
-            CmdState = {attach, Type},
-            case Type of
+            BreakType = Break#break.type,
+            CmdState = {attach, BreakType},
+            case BreakType of
                 temporary ->
                     %% Temporary breakpoint - remove it
                     {_, I2} = cmd_attach(I, [], CmdState),
                     Breaks2 = delete_break(Break, Breaks),
                     {wait, I2#istate{breakpoints = Breaks2}};
                 next ->
+                    %% Temporary breakpoint - remove it
+                    {_, I2} = cmd_attach(I, [], CmdState),
+                    Breaks2 = delete_break(Break, Breaks),
+                    {wait, I2#istate{breakpoints = Breaks2}};
+                skip ->
                     %% Temporary breakpoint - remove it
                     {_, I2} = cmd_attach(I, [], CmdState),
                     Breaks2 = delete_break(Break, Breaks),
@@ -698,11 +721,11 @@ lookup_break(I, LineNo, Breaks) when is_integer(LineNo) ->
     do_lookup_break(FullLineNo, Breaks).
 
 do_lookup_break(FullLineNo, [Break | Breaks]) ->
-    IsNext = Break#break.type =:= next,
+    Invert = Break#break.invert,
     IsMatch = match_break(FullLineNo, Break#break.pos, exact),
     if
-        IsNext, not IsMatch -> Break; % Invert test
-        not IsNext, IsMatch -> Break;
+        Invert, not IsMatch -> Break; % Invert test
+        not Invert, IsMatch -> Break;
         true                -> do_lookup_break(FullLineNo, Breaks)
     end;
 do_lookup_break(_FullLineNo, []) ->
@@ -754,12 +777,13 @@ match_break_comp(_FileComp, _BreakComp) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 cmd_continue(I, Args, CmdState) ->
-    do_continue(I, Args, CmdState, temporary).
+    Invert = false,
+    do_continue(I, Args, CmdState, temporary, Invert).
 
-do_continue(I, Args, _CmdState, BreakType) ->
+do_continue(I, Args, _CmdState, BreakType, Invert) ->
     case Args of
         [{"lineno", BreakPos}] ->
-            I2 = add_break(I, BreakPos, BreakType),
+            I2 = add_break(I, BreakPos, BreakType, Invert),
             GoAhead = I#istate.breakpoints =/= I2#istate.breakpoints;
         [] ->
             I2 = I,
@@ -770,11 +794,13 @@ do_continue(I, Args, _CmdState, BreakType) ->
             case BreakType of
                 next ->
                     ok;
+                skip ->
+                    ok;
                 _ ->
                     CurrentFullLineNo = current_full_lineno(I2),
                     BreakPos2 =
                         full_lineno_to_static_break_pos(CurrentFullLineNo),
-                    io:format("\nContinue to run from ~s\n",
+                    io:format("\nContinue to run from \"~s\"\n",
                               [pretty_break_pos(BreakPos2)])
             end,
             {_Blocked, I3} = opt_unblock(I2),
@@ -1015,7 +1041,7 @@ cmd_list(I, Args, CmdState) ->
     case Args of
         [{"lineno", BreakPos}] ->
             N = OldN,
-            case break_to_full_lineno(I, BreakPos) of
+            case break_to_full_lineno(I, BreakPos, orig) of
                 false ->
                     io:format("\nERROR: No such lineno: ~p\n",
                               [pretty_break_pos(BreakPos)]),
@@ -1025,7 +1051,7 @@ cmd_list(I, Args, CmdState) ->
                             First, N, CurrentFullLineNo)
             end;
         [{"n_lines", N0}, {"lineno", BreakPos}] ->
-            case break_to_full_lineno(I, BreakPos) of
+            case break_to_full_lineno(I, BreakPos, orig) of
                 false ->
                     io:format("\nERROR: No such lineno: ~p\n",
                               [pretty_break_pos(BreakPos)]),
@@ -1077,7 +1103,7 @@ do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
             ignore
     end,
     Print =
-        fun(#cmd{type = Type, lineno = LineNo, orig = Text}, RF, _IS, Acc) ->
+        fun(#cmd{type = CmdType, lineno = LineNo, orig = Text}, RF, _IS, Acc) ->
                 if
                     RF =:= RevFile, LineNo >= First, LineNo =< Last ->
                         Delim =
@@ -1088,7 +1114,7 @@ do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
                                 true ->
                                     ":"
                             end,
-                        Pos = {RevFile, LineNo, Type},
+                        Pos = {RevFile, LineNo, CmdType},
                         case lists:member(Pos, Acc) of
                             true ->
                                 %% Duplicate due to multiple
@@ -1143,7 +1169,8 @@ cmd_load(I, Args, CmdState) ->
 cmd_next(I, [], CmdState) ->
     CurrentFullLineNo = current_full_lineno(I),
     BreakPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
-    do_continue(I, [{"lineno", BreakPos}], CmdState, next).
+    Invert = true,
+    do_continue(I, [{"lineno", BreakPos}], CmdState, next, Invert).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1192,13 +1219,14 @@ cmd_save(I, Args, _CmdState) ->
             File = "lux.debug"
     end,
     Save =
-        fun(#break{pos = BreakPos, type = Type}) ->
+        fun(#break{pos = BreakPos, type = BreakType}) ->
                 [
                  "break ", pretty_break_pos(BreakPos),
-                 case Type of
+                 case BreakType of
                      enabled   -> "";
                      temporary -> " temporary";
                      next      -> " next";
+                     skip      -> " skip";
                      disabled  -> ""
                  end,
                  "\n"
@@ -1216,30 +1244,17 @@ cmd_save(I, Args, _CmdState) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-cmd_skip(I, Args, _CmdState) ->
+cmd_skip(I, Args, CmdState) ->
     case Args of
-        [{"n_commands", N}] ->
-            ok;
+        [{"lineno", BreakPos}] ->
+            Invert = false;
         [] ->
-            N = 1
+            CurrentFullLineNo = current_full_lineno(I),
+            BreakPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
+            Invert = true
     end,
-    {Skipped, Cmds} = skip_cmds(N, I#istate.commands, []),
-    case Skipped of
-        [] ->
-            io:format("\nNo more lines to skip.\n", []);
-        [#cmd{lineno = Single}] ->
-            io:format("\nSkipped line ~p.\n", [Single]);
-        [Last | Rest] ->
-            First = lists:last(Rest),
-            io:format("\nSkipped lines ~p..~p.\n", [First, Last])
-    end,
-    I2 = I#istate{commands = Cmds},
-    {undefined, I2}.
-
-skip_cmds(N, [Cmd | Cmds], Skipped) when N > 0 ->
-    skip_cmds(N-1, Cmds, [Cmd | Skipped]);
-skip_cmds(0, Cmds, Skipped) ->
-    {Skipped, Cmds}.
+    NewArgs = [{"lineno", BreakPos}],
+    do_continue(I, NewArgs, CmdState, skip, Invert).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1253,15 +1268,15 @@ current(#istate{file = File,
     case Cmds of
         [] when Level =:= 1 ->
             LineNo = 1,
-            Type = main;
+            CmdType = main;
         [] ->
             LineNo = 1,
-            Type = LatestCmd#cmd.type;
-        [#cmd{type = Type, lineno = LineNo} | _] ->
+            CmdType = LatestCmd#cmd.type;
+        [#cmd{type = CmdType, lineno = LineNo} | _] ->
             ok
         end,
     RevFile = lux_utils:filename_split(File), % optimize later
-    #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type}.
+    #cmd_pos{rev_file = RevFile, lineno = LineNo, type = CmdType}.
 
 full_lineno_to_static_break_pos(FullLineNo) ->
     #cmd_pos{rev_file = RevFile, lineno = LineNo} = hd(FullLineNo),
@@ -1270,15 +1285,21 @@ full_lineno_to_static_break_pos(FullLineNo) ->
 %% full_lineno_to_dynamic_break_pos(FullLineNo) ->
 %%     [LineNo || {_File, LineNo, _Type} <- FullLineNo].
 
-break_to_full_lineno(#istate{orig_file = OrigFile,
-                             orig_commands = OrigCmds} = I,
-                     BreakPos) ->
+break_to_full_lineno(I, BreakPos, Scope) ->
+    case Scope of
+        rest ->
+            File = I#istate.file,
+            Cmds = I#istate.commands;
+        orig ->
+            File = I#istate.orig_file,
+            Cmds = I#istate.orig_commands
+    end,
     Collect =
         fun(Cmd, RevFile, CmdStack, Acc) ->
                 collect_break(Cmd, RevFile, CmdStack, Acc, BreakPos)
         end,
     Depth = break_to_depth(I, BreakPos),
-    case lux_utils:foldl_cmds(Collect, [], OrigFile, [], OrigCmds, Depth) of
+    case lux_utils:foldl_cmds(Collect, [], File, [], Cmds, Depth) of
         []       -> false;
         Matching -> lists:last(Matching)
     end.
@@ -1289,11 +1310,11 @@ break_to_depth(I, BreakPos) ->
         is_list(BreakPos), BreakPos =/= []             -> {dynamic, I}
     end.
 
-collect_break(#cmd{type = Type, lineno = LineNo},
+collect_break(#cmd{type = CmdType, lineno = LineNo},
               RevFile, CmdStack, Acc, BreakPos) ->
     CmdPos = #cmd_pos{rev_file = RevFile,
                       lineno = LineNo,
-                      type = Type},
+                      type = CmdType},
     FullLineNo = [CmdPos | CmdStack],
     case match_break(FullLineNo, BreakPos, fuzzy) of
         true  -> [FullLineNo | Acc];

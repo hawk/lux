@@ -49,8 +49,9 @@
                             binary() | atom() | string()}]}).
 
 -record(break,
-        {pos  :: {string(), non_neg_integer()} | [non_neg_integer()],
-         type :: temporary | next | enabled | disabled}).
+        {pos            :: {string(), non_neg_integer()} | [non_neg_integer()],
+         invert = false :: boolean(),
+         type           :: temporary  | next | skip | enabled | disabled}).
 
 -record(macro,
         {name :: string(),

@@ -53,7 +53,7 @@ init(I, StartTime) ->
         error:Reason ->
             ErrBin = ?l2b(io_lib:format("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
-                      [ErrBin, ?stacktrace()]),
+                      [ErrBin, erlang:get_stacktrace()]),
             {error, ErrBin, I}
     after
         safe_cancel_timer(Ref),
@@ -265,6 +265,8 @@ opt_dispatch_cmd(#istate{commands = Cmds, want_more = WantMore} = I) ->
     case Cmds of
         [#cmd{lineno = CmdLineNo} = Cmd | Rest] when WantMore ->
             case lux_debug:check_breakpoint(I, CmdLineNo) of
+                {skip, I2} ->
+                    I2#istate{commands = Rest, latest_cmd = Cmd};
                 {dispatch, I2} ->
                     I3 = I2#istate{commands = Rest, latest_cmd = Cmd},
                     dispatch_cmd(I3, Cmd);
@@ -942,7 +944,7 @@ do_goto_cleanup(I, CleanupReason, LineNo) ->
         [#cmd_pos{type = Context} | _] -> ok
     end,
     %% Fast forward to (optional) cleanup command
-    CleanupFun = fun(#cmd{type = Type}) -> Type =/= cleanup end,
+    CleanupFun = fun(#cmd{type = CmdType}) -> CmdType =/= cleanup end,
     CleanupCmds = lists:dropwhile(CleanupFun, I#istate.commands),
     case CleanupCmds of
         [#cmd{lineno = CleanupLineNo} | _] ->
