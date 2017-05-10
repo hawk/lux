@@ -77,11 +77,11 @@ annotate_log(LogFile, Opts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Assemble result history
 
--spec(history(dirname(), filename(), opts()) ->
+-spec(history([dirname()], filename(), opts()) ->
              ok | error()).
 
-history(LogDir, HtmlFile, Opts) ->
-    case lux_html_history:generate(LogDir, HtmlFile, Opts) of
+history(LogDirs, HtmlFile, Opts) ->
+    case lux_html_history:generate(LogDirs, HtmlFile, Opts) of
         {ok, HtmlFile} ->
             lux_html_parse:validate_html(HtmlFile, Opts);
         {error, File, Reason} ->

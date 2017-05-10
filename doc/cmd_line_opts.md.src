@@ -85,7 +85,7 @@ Log management
 --------------
 
     lux --annotate LogFile
-    lux --history LogDir
+    lux --history TargetLogDir SourceLogDirs
 
 **--annotate LogFile**  
 Transforms textual log files into HTML format and annotates Lux script
@@ -94,10 +94,12 @@ as `LogFile` but with a `.html` extension added. See also the
 [configuration parameter](#config_params) `--html`.
 
 **--history LogDir**  
+
 Generates an HTML file which summarizes the history of all test runs,
-by analyzing the `lux_summary.log` files located under `LogDir`. All
-sub directories not containing a `lux.skip` file will be searched. The
-file will be generated on the `LogDir` directory and is called
+this is done by analyzing the `lux_summary.log` files located under
+`Files`. By default `LogDir ` is used as Files. All sub directories
+not containing a `lux.skip` file will be searched. The file will be
+generated on the `LogDir` directory and is called
 `lux_history.html`. Its behavior can be customized by using the
-`--suite`, `--run`, `--revision` and `--hostname`
-[configuration parameters](#config_params).
+`--suite`, `--run`, `--revision` and `--hostname` [configuration
+parameters](#config_params).

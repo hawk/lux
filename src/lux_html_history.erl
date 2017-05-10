@@ -19,12 +19,23 @@
 -record(row,   {res, iolist}).
 -record(cell,  {res, run, iolist}).
 
-generate(RelTopDir, RelHtmlFile, Opts) ->
+generate(RelTopDirs, RelHtmlFile, Opts) ->
+    io:format("Assembling history of logs from...", []),
+    generate2(RelTopDirs, RelHtmlFile, Opts, [], []).
+
+generate2([RelTopDir | RelTopDirs], RelHtmlFile, Opts, RunAcc, ErrAcc) ->
     AbsTopDir = lux_utils:normalize_filename(RelTopDir),
+    io:format("\n\t~s", [AbsTopDir]),
+    {AllRuns, Errors} = parse_summary_logs(AbsTopDir, RunAcc, ErrAcc, Opts),
+    generate2(RelTopDirs, RelHtmlFile, Opts, AllRuns, Errors);
+generate2([], RelHtmlFile, _Opts, AllRuns, Errors) ->
+    io:format("\nAnalyzed ~p test runs (~p errors)",
+              [length(AllRuns), length(Errors)]),
+    generate3(RelHtmlFile, AllRuns).
+
+generate3(RelHtmlFile, AllRuns) ->
     AbsHtmlFile = lux_utils:normalize_filename(RelHtmlFile),
     NewLogDir = filename:dirname(AbsHtmlFile),
-    {AllRuns, Errors} = parse_summary_logs(AbsTopDir, [], [], Opts),
-    io:format("~p test runs (~p errors)", [length(AllRuns), length(Errors)]),
     SplitHosts = keysplit(#run.hostname, AllRuns),
     LatestRuns = latest_runs(SplitHosts),
     HostTables = table_hosts(NewLogDir, SplitHosts, AbsHtmlFile),

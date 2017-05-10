@@ -846,12 +846,15 @@ annotate(LogFile0, Opts) ->
             1
     end.
 
-history(LogDir0, Opts) ->
-    {_Files, Opts2} = translate_opts(Opts),
-    LogDir = filename:absname(LogDir0),
-    io:format("Assembling history of logs in ~s...", [LogDir]),
-    HtmlFile = filename:join([LogDir, "lux_history.html"]),
-    case lux:history(LogDir, HtmlFile, Opts2) of
+history(RelLogDir, Opts) ->
+    {Files0, Opts2} = translate_opts(Opts),
+    case Files0 of
+        []    -> Files = [RelLogDir];
+        Files -> ok
+    end,
+    AbsLogDir = filename:absname(RelLogDir),
+    HtmlFile = filename:join([AbsLogDir, "lux_history.html"]),
+    case lux:history(Files, HtmlFile, Opts2) of
         ok ->
             io:format("...ok\n", []),
             io:format("\nfile://~s\n", [HtmlFile]),
