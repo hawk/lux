@@ -69,8 +69,8 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
         end
     catch
         Class:Reason ->
-            Stack = erlang:get_stacktrace(),
-            internal_error(I2, {'EXIT', {fatal_error, Class, Reason, Stack}})
+            EST = erlang:get_stacktrace(),
+            internal_error(I2, {'EXIT', {fatal_error, Class, Reason, EST}})
     end.
 
 default_istate(File) ->

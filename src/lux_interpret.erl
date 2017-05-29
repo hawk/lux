@@ -51,9 +51,10 @@ init(I, StartTime) ->
         throw:{error, Reason, I5} ->
             {error, Reason, I5};
         error:Reason ->
+            EST = erlang:get_stacktrace(),
             ErrBin = ?l2b(io_lib:format("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
-                      [ErrBin, erlang:get_stacktrace()]),
+                      [ErrBin, EST]),
             {error, ErrBin, I}
     after
         safe_cancel_timer(Ref),
@@ -581,6 +582,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
         end
     catch
         Class:Reason ->
+            EST = erlang:get_stacktrace(),
             lux_utils:progress_write(OldI#istate.progress, ")"),
             BeforeExit =
                 fun() ->
@@ -595,7 +597,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                     switch_cmd('after', BeforeI2, OldStack, Cmd,
                                BeforeExit, IsRootLoop)
             end,
-            erlang:raise(Class, Reason, erlang:get_stacktrace())
+            erlang:raise(Class, Reason, EST)
     end.
 
 call_level(#istate{call_level = CallLevel}) ->

@@ -567,6 +567,7 @@ test2(A, B) ->
         {ok, Time1, Time2}
     catch
         error:Reason ->
+            EST = erlang:get_stacktrace(),
             io:format("Test failed for:\n"
                       "  ~p:test2(\n"
                       "      ~p\n,"
@@ -576,9 +577,8 @@ test2(A, B) ->
                       "  ~p\n"
                       "  ~p\n"
                       "  1: ~p\n"
-                      "  2: ~p\n"
-                     , [Reason, erlang:get_stacktrace(),
-                        CompactDiff1, CompactDiff2]),
+                      "  2: ~p\n",
+                      [Reason, EST, CompactDiff1, CompactDiff2]),
             timer:sleep(500),
             {error, Reason}
     end.

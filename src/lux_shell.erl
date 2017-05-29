@@ -159,9 +159,10 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
         end
     catch
         error:InitReason ->
+            EST = erlang:get_stacktrace(),
             InitBinErr = ?l2b([FlatExec, ": ",
                                file:format_error(InitReason)]),
-            io:format("~s\n~p\n", [InitBinErr, erlang:get_stacktrace()]),
+            io:format("~s\n~p\n", [InitBinErr, EST]),
             stop(C2, error, InitBinErr)
     end.
 

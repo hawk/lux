@@ -77,11 +77,10 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                 throw:{error, FileErr, Reason} ->
                     {error, FileErr, Reason};
                 Class:Reason ->
+                    EST = erlang:get_stacktrace(),
                     ReasonStr =
                         lists:flatten(io_lib:format("~p:~p ~p",
-                                                    [Class,
-                                                     Reason,
-                                                     erlang:get_stacktrace()])),
+                                                    [Class, Reason, EST])),
                     {ok, Cwd} = file:get_cwd(),
                     {error, Cwd, ReasonStr}
             end;
@@ -102,11 +101,10 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                 throw:{error, FileErr, ReasonStr} ->
                     {error, FileErr, ReasonStr};
                 Class:Reason ->
+                    EST = erlang:get_stacktrace(),
                     ReasonStr =
                         lists:flatten(io_lib:format("~p:~p ~p",
-                                                    [Class,
-                                                     Reason,
-                                                     erlang:get_stacktrace()])),
+                                                    [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
             after
                 cancel_timer(TimerRef)
@@ -145,6 +143,7 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
         tap_suite_end(NewR, NewSummary, NewResults),
         {NewR, NewSummary, NewResults}
     catch Class:Reason ->
+            EST = erlang:get_stacktrace(),
             lux:trace_me(80, suite, Class, [Reason]),
             if
                 R#rstate.tap =/= undefined ->
@@ -152,7 +151,7 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
                 true ->
                     ok
             end,
-            erlang:raise(Class, Reason, erlang:get_stacktrace())
+            erlang:raise(Class, Reason, EST)
     end.
 
 expand_suite(R, [SuiteFile | SuiteFiles], Acc, Max) ->
