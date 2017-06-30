@@ -54,7 +54,8 @@
          system_vars = lux_utils:system_vars()
                                     :: [string()], % ["name=val"]
          tap_opts = []              :: [string()],
-         tap                        :: term() % #tap{}
+         tap                        :: term(), % #tap{}
+         junit = false              :: boolean()
         }).
 
 run(Files, Opts, OrigArgs) when is_list(Files) ->
@@ -205,6 +206,7 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             EndConfig = [{'end time', [string], SuiteEndTime}],
             write_config_log(SummaryLog, ConfigData ++ EndConfig),
             lux_log:close_summary_log(SummaryFd, SummaryLog),
+            maybe_write_junit_report(R3, SummaryLog),
             annotate_final_summary_log(R3, Summary, HtmlPrio,
                                        SummaryLog, Results);
         {error, FileReason} ->
@@ -216,6 +218,11 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
                                      file:format_error(FileReason)]),
             {error, SummaryLog, FileErr}
     end.
+
+maybe_write_junit_report(#rstate{junit = false}, _) ->
+    ok;
+maybe_write_junit_report(#rstate{junit = true}, SummaryLog) ->
+    ok = lux_junit:write_report(SummaryLog, []).
 
 initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
   when Exists =:= true ->
@@ -452,6 +459,9 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
         tap when is_list(Val) ->
             TapOpts = [Val|R#rstate.tap_opts],
             parse_ropts(T, R#rstate{tap_opts = TapOpts});
+        junit when Val =:= true; Val =:= false ->
+            parse_ropts(T, R#rstate{junit = Val});
+
 
         %% case options
         _ ->
@@ -1271,6 +1281,8 @@ suite_config_type(Name) ->
             {ok, [string]};
         tap ->
             {ok, [{std_list, [string]}]};
+        junit ->
+            {ok, [{atom, [true, false]}]};
         _ ->
             {error, ?l2b(lists:concat(["Bad argument: ", Name]))}
     end.

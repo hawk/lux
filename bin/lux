@@ -153,7 +153,8 @@ specs() ->
      {"--file_pattern", ".*\.lux" ++ [$$], string,                 mandatory},
      {"--root_dir",           undefined,   string,                 mandatory},
      {"--var",                undefined,   string,                 mandatory},
-     {"--tap",                undefined,   string,                 mandatory}
+     {"--tap",                undefined,   string,                 mandatory},
+     {"--junit",              false,       boolean,                none}
     ].
 
 enum(profile) ->
@@ -952,7 +953,8 @@ translate_opts([
      {"--file_pattern",       FilePattern},
      {"--root_dir",           _RootDir},
      {"--var",                Var},
-     {"--tap",                Tap}
+     {"--tap",                Tap},
+     {"--junit",              Junit}
     ]) ->
     Mode2 =
         if
@@ -995,7 +997,8 @@ translate_opts([
          {revision,           Revision},
          {hostname,           Hostname},
          {file_pattern,       FilePattern},
-         {tap,                Tap}
+         {tap,                Tap},
+         {junit,              Junit}
         ],
     {Files, lux_suite:args_to_opts(Opts, suite_style, [])}.
 
