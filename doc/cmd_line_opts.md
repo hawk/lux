@@ -86,6 +86,7 @@ Log management
 
     lux --annotate LogFile
     lux --history LogDir
+    lux --junit
 
 **--annotate LogFile**  
 Transforms textual log files into HTML format and annotates Lux script
@@ -101,3 +102,9 @@ file will be generated on the `LogDir` directory and is called
 `lux_history.html`. Its behavior can be customized by using the
 `--suite`, `--run`, `--revision` and `--hostname`
 [configuration parameters](#config_params).
+
+**--junit**  
+Generate a JUnit test report for the test run that can be used for example
+by Jenkins to show test result using the JUnit plugin. The generated test
+report will get the same name as the summary `LogFile` but with a
+`.junit.xml` extension added.
