@@ -207,7 +207,7 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             EndConfig = [{'end time', [string], SuiteEndTime}],
             write_config_log(SummaryLog, ConfigData ++ EndConfig),
             lux_log:close_summary_log(SummaryFd, SummaryLog),
-            maybe_write_junit_report(R3, SummaryLog),
+            maybe_write_junit_report(R3, SummaryLog, ConfigData),
             annotate_final_summary_log(R3, Summary, HtmlPrio,
                                        SummaryLog, Results);
         {error, FileReason} ->
@@ -220,10 +220,11 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             {error, SummaryLog, FileErr}
     end.
 
-maybe_write_junit_report(#rstate{junit = false}, _) ->
+maybe_write_junit_report(#rstate{junit = false}, _, _) ->
     ok;
-maybe_write_junit_report(#rstate{junit = true}, SummaryLog) ->
-    ok = lux_junit:write_report(SummaryLog, []).
+maybe_write_junit_report(#rstate{junit = true}, SummaryLog, ConfigData) ->
+    {run_dir, _, RunDir} = lists:keyfind(run_dir, 1, ConfigData),
+    ok = lux_junit:write_report(SummaryLog, RunDir, []).
 
 initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
   when Exists =:= true ->
