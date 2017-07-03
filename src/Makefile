@@ -17,6 +17,7 @@ ERL_MODULES = \
 	lux_html_parse \
 	lux_html_utils \
 	lux_interpret \
+	lux_junit \
 	lux_log \
 	lux_suite \
 	lux_tap \
