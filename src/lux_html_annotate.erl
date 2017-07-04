@@ -81,8 +81,8 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
                     AnnotateEventLog =
                         fun(EventLog0) ->
                                 RelEventLog = drop_run_log_prefix(A, EventLog0),
-                                EventLog = filename:join([SuiteLogDir,
-                                                          RelEventLog]),
+                                EventLog = lux_utils:join(SuiteLogDir,
+                                                           RelEventLog),
                                 case generate(IsRecursive,
                                               EventLog,
                                               A#astate.suite_log_dir,
@@ -151,8 +151,8 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
                 Base = filename:basename(NextScript),
                 SuiteLogDir = A#astate.suite_log_dir,
                 CaseLogDir = lux_case:case_log_dir(SuiteLogDir, NextScript),
-                EventLog = filename:join([CaseLogDir, Base ++ ".event.log"]),
-                ConfigLog = filename:join([CaseLogDir, Base ++ ".config.log"]),
+                EventLog = lux_utils:join(CaseLogDir, Base ++ ".event.log"),
+                ConfigLog = lux_utils:join(CaseLogDir, Base ++ ".config.log"),
                 LogFun =
                     fun(L, S) ->
                             ["    <td><strong>",
@@ -476,7 +476,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
             Timers, Files, Logs, Annotated, ConfigBins)
   when is_list(EventLog), is_list(ConfigLog), is_list(Script) ->
     EventLogDir = A#astate.new_log_dir,
-    EventLogBase = filename:join([EventLogDir, filename:basename(Script)]),
+    EventLogBase = lux_utils:join(EventLogDir, filename:basename(Script)),
     ExtraLogs = EventLogBase ++ ".extra.logs",
     Dir = filename:basename(EventLogDir),
     LogFun =
@@ -976,7 +976,7 @@ pick_prop(Tag, ConfigProps) ->
 
 orig_script(A, Script) when is_list(Script) ->
     RelScript = rel_script(A, Script),
-    filename:join([A#astate.suite_log_dir, RelScript ++ ".orig"]).
+    lux_utils:join(A#astate.suite_log_dir, RelScript ++ ".orig").
 
 rel_script(A, Script) when is_list(Script) ->
     chop_root(drop_run_dir_prefix(A, Script)).

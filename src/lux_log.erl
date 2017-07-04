@@ -108,15 +108,23 @@ do_parse_summary_log(SummaryLog) ->
         {ok, ?SUMMARY_LOG_VERSION, Sections} ->
             %% Latest version
             LogDir = filename:dirname(SummaryLog),
-            ConfigLog = filename:join([LogDir, "lux_config.log"]),
+            ConfigLog = lux_utils:join(LogDir, "lux_config.log"),
             {ok, RawConfig} = scan_config(ConfigLog),
             SummaryConfig = parse_config(RawConfig),
             {ok, Result} = parse_summary_result(LogDir),
             {Cases, EventLogs} = split_cases(Sections, [], []),
-            {ok, FI} = file:read_file_info(SummaryLog),
+            Ctime =
+                case lux_utils:is_url(SummaryLog) of
+                    true ->
+                        <<"remote">>;
+                    false ->
+                        {ok, FI} = file:read_file_info(SummaryLog),
+                        Ctime0 = FI#file_info.ctime,
+                        ?l2b(lux_utils:datetime_to_string(Ctime0))
+                end,
             {ok,
              Result,
-             [{test_group, "", Cases}], SummaryConfig, FI, EventLogs};
+             [{test_group, "", Cases}], SummaryConfig, Ctime, EventLogs};
         {ok, Version, _Sections} ->
             {error, SummaryLog,
              "Illegal summary log version: " ++ ?b2l(Version)};
@@ -125,7 +133,7 @@ do_parse_summary_log(SummaryLog) ->
     end.
 
 read_log(Log, ExpectedTag) when is_list(Log) ->
-  case file:read_file(Log) of
+  case fetch_log(Log) of
       {ok, Bin} ->
           [Head|Sections] = binary:split(Bin, <<"\n\n">>, [global]),
           case binary:split(Head, <<": ">>) of
@@ -160,9 +168,27 @@ read_log(Log, ExpectedTag) when is_list(Log) ->
                       " expected",
                   {error, Reason, Bin}
           end;
-      {error, Reason} ->
-          {error, file:format_error(Reason), <<>>}
+      {error, FileReason} ->
+          {error, file:format_error(FileReason), <<>>};
+      {error, Reason, X} ->
+          {error, Reason, X}
   end.
+
+fetch_log(Log) ->
+    case lux_utils:is_url(Log) of
+        true ->
+            case httpc:request(Log) of
+                {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
+                    {ok, ?l2b(Body)};
+                {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
+                    {error, ReasonPhrase, <<>>};
+                {error, Reason} ->
+                    String = lists:flatten(io_lib:format("~p", [Reason])),
+                    {error, String, <<>>}
+            end;
+        false ->
+            file:read_file(Log)
+    end.
 
 write_log(File, Tag, Version, Sections) when is_list(File) ->
     file:write_file(File, [?TAG(Tag), Version, [["\n\n",S] || S <- Sections]]).
@@ -263,7 +289,7 @@ do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
     Log =
         case RelDir of
             "" -> Base;
-            _  -> filename:join([RelDir, Base])
+            _  -> lux_utils:join(RelDir, Base)
         end,
     R = #run{test = ?DEFAULT_SUITE,
              id = ?DEFAULT_RUN,
@@ -278,11 +304,9 @@ do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
              repos_rev = ?DEFAULT_REV,
              details = []},
     case Res of
-        {ok, Result, Groups, SummaryConfig, FI, _EventLogs} ->
+        {ok, Result, Groups, SummaryConfig, Ctime, _EventLogs} ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
             ConfigProps = split_config(ConfigBins),
-            Ctime0 = FI#file_info.ctime,
-            Ctime = ?l2b(lux_utils:datetime_to_string(Ctime0)),
             StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
             case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
@@ -349,7 +373,7 @@ parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName,
     Log =
         case RelDir of
             "" -> RelEventLog;
-            _  -> filename:join([RelDir, RelEventLog])
+            _  -> lux_utils:join(RelDir, RelEventLog)
         end,
     RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
@@ -415,7 +439,7 @@ write_config_log(ConfigLog, ConfigData) when is_list(ConfigLog) ->
 %% Results
 
 parse_summary_result(LogDir) when is_list(LogDir) ->
-    ResultLog = filename:join([LogDir, "lux_result.log"]),
+    ResultLog = lux_utils:join(LogDir, "lux_result.log"),
     case read_log(ResultLog, ?RESULT_TAG) of
         {ok, ?RESULT_LOG_VERSION, Sections} ->
             %% Latest version
@@ -430,7 +454,7 @@ parse_summary_result(LogDir) when is_list(LogDir) ->
 write_results(Progress, SummaryLog, Summary, Results, Warnings)
   when is_list(SummaryLog) ->
     LogDir = filename:dirname(SummaryLog),
-    ResultFile = filename:join([LogDir, "lux_result.log"]),
+    ResultFile = lux_utils:join(LogDir, "lux_result.log"),
     TmpResultFile = ResultFile++".tmp",
     case file:open(TmpResultFile, [write]) of
         {ok, Fd} ->
@@ -550,7 +574,7 @@ result_format(Progress, {IsTmp, Fd}, Format, Args) ->
 open_event_log(LogDir, Script, Progress, LogFun, Verbose)
   when is_list(LogDir), is_list(Script) ->
     Base = filename:basename(Script),
-    EventLog = filename:join([LogDir, Base ++ ".event.log"]),
+    EventLog = lux_utils:join(LogDir, Base ++ ".event.log"),
     case file:open(EventLog, [write]) of
         {ok, EventFd} ->
             safe_format(Progress, LogFun, {Verbose, EventFd},
@@ -596,7 +620,7 @@ do_scan_events(EventLog, EventSections) ->
     Script = ?b2l(ScriptBin),
     Dir = filename:dirname(EventLog),
     Base = filename:basename(EventLog, ".event.log"),
-    ConfigLog = filename:join([Dir, Base ++ ".config.log"]),
+    ConfigLog = lux_utils:join(Dir, Base ++ ".config.log"),
     case scan_config(ConfigLog) of
         {ok, [ConfigSection]} ->
             LogBins = [],
@@ -978,7 +1002,7 @@ dequote1([]) ->
 
 open_config_log(LogDir, Script, ConfigData) ->
     Base = filename:basename(Script),
-    ConfigFile = filename:join([LogDir, Base ++ ".config.log"]),
+    ConfigFile = lux_utils:join(LogDir, Base ++ ".config.log"),
     case filelib:ensure_dir(ConfigFile) of
         ok ->
             case write_config_log(ConfigFile, ConfigData) of

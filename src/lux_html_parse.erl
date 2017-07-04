@@ -8,7 +8,8 @@
 -module(lux_html_parse).
 
 -export([validate_file/1, format_results/1,
-         validate_html/1, validate_html/2]).
+         validate_html/1, validate_html/2,
+         parse_files/2]).
 
 -include_lib("lux.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
@@ -53,7 +54,7 @@ validate_html(HtmlFile) ->
 -spec validate_file(File::file:filename()) -> [val_res()].
 
 validate_file(File) ->
-    Res = deep_parse_files(File),
+    Res = parse_files(deep, File),
     %% io:format("\nLINKS: ~s\n\t~p\n", [File, Res]),
     Enoent = file:format_error(enoent),
     Fun = fun(E, A) -> validate_links(E, Res, Enoent, A) end,
@@ -107,9 +108,9 @@ do_validate_links({link, External, Internal}, Abs, Orig, EnoEnt, Acc) ->
 do_validate_links({anchor, _Name}, _Abs, _Orig, _EnoEnt, Acc) ->
     Acc.
 
-deep_parse_files(Rel) ->
+parse_files(Mode, Rel) ->
     {Remote, _StopFun} = opt_start_app(inets),
-    Res = do_deep_parse_files([{top, Rel}], Remote, []),
+    Res = do_parse_files(Mode, [{top, Rel}], Remote, []),
     %% StopFun(),
     Res.
 
@@ -123,54 +124,53 @@ opt_start_app(App) ->
             {false, fun() -> ok end}
     end.
 
-do_deep_parse_files([Rel|Rest], Remote, Acc) ->
+do_parse_files(Mode, [Rel|Rest], Remote, Acc) ->
     {_LinkType, Abs} = link_type(Rel),
     case lists:keymember(Abs, 2, Acc) of
         true ->
             %% Already parsed
-            do_deep_parse_files(Rest, Remote, Acc);
+            do_parse_files(Mode, Rest, Remote, Acc);
         false ->
-            case parse_file(Abs, Remote andalso is_url(Abs)) of
+            case parse_file(Abs, Remote andalso lux_utils:is_url(Abs)) of
                 {ok, Simple, Type} ->
                     Refs = to_links(Simple),
-                    More = [{target, Abs, E} || {link, E, _I} <- Refs],
                     Acc2 = [{ok, Abs, Refs, Type} | Acc],
-                    do_deep_parse_files(Rest++More, Remote, Acc2);
+                    Next =
+                        case Mode of
+                            deep    ->
+                                More = [{target, Abs, E} ||
+                                           {link, E, _I} <- Refs],
+                                Rest++More;
+                            shallow ->
+                                Rest
+                        end,
+                    do_parse_files(Mode, Next, Remote, Acc2);
                 {error, Line, Col, Reason} ->
                     Acc2 = [{error, Abs, Line, Col, Reason} | Acc],
-                    do_deep_parse_files(Rest, Remote, Acc2)
+                    do_parse_files(Mode, Rest, Remote, Acc2)
             end
     end;
-do_deep_parse_files([], _Remote, Acc) ->
+do_parse_files(_Mode, [], _Remote, Acc) ->
     lists:reverse(Acc).
 
 link_type({target, Source, ""}) ->
     {local, Source};
 link_type({target, Source, Target}) ->
-    IsUrl = is_url(Target),
+    IsUrl = lux_utils:is_url(Target),
     if
         IsUrl ->
             {remote, Target};
         true ->
             Dir = filename:dirname(Source),
-            {local, Dir ++ "/" ++ Target}
+            {local, lux_utils:join(Dir, Target)}
     end;
 link_type({top, Source}) ->
-    case is_url(Source) of
-        true ->
-            {remote, Source};
-        false ->
-            Abs = filename:absname(Source),
-            {local, lux_utils:normalize_filename(Abs)}
-    end.
-
-is_url(File) ->
-    case File of
-        ""            -> true;
-        "http:"  ++ _ -> true;
-        "https:" ++ _ -> true;
-        _             -> false
-    end.
+    Type =
+        case lux_utils:is_url(Source) of
+            true ->  remote;
+            false -> local
+        end,
+    {Type, lux_utils:normalize_filename(Source)}.
 
 to_links(Simple) ->
     Fun = fun({href, Name}, _Parents, Acc) ->
@@ -192,6 +192,8 @@ parse_file(URL, true) ->
         {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
             ParseFun = fun(Opts) -> xmerl_scan:string(Body, Opts) end,
             parse_html(ParseFun);
+        {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
+            {error, 0, 0, ReasonPhrase};
         {error, Reason} ->
             String = lists:flatten(io_lib:format("~p", [Reason])),
             {error, 0, 0, String}
@@ -311,6 +313,10 @@ format_result(Res, Cwd) ->
             %% RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             %% ["EXISTS:     ", RelFile];
             [];
+        {ok, _AbsFile, _Links, html} ->
+            %% RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
+            %% ["HTML OK:    ", RelFile];
+            [];
         {link_warning, AbsFile, Line, Col, Reason} ->
             RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             Reason2 = "Remote link: " ++ Reason,
@@ -320,6 +326,9 @@ format_result(Res, Cwd) ->
             Reason2 = "Bad link: " ++ Reason,
             ["HTML LUX ERROR: ", RelFile, opt_pos(Line, Col), Reason2];
         {syntax_error, AbsFile, Line, Col, Reason} ->
+            RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
+            ["HTML LUX ERROR: ", RelFile, opt_pos(Line, Col), Reason];
+        {error, AbsFile, Line, Col, Reason} ->
             RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             ["HTML LUX ERROR: ", RelFile, opt_pos(Line, Col), Reason]
     end.

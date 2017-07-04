@@ -21,7 +21,7 @@
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/2, equal/2, diff_iter/3, diff_iter/4, shrink_diff/2,
          cmd/1, cmd_expected/1, perms/1,
-         pick_opt/3]).
+         pick_opt/3, split/2, join/2, is_url/1]).
 
 -include("lux.hrl").
 
@@ -254,7 +254,18 @@ do_drop_prefix(_Prefix, _Rest, OrigFile) ->
 normalize_filename(File) when is_binary(File) ->
     ?l2b(normalize_filename(binary_to_list(File)));
 normalize_filename(File) ->
-    do_normalize_filename(filename:split(filename:absname(File)), []).
+    Delim = "://",
+    case split(File, Delim) of
+        {Prefix, Rel} ->
+            Delim2 = Delim,
+            Abs = Rel;
+        false ->
+            Prefix = "",
+            Delim2 = "",
+            Abs = filename:absname(File)
+    end,
+    File2 = do_normalize_filename(filename:split(Abs), []),
+    Prefix ++ Delim2 ++ File2.
 
 do_normalize_filename([H|T], Acc) ->
     Acc2 =
@@ -267,6 +278,60 @@ do_normalize_filename([H|T], Acc) ->
     do_normalize_filename(T, Acc2);
 do_normalize_filename([], Acc) ->
     filename:join(lists:reverse(Acc)).
+
+split(File, Delim) ->
+    split2(File, Delim, Delim, [], 0).
+
+split2([H|T], [H|DT], OrigDelim, Acc, N) ->
+    %% Partial match delim
+    split2(T, DT, OrigDelim, [H|Acc], N+1);
+split2(Rest, [], _OrigDelim, Acc, N) ->
+    %% Full match delim
+    {lists:reverse(lists:nthtail(N, Acc)), Rest};
+split2([H|T], _Delim, OrigDelim, Acc, _N) ->
+    %% Reset delim
+    split2(T, OrigDelim, OrigDelim, [H|Acc], 0);
+split2([], _Delim, _OrigDelim, _Acc, _N) ->
+    false.
+
+join(_Dir, File) when hd(File) =:= $/ ->
+    File;
+join(Dir, File) ->
+    Delim = "://",
+    case split(File, Delim) of
+        {_Prefix, _Rel} ->
+            File;
+        false ->
+            join2(Dir, File, Dir++"/"++File)
+    end.
+
+join2(".", _File, Default) ->
+    Default;
+join2(Dir, File, Default) ->
+    case File of
+        "../" ++ Rest ->
+            Parent = filename:dirname(Dir),
+            join2(Parent, Rest, Default);
+        ".." ->
+            filename:dirname(Dir);
+        "./" ++ Rest ->
+            join2(Dir, Rest, Default);
+        "." ->
+            Dir;
+        _ ->
+            Dir++"/"++File
+    end.
+
+is_url("") ->
+    true;
+is_url(File) ->
+    Delim = "://",
+    case split(File, Delim) of
+        {_Prefix, _Rel} ->
+            true;
+        false ->
+            false
+    end.
 
 strip_leading_whitespaces(Bin) when is_binary(Bin) ->
     re:replace(Bin, "^[\s\t]+", "", [{return, binary}]).

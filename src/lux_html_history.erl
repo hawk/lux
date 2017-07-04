@@ -15,25 +15,26 @@
 -define(CONFIG_SUFFIX, "_config").
 -define(HOST_SUFFIX, "_host").
 
--record(table, {name, res, iolist}).
--record(row,   {res, iolist}).
--record(cell,  {res, run, iolist}).
+-record(table, {name, res, rows, iolist}).
+-record(row,   {res, cells, iolist}).
+-record(cell,  {res, run, n_run, n_fail, iolist}).
 
 generate(RelTopDirs, RelHtmlFile, Opts) ->
     io:format("Assembling history of logs from...", []),
-    generate2(RelTopDirs, RelHtmlFile, Opts, [], []).
+    generate2(RelTopDirs, RelHtmlFile, [{top, RelTopDirs} | Opts], [], []).
 
 generate2([RelTopDir | RelTopDirs], RelHtmlFile, Opts, RunAcc, ErrAcc) ->
-    AbsTopDir = lux_utils:normalize_filename(RelTopDir),
-    io:format("\n\t~s", [AbsTopDir]),
-    {AllRuns, Errors} = parse_summary_logs(AbsTopDir, RunAcc, ErrAcc, Opts),
+    io:format("\n\t~s", [RelTopDir]),
+    {AllRuns, Errors} =
+        parse_summary_logs(RelTopDir, RelHtmlFile, RunAcc, ErrAcc, Opts),
     generate2(RelTopDirs, RelHtmlFile, Opts, AllRuns, Errors);
-generate2([], RelHtmlFile, _Opts, AllRuns, Errors) ->
+generate2([], RelHtmlFile, Opts, AllRuns, Errors) ->
+    %% io:format("\nERRORS ~p\n", [Errors]),
     io:format("\nAnalyzed ~p test runs (~p errors)",
               [length(AllRuns), length(Errors)]),
-    generate3(RelHtmlFile, AllRuns).
+    generate3(RelHtmlFile, AllRuns, Errors, Opts).
 
-generate3(RelHtmlFile, AllRuns) ->
+generate3(RelHtmlFile, AllRuns, Errors, Opts) ->
     AbsHtmlFile = lux_utils:normalize_filename(RelHtmlFile),
     NewLogDir = filename:dirname(AbsHtmlFile),
     SplitHosts = keysplit(#run.hostname, AllRuns),
@@ -43,50 +44,94 @@ generate3(RelHtmlFile, AllRuns) ->
     ConfigTables =
         table_configs(NewLogDir, SplitConfigs, AbsHtmlFile),
     HtmlDir = filename:dirname(RelHtmlFile),
+    HtmlArgs = args(RelHtmlFile, Opts),
+    HtmlErrors = errors(Errors),
     OverviewIoList =
         [
          header("overview", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
+                ConfigTables, HostTables, HtmlDir, RelHtmlFile, Errors),
          table_latest(NewLogDir, LatestRuns, AbsHtmlFile),
          table_all(NewLogDir, AllRuns, AbsHtmlFile),
+         HtmlArgs,
+         HtmlErrors,
          lux_html_utils:html_footer()
         ],
     CurrentIoList =
         [
          header("current failures", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
+                ConfigTables, HostTables, HtmlDir, RelHtmlFile, Errors),
          table_current(NewLogDir, AllRuns, AbsHtmlFile),
+         HtmlArgs,
+         HtmlErrors,
          lux_html_utils:html_footer()
         ],
     ConfigIoList =
         [
          header("config", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
+                ConfigTables, HostTables, HtmlDir, RelHtmlFile, Errors),
          "<a name=\"content\"/>",
          [T#table.iolist || T <- ConfigTables],
+         HtmlArgs,
+         HtmlErrors,
          lux_html_utils:html_footer()
         ],
     HostIoList =
         [
          header("host", AllRuns,
-                             ConfigTables, HostTables, HtmlDir, RelHtmlFile),
+                ConfigTables, HostTables, HtmlDir, RelHtmlFile, Errors),
          "<a name=\"content\"/>",
          [T#table.iolist || T <- HostTables],
+         HtmlArgs,
+         HtmlErrors,
          lux_html_utils:html_footer()
         ],
     CurrentHtmlFile =
-        filename:join(HtmlDir,
-                      insert_html_suffix(RelHtmlFile, "", ?CURRENT_SUFFIX)),
+        lux_utils:join(HtmlDir,
+                       insert_html_suffix(RelHtmlFile, "", ?CURRENT_SUFFIX)),
     ConfigHtmlFile =
-        filename:join(HtmlDir,
-                      insert_html_suffix(RelHtmlFile, "", ?CONFIG_SUFFIX)),
+        lux_utils:join(HtmlDir,
+                       insert_html_suffix(RelHtmlFile, "", ?CONFIG_SUFFIX)),
     HostHtmlFile =
-        filename:join(HtmlDir,
-                      insert_html_suffix(RelHtmlFile, "", ?HOST_SUFFIX)),
+        lux_utils:join(HtmlDir,
+                       insert_html_suffix(RelHtmlFile, "", ?HOST_SUFFIX)),
     lux_html_utils:safe_write_file(ConfigHtmlFile, ConfigIoList),
     lux_html_utils:safe_write_file(HostHtmlFile, HostIoList),
     lux_html_utils:safe_write_file(CurrentHtmlFile, CurrentIoList),
     lux_html_utils:safe_write_file(RelHtmlFile, OverviewIoList).
+
+args(RelHtmlFile, Opts) ->
+    HostArg =
+        case lux_utils:pick_opt(hostname, Opts, undefined) of
+            undefined ->
+                [];
+            HostName ->
+                [" --hostname=", HostName, " "]
+        end,
+    case lux_utils:pick_opt(top, Opts, undefined) of
+        undefined -> Files = [];
+        Files     -> ok
+    end,
+    Dir = filename:dirname(RelHtmlFile),
+    ["\n<h3>Invoke:</h3>\n",
+     "lux ", HostArg, "--history ", Dir, " ", string:join(Files, " "), "\n",
+     "\n"
+    ].
+
+errors(Errors) ->
+    Fun = fun({error, File, Reason}) ->
+                  [
+                   "  <tr>\n",
+                   "    <td>", File, "</td>\n",
+                   "    <td>", Reason, "</td>\n",
+                   "  </tr>\n"
+                  ]
+          end,
+    [
+     lux_html_utils:html_anchor("h3", "", "errors", "Errors:"), "\n",
+     "<table border=\"0\">\n",
+     lists:map(Fun, Errors),
+     "</table>\n\n"
+    ].
 
 latest_runs(SplitHosts) ->
     SplitHostTests =
@@ -104,7 +149,7 @@ latest_runs(SplitHosts) ->
         lists:member(Run#run.id, Ids)].
 
 header(Section, AllRuns, ConfigTables, HostTables,
-                    HtmlDir, HtmlFile) ->
+       HtmlDir, HtmlFile, Errors) ->
     Dir = filename:basename(filename:dirname(HtmlFile)),
     case lists:keysort(#run.repos_rev, AllRuns) of
         [] ->
@@ -132,7 +177,9 @@ header(Section, AllRuns, ConfigTables, HostTables,
      "</h1>",
 
      "<h3>", ?i2l(N),
-     " runs within this range of repository revisions</h3>\n",
+     " runs (",
+     lux_html_utils:html_href(["#errors"], [?i2l(length(Errors)), " errors"]),
+     ") within this range of repository revisions</h3>\n",
      "<table border=\"0\">\n",
      "  <tr>\n",
      "    <td>Latest:</td><td><strong>", LatestRev, "</strong></td>\n",
@@ -200,7 +247,7 @@ legend() ->
 
 table_latest(NewLogDir, LatestRuns, HtmlFile) ->
     T = table(NewLogDir, "Latest", "All test suites",
-                           LatestRuns, HtmlFile, none, worst),
+              LatestRuns, HtmlFile, none, worst),
     [
      lux_html_utils:html_anchor("h3", "", "content",
                                 "Latest run on each host"),
@@ -210,16 +257,32 @@ table_latest(NewLogDir, LatestRuns, HtmlFile) ->
 
 table_all(NewLogDir, AllRuns, HtmlFile) ->
     T = table(NewLogDir, "All", "All test suites",
-                           AllRuns, HtmlFile, none, latest),
+              AllRuns, HtmlFile, none, latest),
     [
      lux_html_utils:html_anchor("h3", "", "all_runs", "All runs"),
      T#table.iolist
     ].
 
 table_current(NewLogDir, AllRuns, HtmlFile) ->
-    Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
+    Rebase =
+        fun(#run{log=SL}, #run{log=EL})
+              when SL =/= <<"unknown">>,
+                   EL =/= <<"unknown">> ->
+                case lux_utils:is_url(SL) of
+                    true ->
+                        SLD = filename:dirname(SL),
+                        lux_utils:join(SLD, EL);
+                    false ->
+                        EL
+                end;
+           (#run{log=_SL}, #run{log=EL}) ->
+                EL
+        end,
+    Details = [D#run{details=[D],
+                     log = Rebase(R, D)} || R <- AllRuns,
+                                            D <- R#run.details],
     T = table(NewLogDir, "All", "Still failing test cases",
-                           Details, HtmlFile, latest_success, latest),
+              Details, HtmlFile, latest_success, latest),
     [
      lux_html_utils:html_anchor("h3", "", "content",
                                 "Still failing test cases"),
@@ -230,32 +293,32 @@ table_current(NewLogDir, AllRuns, HtmlFile) ->
 table_configs(NewLogDir, SplitConfigs, HtmlFile) ->
     [
      double_table(NewLogDir,
-                               ConfigName,
-                               "Config: " ++ ConfigName,
-                               Runs,
-                               HtmlFile,
-                               latest) ||
+                  ConfigName,
+                  "Config: " ++ ConfigName,
+                  Runs,
+                  HtmlFile,
+                  latest) ||
         {ConfigName, Runs} <- SplitConfigs
     ].
 
 table_hosts(NewLogDir, SplitHosts, HtmlFile) ->
     [
      double_table(NewLogDir,
-                               Host,
-                               ["Host: ", Host,
-                                " (", (hd(Runs))#run.config_name, ")"],
-                               Runs,
-                               HtmlFile,
-                               latest) ||
+                  Host,
+                  ["Host: ", Host,
+                   " (", (hd(Runs))#run.config_name, ")"],
+                  Runs,
+                  HtmlFile,
+                  latest) ||
         {Host, Runs} <- SplitHosts
     ].
 
 double_table(NewLogDir, Name, Label, AllRuns, HtmlFile, Select) ->
     Details = [D#run{details=[D]} || R <- AllRuns, D <- R#run.details],
     AllT = table(NewLogDir, Name, "All test suites",
-                              AllRuns, HtmlFile, none, Select),
+                 AllRuns, HtmlFile, none, Select),
     FailedT = table(NewLogDir, Name, "Failed test cases",
-                                 Details, HtmlFile, any_success, Select),
+                    Details, HtmlFile, any_success, Select),
     #table{name=Name,
            res=AllT#table.res,
            iolist=
@@ -274,55 +337,80 @@ table(NewLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
     SplitTests = lists:keysort(1, SplitTests0),
     SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
     SplitIds2 = lists:sort(fun compare_split/2, SplitIds),
-    RowHistory =
+    Rows =
         [
          row(NewLogDir, Test, TestRuns, SplitIds2, HtmlFile,
-                          Select, Suppress)
+             Select, Suppress)
          || {Test, TestRuns} <- SplitTests
         ],
     PickRes = fun(#row{res=R}, Acc) -> lux_utils:summary(Acc, R) end,
-    SelectedRes = lists:foldl(PickRes, no_data, RowHistory),
+    SelectedRes = lists:foldl(PickRes, no_data, Rows),
     #table{name=Name,
            res=SelectedRes,
+           %% rows=Rows,
            iolist=
                [
                 "  <table border=\"1\">\n",
                 "    <tr>\n",
                 table_td(Grain, SelectedRes, "left"),
-                [["      <td>", Rev,
-                  "<br/>", "<strong>", Id, "</strong>", "<br/>", Time,
-                  "</td>\n"] ||
-                    {Id, [#run{start_time=Time, repos_rev=Rev} |_ ]}
-                        <- SplitIds2
-                ],
+                lists:map(fun run_info/1, SplitIds2),
                 "    </tr>\n",
                 "    <tr>\n",
-                [["      <td>",
-                  "<strong>",
-                  html_suffix_href(HtmlFile, "", "#"++Host, Host, ?HOST_SUFFIX),
-                  "</strong>",
-                  "<br/>", html_suffix_href(HtmlFile,
-                                           "",
-                                           "#" ++ ConfigName,
-                                           ConfigName,
-                                           ?CONFIG_SUFFIX),
-                  "</td>\n"] ||
-                    {_, [#run{hostname=Host, config_name=ConfigName} |_ ]}
-                        <- SplitIds2
-                ],
+                element(1, lists:mapfoldl(fun host_info/2, HtmlFile,SplitIds2)),
                 "    </tr>\n",
-                [R#row.iolist || R <- RowHistory],
+                "    <tr>\n",
+                element(1, lists:mapfoldl(fun run_cnt/2, {1,Rows}, SplitIds2)),
+                "    </tr>\n",
+                [R#row.iolist || R <- Rows],
                 "  </table>\n"
                ]
           }.
 
+
+run_info({Id, [#run{start_time=Time, repos_rev=Rev} | _]}) ->
+    [
+     "      <td>",
+     Rev, "<br/>",
+     "<strong>", Id, "</strong>", "<br/>",
+     Time,
+         "</td>\n"
+    ].
+
+host_info({_, [#run{hostname=Host, config_name=CN} | _]}, HtmlFile) ->
+    Html =
+        [
+         "      <td>",
+         "<strong>",
+         html_suffix_href(HtmlFile, "", "#"++Host, Host, ?HOST_SUFFIX),
+         "</strong>",
+         "<br/>",
+         html_suffix_href(HtmlFile, "", "#" ++ CN, CN, ?CONFIG_SUFFIX),
+         "</td>\n"
+        ],
+    {Html, HtmlFile}.
+
+run_cnt({_, _}, {N, Rows} ) ->
+    Sum = fun(Pos) ->
+                  lists:sum([element(Pos,lists:nth(N,Cells)) ||
+                                #row{cells=Cells} <- Rows])
+          end,
+    FailN = Sum(#cell.n_fail),
+    RunN = Sum(#cell.n_run),
+    Html =
+        [
+         "      <td \" align=\"right\">",
+         "<strong>", ?i2l(FailN), " (", ?i2l(RunN), ")</strong>\n",
+         "</td>\n"
+        ],
+    {Html, {N+1,Rows}}.
+
 row(NewLogDir, Test, Runs, SplitIds,
-                 HtmlFile, Select, Suppress) ->
+    HtmlFile, Select, Suppress) ->
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
     EmitCell =
         fun({Id, _R}, AccRes) ->
                 cell(NewLogDir, Test, Id, RevRuns,
-                                  HtmlFile, AccRes)
+                     HtmlFile, AccRes)
         end,
     {Cells, _} = lists:mapfoldr(EmitCell, [], SplitIds),
     ValidResFilter = fun (Cell) -> valid_res_filter(Cell, Suppress) end,
@@ -337,11 +425,11 @@ row(NewLogDir, Test, Runs, SplitIds,
         end,
     case lists:usort(lists:map(SiblingFilter, ValidRes)) of
         [] when Suppress =:= any_success ->
-            #row{res=no_data, iolist=[]}; % Skip row
+            #row{res=no_data, cells=Cells, iolist=[]}; % Skip row
         [success] when Suppress =:= any_success ->
-            #row{res=no_data, iolist=[]}; % Skip row
+            #row{res=no_data, cells=Cells, iolist=[]}; % Skip row
         [no_data] when Suppress =:= any_success ->
-            #row{res=no_data, iolist=[]}; % Skip row
+            #row{res=no_data, cells=Cells, iolist=[]}; % Skip row
         _X ->
             SelectedRes = select_row_res(Cells, Select, no_data),
             if
@@ -351,9 +439,10 @@ row(NewLogDir, Test, Runs, SplitIds,
                  SelectedRes =:= skip orelse
                  SelectedRes =:= none orelse
                  SelectedRes =:= no_data) ->
-                    #row{res=no_data, iolist=[]}; % Skip row
+                    #row{res=no_data, cells = Cells, iolist=[]}; % Skip row
                 true ->
                     #row{res=SelectedRes,
+                         cells=Cells,
                          iolist=
                              [
                               "    <tr>\n",
@@ -426,7 +515,9 @@ cell(_NewLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
             Td = td("-", no_data, "right", Test),
-            {#cell{res=no_data, run=undefined, iolist=Td}, AccRes};
+            {#cell{res=no_data, run=undefined,
+                   n_run=0, n_fail=0,
+                   iolist=Td}, AccRes};
         Run ->
             RunN  = length([run  || R <- Run#run.details,
                                     R#run.result =/= skip]),
@@ -461,7 +552,9 @@ cell(_NewLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
                        Run#run.id,"\n",
                        Run#run.repos_rev],
             Td = td(Text, Res, "right", ToolTip),
-            {#cell{res=Res, run=Run, iolist=Td}, AccRes2}
+            {#cell{res=Res, run=Run,
+                   n_run=RunN, n_fail=FailN,
+                   iolist=Td}, AccRes2}
     end.
 
 html_suffix_href_td(HtmlFile, Text, skip, Suffix) ->
@@ -480,7 +573,7 @@ table_td(Text, Res, Align) ->
     [
      "      ",
      "<td class=\"", atom_to_list(Res), "\" align=\"", Align,
-     "\" rowspan=\"2\">",
+     "\" rowspan=\"3\">",
      "<strong>", Text, "</strong>",
      "</td>\n"
     ].
@@ -512,48 +605,69 @@ insert_html_suffix(HtmlFile, Name, Suffix)
     BaseName = filename:basename(HtmlFile, Ext),
     BaseName ++ Suffix ++ Ext ++ Name.
 
-parse_summary_logs(TopDir, Acc, Err, Opts) ->
-    Skip =
-        ["lux.skip",
-         "lux_summary.log",
-         "lux_summary.log.tmp",
-         "qmscript.skip",
-         "qmscript_summary.log",
-         "qmscript_summary.log.tmp",
-         "qmscript.summary.log"],
-    do_parse_summary_logs(TopDir, [], Acc, Err, Skip, Opts).
+parse_summary_logs(TopFile, RelHtmlFile, Acc, Err, Opts) ->
+    RelDir = "",
+    case {filename:basename(TopFile), filename:basename(RelHtmlFile)} of
+        {HistoryFile, HistoryFile} ->
+            %% Use history file as source
+            case lux_html_parse:parse_files(shallow, TopFile) of
+                [{ok, _, Links, html}] ->
+                    SL = "lux_summary.log",
+                    HL = SL ++ ".html",
+                    Extract =
+                        fun({link, Link, _Label}) ->
+                                case lists:suffix(HL, Link) of
+                                    true ->
+                                        TopDir = filename:dirname(TopFile),
+                                        LinkDir = filename:dirname(Link),
+                                        Tmp = lux_utils:join(TopDir, LinkDir),
+                                        File = lux_utils:join(Tmp, SL),
 
-do_parse_summary_logs(TopDir, RelDir, Acc, Err, Skip, Opts) ->
-    Dir = filename:join([TopDir, RelDir]),
-    %% io:format("DIR: ~s\n", [Dir]),
+                                        {true, File};
+                                    _ ->
+                                        false
+                                end;
+                           (_Skip) ->
+                                false
+                        end,
+                    Files = lists:zf(Extract, Links),
+                    %% io:format("\nLINKS ~p\n", [Files]),
+                    parse_summary_files(TopFile, RelDir, Files, Acc, Err, Opts);
+                Errors ->
+                    Strings = lux_html_parse:format_results(Errors),
+                    Format = fun(E) ->
+                                     io:format("\n\t\t~s\n", [E]),
+                                     {error, TopFile, E}
+                             end,
+                    {Acc, lists:map(Format, Strings)}
+            end;
+        _ ->
+            search_summary_dirs(TopFile, RelDir, Acc, Err, Opts)
+    end.
+
+search_summary_dirs(TopFile, RelDir, Acc, Err, Opts) ->
+    Dir0 = lux_utils:join(TopFile, RelDir),
+    Dir = lux_utils:normalize_filename(Dir0),
     case file:list_dir(Dir) of
         {ok, Files} ->
-            case multi_member(Skip, Files) of
+            Cands =
+                ["lux.skip",
+                 "lux_summary.log",
+                 "lux_summary.log.tmp",
+                 "qmscript.skip",
+                 "qmscript_summary.log",
+                 "qmscript_summary.log.tmp",
+                 "qmscript.summary.log"],
+            case multi_member(Cands, Files) of
                 {true, Base} ->
                     case lists:suffix(".log", Base) of
                         true ->
                             %% A summary log
-                            File = filename:join([Dir, Base]),
-                            io:format(".", []),
-                            case lux_log:parse_summary_log(File) of
-                                {ok,_,_,_,_,_} = Res->
-                                    case lux_log:parse_run_summary(TopDir,
-                                                                   RelDir,
-                                                                   Base,
-                                                                   File,
-                                                                   Res,
-                                                                   Opts) of
-                                        {error, F, Reason} ->
-                                            {Acc, [{error, F, Reason} | Err]};
-                                        #run{} = R ->
-                                            {[R|Acc], Err}
-                                    end;
-                                {error, F, Reason} ->
-                                    {Acc, [{error, F, Reason} | Err]}
-                            end;
+                            parse_summary_files(TopFile, RelDir, [Base],
+                                                Acc, Err, Opts);
                         false ->
-                            io:format("s", []),
                             %% Skip
+                            io:format("s", []),
                             {Acc, Err}
                     end;
                 false ->
@@ -565,11 +679,13 @@ do_parse_summary_logs(TopDir, RelDir, Acc, Err, Skip, Opts) ->
                            (File, {A,E}) ->
                                 RelDir2 =
                                     case RelDir of
-                                        "" -> File;
-                                        _  -> filename:join([RelDir, File])
+                                        "" ->
+                                            File;
+                                        _  ->
+                                            lux_utils:join(RelDir, File)
                                     end,
-                                do_parse_summary_logs(TopDir, RelDir2,
-                                                      A, E, Skip, Opts)
+                                search_summary_dirs(TopFile, RelDir2,
+                                                    A, E, Opts)
                         end,
                     lists:foldl(Fun, {Acc, Err}, Files)
             end;
@@ -578,12 +694,35 @@ do_parse_summary_logs(TopDir, RelDir, Acc, Err, Skip, Opts) ->
             {Acc, Err}
     end.
 
+parse_summary_files(TopDir, RelDir, [Base | Bases], Acc, Err, Opts) ->
+    io:format(".", []),
+    Tmp = lux_utils:join(TopDir, RelDir),
+    File = lux_utils:join(Tmp, Base),
+    {Acc2, Err2} =
+        case lux_log:parse_summary_log(File) of
+            {ok,_,_,_,_,_} = Res->
+                case lux_log:parse_run_summary(TopDir,
+                                               RelDir,
+                                               Base,
+                                               File,
+                                               Res,
+                                               Opts) of
+                    {error, F, Reason} ->
+                        {Acc, [{error, F, Reason} | Err]};
+                    #run{} = R ->
+                        {[R|Acc], Err}
+                end;
+            {error, F, Reason} ->
+                {Acc, [{error, F, Reason} | Err]}
+        end,
+    parse_summary_files(TopDir, RelDir, Bases, Acc2, Err2, Opts);
+parse_summary_files(_TopDir, _RelDir, [], Acc, Err, _Opts) ->
+    {Acc, Err}.
+
 multi_member([H | T], Files) ->
     case lists:member(H, Files) of
-        true ->
-            {true, H};
-        false ->
-            multi_member(T, Files)
+        true  -> {true, H};
+        false -> multi_member(T, Files)
     end;
 multi_member([], _Files) ->
     false.
