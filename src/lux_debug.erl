@@ -9,6 +9,7 @@
 
 -export([
          start_link/1,
+         format/2,
          eval_cmd/4,
          cmd_attach/3,
          check_breakpoint/2,
@@ -17,6 +18,15 @@
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
+
+-record(dstate,
+        {n_cmds          :: non_neg_integer(),
+         mode            :: background | foreground,
+         interpreter_pid :: pid(),
+         shell_pid       :: undfined | pid(),
+         shell_name      :: undfined | string(),
+         prev_cmd        :: string(),
+         cmd_state       :: term()}).
 
 -type debug_type() :: 'integer' |
                       {'integer', integer(), integer() | infinity} |
@@ -36,6 +46,9 @@
          help     :: string(),
          callback :: debug_fun()}).
 
+format(Fmt, Args) ->
+    io:format(Fmt, Args).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Read commands from stdin and communicate with interpreter
 
@@ -44,74 +57,143 @@ start_link(DebugFile) ->
     spawn_link(fun() -> init(Parent, DebugFile) end).
 
 init(Ipid, DebugFile) ->
-    CmdState = undefined,
-    NewCmdState =
-        case DebugFile of
-            undefined ->
-                CmdState;
-            DebugFile ->
-                LoadCmd = "load " ++ DebugFile,
-                call(Ipid, LoadCmd, CmdState)
-        end,
-    loop(Ipid, "help", NewCmdState, 1).
+    DefaultCmd = "help",
+    Dstate = #dstate{n_cmds = 1,
+                     mode = background,
+                     interpreter_pid=Ipid,
+                     prev_cmd = DefaultCmd,
+                     cmd_state=undefined},
+    case DebugFile of
+        undefined ->
+            loop(Dstate);
+        DebugFile ->
+            LoadCmd = "load " ++ DebugFile,
+            NewDstate = call(Dstate, LoadCmd),
+            loop(NewDstate#dstate{prev_cmd=DefaultCmd})
+    end.
 
-loop(Ipid, PrevCmd, CmdState, N) ->
+loop(#dstate{mode=Mode} = Dstate) ->
+    N = Dstate#dstate.n_cmds,
     case io:get_line("") of
         eof when N =:= 1 ->
             %% Closed already at startup
             exit(normal);
         eof ->
-            catch io:format("\nEOF: stdin closed\n", []),
+            catch format("\nEOF: stdin closed\n", []),
             exit(normal);
         {error, Reason} ->
             ReasonStr = file:format_error(Reason),
-            catch io:format("\nERROR: ~s\n", [ReasonStr]),
+            catch format("\nERROR: ~s\n", [ReasonStr]),
             exit(Reason);
-        Cmd0 ->
-            [$\n | Rest] = lists:reverse(Cmd0),
+        "\"\"\"\n" when Mode =:= foreground->
+            %% Found """. Exit foreground mode
+            Name = Dstate#dstate.shell_name,
+            NewDstate = call(Dstate, "shell " ++ Name),
+            loop(NewDstate);
+        Data when Mode =:= foreground->
+            Bin = ?l2b(Data),
+            Dpid = Dstate#dstate.interpreter_pid,
+            Dstate#dstate.shell_pid ! {debug_shell, Dpid, {send,Bin}},
+            loop(Dstate);
+        Data when Mode =:= background ->
+            [$\n | Rest] = lists:reverse(Data),
             ChoppedCmd = lists:reverse(Rest),
             NewCmd =
                 case string:tokens(ChoppedCmd, " ") of
                     [] when ChoppedCmd =:= "" ->
                         %% Repeat previous command
-                        PrevCmd;
+                        Dstate#dstate.prev_cmd;
                     _ ->
                         %% Execute new command
                         ChoppedCmd
                 end,
-            NewCmdState = call(Ipid, NewCmd, CmdState),
-            loop(Ipid, NewCmd, NewCmdState, N+1)
+            Dstate2 = call(Dstate, NewCmd),
+            loop(Dstate2#dstate{n_cmds=N+1, prev_cmd=NewCmd})
     end.
 
-call(Ipid, Cmd, CmdState) when is_list(Cmd); is_function(Cmd, 2) ->
-    %% io:format("DEBUG: ~p\n", [CmdStr]),
-    Ipid ! {debug_call, self(), Cmd, CmdState},
-    wait_for_reply(Ipid, 5000).
+call(Dstate, Cmd) when is_list(Cmd); is_function(Cmd, 2) ->
+    %% format("DEBUG: ~p\n", [CmdStr]),
+            Dstate#dstate.interpreter_pid !
+                {debug_call, self(), Cmd, Dstate#dstate.cmd_state},
+    wait_for_reply(Dstate, Cmd, 5000).
 
-wait_for_reply(Ipid, Timeout) ->
+wait_for_reply(Dstate, Cmd, Timeout) ->
+    Ipid = Dstate#dstate.interpreter_pid,
     receive
-        {debug_reply, Ipid, NewCmdState} ->
-            NewCmdState
+        {debug_reply, Ipid, NewCmdState, Dshell} ->
+            case Dshell of
+                undefined ->
+                    ShellName = undefined,
+                    Mode = background,
+                    ShellPid = undefined;
+                #debug_shell{name=ShellName,
+                             mode=Mode,
+                             pid=ShellPid} ->
+                    ok
+            end,
+            Dstate#dstate{n_cmds=Dstate#dstate.n_cmds+1,
+                          mode=Mode,
+                          shell_pid=ShellPid,
+                          shell_name=ShellName,
+                          prev_cmd=Cmd,
+                          cmd_state=NewCmdState}
     after Timeout ->
             %% Display process info for interpreter and its children
-            io:format("\nInterpreter: ~p\n", [Ipid]),
+            format("\nInterpreter: ~p\n", [Ipid]),
             Show = fun(Pid) ->
                            Info = process_info(Pid,
                                                [current_stacktrace, messages]),
-                           io:format("Info for ~p:\n\t~p\n", [Pid, Info])
+                           format("Info for ~p:\n\t~p\n", [Pid, Info])
                    end,
             Pids = [P || P <- processes(), P > Ipid],
             lists:foreach(Show, [Ipid | Pids]),
-            wait_for_reply(Ipid, infinity)
+            wait_for_reply(Dstate, Cmd, infinity)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse and evaluate one command
 
-eval_cmd(I, Dpid, Cmd, CmdState) ->
-    {CmdState2, I2} = do_eval_cmd(I, Cmd, CmdState),
-    Dpid ! {debug_reply, self(), CmdState2},
-    I2.
+eval_cmd(I, Dpid, Data, CmdState) ->
+    case I#istate.debug_shell of
+        undefined ->
+            {CmdState2, I2} = do_eval_cmd(I, Data, CmdState),
+            Dshell = I2#istate.debug_shell,
+            Dpid ! {debug_reply, self(), CmdState2, Dshell},
+            I2;
+        #debug_shell{name=Name, mode=Mode, pid=ShellPid} ->
+            case Data of
+                [$! | Rest] when Mode =:= background ->
+                    io:format("\nSend data to shell ~p.\n", [Name]),
+                    Bin = ?l2b([Rest, "\n"]),
+                    ShellPid ! {debug_shell, Dpid, {send,Bin}},
+                    Dshell = I#istate.debug_shell,
+                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    I;
+                [$~ | Rest] when Mode =:= background ->
+                    io:format("\nSend data to shell ~p.\n", [Name]),
+                    Bin = ?l2b(Rest),
+                    ShellPid ! {debug_shell, Dpid, {send,Bin}},
+                    Dshell = I#istate.debug_shell,
+                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    I;
+                "?" when Mode =:= background ->
+                    io:format("\nReset output buffer for shell ~p.\n", [Name]),
+                    ShellPid ! {debug_shell, Dpid, {send,reset}},
+                    Dshell = I#istate.debug_shell,
+                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    I;
+                "=" when Mode =:= background ->
+                    ShellPid ! {debug_shell, Dpid, display_stdout},
+                    Dshell = I#istate.debug_shell,
+                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    I;
+                Data2 ->
+                    {CmdState2, I2} = do_eval_cmd(I, Data2, CmdState),
+                    Dshell = I2#istate.debug_shell,
+                    Dpid ! {debug_reply, self(), CmdState2, Dshell},
+                    I2
+            end
+    end.
 
 do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
     case string:tokens(CmdStr, " ") of
@@ -119,51 +201,51 @@ do_eval_cmd(I, CmdStr, CmdState) when is_list(CmdStr) ->
             %% Ignore empty command
             {CmdState, I};
         [CmdName | Args] ->
-            case select(CmdName) of
+            case select(I#istate.debug_shell, CmdName) of
                 {ok, #debug_cmd{name = _Name,
                                 params = Params,
                                 callback = Fun}} ->
                     case parse_params(I, Params, Args, [], []) of
                         {ok, Args2} ->
-                            %% io:format("Eval: ~s ~p\n", [_Name, Args2]),
+                            %% format("Eval: ~s ~p\n", [_Name, Args2]),
                             Fun(I, Args2, CmdState);
                         {error, ReasonStr} ->
-                            io:format("\nERROR: ~s: ~s\n",
+                            format("\nERROR: ~s: ~s\n",
                                       [CmdName, ReasonStr]),
                             {CmdState, I}
                     end;
                 {error, ReasonStr} ->
-                    io:format("\nERROR: ~s\n", [ReasonStr]),
+                    format("\nERROR: ~s\n", [ReasonStr]),
                     {CmdState, I}
             end
     end;
 do_eval_cmd(I, Cmd, CmdState) when is_function(Cmd, 2) ->
     Cmd(CmdState, I).
 
-select(CmdStr) ->
+select(DS, CmdStr) ->
     NamedCmds = [{C#debug_cmd.name, C} || C <- cmds()],
-    do_select(CmdStr, NamedCmds, CmdStr, NamedCmds).
+    do_select(DS, CmdStr, NamedCmds, CmdStr, NamedCmds).
 
-do_select([H | T], NamedCmds, Orig, Prev) ->
+do_select(DS, [H | T], NamedCmds, Orig, Prev) ->
     case select_first(H, NamedCmds, []) of
         [] ->
-            {error,  ambiguous(Orig, Prev)};
+            {error,  ambiguous(DS, Orig, Prev)};
         [{_, Cmd}] ->
             case lists:prefix(Orig, Cmd#debug_cmd.name) of
                 true ->
                     {ok, Cmd};
                 false ->
-                    {error,  ambiguous(Orig, Prev)}
+                    {error,  ambiguous(DS, Orig, Prev)}
             end;
         Ambiguous ->
-            do_select(T, Ambiguous, Orig, NamedCmds)
+            do_select(DS, T, Ambiguous, Orig, NamedCmds)
     end;
-do_select([], [{_, Cmd}], _Orig, _Prev) ->
+do_select(_DS, [], [{_, Cmd}], _Orig, _Prev) ->
     {ok, Cmd};
-do_select([], [], Orig, Prev) ->
-    {error, ambiguous(Orig, Prev)};
-do_select([], Ambiguous, Orig, _Prev) ->
-    {error,  ambiguous(Orig, Ambiguous)}.
+do_select(DS, [], [], Orig, Prev) ->
+    {error, ambiguous(DS, Orig, Prev)};
+do_select(DS, [], Ambiguous, Orig, _Prev) ->
+    {error,  ambiguous(DS, Orig, Ambiguous)}.
 
 select_first(Char, [{[Char | Chars], Cmd} | NamedCmds], Acc) ->
     select_first(Char, NamedCmds, [{Chars, Cmd} | Acc]);
@@ -172,16 +254,25 @@ select_first(Char, [{_Chars, _Cmd} | NamedCmds], Acc) ->
 select_first(_Char, [], Acc) ->
     lists:reverse(Acc).
 
-ambiguous(Orig, NamedCmds) ->
+ambiguous(DS, Orig, NamedCmds) ->
     Longest = longest(NamedCmds),
-    Fun = fun({_, #debug_cmd{name = Name, help = Help}}) ->
-                  Slogan =
-                      lists:takewhile(fun(Char) -> Char =/= $\n end, Help),
-                  ["* ", string:left(Name, Longest, $\ ), " - ", Slogan, "\n"]
-          end,
-    DeepList = lists:map(Fun, NamedCmds),
+    DeepList = lists:map(fun(NC) -> format_cmd_list(NC, Longest) end,
+                         NamedCmds),
+    OptSubCmds =
+        case DS of
+            undefined -> [];
+            _         -> ["\n", format_shell_sub_cmds()]
+        end,
     lists:flatten(["Available commands: ", Orig, "\n",
-                   "-------------------\n", DeepList]).
+                   "-------------------\n",
+                   DeepList,
+                   OptSubCmds]).
+
+format_cmd_list({_, #debug_cmd{name = Name, help = Help}}, Longest) ->
+    format_cmd_list({Name, Help}, Longest);
+format_cmd_list({Name, Help}, Longest) when is_list(Name), is_list(Help) ->
+    Slogan = lists:takewhile(fun(Char) -> Char =/= $\n end, Help),
+    ["* ", string:left(Name, Longest, $\ ), " - ", Slogan, "\n"].
 
 parse_params(I, [#debug_param{name = Name,type = Type} | Params],
              [Arg | Args], Acc, _Bad) ->
@@ -364,7 +455,7 @@ cmds() ->
                 help = "display log files\n\n"
                 "With no argument, the names of the log files will be listed.\n"
                 "Each one is preceeded by its index number and optionally a\n"
-                "star. Star means that the log has been updated since the\n"
+                "star. The star means that the log has been updated since the\n"
                 "previous status check. Use the index to display a particular\n"
                 "log. Such as \"t 5\" for the event log. Press enter to\n"
                 "display more lines. n_lines can be used to override that\n"
@@ -434,7 +525,55 @@ cmds() ->
                                        help = "lineno in source file"}],
                 help = "skip execution of one or more commands. "
                 "Skip until given lineno is reached.",
-                callback = fun cmd_skip/3}
+                callback = fun cmd_skip/3},
+     #debug_cmd{name = "shell",
+                params = [#debug_param{name = "name",
+                                       type = string,
+                                       presence = optional,
+                                       help = "name of shell"},
+                          #debug_param{name = "mode",
+                                       type = {enum, ["background",
+                                                      "foreground"]},
+                                       presence = optional,
+                                       help = "mode of operation"}],
+
+                help = "connect to a shell\n\n"
+                "With no argument, the names of the shells will be listed.\n"
+                "In the listing the active shell is preceeded by an arrow\n"
+                "and zombie shells with an star. Repeating the command\n"
+                "will disconnect the shell. Repeat again to connect...\n"
+                "\n"
+                "Once a shell is connected, its stdout will be tapped and\n"
+                "subsequent output will be printed out, beginning with the\n"
+                "buffered (non-processed) data.\n"
+                "\n"
+                "Data can also be sent to the stdin of the shell. In\n"
+                "foreground mode all entered text is sent as is to the\n"
+                "shell. The foreground mode is exited with a single \"\"\"\"\n"
+                "line. In background mode (default), the debugger responds\n"
+                "to normal debugger commands as well as a few special\n"
+                "commands which only is available in background mode:\n"
+                "\n"
+                ++ format_shell_sub_cmds(),
+                callback = fun cmd_shell/3}
+    ].
+
+
+format_shell_sub_cmds() ->
+    NamedCmds = shell_sub_cmds(),
+    Longest = longest(NamedCmds),
+    DeepList = lists:map(fun(NC) -> format_cmd_list(NC, Longest) end,
+                         NamedCmds),
+    lists:flatten(["Sub commands for \"shell\":\n",
+                   "-------------------------\n",
+                   DeepList]).
+
+shell_sub_cmds() ->
+    [
+     {"!", "sends text with a trailing newline"},
+     {"~", "sends text without a trailing newline"},
+     {"=", "displays current output buffer"},
+     {"?", "empties the output buffer"}
     ].
 
 intro_help() ->
@@ -487,7 +626,7 @@ lineno_help() ->
 
 gen_markdown(File) ->
     Intro = intro_help(),
-    {error, Ambiguous} = select(""),
+    {error, Ambiguous} = select(undefined, ""),
     LineNo = lineno_help(),
     Cmds = [["\n", pretty_cmd(Cmd)] ||
                Cmd <- lists:keysort(#debug_cmd.name, cmds())],
@@ -507,8 +646,8 @@ cmd_attach(I, _, CmdState) ->
                 [{"n_lines", 1}, {"lineno", BreakPos}];
             _ ->
                 CurrentPos = full_lineno_to_static_break_pos(CurrentFullLineNo),
-                io:format("\nBreak at \"~s\"\n",
-                          [pretty_break_pos(CurrentPos)]),
+                format("\nBreak at \"~s\"\n",
+                       [pretty_break_pos(CurrentPos)]),
                 [#cmd_pos{rev_file = RevFile,
                           lineno = LineNo,
                           type = CmdType} | CmdStack] = CurrentFullLineNo,
@@ -579,12 +718,12 @@ cmd_break(I, Args, _CmdState) ->
                         PrettyPos = pretty_break_pos(BreakPos),
                         case lists:keyfind(BreakPos, #break.pos, Breaks) of
                             false ->
-                                io:format("\nNo breakpoint at: ~s\n",
-                                          [PrettyPos]),
+                                format("\nNo breakpoint at: ~s\n",
+                                       [PrettyPos]),
                                 I;
                             Break ->
-                                io:format("\nDelete breakpoint at: ~s\n",
-                                          [PrettyPos]),
+                                format("\nDelete breakpoint at: ~s\n",
+                                       [PrettyPos]),
                                 Breaks2 = delete_break(Break, Breaks),
                                 I#istate{breakpoints = Breaks2}
                         end
@@ -605,23 +744,23 @@ cmd_break(I, Args, _CmdState) ->
                                     enabled   -> "";
                                     disabled  -> ""
                                 end,
-                            io:format("  ~s~s\n", [Pretty, PrettyType])
+                            format("  ~s~s\n", [Pretty, PrettyType])
                     end,
                 case I#istate.commands of
                     [#cmd{} | _] ->
                         CurrentFullLineNo = current_full_lineno(I),
                         BreakPos =
                             full_lineno_to_static_break_pos(CurrentFullLineNo),
-                        io:format("\nCurrent line: ~s\n",
-                                  [pretty_break_pos(BreakPos)]);
+                        format("\nCurrent line: ~s\n",
+                               [pretty_break_pos(BreakPos)]);
                     [] ->
                         ok
                 end,
                 case I#istate.breakpoints of
                     [] ->
-                        io:format("\nNo breakpoints.\n", []);
+                        format("\nNo breakpoints.\n", []);
                     Breaks ->
-                        io:format("\nBreakpoints:\n", []),
+                        format("\nBreakpoints:\n", []),
                         lists:foreach(Print, Breaks)
                 end,
                 I
@@ -633,7 +772,7 @@ add_break(I, BreakPos, BreakType, Invert) ->
     case break_to_full_lineno(I, BreakPos, rest) of
         false ->
             PrettyBreakPos = pretty_break_pos(BreakPos),
-            io:format("\nERROR: No such lineno: ~p\n", [PrettyBreakPos]),
+            format("\nERROR: No such lineno: ~p\n", [PrettyBreakPos]),
             I;
         FullLineNo ->
             NewBreakPos =
@@ -644,19 +783,19 @@ add_break(I, BreakPos, BreakType, Invert) ->
             PrettyBreakPos = pretty_break_pos(NewBreakPos),
             case BreakType of
                 temporary ->
-                    io:format("\nSet temporary breakpoint at \"~s\"\n",
-                              [PrettyBreakPos]);
+                    format("\nSet temporary breakpoint at \"~s\"\n",
+                           [PrettyBreakPos]);
                 next ->
                     ok;
                 skip when not Invert ->
-                    io:format("\nSkipping commands up to \"~s\"\n",
-                              [PrettyBreakPos]);
+                    format("\nSkipping commands up to \"~s\"\n",
+                           [PrettyBreakPos]);
                 skip when Invert ->
-                    io:format("\nSkip command at \"~s\"\n",
-                              [PrettyBreakPos]);
+                    format("\nSkip command at \"~s\"\n",
+                           [PrettyBreakPos]);
                 _ ->
-                    io:format("\nSet breakpoint at \"~s\"\n",
-                              [PrettyBreakPos])
+                    format("\nSet breakpoint at \"~s\"\n",
+                           [PrettyBreakPos])
             end,
             NewBreak = #break{pos = NewBreakPos,
                               invert = Invert,
@@ -800,8 +939,8 @@ do_continue(I, Args, _CmdState, BreakType, Invert) ->
                     CurrentFullLineNo = current_full_lineno(I2),
                     BreakPos2 =
                         full_lineno_to_static_break_pos(CurrentFullLineNo),
-                    io:format("\nContinue to run from \"~s\"\n",
-                              [pretty_break_pos(BreakPos2)])
+                    format("\nContinue to run from \"~s\"\n",
+                           [pretty_break_pos(BreakPos2)])
             end,
             {_Blocked, I3} = opt_unblock(I2),
             {undefined, I3};
@@ -824,20 +963,20 @@ opt_unblock(I) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 cmd_help(I, [], CmdState) ->
-    {error, Ambiguous} = select(""),
-    io:format("\n~s~s", [intro_help(), Ambiguous]),
+    {error, Ambiguous} = select(undefined, ""),
+    format("\n~s~s", [intro_help(), Ambiguous]),
     {CmdState, I};
 cmd_help(I, [{_, "lineno"}], CmdState) ->
-    io:format("~s", [lineno_help()]),
+    format("~s", [lineno_help()]),
     {CmdState, I};
 cmd_help(I, [{_, CmdName}], CmdState) ->
-    case select(CmdName) of
+    case select(undefined, CmdName) of
         {ok, Cmd} ->
             Pretty = lists:flatten(pretty_cmd(Cmd)),
-            io:format("\n~s\n", [Pretty]),
+            format("\n~s\n", [Pretty]),
             {CmdState, I};
         {error, ReasonStr} ->
-            io:format("\nERROR: ~s\n", [ReasonStr]),
+            format("\nERROR: ~s\n", [ReasonStr]),
             {CmdState, I}
     end.
 
@@ -901,6 +1040,7 @@ longest2([H | T], Longest) ->
         {_Name, #debug_cmd{name = Str}} -> ok;
         #debug_cmd{name = Str} -> ok;
         #debug_param{name = Str} -> ok;
+        {Str, _Help} when is_list(Str) -> ok;
         Str when is_list(Str) -> ok
     end,
     longest2(T, lists:max([Longest, length(Str)]));
@@ -915,8 +1055,8 @@ cmd_tail(#istate{suite_log_dir=SuiteLogDir,
          [],
          CmdState) ->
     {ok, Cwd} =  file:get_cwd(),
-    io:format("Log files at ~s:\n\n",
-              [lux_utils:drop_prefix(Cwd, CaseLogDir)]),
+    format("Log files at ~s:\n\n",
+           [lux_utils:drop_prefix(Cwd, CaseLogDir)]),
     {I2, Logs} = all_logs(I),
     Print = fun(Abs, Index) ->
                     Rel = lux_utils:drop_prefix(SuiteLogDir, Abs),
@@ -937,11 +1077,11 @@ cmd_tail(#istate{suite_log_dir=SuiteLogDir,
                             _ ->
                                 "*"
                         end,
-                    io:format("~s~3w ~s~s\n", [Prefix, Index, Rel, Display]),
+                    format("~s~3w ~s~s\n", [Prefix, Index, Rel, Display]),
                     {{Abs, Curr}, Index+1}
             end,
     {Status2, _} = lists:mapfoldl(Print, 1, Logs),
-    io:format("\n", []),
+    format("\n", []),
     TailOpts = [{"index", 5}, {"format", "compact"}, {"n_lines", 10}],
     {CmdState2, I3} = cmd_tail(I2, TailOpts, CmdState),
     {CmdState2, I3#istate{tail_status=Status2}};
@@ -961,9 +1101,9 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
     {I2, Logs} = all_logs(I),
     case catch lists:nth(Index, Logs) of
         {'EXIT', _} ->
-            io:format("ERROR: ~p is not a valid log index."
-                      " Must be within ~p..~p.\n",
-                      [Index, 1, length(Logs)]),
+            format("ERROR: ~p is not a valid log index."
+                   " Must be within ~p..~p.\n",
+                   [Index, 1, length(Logs)]),
             {CmdState, I2};
         LogFile ->
             tail(I2, LogFile, CmdState, Format, UserN)
@@ -1008,21 +1148,21 @@ tail(#istate{suite_log_dir=SuiteLogDir} = I,
             Min = lists:max([0, Max - N]),
             TailRows = lists:nthtail(Min, AllRows),
             Actual = length(TailRows),
-            io:format("Last ~p (~p..~p) lines of log file: ~s\n\n",
-                      [Actual, Max-Actual+1, Max, RelFile]),
+            format("Last ~p (~p..~p) lines of log file: ~s\n\n",
+                   [Actual, Max-Actual+1, Max, RelFile]),
             [tail_format(Format, "~s\n", [Row]) || Row <- TailRows],
             {{debug_tail, AbsFile, N}, I};
         {error, FileReason}->
             FileStr = file:format_error(FileReason),
-            io:format("ERROR: ~s: ~s\n", [RelFile, FileStr]),
+            format("ERROR: ~s: ~s\n", [RelFile, FileStr]),
             {undefined, I}
     end.
 
 tail_format("compact", Format, Data) ->
-    io:format(Format, Data);
+    format(Format, Data);
 tail_format("verbose", Format, Data) ->
     Str = lists:flatten(io_lib:format(Format, Data)),
-    io:format(lux_log:dequote(Str)).
+    format("~s", [lux_log:dequote(Str)]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1043,8 +1183,8 @@ cmd_list(I, Args, CmdState) ->
             N = OldN,
             case break_to_full_lineno(I, BreakPos, orig) of
                 false ->
-                    io:format("\nERROR: No such lineno: ~p\n",
-                              [pretty_break_pos(BreakPos)]),
+                    format("\nERROR: No such lineno: ~p\n",
+                           [pretty_break_pos(BreakPos)]),
                     {undefined, I};
                 [#cmd_pos{rev_file = RevFile, lineno = First} | _] ->
                     do_list(I, PrevRevFile, RevFile,
@@ -1053,8 +1193,8 @@ cmd_list(I, Args, CmdState) ->
         [{"n_lines", N0}, {"lineno", BreakPos}] ->
             case break_to_full_lineno(I, BreakPos, orig) of
                 false ->
-                    io:format("\nERROR: No such lineno: ~p\n",
-                              [pretty_break_pos(BreakPos)]),
+                    format("\nERROR: No such lineno: ~p\n",
+                           [pretty_break_pos(BreakPos)]),
                     {undefined, I};
                 [#cmd_pos{rev_file = RevFile, lineno = First0} | _] ->
                     if
@@ -1094,11 +1234,11 @@ do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
         PrevRevFile, RevFile, First, N,
         [#cmd_pos{rev_file = CurrRevFile, lineno = CurrLineNo} | _]) ->
     Last = First+N-1,
-    %% io:format("List source lines ~p..~p of file ~s\n",
+    %% format("List source lines ~p..~p of file ~s\n",
     %%          [First, Last, lux_utils:pretty_filename(RevFile)]),
     if
         PrevRevFile =/= RevFile ->
-            io:format("\nFile ~s:\n", [lux_utils:pretty_filename(RevFile)]);
+            format("\nFile ~s:\n", [lux_utils:pretty_filename(RevFile)]);
         true ->
             ignore
     end,
@@ -1121,8 +1261,8 @@ do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
                                 %% inclusions of same file
                                 Acc;
                             false ->
-                                io:format("~p~s ~s\n",
-                                          [LineNo, Delim, Text]),
+                                format("~p~s ~s\n",
+                                       [LineNo, Delim, Text]),
                                 [Pos | Acc]
                         end;
                     true ->
@@ -1132,7 +1272,7 @@ do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
     PosList = lux_utils:foldl_cmds(Print, [], OrigFile, [], OrigCmds, static),
     case PosList of
         [] ->
-            io:format("\nWrap file.\n", []),
+            format("\nWrap file.\n", []),
             {undefined, I};
         _ ->
             {{debug_list, N, RevFile, Last+1}, I}
@@ -1149,9 +1289,9 @@ cmd_load(I, Args, CmdState) ->
     end,
     case file:read_file(File) of
         {ok, Bin} ->
-            io:format("\nLoad commands from file: ~s\n", [File]),
+            format("\nLoad commands from file: ~s\n", [File]),
             Fun = fun(CmdStr, {CS, IS, LineNo}) ->
-                          io:format("~p: ~s\n", [LineNo, CmdStr]),
+                          format("~p: ~s\n", [LineNo, CmdStr]),
                           {CS2, IS2} = do_eval_cmd(IS, CmdStr, CS),
                           {CS2, IS2, LineNo+1}
                   end,
@@ -1159,8 +1299,8 @@ cmd_load(I, Args, CmdState) ->
             {_CmdState, I2, _} = lists:foldl(Fun, {CmdState, I, 1}, Lines),
             {undefined, I2};
         {error, Reason} ->
-            io:format("\nERROR: Cannot read from file ~p: ~s\n",
-                      [File, file:format_error(Reason)]),
+            format("\nERROR: Cannot read from file ~p: ~s\n",
+                   [File, file:format_error(Reason)]),
             {undefined, I}
     end.
 
@@ -1203,7 +1343,7 @@ cmd_quit(I, Args, _CmdState) ->
             ScopeStr = "case"
         end,
     Scope = list_to_atom(ScopeStr),
-    io:format("\nWARNING: Test ~s stopped by user\n", [ScopeStr]),
+    format("\nWARNING: Test ~s stopped by user\n", [ScopeStr]),
     {_, I2} = opt_unblock(I),
     InterpreterPid = self(),
     InterpreterPid ! {stopped_by_user, Scope},
@@ -1235,10 +1375,10 @@ cmd_save(I, Args, _CmdState) ->
     IoList = lists:map(Save, I#istate.breakpoints),
     case file:write_file(File, IoList) of
         ok ->
-            io:format("\nSave debugger state to file: ~s\n", [File]);
+            format("\nSave debugger state to file: ~s\n", [File]);
         {error, Reason} ->
-            io:format("\nERROR: Cannot write to file ~p: ~s\n",
-                      [File, file:format_error(Reason)])
+            format("\nERROR: Cannot write to file ~p: ~s\n",
+                   [File, file:format_error(Reason)])
     end,
     {undefined, I}.
 
@@ -1255,6 +1395,83 @@ cmd_skip(I, Args, CmdState) ->
     end,
     NewArgs = [{"lineno", BreakPos}],
     do_continue(I, NewArgs, CmdState, skip, Invert).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+cmd_shell(I, [], _CmdState) ->
+    case all_shells(I) of
+        [] ->
+            format("No shells started yet.\n", []);
+        AllShells ->
+            Print = fun(#shell{name = Name, health = Health}) ->
+                            N = shell_name(I),
+                            Status =
+                                if
+                                    Name =:= N        -> "->";
+                                    Health =:= zombie -> " *";
+                                    Health =:= alive  -> "  "
+                                end,
+                            format("  ~s ~s\n", [Status, Name])
+                    end,
+            format("Shells:\n", []),
+            lists:foreach(Print, AllShells),
+            format("\n", [])
+    end,
+    {undefined, I};
+cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
+    AllShells = all_shells(I),
+    Filter = fun(S) -> lists:prefix(Name, S#shell.name) end,
+    case lists:filter(Filter, AllShells) of
+        [] ->
+            format("ERROR: ~p does not match any shell name.\n", [Name]),
+            {undefined, I};
+        [#shell{name = N, health = Health, pid = Pid} | Ambiguous]
+          when Ambiguous =:= [];
+               N =:= Name -> % Give exact match prio
+            case Rest of
+                []                -> Mode0 = "background";
+                [{"mode", Mode0}] -> ok
+            end,
+            OldN = shell_name(I),
+            if
+                OldN =/= undefined ->
+                    Old = lists:keyfind(OldN, #shell.name, AllShells),
+                    Old#shell.pid ! {debug_shell, self(), disconnect};
+                true ->
+                    ok
+            end,
+            DS =
+                if
+                    Health =:= zombie ->
+                        format("ERROR: ~p is a zombie.\n", [Name]),
+                        undefined;
+                    N =/= OldN ->
+                        Mode = list_to_existing_atom(Mode0),
+                        Pid ! {debug_shell, self(), {connect, Mode}},
+                        #debug_shell{name=N, mode=Mode, pid=Pid};
+                    true ->
+                        undefined
+                end,
+            {undefined, I#istate{debug_shell = DS}};
+        _Ambiguous ->
+            format("ERROR: ~p is an ambiguous shell name.\n", [Name]),
+            {undefined, I}
+    end.
+
+all_shells(#istate{active_shell=ActiveShell,
+                   shells=Shells}) ->
+    AllShells =
+        case ActiveShell of
+            undefined -> Shells;
+            #shell{} ->  [ActiveShell | Shells]
+        end,
+    lists:keysort(#shell.name, AllShells).
+
+shell_name(I) ->
+    case I#istate.debug_shell of
+        undefined               -> undefined;
+        #debug_shell{name=Name} -> Name
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

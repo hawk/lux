@@ -63,6 +63,11 @@
         {mode :: iterate | break | #cmd{},
          cmd  :: #cmd{}}).
 
+-record(debug_shell,
+        {name :: string(),
+         mode :: background | foreground,
+         pid  :: pid()}).
+
 -record(istate,
         {file                       :: string(),
          orig_file                  :: string(),
@@ -106,6 +111,7 @@
          active_shell               :: undefined | #shell{},
          active_name = "lux"        :: undefined | string(),
          shells = []                :: [#shell{}],
+         debug_shell                :: undefined | #debug_shell{},
          blocked                    :: boolean(),
          has_been_blocked           :: boolean(),
          want_more                  :: boolean(),

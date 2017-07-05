@@ -12,6 +12,7 @@
 -include("lux.hrl").
 
 -define(match_fail, match_timeout).
+-define(shell_exit, shell_exit).
 
 -record(pattern,
         {cmd       :: #cmd{},
@@ -21,6 +22,7 @@
         {orig_file               :: string(),
          parent                  :: pid(),
          name                    :: string(),
+         debug = disconnect      :: connect | disconnect,
          latest_cmd              :: #cmd{},
          cmd_stack = []          :: [{string(), non_neg_integer(), atom()}],
          wait_for_expect         :: undefined | pid(),
@@ -154,7 +156,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
             error:ShellReason ->
                 ErrBin = ?l2b(io_lib:format("~p", [ShellReason])),
                 io:format("\nINTERNAL LUX ERROR: Shell crashed: ~s\n~p\n",
-                          [ErrBin, ?stacktrace()]),
+                          [ErrBin, erlang:get_stacktrace()]),
                 stop(C2, error, ErrBin)
         end
     catch
@@ -187,7 +189,8 @@ choose_exec(C) ->
 
 shell_loop(C, OrigC) ->
     {C2, ProgressStr} = progress_token(C),
-    lux_utils:progress_write(C2#cstate.progress, ProgressStr),
+    Progress = debug_progress(C2),
+    lux_utils:progress_write(Progress, ProgressStr),
     C3 = expect_more(C2),
     C4 = shell_wait_for_event(C3, OrigC),
     shell_loop(C4, OrigC).
@@ -209,6 +212,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {block, From} ->
             %% io:format("\nBLOCK ~s\n", [C#cstate.name]),
             block(C, From, OrigC);
+        {debug_shell, From, What} ->
+            debug_shell(C, From, What);
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             shell_wait_for_event(C2, OrigC);
@@ -236,18 +241,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             %% C#cstate{no_more_input = true, mode = suspend};
             stop(C, success, end_of_script);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
-            Progress = C#cstate.progress,
-            lux_utils:progress_write(Progress, ":"),
-            %% Read all available data
-            NewData = flush_port(C, C#cstate.poll_timeout, Data),
-            lux_log:safe_write(Progress,
-                               C#cstate.log_fun,
-                               C#cstate.stdout_log_fd,
-                               NewData),
-            OldData = C#cstate.actual,
-            C#cstate{state_changed = true,
-                     actual = <<OldData/binary, NewData/binary>>,
-                     events = save_event(C, recv, NewData)};
+            safe_flush_port(C, Data, 0);
         match_timeout ->
             C#cstate{state_changed = true,
                      timed_out = true,
@@ -260,7 +254,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{state_changed = true,
                      no_more_output = true,
                      exit_status = ExitStatus,
-                     events = save_event(C, recv, shell_exit)};
+                     events = save_event(C, recv, ?shell_exit)};
         {'EXIT', Port, _PosixCode}
           when Port =:= C#cstate.port,
                C#cstate.exit_status =/= undefined ->
@@ -285,6 +279,20 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
     after multiply(C, Timeout) ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
+
+safe_flush_port(C, Data, ExtraPoll) ->
+    Progress = debug_progress(C),
+    lux_utils:progress_write(Progress, ":"),
+    %% Read all available data
+    NewData = flush_port(C, C#cstate.poll_timeout+ExtraPoll, Data),
+    lux_log:safe_write(Progress,
+                       C#cstate.log_fun,
+                       C#cstate.stdout_log_fd,
+                       NewData),
+    OldData = C#cstate.actual,
+    C#cstate{state_changed = true,
+             actual = <<OldData/binary, NewData/binary>>,
+             events = save_event(C, recv, NewData)}.
 
 interpreter_died(C, Reason) ->
     Waste = flush_port(C,
@@ -373,6 +381,8 @@ block(C, From, OrigC) ->
             lux:trace_me(40, C#cstate.name, unblock, []),
             %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
             shell_wait_for_event(C, OrigC);
+        {debug_shell, From, What} ->
+            debug_shell(C, From, What);
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             block(C2, From, OrigC);
@@ -385,7 +395,7 @@ block(C, From, OrigC) ->
             C2 = C#cstate{state_changed = true,
                           no_more_output = true,
                           exit_status = ExitStatus,
-                          events = save_event(C, recv, shell_exit)},
+                          events = save_event(C, recv, ?shell_exit)},
             shell_wait_for_event(C2, OrigC);
         {'EXIT', Port, _PosixCode}
           when Port =:= C#cstate.port,
@@ -396,6 +406,59 @@ block(C, From, OrigC) ->
         {relax = Data, _From} ->
             stop(C, relax, Data)
     end.
+
+debug_shell(OldC, _From, What) ->
+    Name = OldC#cstate.name,
+    NewC = OldC#cstate{debug = What},
+    case {What, OldC#cstate.debug} of
+        {disconnect, D} when D =/= disconnect ->
+            lux_debug:format("\nDisconnect from shell ~p.\n", [Name]),
+            NewC;
+        {{connect, Mode}, disconnect} ->
+            lux_debug:format("\nConnect to shell ~p in ~p mode.\n",
+                             [Name, Mode]),
+            opt_show_debug(NewC);
+        {{send, reset}, _} ->
+            reset_output_buffer(OldC, debugger);
+        {{send, Data}, {connect,background}} ->
+            C = send_to_port(OldC, Data),
+            timer:sleep(500),
+            C;
+        {{send, Data}, _} ->
+            send_to_port(OldC, Data);
+        {display_stdout, _} ->
+            lux_debug:format("\nDisplay output buffer for shell ~p:\n", [Name]),
+            opt_show_debug(OldC);
+        {disconnect, _} ->
+            OldC;
+        {{connect, _Mode}, _} ->
+            OldC
+    end.
+
+opt_show_debug(C) ->
+    case C#cstate.actual of
+        <<>>   -> C;
+        Actual -> show_debug(C, "recv", Actual)
+    end.
+
+show_debug(#cstate{debug={connect,Mode}} = C, Prefix, Data) ->
+    Data2 =
+        if
+            is_atom(Data) -> atom_to_list(Data);
+            true          -> Data
+        end,
+    case Mode of
+        background ->
+            Lines = binary:split(Data2, <<"\n">>, [global]),
+            Data3 = ?l2b([["\n", C#cstate.name, "(", Prefix, "): ", L] ||
+                             L <- Lines]),
+            lux_debug:format("~s\n", [Data3]);
+        foreground ->
+            lux_debug:format("~s", [Data2])
+    end,
+    C;
+show_debug(C, _Prefix, _Data) ->
+    C.
 
 opt_sync_reply(C, From, When) when C#cstate.wait_for_expect =:= undefined ->
     case When of
@@ -461,20 +524,7 @@ shell_eval(#cstate{name = Name} = C0,
             true = is_binary(Arg), % Assert
             send_to_port(C, Arg);
         expect when Arg =:= reset ->
-            %% Reset output buffer
-            C2 = cancel_timer(C),
-            Events =
-                case flush_port(C2,C2#cstate.flush_timeout,C2#cstate.actual) of
-                    <<>> ->
-                        C2#cstate.events;
-                    Waste ->
-                        clog_skip(C2, Waste),
-                        save_event(C2, recv, Waste)
-                end,
-            clog(C2, output, "reset", []),
-            C2#cstate{state_changed = true,
-                      actual = <<>>,
-                      events = Events};
+            reset_output_buffer(C, script);
         expect when element(1, Arg) =:= endshell ->
             single = element(2, Arg), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
@@ -616,6 +666,25 @@ shell_eval(#cstate{name = Name} = C0,
             stop(C, error, ?l2b(Err))
     end.
 
+reset_output_buffer(C, Context) ->
+    Data = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
+    case Context of
+        debugger ->
+            C2 = C,
+            Events = C#cstate.events;
+        script when Data =:= <<>> ->
+            C2 = cancel_timer(C),
+            Events = C2#cstate.events;
+        script ->
+            C2 = cancel_timer(C),
+            clog_skip(C2, Data),
+            Events = save_event(C2, recv, Data)
+    end,
+    clog(C2, output, "reset", []),
+    C2#cstate{state_changed = true,
+              actual = <<>>,
+              events = Events}.
+
 dequote([$\\,$\\|T]) ->
     [$\\|dequote(T)];
 dequote([$\\,$n|T]) ->
@@ -627,8 +696,14 @@ dequote([H|T]) ->
 dequote([]) ->
     [].
 
+debug_progress(#cstate{debug = {connect,_}, mode=resume}) ->
+    silent;
+debug_progress(#cstate{progress = Progress}) ->
+    Progress.
+
 send_to_port(C, Data) ->
-    lux_log:safe_write(C#cstate.progress,
+    Progress = debug_progress(C),
+    lux_log:safe_write(Progress,
                        C#cstate.log_fun,
                        C#cstate.stdin_log_fd,
                        Data),
@@ -644,7 +719,7 @@ send_to_port(C, Data) ->
                     C2#cstate{state_changed = true,
                               no_more_output = true,
                               exit_status = ExitStatus,
-                              events = save_event(C2, recv, shell_exit)};
+                              events = save_event(C, recv, ?shell_exit)};
                 {'EXIT', Port, _PosixCode}
                   when Port =:= C2#cstate.port,
                        C#cstate.exit_status =/= undefined ->
@@ -1282,6 +1357,8 @@ flush_logs(#cstate{event_log_fd = closed,
 wait_for_down(C, Res) ->
     lux:trace_me(40, C#cstate.name, wait_for_down, []),
     receive
+        {debug_shell, From, What} ->
+            debug_shell(C, From, What);
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             wait_for_down(C2, Res);
@@ -1298,7 +1375,7 @@ wait_for_down(C, Res) ->
             C2 = C#cstate{state_changed = true,
                           no_more_output = true,
                           exit_status = ExitStatus,
-                          events = save_event(C, recv, shell_exit)},
+                          events = save_event(C, recv, ?shell_exit)},
             wait_for_down(C2, Res);
         {'EXIT', Port, _PosixCode}
           when Port =:= C#cstate.port,
@@ -1308,6 +1385,11 @@ wait_for_down(C, Res) ->
 
 save_event(#cstate{latest_cmd = _Cmd, events = Events} = C, Op, Data) ->
     clog(C, Op, "\"~s\"", [lux_utils:to_string(Data)]),
+    case Op of
+        recv -> show_debug(C, "recv", Data);
+        send -> show_debug(C, "send", Data);
+        _    -> C
+    end,
     %% [{Cmd#cmd.lineno, Op, Data} | Events].
     Events.
 

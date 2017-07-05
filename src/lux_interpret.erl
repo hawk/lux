@@ -39,8 +39,9 @@ init(I, StartTime) ->
                 I2#istate.debug orelse I2#istate.debug_file =/= undefined ->
                     DebugState = {attach, temporary},
                     {_, I3} = lux_debug:cmd_attach(I2, [], DebugState),
-                    io:format("\nDebugger for lux. Try help or continue.\n",
-                              []),
+                    lux_debug:format("\nDebugger for lux. "
+                                     "Try help or continue.\n",
+                                     []),
                     I3;
                 true ->
                     I2
@@ -444,10 +445,16 @@ dispatch_cmd(I,
                         cleanup
                 end,
             I3 = inactivate_shell(I2, I2#istate.want_more),
+            I3#istate.debug_shell =:= undefined orelse
+                lux_debug:format("\nCleanup. "
+                                 "Turn existing shells into zombies.\n",
+                                 []),
+            multicast(I3, {debug_shell, self(), disconnect}),
             Zombies = [S#shell{health = zombie} || S <- I3#istate.shells],
             I4 = I3#istate{mode = NewMode,
                            default_timeout = I3#istate.cleanup_timeout,
-                           shells = Zombies},
+                           shells = Zombies,
+                           debug_shell = undefined},
             Suffix =
                 case call_level(I4) of
                     1 -> "";
