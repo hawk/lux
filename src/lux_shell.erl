@@ -331,7 +331,7 @@ switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
             %% endloop with pending break pattern
             Loop = hd(LoopStack),
             LoopCmd = Loop#loop.mode,
-            RegExp = extract_regexp(LoopCmd#cmd.arg),
+            {_, RegExp} = extract_regexp(LoopCmd#cmd.arg),
 %% ??            RegExp2 = lux_utils:normalize_match_regexp(RegExp),
             RegExp2 = RegExp,
             Actual = <<"Loop ended without match of \"", RegExp2/binary, "\"">>,
@@ -477,8 +477,8 @@ shell_eval(#cstate{name = Name} = C0,
                       events = Events};
         expect when element(1, Arg) =:= endshell ->
             single = element(2, Arg), % Assert
-            RegExp = extract_regexp(Arg),
-            clog(C, expect, "\"endshell retcode=~s\"",
+            {ExpectTag, RegExp} = extract_regexp(Arg),
+            clog(C, ExpectTag, "\"endshell retcode=~s\"",
                  [lux_utils:to_string(RegExp)]),
             C2 = start_timer(C),
             dlog(C2, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
@@ -487,7 +487,7 @@ shell_eval(#cstate{name = Name} = C0,
                     element(2, Arg) =:= expect_add_strict ->
             %% Add alternate regexp
             Tag = element(2, Arg),
-            RegExp = extract_regexp(Arg),
+            {_, RegExp} = extract_regexp(Arg),
             clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             dlog(C, ?dmore, "expected=regexp (~p)", [Tag]),
             if
@@ -502,8 +502,8 @@ shell_eval(#cstate{name = Name} = C0,
                     C#cstate.pre_expected =:= [] ->
             %% Single regexp
             true = lists:member(element(2, Arg), [single,multi]), % Assert
-            RegExp = extract_regexp(Arg),
-            clog(C, expect, "\"~s\"", [lux_utils:to_string(RegExp)]),
+            {ExpectTag, RegExp} = extract_regexp(Arg),
+            clog(C, ExpectTag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             C2 = start_timer(C),
             dlog(C2, ?dmore, "expected=regexp (expect)", []),
             C2#cstate{state_changed = true, expected = Cmd, pre_expected = []};
@@ -511,7 +511,7 @@ shell_eval(#cstate{name = Name} = C0,
                     C#cstate.pre_expected =/= [] ->
             %% Multiple regexps
             Tag = element(2, (hd(C#cstate.pre_expected))#cmd.arg),
-            RegExp = extract_regexp(Arg),
+            {_, RegExp} = extract_regexp(Arg),
             clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             PreExpected = [Cmd | C#cstate.pre_expected],
             {ok, C2, NewRegExp} = rebuild_multi_regexps(C, PreExpected),
@@ -525,7 +525,7 @@ shell_eval(#cstate{name = Name} = C0,
                                cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, fail = Pattern};
         fail ->
-            RegExp = extract_regexp(Arg),
+            {_, RegExp} = extract_regexp(Arg),
             clog(C, fail, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, fail = Pattern};
@@ -535,7 +535,7 @@ shell_eval(#cstate{name = Name} = C0,
                                cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
         success ->
-            RegExp = extract_regexp(Arg),
+            {_, RegExp} = extract_regexp(Arg),
             clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
@@ -550,7 +550,7 @@ shell_eval(#cstate{name = Name} = C0,
             C#cstate{state_changed = true,
                      loop_stack    = [Loop2|LoopStack]};
         break ->
-            RegExp = extract_regexp(Arg),
+            {_, RegExp} = extract_regexp(Arg),
             clog(C, break, "pattern ~p", [lux_utils:to_string(RegExp)]),
             [Loop | LoopStack] = C#cstate.loop_stack,
             Loop2 =
@@ -772,7 +772,7 @@ try_match(C, Actual, Expected, AltSkip) ->
                 log_multi_nomatch(C2, OptMulti, Actual),
             stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
         {{'EXIT', Reason}, _} ->
-            RegExp = extract_regexp(Expected#cmd.arg),
+            {_, RegExp} = extract_regexp(Expected#cmd.arg),
             Err = io_lib:format("Bad regexp:\n\t~p\n"
                                 "Reason:\n\t~p\n",
                                 [RegExp, Reason]),
@@ -862,8 +862,8 @@ log_multi_nomatch(C, {mp, regexp, _RegExp, _Mp, Multi}, _Actual) ->
     log_multi_nomatch(C, {multi, Multi}, _Actual);
 log_multi_nomatch(C, _Single, Actual) ->
     Cmd = C#cstate.latest_cmd,
-    Expected = lux_utils:cmd_expected(Cmd),
-    {C, Expected, Actual}.
+    TaggedExpected = lux_utils:cmd_expected(Cmd),
+    {C, TaggedExpected, Actual}.
 
 match_patterns(C, Actual) ->
     C2 = match_fail_pattern(C, Actual),
@@ -881,7 +881,7 @@ match_fail_pattern(C, Actual) ->
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
-            RegExp = extract_regexp((C#cstate.fail)#cmd.arg),
+            {_, RegExp} = extract_regexp((C#cstate.fail)#cmd.arg),
             Err = io_lib:format("Bad regexp:\n\t~p\n"
                                 "Reason:\n\t~p\n",
                                 [RegExp, Reason]),
@@ -898,7 +898,7 @@ match_success_pattern(C, Actual) ->
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
-            RegExp = extract_regexp((C#cstate.success)#cmd.arg),
+            {_, RegExp} = extract_regexp((C#cstate.success)#cmd.arg),
             Err = io_lib:format("Bad regexp:\n\t~p\n"
                                 "Reason:\n\t~p\n",
                                 [RegExp, Reason]),
@@ -933,7 +933,7 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
                 nomatch ->
                     match_break_patterns(C, Actual, Stack, [Loop|Acc]);
                 {{'EXIT', Reason}, _} ->
-                    RegExp = extract_regexp(BreakCmd#cmd.arg),
+                    {_, RegExp} = extract_regexp(BreakCmd#cmd.arg),
                     Err = io_lib:format("Bad regexp:\n\t~p\n"
                                         "Reason:\n\t~p\n",
                                         [RegExp, Reason]),
@@ -1088,17 +1088,17 @@ cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
 extract_regexp(ExpectArg) ->
     case ExpectArg of
         reset ->
-            reset;
+            {'expected=', reset};
         {endshell, _RegExpOper, RegExp, _MP} ->
-            RegExp;
+            {'expected*', RegExp};
         {verbatim, _RegExpOper, Verbatim} ->
-            Verbatim;
+            {'expected=', Verbatim};
         {template, _RegExpOper, Template} ->
-            Template;
+            {'expected=', Template};
         {regexp, _RegExpOper, RegExp} ->
-            RegExp;
+            {'expected*', RegExp};
         {mp, _RegExpOper, RegExp, _MP, _Multi} ->
-            RegExp
+            {'expected*', RegExp}
     end.
 
 rebuild_multi_regexps(C, PreExpected0) ->
@@ -1127,7 +1127,7 @@ rebuild_multi_regexps(C, PreExpected0) ->
 named_regexps([Cmd | Cmds], N, Acc) ->
     String = lists:concat(["LUX", N]),
     Name = ?l2b(String),
-    OrigRegExp = extract_regexp(Cmd#cmd.arg),
+    {_, OrigRegExp} = extract_regexp(Cmd#cmd.arg),
     NamedRegExp = <<"(?<", Name/binary, ">", OrigRegExp/binary, ")">>,
     named_regexps(Cmds, N+1, [{Name, NamedRegExp, Cmd} | Acc]);
 named_regexps([], _N, Acc) ->
@@ -1148,10 +1148,12 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
                                is_atom(Actual) ->
     Cmd = C#cstate.latest_cmd,
     case Outcome0 of
-        {Outcome, Expected, Rest} ->
+        {Outcome, {ExpectedTag, Expected}, Rest} ->
             ok;
+        {Outcome, Expected, Rest} ->
+            ExpectedTag = 'expected*';
         Outcome ->
-            Expected = lux_utils:cmd_expected(Cmd),
+            {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
             Rest = C#cstate.actual
     end,
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
@@ -1162,6 +1164,7 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
                   name = C#cstate.name,
                   latest_cmd = Cmd,
                   cmd_stack = C#cstate.cmd_stack,
+                  expected_tag = ExpectedTag,
                   expected = Expected,
                   extra = Extra,
                   actual = Actual,

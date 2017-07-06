@@ -885,25 +885,27 @@ prepare_result(#istate{latest_cmd = LatestCmd,
             #result{outcome = NewOutcome} ->
                 {NewOutcome, Res};
             {'EXIT', {error, FailReason}} ->
-                Expected = lux_utils:cmd_expected(LatestCmd),
+                {ExpectedTag, Expected} = lux_utils:cmd_expected(LatestCmd),
                 {fail,
-                 #result{outcome    = fail,
-                         latest_cmd = LatestCmd,
-                         cmd_stack  = CmdStack,
-                         expected   = Expected,
-                         extra      = undefined,
-                         actual     = FailReason,
-                         rest       = fail}};
+                 #result{outcome      = fail,
+                         latest_cmd   = LatestCmd,
+                         cmd_stack    = CmdStack,
+                         expected_tag = ExpectedTag,
+                         expected     = Expected,
+                         extra        = undefined,
+                         actual       = FailReason,
+                         rest         = fail}};
             {fail, FailReason} ->
-                Expected = lux_utils:cmd_expected(LatestCmd),
+                {ExpectedTag, Expected} = lux_utils:cmd_expected(LatestCmd),
                 {fail,
-                 #result{outcome    = fail,
-                         latest_cmd = LatestCmd,
-                         cmd_stack  = CmdStack,
-                         expected   = Expected,
-                         extra      = undefined,
-                         actual     = FailReason,
-                         rest       = fail}}
+                 #result{outcome      = fail,
+                         latest_cmd   = LatestCmd,
+                         cmd_stack    = CmdStack,
+                         expected_tag = ExpectedTag,
+                         expected     = Expected,
+                         extra        = undefined,
+                         actual       = FailReason,
+                         rest         = fail}}
         end,
     Res3 =
         case Res2 of

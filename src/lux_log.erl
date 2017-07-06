@@ -412,17 +412,17 @@ run_result({result, Res}) ->
     run_result(Res);
 run_result(Res) ->
     case Res of
-        success                                          -> success;
-        warning                                          -> warning;
-        {skip, _}                                        -> skip;
-        {warning, _LineNo, _Expected, _Actual, _Details} -> warning;
-        {fail, _LineNo, _Expected, _Actual, _Details}    -> fail;
-        {error, _Reason}                                 -> fail;
-        <<"SUCCESS">>                                    -> success;
-        <<"SKIP", _/binary>>                             -> skip;
-        <<"FAIL", _/binary>>                             -> fail;
-        <<"ERROR", _/binary>>                            -> fail;
-        <<"WARNING", _/binary>>                          -> warning
+        success                                               -> success;
+        warning                                               -> warning;
+        {skip, _}                                             -> skip;
+        {warning, _LineNo, _ET, _Expected, _Actual, _Details} -> warning;
+        {fail, _LineNo, _ET,__Expected, _Actual, _Details}    -> fail;
+        {error, _Reason}                                      -> fail;
+        <<"SUCCESS">>                                         -> success;
+        <<"SKIP", _/binary>>                                  -> skip;
+        <<"FAIL", _/binary>>                                  -> fail;
+        <<"ERROR", _/binary>>                                 -> fail;
+        <<"WARNING", _/binary>>                               -> warning
     end.
 
 find_config(Key, Tuples, Default) ->
@@ -590,13 +590,15 @@ close_event_log(EventFd) ->
     file:close(EventFd).
 
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, "", []}) ->
-    Data = io_lib:format("~s(~p): ~p\n", [Shell, LineNo, Op]),
+    OpStr = atom_to_list(Op),
+    Data = io_lib:format("~s(~p): ~s\n", [Shell, LineNo, OpStr]),
     safe_write(Progress, LogFun, Fd, Data);
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
+    OpStr = atom_to_list(Op),
     Data = io_lib:format(Fmt, Args),
 %% ??   Data2 = lux_utils:normalize_match_regexp(Data),
     Data2 = Data,
-    Data3 = io_lib:format("~s(~p): ~p ~s\n", [Shell, LineNo, Op, Data2]),
+    Data3 = io_lib:format("~s(~p): ~s ~s\n", [Shell, LineNo, OpStr, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
 
 scan_events(EventLog) when is_list(EventLog) ->
@@ -916,8 +918,9 @@ parse_result(RawResult) ->
             <<"INTERNAL_ERROR ", Reason/binary>> ->
                 {error, [Reason | Rest]};
             <<"WARNING at ", Fail/binary>> ->
-                [<<"expected">>, Expected,
+                [TagStr = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
+                ExpectedTag = list_to_existing_atom(?b2l(TagStr)),
                 RawLineNo =
                     case binary:split(Fail, <<":">>) of
                         [_] -> % Main
@@ -935,10 +938,11 @@ parse_result(RawResult) ->
                 Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
                 Details3 = split_quoted_lines(Details2),
-                {warning, RawLineNo, Expected3, Actual, Details3};
+                {warning, RawLineNo, ExpectedTag, Expected3, Actual, Details3};
             <<"FAIL at ", Fail/binary>> ->
-                [<<"expected">>, Expected,
+                [TagStr = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
+                ExpectedTag = list_to_existing_atom(?b2l(TagStr)),
                 RawLineNo =
                     case binary:split(Fail, <<":">>) of
                         [_] -> % Main
@@ -956,7 +960,7 @@ parse_result(RawResult) ->
                 Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
                 Details3 = split_quoted_lines(Details2),
-                {fail, RawLineNo, Expected3, Actual, Details3};
+                {fail, RawLineNo, ExpectedTag, Expected3, Actual, Details3};
             <<"FAIL as ", _/binary>> = Fail->
                 {error, [Fail]}
         end,

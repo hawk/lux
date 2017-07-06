@@ -19,7 +19,7 @@
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
          pretty_full_lineno/1, pretty_filename/1, filename_split/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
-         diff/2, equal/2, diff_iter/3, diff_iter/4, shrink_diff/2,
+         diff/3, equal/3, diff_iter/4, diff_iter/5, shrink_diff/3,
          cmd/1, cmd_expected/1, perms/1,
          pick_opt/3, split/2, join/2, is_url/1]).
 
@@ -657,21 +657,23 @@ cmd(Cmd) ->
     {lists:reverse(Rest), CmdStatus}.
 
 cmd_expected(Cmd) ->
-    case Cmd of
-        #cmd{type = expect, arg = {endshell, _RegexpOper, Expected, _MP}} ->
-            ok;
-        #cmd{type = expect, arg = {verbatim, _RegexpOper, Expected}} ->
-            ok;
-        #cmd{type = expect, arg = {template, _RegexpOper, Expected}} ->
-            ok;
-        #cmd{type = expect, arg = {regexp, _RegexpOper, Expected}} ->
-            ok;
-        #cmd{type = expect, arg = {mp, _RegexpOper, Expected, _MP, _Multi}} ->
-            ok;
-        #cmd{} ->
-            Expected = <<"">>
-    end,
-    Expected.
+    ExpectTag =
+        case Cmd of
+            #cmd{type=expect, arg={endshell,_RegexpOper,Expected,_MP}} ->
+                'expected*';
+            #cmd{type=expect, arg={verbatim,_RegexpOper,Expected}} ->
+                'expected=';
+            #cmd{type=expect, arg={template,_RegexpOper,Expected}} ->
+                'expected=';
+            #cmd{type=expect, arg={regexp,_RegexpOper,Expected}} ->
+                'expected*';
+            #cmd{type=expect, arg={mp,_RegexpOper,Expected,_MP,_Multi}} ->
+                'expected*';
+            #cmd{} ->
+                Expected = <<"">>,
+                'expected*'
+        end,
+    {ExpectTag, Expected}.
 
 %% Generate all permutations of the elements in a list
 perms([])->
@@ -690,25 +692,32 @@ pick_opt(_Tag, [], Val) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Diff
 
-diff(Old, New) ->
+diff(ExpectedTag, Old, New) ->
     Equal =
         fun(O, N) ->
-                case equal(O, N) of
+                case equal(ExpectedTag, O, N) of
                     match   -> true;
                     nomatch -> false
                 end
         end,
     lux_diff:compare2(Old, New, Equal).
 
-equal(Expected, Expected) ->
+equal(ExpectedTag, Expected, Expected)
+  when ExpectedTag =:= 'expected=';
+       ExpectedTag =:= expected ->
     match;
-equal(Expected0, Actual) when is_binary(Expected0); is_list(Expected0) ->
+equal(ExpectedTag, Expected0, Actual)
+  when ExpectedTag =:= 'expected*';
+       ExpectedTag =:= expected ->
     Expected = normalize_diff_regexp(Expected0),
     try
         re:run(Actual, Expected,[{capture, none}, notempty])
     catch _:_ ->
             nomatch
-    end.
+    end;
+equal(ExpectedTag, _Expected, _Actual)
+  when ExpectedTag =:= 'expected=' ->
+    nomatch.
 
 normalize_diff_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
   when Prefix =/= <<"^">> ->
@@ -742,48 +751,53 @@ normalize_diff_regexp(RegExp) when is_list(RegExp) ->
 -type mode() :: flat | deep | nested.
 -type acc() :: term().
 -type callback() :: fun((op(), mode(), context(), acc()) -> acc()).
--spec diff_iter([binary()], [binary()], mode(), callback()) -> acc().
+-type expected_tag() :: 'expected=' | 'expected*'.
+-spec diff_iter(expected_tag(), [binary()], [binary()],
+                mode(), callback()) -> acc().
 -type diff() :: lux_diff:compact_diff().
-diff_iter(Old, New, Mode, Fun) when Mode =:= flat; Mode =:= deep ->
-    Diff = diff(Old, New),
-    diff_iter(Diff, Mode, Fun).
+diff_iter(ExpectedTag, Old, New, Mode, Fun)
+  when Mode =:= flat; Mode =:= deep ->
+    Diff = diff(ExpectedTag, Old, New),
+    diff_iter(ExpectedTag, Diff, Mode, Fun).
 
--spec diff_iter(diff(), mode(), callback()) -> acc().
-diff_iter(Diff, Mode, Fun) ->
+-spec diff_iter(expected_tag(), diff(), mode(), callback()) -> acc().
+diff_iter(ExpectedTag, Diff, Mode, Fun) ->
     InitialAcc = [],
-    diff_iter_loop(Diff, Mode, Fun, InitialAcc).
+    diff_iter_loop(ExpectedTag, Diff, Mode, Fun, InitialAcc).
 
-diff_iter_loop([H|T], Mode, Fun, Acc) ->
+diff_iter_loop(ExpectedTag, [H|T], Mode, Fun, Acc) ->
     Context = context(Acc, T),
     case H of
         Common when is_list(Common) ->
             NewAcc = Fun({common,Common}, Mode, Context, Acc),
-            diff_iter_loop(T, Mode, Fun, NewAcc);
+            diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc);
         {'-', Del} when element(1, hd(T)) =:= '+' ->
             Add = element(2, hd(T)),
-            diff_iter_loop([{'!',Del,Add} | tl(T)], Mode, Fun, Acc);
+            diff_iter_loop(ExpectedTag, [{'!',Del,Add} | tl(T)],
+                           Mode, Fun, Acc);
         {'-', Del} ->
             NewAcc = Fun({del,Del}, Mode, Context, Acc),
-            diff_iter_loop(T, Mode, Fun, NewAcc);
+            diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc);
         {'+', Add} when element(1, hd(T)) =:= '-' ->
             Del = element(2, hd(T)),
-            diff_iter_loop([{'!',Del,Add} | tl(T)], Mode, Fun, Acc);
+            diff_iter_loop(ExpectedTag, [{'!',Del,Add} | tl(T)],
+                           Mode, Fun, Acc);
         {'+', Add} ->
             NewAcc = Fun({add,Add}, Mode, Context, Acc),
-            diff_iter_loop(T, Mode, Fun, NewAcc);
+            diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc);
         {'!', Del, Add} when Mode =:= deep ->
             DelChars = ?b2l(?l2b(expand_lines(Del))),
             AddChars = ?b2l(?l2b(expand_lines(Add))),
             NestedDiff = lux_diff:compare(DelChars, AddChars),
-            NestedAcc = diff_iter(NestedDiff, nested, Fun),
+            NestedAcc = diff_iter('expected=', NestedDiff, nested, Fun),
             DeepAcc = Fun({nested,Del,Add,NestedAcc}, Mode, Context, Acc),
-            diff_iter_loop(T, Mode, Fun, DeepAcc);
+            diff_iter_loop(ExpectedTag, T, Mode, Fun, DeepAcc);
         {'!', Del, Add} when Mode =:= flat;
                              Mode =:= nested ->
             NewAcc = Fun({replace,Del,Add}, Mode, Context, Acc),
-            diff_iter_loop(T, Mode, Fun, NewAcc)
+            diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc)
     end;
-diff_iter_loop([], _Mode, _Fun, Acc) ->
+diff_iter_loop(_ExpectedTag, [], _Mode, _Fun, Acc) ->
     Acc.
 
 context(_Acc, []) ->
@@ -793,7 +807,7 @@ context([], _Tail) ->
 context(_Aacc, _Tail) ->
     middle.
 
-shrink_diff(Old, New) when is_binary(Old), is_binary(New) ->
+shrink_diff(ExpectedTag, Old, New) when is_binary(Old), is_binary(New) ->
     ToIoList =
         fun ({Sign, Bin}) ->
                 Prefix =
@@ -804,7 +818,7 @@ shrink_diff(Old, New) when is_binary(Old), is_binary(New) ->
                     end,
                 [Prefix, Bin, "\n"]
         end,
-    Diff = diff(split_lines(Old), split_lines(New)),
+    Diff = diff(ExpectedTag, split_lines(Old), split_lines(New)),
     ShrinkedDiff = shrink(Diff, []),
     Expanded = lux_diff:split_diff(ShrinkedDiff),
     iolist_to_binary(lists:map(ToIoList, Expanded)).

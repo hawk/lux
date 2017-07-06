@@ -425,13 +425,14 @@ print_success(I, File, Results) ->
      Results, <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
 print_fail(OldI0, NewI, File, Results,
-           #result{outcome    = fail,
-                   latest_cmd = LatestCmd,
-                   cmd_stack  = CmdStack,
-                   expected   = Expected,
-                   extra      = _Extra,
-                   actual     = Actual,
-                   rest       = Rest}) ->
+           #result{outcome      = fail,
+                   latest_cmd   = LatestCmd,
+                   cmd_stack    = CmdStack,
+                   expected_tag = ExpectedTag,
+                   expected     = Expected,
+                   extra        = _Extra,
+                   actual       = Actual,
+                   rest         = Rest}) ->
     OldI = OldI0#istate{progress = silent},
     OldWarnings = OldI#istate.warnings,
     FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
@@ -464,12 +465,13 @@ print_fail(OldI0, NewI, File, Results,
             _ when is_binary(Actual) ->
                 {<<"error">>, Actual}
         end,
-    Diff = lux_utils:shrink_diff(Expected, NewRest),
+    Diff = lux_utils:shrink_diff(ExpectedTag, Expected, NewRest),
+    ExpectStr = atom_to_list(ExpectedTag),
     FailBin =
         ?l2b(
           [
-           io_lib:format("expected\n\t~s\n",
-                         [simple_to_string(Expected)]),
+           io_lib:format("~s\n\t~s\n",
+                         [ExpectedTag, simple_to_string(Expected)]),
            io_lib:format("actual ~s\n\t~s\n",
                          [NewActual, simple_to_string(NewRest)]),
            io_lib:format("diff\n\t~s",
@@ -482,8 +484,8 @@ print_fail(OldI0, NewI, File, Results,
             io:format("~s", [ResStr]),
             io:format("~s\n", [FailBin])
     end,
-    double_ilog(OldI, "expected\n\"~s\"\n",
-                [lux_utils:to_string(Expected)]),
+    double_ilog(OldI, "~s\n\"~s\"\n",
+                [ExpectStr, lux_utils:to_string(Expected)]),
     double_ilog(OldI, "actual ~s\n\"~s\"\n",
                 [NewActual, lux_utils:to_string(NewRest)]),
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],

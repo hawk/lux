@@ -672,9 +672,9 @@ html_result(Tag, {result, Result}, HtmlLog)                                 ->
              "<h3>Reason</h3>",
              html_div(<<"event">>, lux_utils:expand_lines(Reason))
             ];
-        {How, RawLineNo, Expected, Actual, Details}
+        {How, RawLineNo, ExpectedTag, Expected, Actual, Details}
           when How =:= fail; How =:= warning ->
-            HtmlDiff = html_diff(Expected, Details),
+            HtmlDiff = html_diff(ExpectedTag, Expected, Details),
             Anchor = RawLineNo,
             [
              "\n<", Tag, ">Result: <strong>",
@@ -699,8 +699,8 @@ html_result(Tag, {result, Result}, HtmlLog)                                 ->
             ]
     end.
 
-html_diff(Expected, Details) ->
-    lux_utils:diff_iter(Expected, Details, deep, fun emit/4).
+html_diff(ExpectedTag, Expected, Details) ->
+    lux_utils:diff_iter(ExpectedTag, Expected, Details, deep, fun emit/4).
 
 emit(Op, Mode, Context, Acc) when Mode =:= flat;
                                   Mode =:= deep ->
