@@ -29,6 +29,8 @@
 #include <sys/ioctl.h>
 #include <sys/errno.h>
 
+#include <termios.h>
+
 #ifdef TRACE
 #define DEBUG
 #endif
@@ -111,6 +113,38 @@ fail:
     return NULL;
 }
 #endif
+
+struct termios prev_state;
+
+static int unset_onlcr(int fd)
+{
+    struct termios  b;
+    unsigned int iflag, lflag, cflag, oflag;
+
+    if (tcgetattr(fd, &prev_state) < 0) return -1;
+
+    iflag = prev_state.c_iflag;
+    lflag = prev_state.c_lflag;
+    cflag = prev_state.c_cflag;
+    oflag = prev_state.c_oflag;
+
+    b = prev_state;
+
+    oflag = oflag & ~ONLCR;
+
+    b.c_iflag = iflag;
+    b.c_lflag = lflag;
+    b.c_cflag = cflag;
+    b.c_oflag = oflag;
+
+    b.c_cc[VMIN] = 1;
+    b.c_cc[VTIME] = 0;
+
+    if (tcsetattr(fd, TCSAFLUSH, &b) < 0) return -1;
+
+    return 0;
+}
+
 
 int prev_fd_flags, prev_outfd_flags;
 
@@ -215,6 +249,9 @@ int main(int argc, char *argv[])
         dup2(slave, 1);
         dup2(slave, 2);
         if (slave > 2) close(slave);
+
+        unset_onlcr(1);
+
         execvp(argv[1], argv+1);
         EXIT("exec in child failed");
     }
