@@ -200,12 +200,18 @@ converted to HTML manually later by using the command line option
 
 **--tap LogFile**  
 A file where [TAP][TAP] events should be written. The file names
-`stdout` and `stdin` are specially handled. They causes the log events
+`stdout` and `stderr` are specially handled. They causes the log events
 to be written to standard output respective standard error. Multiple
-"files" can be given.
+"files" can be given. A log file named lux.tap will always be generated,
+regardless of this option.
 
 **-t**  
 A shortcut for `--progress=silent --tap=stdout`.
+
+**--junit**  
+Generate a JUnit test report for the test run that can be used for example
+by Jenkins to show test result using the JUnit plugin. The generated test
+report will be named `lux_junit.xml`.
 
 **--case_prefix CasePrefix**  
 A prefix string which is prepended to the script names in the user
