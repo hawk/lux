@@ -170,6 +170,11 @@
          status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
 
+-record(source,
+        {suite_prefix :: undefined | string(),
+         file         :: file:filename(),
+         orig         :: file:filename()}).
+
  -define(DEFAULT_LOG, <<"unknown">>).
  -define(DEFAULT_HOSTNAME, <<"unknown">>).
  -define(DEFAULT_CONFIG_NAME, <<"unknown">>).

@@ -90,8 +90,11 @@ close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
 parse_summary_log(SummaryLog) when is_list(SummaryLog) ->
+    Source = #source{suite_prefix=undefined, file=SummaryLog, orig=SummaryLog},
+    parse_summary_log(Source);
+parse_summary_log(#source{file=SummaryLog} = Source) ->
     try
-        do_parse_summary_log(SummaryLog)
+        do_parse_summary_log(Source)
     catch
         error:Reason ->
             EST = erlang:get_stacktrace(),
@@ -103,7 +106,7 @@ parse_summary_log(SummaryLog) when is_list(SummaryLog) ->
             {error, SummaryLog, ReasonStr}
     end.
 
-do_parse_summary_log(SummaryLog) ->
+do_parse_summary_log(#source{file=SummaryLog}) ->
     case read_log(SummaryLog, ?SUMMARY_TAG) of
         {ok, ?SUMMARY_LOG_VERSION, Sections} ->
             %% Latest version
@@ -268,10 +271,10 @@ split_doc([H|T] = Rest, AccDoc) ->
             {lists:reverse(AccDoc), Rest}
     end.
 
-parse_run_summary(TopDir, RelDir, Base, File, Res, Opts)
-  when is_list(TopDir), is_list(RelDir), is_list(Base), is_list(File) ->
+parse_run_summary(Source, RelDir, Base, File, Res, Opts)
+  when is_list(RelDir), is_list(Base), is_list(File) ->
     try
-        do_parse_run_summary(TopDir, RelDir, Base, File, Res, Opts)
+        do_parse_run_summary(Source, RelDir, Base, File, Res, Opts)
     catch
         error:Reason ->
             EST = erlang:get_stacktrace(),
@@ -283,7 +286,7 @@ parse_run_summary(TopDir, RelDir, Base, File, Res, Opts)
             {error, File, ReasonStr}
     end.
 
-do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
+do_parse_run_summary(Source, RelDir, Base, _File, Res, Opts) ->
     {ok, Cwd} = file:get_cwd(),
     CN0 = ?DEFAULT_CONFIG_NAME,
     Log =
@@ -299,7 +302,7 @@ do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
              hostname = ?DEFAULT_HOSTNAME,
              config_name = CN0,
              run_dir = Cwd,
-             run_log_dir = TopDir,
+             run_log_dir = Source#source.file,
              rel_dir = RelDir,
              repos_rev = ?DEFAULT_REV,
              details = []},
@@ -324,7 +327,20 @@ do_parse_run_summary(TopDir, RelDir, Base, _File, Res, Opts) ->
                     true ->
                         find_config(<<"config name">>, ConfigProps, CN0)
                 end,
-            Suite = find_config(<<"suite">>, ConfigProps, R#run.test),
+            OrigSuite = find_config(<<"suite">>, ConfigProps, R#run.test),
+            Suite =
+                case Source#source.suite_prefix of
+                    undefined ->
+                        OrigSuite;
+                    SuitePrefix ->
+                        Delim = "::",
+                        case lux_utils:split(?b2l(OrigSuite), Delim) of
+                            {_OrigSuitePrefix, OrigSuiteFile} ->
+                                ?l2b([SuitePrefix, Delim, OrigSuiteFile]);
+                            false ->
+                                ?l2b([SuitePrefix, Delim, OrigSuite])
+                        end
+                end,
             RunId = find_config(<<"run">>, ConfigProps, R#run.id),
             ReposRev =
                 find_config(<<"revision">>, ConfigProps, R#run.repos_rev),

@@ -113,3 +113,12 @@ can be used for the purpose of merging existing history files. The
 URL both the history file and the summary log files are fetched over
 the network. The resulting history file will then contain URL's,
 implying that it may relocated without getting dangling links.
+
+The `SourceLogFile` may be prefixed with a suite name, like
+`SuitePrefix::SourceLogFile`. I that case the `SuitePrefix` will
+override the `--suite` parameter setting from the original run. This
+may be useful when a suite has been reused and thus run several
+times. For example when there are several versions of the system under
+test:
+
+    lux --history . debug::PathToDebugLogDir release::PathToReleaseLogDir

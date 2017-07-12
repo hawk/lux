@@ -19,15 +19,28 @@
 -record(row,   {res, cells, iolist}).
 -record(cell,  {res, run, n_run, n_fail, iolist}).
 
-generate(RelTopDirs, RelHtmlFile, Opts) ->
+generate(PrefixedSources, RelHtmlFile, Opts) ->
     io:format("Assembling history of logs from...", []),
-    generate2(RelTopDirs, RelHtmlFile, [{top, RelTopDirs} | Opts], [], []).
+    Sources = lists:map(fun split_source/1, PrefixedSources),
+    generate2(Sources, RelHtmlFile, [{top, Sources} | Opts], [], []).
 
-generate2([RelTopDir | RelTopDirs], RelHtmlFile, Opts, RunAcc, ErrAcc) ->
-    io:format("\n\t~s", [RelTopDir]),
+split_source(PrefixedSource) ->
+    case lux_utils:split(PrefixedSource, "::") of
+        {SuitePrefix, File} ->
+            #source{suite_prefix=SuitePrefix,
+                    file=File,
+                    orig=PrefixedSource};
+        false ->
+            #source{suite_prefix=undefined,
+                    file=PrefixedSource,
+                    orig=PrefixedSource}
+    end.
+
+generate2([Source | Sources], RelHtmlFile, Opts, RunAcc, ErrAcc) ->
+    io:format("\n\t~s", [Source#source.orig]),
     {AllRuns, Errors} =
-        parse_summary_logs(RelTopDir, RelHtmlFile, RunAcc, ErrAcc, Opts),
-    generate2(RelTopDirs, RelHtmlFile, Opts, AllRuns, Errors);
+        parse_summary_logs(Source, RelHtmlFile, RunAcc, ErrAcc, Opts),
+    generate2(Sources, RelHtmlFile, Opts, AllRuns, Errors);
 generate2([], RelHtmlFile, Opts, AllRuns, Errors) ->
     %% io:format("\nERRORS ~p\n", [Errors]),
     io:format("\nAnalyzed ~p test runs (~p errors)",
@@ -107,10 +120,13 @@ args(RelHtmlFile, Opts) ->
             HostName ->
                 [" --hostname=", HostName, " "]
         end,
-    case lux_utils:pick_opt(top, Opts, undefined) of
-        undefined -> Files = [];
-        Files     -> ok
-    end,
+    Files =
+        case lux_utils:pick_opt(top, Opts, undefined) of
+            undefined ->
+                [];
+            Sources ->
+                [S#source.orig || S <- Sources]
+        end,
     Dir = filename:dirname(RelHtmlFile),
     ["\n<h3>Invoke:</h3>\n",
      "lux ", HostArg, "--history ", Dir, " ", string:join(Files, " "), "\n",
@@ -409,8 +425,7 @@ row(NewLogDir, Test, Runs, SplitIds,
     RevRuns = lists:reverse(lists:keysort(#run.id, Runs)),
     EmitCell =
         fun({Id, _R}, AccRes) ->
-                cell(NewLogDir, Test, Id, RevRuns,
-                     HtmlFile, AccRes)
+                cell(NewLogDir, Test, Id, RevRuns, HtmlFile, AccRes)
         end,
     {Cells, _} = lists:mapfoldr(EmitCell, [], SplitIds),
     ValidResFilter = fun (Cell) -> valid_res_filter(Cell, Suppress) end,
@@ -511,7 +526,7 @@ compare_split({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
     %% Test on first run
     compare_run(R1, R2).
 
-cell(_NewLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
+cell(NewLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
             Td = td("-", no_data, "right", Test),
@@ -528,8 +543,10 @@ cell(_NewLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
                 case Run#run.log of
                     ?DEFAULT_LOG ->
                         FailCount;
-                    Log ->
-                        lux_html_utils:html_href([Log, ".html"], FailCount)
+                    OldLog ->
+                        AbsLog = lux_utils:join(Run#run.run_log_dir, OldLog),
+                        NewLog = lux_utils:drop_prefix(NewLogDir, AbsLog),
+                        lux_html_utils:html_href([NewLog, ".html"], FailCount)
                 end,
             OrigRes =
                 case RunN of
@@ -605,12 +622,13 @@ insert_html_suffix(HtmlFile, Name, Suffix)
     BaseName = filename:basename(HtmlFile, Ext),
     BaseName ++ Suffix ++ Ext ++ Name.
 
-parse_summary_logs(TopFile, RelHtmlFile, Acc, Err, Opts) ->
+parse_summary_logs(Source, RelHtmlFile, Acc, Err, Opts) ->
+    RelFile = Source#source.file,
     RelDir = "",
-    case {filename:basename(TopFile), filename:basename(RelHtmlFile)} of
+    case {filename:basename(RelFile), filename:basename(RelHtmlFile)} of
         {HistoryFile, HistoryFile} ->
             %% Use history file as source
-            case lux_html_parse:parse_files(shallow, TopFile) of
+            case lux_html_parse:parse_files(shallow, RelFile) of
                 [{ok, _, Links, html}] ->
                     SL = "lux_summary.log",
                     HL = SL ++ ".html",
@@ -618,11 +636,10 @@ parse_summary_logs(TopFile, RelHtmlFile, Acc, Err, Opts) ->
                         fun({link, Link, _Label}) ->
                                 case lists:suffix(HL, Link) of
                                     true ->
-                                        TopDir = filename:dirname(TopFile),
+                                        TopDir = filename:dirname(RelFile),
                                         LinkDir = filename:dirname(Link),
                                         Tmp = lux_utils:join(TopDir, LinkDir),
                                         File = lux_utils:join(Tmp, SL),
-
                                         {true, File};
                                     _ ->
                                         false
@@ -632,21 +649,22 @@ parse_summary_logs(TopFile, RelHtmlFile, Acc, Err, Opts) ->
                         end,
                     Files = lists:zf(Extract, Links),
                     %% io:format("\nLINKS ~p\n", [Files]),
-                    parse_summary_files(TopFile, RelDir, Files, Acc, Err, Opts);
+                    parse_summary_files(Source, RelDir, Files, Acc, Err, Opts);
                 Errors ->
                     Strings = lux_html_parse:format_results(Errors),
                     Format = fun(E) ->
                                      io:format("\n\t\t~s\n", [E]),
-                                     {error, TopFile, E}
+                                     {error, RelFile, E}
                              end,
                     {Acc, lists:map(Format, Strings)}
             end;
         _ ->
-            search_summary_dirs(TopFile, RelDir, Acc, Err, Opts)
+            search_summary_dirs(Source, RelDir, Acc, Err, Opts)
     end.
 
-search_summary_dirs(TopFile, RelDir, Acc, Err, Opts) ->
-    Dir0 = lux_utils:join(TopFile, RelDir),
+search_summary_dirs(Source, RelDir, Acc, Err, Opts) ->
+    RelFile = Source#source.file,
+    Dir0 = lux_utils:join(RelFile, RelDir),
     Dir = lux_utils:normalize_filename(Dir0),
     case file:list_dir(Dir) of
         {ok, Files} ->
@@ -663,7 +681,7 @@ search_summary_dirs(TopFile, RelDir, Acc, Err, Opts) ->
                     case lists:suffix(".log", Base) of
                         true ->
                             %% A summary log
-                            parse_summary_files(TopFile, RelDir, [Base],
+                            parse_summary_files(Source, RelDir, [Base],
                                                 Acc, Err, Opts);
                         false ->
                             %% Skip
@@ -684,7 +702,7 @@ search_summary_dirs(TopFile, RelDir, Acc, Err, Opts) ->
                                         _  ->
                                             lux_utils:join(RelDir, File)
                                     end,
-                                search_summary_dirs(TopFile, RelDir2,
+                                search_summary_dirs(Source, RelDir2,
                                                     A, E, Opts)
                         end,
                     lists:foldl(Fun, {Acc, Err}, Files)
@@ -694,20 +712,22 @@ search_summary_dirs(TopFile, RelDir, Acc, Err, Opts) ->
             {Acc, Err}
     end.
 
-parse_summary_files(TopDir, RelDir, [Base | Bases], Acc, Err, Opts) ->
+parse_summary_files(Source, RelDir, [Base | Bases], Acc, Err, Opts) ->
     io:format(".", []),
-    Tmp = lux_utils:join(TopDir, RelDir),
+    RelFile = Source#source.file,
+    Tmp = lux_utils:join(RelFile, RelDir),
     File = lux_utils:join(Tmp, Base),
     {Acc2, Err2} =
         case lux_log:parse_summary_log(File) of
             {ok,_,_,_,_,_} = Res->
-                case lux_log:parse_run_summary(TopDir,
+                case lux_log:parse_run_summary(Source,
                                                RelDir,
                                                Base,
                                                File,
                                                Res,
                                                Opts) of
                     {error, F, Reason} ->
+
                         {Acc, [{error, F, Reason} | Err]};
                     #run{} = R ->
                         {[R|Acc], Err}
@@ -715,8 +735,8 @@ parse_summary_files(TopDir, RelDir, [Base | Bases], Acc, Err, Opts) ->
             {error, F, Reason} ->
                 {Acc, [{error, F, Reason} | Err]}
         end,
-    parse_summary_files(TopDir, RelDir, Bases, Acc2, Err2, Opts);
-parse_summary_files(_TopDir, _RelDir, [], Acc, Err, _Opts) ->
+    parse_summary_files(Source, RelDir, Bases, Acc2, Err2, Opts);
+parse_summary_files(_Source, _RelDir, [], Acc, Err, _Opts) ->
     {Acc, Err}.
 
 multi_member([H | T], Files) ->
