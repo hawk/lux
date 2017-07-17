@@ -14,15 +14,20 @@
 
 write_report(SummaryLog, RunDir, _Opts) ->
     File = lux_utils:normalize_filename(SummaryLog),
-    case lux_log:parse_summary_log(File) of
-        {ok, _Result, Groups, _ConfigSection, _FileInfo, _EventLogs} ->
-            Content = testsuites(Groups, RunDir, ""),
-            Dir = filename:dirname(File),
-            JunitFile = filename:join([Dir, "lux_junit.xml"]),
-            file:write_file(JunitFile, Content);
-        {error, _File, _Reason} = Error ->
+    WWW = undefined,
+    {ParseRes, NewWWW} = lux_log:parse_summary_log(File, WWW),
+    Res =
+        case ParseRes of
+            {ok, _Result, Groups, _ConfigSection, _FileInfo, _EventLogs} ->
+                Content = testsuites(Groups, RunDir, ""),
+                Dir = filename:dirname(File),
+                JunitFile = filename:join([Dir, "lux_junit.xml"]),
+                file:write_file(JunitFile, Content);
+            {error, _File, _Reason} = Error ->
             Error
-    end.
+        end,
+    lux_utils:stop_app(NewWWW),
+    Res.
 
 testsuites(Groups, RunDir, Indent) ->
     TestsuiteFun = fun(Group) ->

@@ -144,7 +144,6 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
         tap_suite_end(NewR, NewSummary, NewResults),
         {NewR, NewSummary, NewResults}
     catch Class:Reason ->
-            EST = erlang:get_stacktrace(),
             lux:trace_me(80, suite, Class, [Reason]),
             if
                 R#rstate.tap =/= undefined ->
@@ -152,7 +151,7 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
                 true ->
                     ok
             end,
-            erlang:raise(Class, Reason, EST)
+            erlang:Class(Reason)
     end.
 
 expand_suite(R, [SuiteFile | SuiteFiles], Acc, Max) ->
@@ -196,8 +195,9 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             R2 = R#rstate{log_fd = SummaryFd, summary_log = SummaryLog},
             HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
             InitialSummary = success,
-            InitialRes = initial_res(R2, Exists, ConfigData,
-                                     SummaryLog, InitialSummary),
+            InitialRes =
+                initial_res(R2, Exists, ConfigData,
+                            SummaryLog, InitialSummary),
             {R3, Summary, Results} =
                 run_suite(R2, R2#rstate.files, InitialSummary, InitialRes),
             print_results(R3, Summary, Results),
@@ -228,12 +228,16 @@ maybe_write_junit_report(#rstate{junit = true}, SummaryLog, ConfigData) ->
 initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
   when Exists =:= true ->
     TmpLog = SummaryLog ++ ".tmp",
-    case lux_log:parse_summary_log(TmpLog) of
-        {ok, _, Groups, _, _, _} ->
-            flatten_results(Groups);
-        {error, _, _} ->
-            []
-    end;
+    WWW = undefined,
+    {Res, WWW} = lux_log:parse_summary_log(TmpLog, WWW), % assert
+    NewRes =
+        case Res of
+            {ok, _, Groups, _, _, _} ->
+                flatten_results(Groups);
+            {error, _, _} ->
+                []
+        end,
+    NewRes;
 initial_res(R, Exists, ConfigData, SummaryLog, Summary)
   when Exists =:= false ->
     write_config_log(SummaryLog, ConfigData),
@@ -345,19 +349,26 @@ compute_files(R, LogDir, LogBase) ->
     OldLogDirs = [filename:join([filename:dirname(LogDir), "latest_run"])],
     compute_rerun_files(R, OldLogDirs, LogBase, []).
 
-compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc) ->
+compute_rerun_files(R, LogDirs, LogBase, Acc) ->
+    WWW = undefined,
+    {Res, NewWWW} = compute_rerun_files(R, LogDirs, LogBase, WWW, Acc),
+    lux_utils:stop_app(NewWWW),
+    Res.
+
+compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc, WWW) ->
     OldLog = filename:join([LogDir, LogBase]),
+    {ParseRes, NewWWW} = lux_log:parse_summary_log(OldLog, WWW),
     LatestRes =
-        case lux_log:parse_summary_log(OldLog) of
+        case ParseRes of
             {ok, _, Groups, _, _, _} ->
                 flatten_results(Groups);
             {error, _, _} ->
                 []
         end,
     Files = filter_rerun_files(R, LatestRes),
-    compute_rerun_files(R, LogDirs, LogBase, Files ++ Acc);
-compute_rerun_files(R, [], _LogBase, Acc) ->
-    R#rstate{files = lists:usort(Acc)}.
+    compute_rerun_files(R, LogDirs, LogBase, Files ++ Acc, NewWWW);
+compute_rerun_files(R, [], _LogBase, Acc, WWW) ->
+    {R#rstate{files = lists:usort(Acc)}, WWW}.
 
 filter_rerun_files(R, InitialRes) ->
     MinCond = lux_utils:summary_prio(R#rstate.rerun),

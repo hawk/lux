@@ -8,12 +8,12 @@
 -module(lux_log).
 
 -export([
-         is_temporary/1, parse_summary_log/1, parse_run_summary/6,
+         is_temporary/1, parse_summary_log/2, parse_run_summary/4,
          open_summary_log/3, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/3,
-         open_event_log/5, close_event_log/1, write_event/4, scan_events/1,
+         open_event_log/5, close_event_log/1, write_event/4, scan_events/2,
          parse_events/2, extract_timers/1, timers_to_csv/1, parse_io_logs/2,
          open_config_log/3, close_config_log/2,
          safe_format/5, safe_write/4, dequote/1
@@ -89,12 +89,15 @@ close_summary_log(SummaryFd, SummaryLog) when is_list(SummaryLog) ->
 close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
-parse_summary_log(SummaryLog) when is_list(SummaryLog) ->
-    Source = #source{suite_prefix=undefined, file=SummaryLog, orig=SummaryLog},
-    parse_summary_log(Source);
-parse_summary_log(#source{file=SummaryLog} = Source) ->
+parse_summary_log(SummaryLog, WWW) when is_list(SummaryLog) ->
+    Source = #source{branch=undefined,
+                     suite_prefix=undefined,
+                     file=SummaryLog,
+                     orig=SummaryLog},
+    parse_summary_log(Source, WWW);
+parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
     try
-        do_parse_summary_log(Source)
+        do_parse_summary_log(Source, WWW)
     catch
         error:Reason ->
             EST = erlang:get_stacktrace(),
@@ -103,95 +106,113 @@ parse_summary_log(#source{file=SummaryLog} = Source) ->
                                             " in ~s\n~p\n\~p\n",
                                             [SummaryLog, Reason, EST])),
             io:format("~s\n", [ReasonStr]),
-            {error, SummaryLog, ReasonStr}
+            {{error, SummaryLog, ReasonStr}, WWW}
     end.
 
-do_parse_summary_log(#source{file=SummaryLog}) ->
-    case read_log(SummaryLog, ?SUMMARY_TAG) of
-        {ok, ?SUMMARY_LOG_VERSION, Sections} ->
-            %% Latest version
-            LogDir = filename:dirname(SummaryLog),
-            ConfigLog = lux_utils:join(LogDir, "lux_config.log"),
-            {ok, RawConfig} = scan_config(ConfigLog),
-            SummaryConfig = parse_config(RawConfig),
-            {ok, Result} = parse_summary_result(LogDir),
-            {Cases, EventLogs} = split_cases(Sections, [], []),
-            Ctime =
-                case lux_utils:is_url(SummaryLog) of
-                    true ->
-                        <<"remote">>;
-                    false ->
-                        {ok, FI} = file:read_file_info(SummaryLog),
-                        Ctime0 = FI#file_info.ctime,
-                        ?l2b(lux_utils:datetime_to_string(Ctime0))
-                end,
-            {ok,
-             Result,
-             [{test_group, "", Cases}], SummaryConfig, Ctime, EventLogs};
-        {ok, Version, _Sections} ->
-            {error, SummaryLog,
-             "Illegal summary log version: " ++ ?b2l(Version)};
-        {error, FileReason, _} ->
-            {error, SummaryLog, FileReason}
-    end.
+do_parse_summary_log(#source{file=SummaryLog}, WWW) ->
+    {ReadRes, NewWWW} = read_log(SummaryLog, ?SUMMARY_TAG, WWW),
+    Res =
+        case ReadRes of
+            {ok, ?SUMMARY_LOG_VERSION, Sections} ->
+                %% Latest version
+                LogDir = filename:dirname(SummaryLog),
+                ConfigLog = lux_utils:join(LogDir, "lux_config.log"),
+                {{ok, RawConfig}, NewWWW} = scan_config(ConfigLog, NewWWW),
+                SummaryConfig = parse_config(RawConfig),
+                {{ok, Result}, NewWWW} = parse_summary_result(LogDir, NewWWW),
+                {Cases, EventLogs} = split_cases(Sections, [], []),
+                Ctime =
+                    case lux_utils:is_url(SummaryLog) of
+                        true ->
+                            <<"remote">>;
+                        false ->
+                            {ok, FI} = file:read_file_info(SummaryLog),
+                            Ctime0 = FI#file_info.ctime,
+                            ?l2b(lux_utils:datetime_to_string(Ctime0))
+                    end,
+                {ok,
+                 Result,
+                 [{test_group, "", Cases}], SummaryConfig, Ctime, EventLogs};
+            {ok, Version, _Sections} ->
+                {error, SummaryLog,
+                 "Illegal summary log version: " ++ ?b2l(Version)};
+            {error, FileReason, _} ->
+                {error, SummaryLog, FileReason}
+        end,
+    {Res, NewWWW}.
 
-read_log(Log, ExpectedTag) when is_list(Log) ->
-  case fetch_log(Log) of
-      {ok, Bin} ->
-          [Head|Sections] = binary:split(Bin, <<"\n\n">>, [global]),
-          case binary:split(Head, <<": ">>) of
-              [PaddedTag, Version] ->
-                  Tag = lux_utils:strip_trailing_whitespaces(PaddedTag),
-                  if
-                      Tag =:= ExpectedTag ->
-                          case lists:reverse(Sections) of
-                              [] ->
-                                  Sections2 = [],
-                                  [Version2|_] = % Chop potential newline
-                                      binary:split(Version, <<"\n">>);
-                              [<<>> | Rev] ->
-                                  Sections2 = lists:reverse(Rev),
-                                  Version2 = Version;
-                              _ ->
-                                  Sections2 = Sections,
-                                  Version2 = Version
-                          end,
-                          {ok, Version2, Sections2};
-                      true ->
-                          Reason =
-                              "Illegal log type: " ++
-                              ?b2l(ExpectedTag) ++
-                              " expected",
-                          {error, Reason, Bin}
-                  end;
-              _ ->
-                  Reason =
-                      "Illegal log type: " ++
-                      ?b2l(ExpectedTag) ++
-                      " expected",
-                  {error, Reason, Bin}
-          end;
-      {error, FileReason} ->
-          {error, file:format_error(FileReason), <<>>};
-      {error, Reason, X} ->
-          {error, Reason, X}
-  end.
+read_log(Log, ExpectedTag, WWW) when is_list(Log) ->
+    {FetchRes, NewWWW} = fetch_log(Log, WWW),
+    ReadRes =
+        case FetchRes of
+            {ok, Bin} ->
+                [Head|Sections] = binary:split(Bin, <<"\n\n">>, [global]),
+                case binary:split(Head, <<": ">>) of
+                    [PaddedTag, Version] ->
+                        Tag = lux_utils:strip_trailing_whitespaces(PaddedTag),
+                        if
+                            Tag =:= ExpectedTag ->
+                                case lists:reverse(Sections) of
+                                    [] ->
+                                        Sections2 = [],
+                                        [Version2|_] = % Chop potential newline
+                                            binary:split(Version, <<"\n">>);
+                                    [<<>> | Rev] ->
+                                        Sections2 = lists:reverse(Rev),
+                                        Version2 = Version;
+                                    _ ->
+                                        Sections2 = Sections,
+                                        Version2 = Version
+                                end,
+                                {ok, Version2, Sections2};
+                            true ->
+                                Reason =
+                                    "Illegal log type: " ++
+                                    ?b2l(ExpectedTag) ++
+                                    " expected",
+                                {error, Reason, Bin}
+                        end;
+                    _ ->
+                        Reason =
+                            "Illegal log type: " ++
+                            ?b2l(ExpectedTag) ++
+                            " expected",
+                        {error, Reason, Bin}
+                end;
+            {error, FileReason} ->
+                {error, file:format_error(FileReason), <<>>};
+            {error, Reason, X} ->
+                {error, Reason, X}
+        end,
+    {ReadRes, NewWWW}.
 
-fetch_log(Log) ->
-    case lux_utils:is_url(Log) of
-        true ->
-            case httpc:request(Log) of
-                {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
-                    {ok, ?l2b(Body)};
-                {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
-                    {error, ReasonPhrase, <<>>};
-                {error, Reason} ->
-                    String = lists:flatten(io_lib:format("~p", [Reason])),
-                    {error, String, <<>>}
-            end;
-        false ->
-            file:read_file(Log)
-    end.
+fetch_log(Log, undefined) ->
+    case lux_utils:start_app(inets) of
+        {true, StopFun} ->
+            fetch_log(Log, StopFun);
+        {false, _StopFun} ->
+            fetch_log(Log, false)
+    end;
+fetch_log(Log, false = WWW) ->
+    {file:read_file(Log), WWW};
+fetch_log(Log, StopFun = WWW) when is_function(StopFun, 0) ->
+    Res =
+        case lux_utils:is_url(Log) of
+            true ->
+                io:format(":", []),
+                case httpc:request(Log) of
+                    {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
+                        {ok, ?l2b(Body)};
+                    {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
+                        {error, ReasonPhrase, <<>>};
+                    {error, Reason} ->
+                        String = lists:flatten(io_lib:format("~p", [Reason])),
+                        {error, String, <<>>}
+                end;
+            false ->
+                file:read_file(Log)
+        end,
+    {Res, WWW}.
 
 write_log(File, Tag, Version, Sections) when is_list(File) ->
     file:write_file(File, [?TAG(Tag), Version, [["\n\n",S] || S <- Sections]]).
@@ -271,10 +292,10 @@ split_doc([H|T] = Rest, AccDoc) ->
             {lists:reverse(AccDoc), Rest}
     end.
 
-parse_run_summary(Source, RelDir, Base, File, Res, Opts)
-  when is_list(RelDir), is_list(Base), is_list(File) ->
+parse_run_summary(Source, File, Res, Opts) ->
+    %% File is relative cwd
     try
-        do_parse_run_summary(Source, RelDir, Base, File, Res, Opts)
+        do_parse_run_summary(Source, File, Res, Opts)
     catch
         error:Reason ->
             EST = erlang:get_stacktrace(),
@@ -286,14 +307,11 @@ parse_run_summary(Source, RelDir, Base, File, Res, Opts)
             {error, File, ReasonStr}
     end.
 
-do_parse_run_summary(Source, RelDir, Base, _File, Res, Opts) ->
+do_parse_run_summary(Source, File, Res, Opts) ->
     {ok, Cwd} = file:get_cwd(),
     CN0 = ?DEFAULT_CONFIG_NAME,
-    Log =
-        case RelDir of
-            "" -> Base;
-            _  -> lux_utils:join(RelDir, Base)
-        end,
+    Log = filename:basename(File),
+    NewLogDir = lux_utils:normalize_filename(filename:dirname(File)),
     R = #run{test = ?DEFAULT_SUITE,
              id = ?DEFAULT_RUN,
              result = fail,
@@ -302,8 +320,8 @@ do_parse_run_summary(Source, RelDir, Base, _File, Res, Opts) ->
              hostname = ?DEFAULT_HOSTNAME,
              config_name = CN0,
              run_dir = Cwd,
-             run_log_dir = Source#source.file,
-             rel_dir = RelDir,
+             run_log_dir = Source#source.dir,
+             new_log_dir = NewLogDir,
              repos_rev = ?DEFAULT_REV,
              details = []},
     case Res of
@@ -311,6 +329,7 @@ do_parse_run_summary(Source, RelDir, Base, _File, Res, Opts) ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
             ConfigProps = split_config(ConfigBins),
             StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
+            Branch = Source#source.branch,
             case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
                     HostName = find_config(<<"hostname">>, ConfigProps,
@@ -347,8 +366,8 @@ do_parse_run_summary(Source, RelDir, Base, _File, Res, Opts) ->
             CwdBin = ?l2b(Cwd),
             RunDir = ?b2l(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
             RunLogDir = ?b2l(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
-            Cases = [parse_run_case(RelDir, RunDir, RunLogDir, StartTime,
-                                    HostName, ConfigName,
+            Cases = [parse_run_case(NewLogDir, RunDir, RunLogDir,
+                                    StartTime, Branch, HostName, ConfigName,
                                     Suite, RunId, ReposRev, Case) ||
                         {test_group, _Group, Cases} <- Groups,
                         Case <- Cases],
@@ -356,6 +375,7 @@ do_parse_run_summary(Source, RelDir, Base, _File, Res, Opts) ->
                   id          = RunId,
                   result      = run_result(Result),
                   start_time  = StartTime,
+                  branch      = Branch,
                   hostname    = HostName,
                   config_name = ConfigName,
                   run_dir     = RunDir,
@@ -380,33 +400,32 @@ split_config(ConfigBins) ->
         end,
     lists:zf(Split, ConfigBins).
 
-parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName,
+parse_run_case(NewLogDir, RunDir, RunLogDir,
+               StartTime, Branch, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, AbsName, AbsEventLog, _Doc, _HtmlLog, CaseRes})
-  when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
+  when is_list(RunDir), is_list(RunLogDir),
        is_list(AbsName), is_list(AbsEventLog) ->
     RelEventLog = lux_utils:drop_prefix(RunLogDir, AbsEventLog),
-    Log =
-        case RelDir of
-            "" -> RelEventLog;
-            _  -> lux_utils:join(RelDir, RelEventLog)
-        end,
     RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(CaseRes),
-         log = Log,
+         log = RelEventLog,
          start_time = StartTime,
+         branch = Branch,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,
          run_log_dir = RunLogDir,
-         rel_dir = RelDir,
+         new_log_dir = NewLogDir,
          repos_rev = ReposRev,
          details = []};
-parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName, Suite,
-               RunId, ReposRev, {result_case, AbsName, Res, _Reason})
-  when is_list(RelDir), is_list(RunDir), is_list(RunLogDir),
+parse_run_case(NewLogDir, RunDir, RunLogDir,
+               StartTime, Branch, Host, ConfigName,
+               Suite, RunId, ReposRev,
+               {result_case, AbsName, Res, _Reason})
+  when is_list(RunDir), is_list(RunLogDir),
        is_list(AbsName) ->
     RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
@@ -414,11 +433,12 @@ parse_run_case(RelDir, RunDir, RunLogDir, StartTime, Host, ConfigName, Suite,
          result = run_result(Res),
          log = ?DEFAULT_LOG,
          start_time = StartTime,
+         branch = Branch,
          hostname = Host,
          config_name = ConfigName,
          run_dir = RunDir,
          run_log_dir = RunLogDir,
-         rel_dir = RelDir,
+         new_log_dir = NewLogDir,
          repos_rev = ReposRev,
          details = []}.
 
@@ -454,18 +474,21 @@ write_config_log(ConfigLog, ConfigData) when is_list(ConfigLog) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Results
 
-parse_summary_result(LogDir) when is_list(LogDir) ->
+parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
     ResultLog = lux_utils:join(LogDir, "lux_result.log"),
-    case read_log(ResultLog, ?RESULT_TAG) of
-        {ok, ?RESULT_LOG_VERSION, Sections} ->
-            %% Latest version
-            {ok, split_result(Sections)};
-        {ok, Version, _Sections} ->
-            {error, ResultLog,
-             "Illegal result log version: " ++ ?b2l(Version)};
-        {error, Reason, _} ->
-            {error, ResultLog, Reason}
-    end.
+    {ReadRes, NewWWW} = read_log(ResultLog, ?RESULT_TAG, WWW),
+    Res =
+        case ReadRes of
+            {ok, ?RESULT_LOG_VERSION, Sections} ->
+                %% Latest version
+                {ok, split_result(Sections)};
+            {ok, Version, _Sections} ->
+                {error, ResultLog,
+                 "Illegal result log version: " ++ ?b2l(Version)};
+            {error, Reason, _} ->
+                {error, ResultLog, Reason}
+        end,
+    {Res, NewWWW}.
 
 write_results(Progress, SummaryLog, Summary, Results, Warnings)
   when is_list(SummaryLog) ->
@@ -617,18 +640,20 @@ write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
     Data3 = io_lib:format("~s(~p): ~s ~s\n", [Shell, LineNo, OpStr, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
 
-scan_events(EventLog) when is_list(EventLog) ->
-    case read_log(EventLog, ?EVENT_TAG) of
+scan_events(EventLog, WWW) when is_list(EventLog) ->
+    {ReadRes, NewWWW} = read_log(EventLog, ?EVENT_TAG, WWW),
+    case ReadRes of
         {ok, ?EVENT_LOG_VERSION, Sections} ->
-            do_scan_events(EventLog, Sections);
+            do_scan_events(EventLog, Sections, NewWWW);
         {ok, Version, _Sections} ->
-            {error, EventLog,
-             "Illegal event log version: " ++ ?b2l(Version)};
+            {{error, EventLog,
+              "Illegal event log version: " ++ ?b2l(Version)},
+             NewWWW};
         {error, FileReason, _} ->
-            {error, EventLog, FileReason}
+            {{error, EventLog, FileReason}, NewWWW}
     end.
 
-do_scan_events(EventLog, EventSections) ->
+do_scan_events(EventLog, EventSections, WWW) ->
     EventSections2 = [binary:split(S, <<"\n">>, [global]) ||
                          S <- EventSections],
     case EventSections2 of
@@ -639,23 +664,26 @@ do_scan_events(EventLog, EventSections) ->
     Dir = filename:dirname(EventLog),
     Base = filename:basename(EventLog, ".event.log"),
     ConfigLog = lux_utils:join(Dir, Base ++ ".config.log"),
-    case scan_config(ConfigLog) of
-        {ok, [ConfigSection]} ->
-            LogBins = [],
-            ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
-            {ok, EventLog, ConfigLog,
-             Script, EventBins, ConfigBins, LogBins, ResultBins};
-        {ok, [ConfigSection,LogSection]} ->
-            ConfigProps = binary:split(ConfigSection, <<"\n">>, [global]),
-            LogBins = binary:split(LogSection, <<"\n">>, [global]),
-            {ok, EventLog, ConfigLog,
-             Script, EventBins, ConfigProps, LogBins, ResultBins};
-        {ok, Version, _Sections} ->
-            {error, ConfigLog,
-             "Illegal config log version: " ++ ?b2l(Version)};
-        {error, FileReason} ->
-            {error, ConfigLog, file:format_error(FileReason)}
-    end.
+    {ScanRes, NewWWW} = scan_config(ConfigLog, WWW),
+    Res =
+        case ScanRes of
+            {ok, [ConfigSection]} ->
+                LogBins = [],
+                ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
+                {ok, EventLog, ConfigLog,
+                 Script, EventBins, ConfigBins, LogBins, ResultBins};
+            {ok, [ConfigSection,LogSection]} ->
+                ConfigProps = binary:split(ConfigSection, <<"\n">>, [global]),
+                LogBins = binary:split(LogSection, <<"\n">>, [global]),
+                {ok, EventLog, ConfigLog,
+                 Script, EventBins, ConfigProps, LogBins, ResultBins};
+            {ok, Version, _Sections} ->
+                {error, ConfigLog,
+                 "Illegal config log version: " ++ ?b2l(Version)};
+            {error, FileReason} ->
+                {error, ConfigLog, file:format_error(FileReason)}
+        end,
+    {Res, NewWWW}.
 
 parse_events([<<>>], Acc) ->
     %% Error case
@@ -885,16 +913,19 @@ q(List) ->
     Replace = fun(C) -> case C of $; -> "<SEMI>"; _ -> C end end,
     ["\"", lists:map(Replace, ?b2l(?l2b(List))), "\""].
 
-scan_config(ConfigLog) when is_list(ConfigLog) ->
-    case read_log(ConfigLog, ?CONFIG_TAG) of
-        {ok, ?CONFIG_LOG_VERSION, Sections} ->
-            {ok, Sections};
-        {ok, Version, _Sections} ->
-            {error, ConfigLog,
-             "Illegal config log version: " ++ ?b2l(Version)};
-        {error, FileReason, _} ->
-            {error, ConfigLog, FileReason}
-    end.
+scan_config(ConfigLog, WWW) when is_list(ConfigLog) ->
+    {ReadRes, NewWWW} = read_log(ConfigLog, ?CONFIG_TAG, WWW),
+    Res =
+        case ReadRes of
+            {ok, ?CONFIG_LOG_VERSION, Sections} ->
+                {ok, Sections};
+            {ok, Version, _Sections} ->
+                {error, ConfigLog,
+                 "Illegal config log version: " ++ ?b2l(Version)};
+            {error, FileReason, _} ->
+                {error, ConfigLog, FileReason}
+        end,
+    {Res, NewWWW}.
 
 parse_config([ConfigSection|_]) when is_binary(ConfigSection) ->
     ConfigSection;

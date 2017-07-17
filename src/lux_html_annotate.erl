@@ -24,25 +24,33 @@
          html,
          opts}).
 
-generate(IsRecursive, LogFile, SuiteLogDir, Opts)
+generate(IsRecursive, LogFile, SuiteLogDir, Opts) ->
+    WWW = undefined,
+    {Res, NewWWW} = do_generate(IsRecursive, LogFile, SuiteLogDir, WWW, Opts),
+    lux_utils:stop_app(NewWWW),
+    Res.
+
+do_generate(IsRecursive, LogFile, SuiteLogDir, WWW, Opts)
   when is_list(LogFile), is_list(SuiteLogDir) ->
     A = init_astate(LogFile, SuiteLogDir, Opts),
     AbsLogFile = A#astate.log_file,
     IsEventLog = lists:suffix("event.log", AbsLogFile),
-    Res =
+    {Res, NewWWW} =
         case IsEventLog of
-            true  -> annotate_event_log(A);
-            false -> annotate_summary_log(IsRecursive, A)
+            true  -> annotate_event_log(A, WWW);
+            false -> annotate_summary_log(IsRecursive, A, WWW)
         end,
-    case Res of
-        {ok, "", Html} ->
-            lux_html_utils:safe_write_file(AbsLogFile ++ ".html", Html);
-        {ok, Csv, Html} ->
-            lux_html_utils:safe_write_file(AbsLogFile ++ ".csv", Csv),
-            lux_html_utils:safe_write_file(AbsLogFile ++ ".html", Html);
-        {error, _File, _ReasonStr} = Error ->
-            Error
-    end.
+    NewRes =
+        case Res of
+            {ok, "", Html} ->
+                lux_html_utils:safe_write_file(AbsLogFile ++ ".html", Html);
+            {ok, Csv, Html} ->
+                lux_html_utils:safe_write_file(AbsLogFile ++ ".csv", Csv),
+                lux_html_utils:safe_write_file(AbsLogFile ++ ".html", Html);
+            {error, _File, _ReasonStr} = Error ->
+                Error
+        end,
+    {NewRes, NewWWW}.
 
 init_astate(LogFile, SuiteLogDir, Opts)                                     ->
     AbsLogFile = lux_utils:normalize_filename(LogFile),
@@ -59,9 +67,10 @@ init_astate(LogFile, SuiteLogDir, Opts)                                     ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate a summary log and all its event logs
 
-annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
+annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0, WWW)
   when is_list(AbsSummaryLog) ->
-    case lux_log:parse_summary_log(AbsSummaryLog) of
+    {ParseRes, NewWWW} = lux_log:parse_summary_log(AbsSummaryLog, WWW),
+    case ParseRes of
         {ok, Result, Groups, ConfigSection, _FileInfo, EventLogs} ->
             ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
             ConfigProps = lux_log:split_config(ConfigBins),
@@ -73,20 +82,25 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
                           run_log_dir = RunLogDir,
                           start_time = StartTime,
                           end_time = EndTime},
-            Html = html_groups(A, AbsSummaryLog, Result, Groups, ConfigSection),
+            Html = html_groups(A, AbsSummaryLog, Result,
+                               Groups, ConfigSection),
             case IsRecursive of
                 true ->
                     O = A#astate.opts,
                     SuiteLogDir = filename:dirname(AbsSummaryLog),
                     AnnotateEventLog =
                         fun(EventLog0) ->
-                                RelEventLog = drop_run_log_prefix(A, EventLog0),
+                                RelEventLog =
+                                    drop_run_log_prefix(A, EventLog0),
                                 EventLog = lux_utils:join(SuiteLogDir,
-                                                           RelEventLog),
-                                case generate(IsRecursive,
-                                              EventLog,
-                                              A#astate.suite_log_dir,
-                                              O) of
+                                                          RelEventLog),
+                                {GenRes, NewWWW} =
+                                    do_generate(IsRecursive,
+                                                EventLog,
+                                                A#astate.suite_log_dir,
+                                                NewWWW,
+                                                O),
+                                case GenRes of
                                     {ok, _, _} = ValRes ->
                                         ValRes;
                                     {error, _, Reason} ->
@@ -94,51 +108,51 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0)
                                                   [EventLog, Reason])
                                 end
                         end,
-                    lists:foreach(AnnotateEventLog, EventLogs);
+                    NewWWW = lists:foldl(AnnotateEventLog, NewWWW, EventLogs);
                 false ->
-                    ignore
+                    NewWWW
             end,
-            {ok, "", Html};
+            {{ok, "", Html}, NewWWW};
         {error, _File, _Reason} = Error ->
-            Error
+            {Error, WWW}
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Return summary log as HTML
+    %% Return summary log as HTML
 
-html_groups(A, SummaryLog, Result, Groups, ConfigSection)
-  when is_list(SummaryLog) ->
-    Dir = filename:basename(filename:dirname(SummaryLog)),
-    RelSummaryLog = drop_new_log_prefix(A, SummaryLog),
-    RelResultLog = "lux_result.log",
-    RelConfigLog = "lux_config.log",
-    RelTapLog = "lux.tap",
-    IsTmp = lux_log:is_temporary(SummaryLog),
-    LogFun =
-        fun(L, S) ->
-                ["    <td><strong>",
-                 lux_html_utils:html_href(L, S), "</strong></td>\n"]
-        end,
-    [
-     lux_html_utils:html_header(["Lux summary log (", Dir, ")"]),
-     "<table border=\"1\">\n",
-     "  <tr>\n",
-     "    <td><strong>Log files:</strong></td>\n",
-     LogFun(RelSummaryLog, "Summary"),
-     LogFun(RelResultLog, "Result"),
-     LogFun(RelConfigLog, "Config"),
-     LogFun(RelTapLog, "TAP"),
-     "  </tr>\n",
-     "</table>\n\n",
-     lux_html_utils:html_href("h3", "", "", "#suite_config",
-                              "Suite configuration"),
-     html_summary_result(A, Result, Groups, IsTmp),
-     html_groups2(A, Groups),
-     lux_html_utils:html_anchor("h2", "", "suite_config",
-                                "Suite configuration:"),
-     html_div(<<"event">>, ConfigSection),
-     lux_html_utils:html_footer()
-    ].
+    html_groups(A, SummaryLog, Result, Groups, ConfigSection)
+        when is_list(SummaryLog) ->
+                                      Dir = filename:basename(filename:dirname(SummaryLog)),
+                                      RelSummaryLog = drop_new_log_prefix(A, SummaryLog),
+                                      RelResultLog = "lux_result.log",
+                                      RelConfigLog = "lux_config.log",
+                                      RelTapLog = "lux.tap",
+                                      IsTmp = lux_log:is_temporary(SummaryLog),
+                                      LogFun =
+                                          fun(L, S) ->
+                                                  ["    <td><strong>",
+                                                   lux_html_utils:html_href(L, S), "</strong></td>\n"]
+                                          end,
+                                      [
+                                       lux_html_utils:html_header(["Lux summary log (", Dir, ")"]),
+                                       "<table border=\"1\">\n",
+                                       "  <tr>\n",
+                                       "    <td><strong>Log files:</strong></td>\n",
+                                       LogFun(RelSummaryLog, "Summary"),
+                                       LogFun(RelResultLog, "Result"),
+                                       LogFun(RelConfigLog, "Config"),
+                                       LogFun(RelTapLog, "TAP"),
+                                       "  </tr>\n",
+                                       "</table>\n\n",
+                                       lux_html_utils:html_href("h3", "", "", "#suite_config",
+                                                                "Suite configuration"),
+                                       html_summary_result(A, Result, Groups, IsTmp),
+                                       html_groups2(A, Groups),
+                                       lux_html_utils:html_anchor("h2", "", "suite_config",
+                                                                  "Suite configuration:"),
+                                       html_div(<<"event">>, ConfigSection),
+                                       lux_html_utils:html_footer()
+                                      ].
 
 html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
     %% io:format("Sections: ~p\n", [Sections]),
@@ -301,9 +315,11 @@ html_doc(Tag, [Slogan | Desc])                                              ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Annotate a lux with events from the log
 
-annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog)   ->
+annotate_event_log(#astate{log_file=EventLog} = A, WWW)
+  when is_list(EventLog)   ->
     try
-        case lux_log:scan_events(EventLog) of
+        {Res, NewWWW} = lux_log:scan_events(EventLog, WWW),
+        case Res of
             {ok, EventLog2, ConfigLog,
              Script, EventBins, ConfigBins, LogBins, ResultBins} ->
                 Events = lux_log:parse_events(EventBins, []),
@@ -333,9 +349,9 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog)   ->
 
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
                                    Timers, Files, Logs, Annotated, ConfigBins),
-                {ok, Csv, Html};
+                {{ok, Csv, Html}, NewWWW};
             {error, _File, _ReasonStr} = Error ->
-                Error
+                {Error, NewWWW}
         end
     catch
         error:Reason2 ->
@@ -344,7 +360,7 @@ annotate_event_log(#astate{log_file=EventLog} = A) when is_list(EventLog)   ->
                 lists:flatten(io_lib:format("ERROR in ~s\n~p\n\~p\n",
                                             [EventLog, Reason2, EST])),
             io:format("~s\n", [ReasonStr]),
-            {error, EventLog, ReasonStr}
+            {{error, EventLog, ReasonStr}, WWW}
     end.
 
 pick_event_time(Op, #event{lineno =  0,

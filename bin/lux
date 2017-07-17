@@ -884,7 +884,7 @@ run(Opts, OrigArgs) ->
 do_run(Files, Opts, OrigArgs) ->
     case is_html(Files) of
         true ->
-            lux_html_parse:validate_html(hd(Files));
+            lux_html_parse:validate_html(hd(Files), Opts);
         false ->
             ThisEscript = escript:script_name(),
             lux:run(Files, Opts, [ThisEscript | OrigArgs])

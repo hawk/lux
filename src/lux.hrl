@@ -133,18 +133,26 @@
 
 
 -record(run,
-        {id,
-         test,
-         result,
-         log,
-         start_time,
-         hostname,
-         config_name,
-         run_dir,
-         run_log_dir,
-         rel_dir,
-         repos_rev,
-         details}).
+        {test         :: binary(),              % [prefix "::"] suite [":" case]
+         result       :: success | warning | skip | fail,
+         id           :: binary(),              % --run
+         log          :: file:filename(),       % file rel to summary log dir
+         start_time   :: binary(),
+         branch       :: undefined | string(),
+         hostname     :: binary(),              % $HOSTNAME or --hostname
+         config_name  :: binary(),              % --config
+         run_dir      :: file:filename(),       % current dir during run
+         run_log_dir  :: file:dirname(),        % dir where logs was created
+         new_log_dir  :: file:dirname(),        % top dir for new logs
+         repos_rev    :: binary(),              % --revision
+         details      :: [#run{}]}).            % list of cases
+
+-record(source,
+        {branch       :: undefined | string(),
+         suite_prefix :: undefined | string(),
+         file         :: file:filename(),       % relative to cwd
+         dir          :: file:dirname(),        % relative to cwd
+         orig         :: file:filename()}).
 
 -record(event,
         {lineno  :: non_neg_integer(),
@@ -169,11 +177,6 @@
          max_time     :: infinity | non_neg_integer(),    % Micros
          status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
-
--record(source,
-        {suite_prefix :: undefined | string(),
-         file         :: file:filename(),
-         orig         :: file:filename()}).
 
  -define(DEFAULT_LOG, <<"unknown">>).
  -define(DEFAULT_HOSTNAME, <<"unknown">>).

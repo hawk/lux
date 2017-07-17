@@ -7,9 +7,7 @@
 
 -module(lux_html_parse).
 
--export([validate_file/1, format_results/1,
-         validate_html/1, validate_html/2,
-         parse_files/2]).
+-export([format_results/2, validate_html/2, parse_files/3]).
 
 -include_lib("lux.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
@@ -17,14 +15,17 @@
 validate_html(HtmlFile, Opts) ->
     case lists:keyfind(html, 1, Opts) of
         {html, validate} ->
-            validate_html(HtmlFile);
+            io:format("\nValidate ~p...\n", [HtmlFile]),
+            {ValRes, NewWWW} = do_validate_html(HtmlFile, undefined),
+            lux_utils:stop_app(NewWWW),
+            ValRes;
         _Other ->
             ok
     end.
 
-validate_html(HtmlFile) ->
-    ValRes = validate_file(HtmlFile),
-    case format_results(ValRes) of
+do_validate_html(HtmlFile, WWW) ->
+    {ValRes, NewWWW} = validate_file(HtmlFile, WWW),
+    case format_results(ValRes, NewWWW) of
         [] ->
             ok;
         Reasons ->
@@ -34,10 +35,12 @@ validate_html(HtmlFile) ->
     Errors = [VR || VR <- ValRes,
                     element(1, VR) =/= ok,
                     element(1, VR) =/= link_warning],
-    case Errors of
-        [] -> ok;
-        _  -> {error, HtmlFile, "Not valid HTML"}
-    end.
+    Res =
+        case Errors of
+            [] -> ok;
+            _  -> {error, HtmlFile, "Not valid HTML"}
+        end,
+    {Res, NewWWW}.
 
 -type val_res() ::
         {ok, File::file:filename(), html | no_html} |
@@ -51,14 +54,12 @@ validate_html(HtmlFile) ->
          Line::non_neg_integer(), Col::non_neg_integer(),
          Reason::string()}.
 
--spec validate_file(File::file:filename()) -> [val_res()].
-
-validate_file(File) ->
-    Res = parse_files(deep, File),
+validate_file(File, WWW) ->
+    {Res, NewWWW} = parse_files(deep, File, WWW),
     %% io:format("\nLINKS: ~s\n\t~p\n", [File, Res]),
     Enoent = file:format_error(enoent),
     Fun = fun(E, A) -> validate_links(E, Res, Enoent, A) end,
-    lists:reverse(lists:foldl(Fun, [], Res)).
+    {lists:reverse(lists:foldl(Fun, [], Res)), NewWWW}.
 
 validate_links({ok, Abs, Refs, Type}, Orig, EnoEnt, Acc) ->
     Fun = fun(E, A) -> do_validate_links(E, Abs, Orig, EnoEnt, A) end,
@@ -108,33 +109,21 @@ do_validate_links({link, External, Internal}, Abs, Orig, EnoEnt, Acc) ->
 do_validate_links({anchor, _Name}, _Abs, _Orig, _EnoEnt, Acc) ->
     Acc.
 
-parse_files(Mode, Rel) ->
-    {Remote, _StopFun} = opt_start_app(inets),
-    Res = do_parse_files(Mode, [{top, Rel}], Remote, []),
-    %% StopFun(),
-    Res.
+parse_files(Mode, Rel, WWW) ->
+    do_parse_files(Mode, [{top, Rel}], WWW, []).
 
-opt_start_app(App) ->
-    case application:start(App) of
-        ok ->
-            {true, fun() -> application:stop(App) end};
-        {error,{already_started,App}} ->
-            {true, fun() -> ok end};
-        {error,_Reason} ->
-            {false, fun() -> ok end}
-    end.
-
-do_parse_files(Mode, [Rel|Rest], Remote, Acc) ->
+do_parse_files(Mode, [Rel|Rest], WWW, Acc) ->
     {_LinkType, Abs} = link_type(Rel),
     case lists:keymember(Abs, 2, Acc) of
         true ->
             %% Already parsed
-            do_parse_files(Mode, Rest, Remote, Acc);
+            do_parse_files(Mode, Rest, WWW, Acc);
         false ->
-            case parse_file(Abs, Remote andalso lux_utils:is_url(Abs)) of
+            {ParseRes, NewWWW} = parse_file(Abs, lux_utils:is_url(Abs), WWW),
+            case ParseRes of
                 {ok, Simple, Type} ->
                     Refs = to_links(Simple),
-                    Acc2 = [{ok, Abs, Refs, Type} | Acc],
+                    NewAcc = [{ok, Abs, Refs, Type} | Acc],
                     Next =
                         case Mode of
                             deep    ->
@@ -144,14 +133,14 @@ do_parse_files(Mode, [Rel|Rest], Remote, Acc) ->
                             shallow ->
                                 Rest
                         end,
-                    do_parse_files(Mode, Next, Remote, Acc2);
+                    do_parse_files(Mode, Next, NewWWW, NewAcc);
                 {error, Line, Col, Reason} ->
-                    Acc2 = [{error, Abs, Line, Col, Reason} | Acc],
-                    do_parse_files(Mode, Rest, Remote, Acc2)
+                    NewAcc = [{error, Abs, Line, Col, Reason} | Acc],
+                    do_parse_files(Mode, Rest, NewWWW, NewAcc)
             end
     end;
-do_parse_files(_Mode, [], _Remote, Acc) ->
-    lists:reverse(Acc).
+do_parse_files(_Mode, [], WWW, Acc) ->
+    {lists:reverse(Acc), WWW}.
 
 link_type({target, Source, ""}) ->
     {local, Source};
@@ -187,18 +176,39 @@ to_links(Simple) ->
           end,
     iterate(Fun, Simple, []).
 
-parse_file(URL, true) ->
-    case httpc:request(URL) of
-        {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
-            ParseFun = fun(Opts) -> xmerl_scan:string(Body, Opts) end,
-            parse_html(ParseFun);
-        {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
-            {error, 0, 0, ReasonPhrase};
-        {error, Reason} ->
-            String = lists:flatten(io_lib:format("~p", [Reason])),
-            {error, 0, 0, String}
+parse_file(URL, false, WWW) ->
+    {do_parse_file(URL), WWW};
+parse_file(URL, true, false = WWW) ->
+    {do_parse_file(URL), WWW};
+parse_file(URL, true = IsUrl, undefined) ->
+    case lux_utils:start_app(inets) of
+        {true, StopFun} ->
+            parse_file(URL, IsUrl, StopFun);
+        {false, _StopFun} ->
+            parse_file(URL, IsUrl, false)
     end;
-parse_file(File, false) ->
+parse_file(URL, true, StopFun = WWW) when is_function(StopFun, 0) ->
+    io:format(":", []),
+    Res =
+        case httpc:request(URL) of
+            {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
+                case lists:suffix(".html", URL) of
+                    true ->
+                        ParseFun =
+                            fun(Opts) -> xmerl_scan:string(Body, Opts) end,
+                        parse_html(ParseFun);
+                    false ->
+                        {ok, [], no_html}
+                end;
+            {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
+                {error, 0, 0, ReasonPhrase};
+            {error, Reason} ->
+                String = lists:flatten(io_lib:format("~p", [Reason])),
+                {error, 0, 0, String}
+        end,
+    {Res, WWW}.
+
+do_parse_file(File) ->
     case lists:suffix(".html", File) of
         true ->
             ParseFun = fun(Opts) -> xmerl_scan:file(File, Opts) end,
@@ -287,23 +297,23 @@ iterate2(Fun, {Tag, Attrs, Content}, Parents, Acc) ->
 iterate2(Fun, {_Tag, _Value} = Attr, Parents, Acc) ->
     Fun(Attr, Parents, Acc).
 
--spec format_results(Results::[val_res()]) -> [string()].
+-spec format_results(Results::[val_res()], _WWW) -> [string()].
 
-format_results(Results) ->
+format_results(Results, WWW) ->
     {ok, Cwd} = file:get_cwd(),
-    format_results(Results, Cwd, []).
+    format_results(Results, WWW, Cwd, []).
 
-format_results([H|T], Cwd, Acc) ->
+format_results([H|T], WWW, Cwd, Acc) ->
     Acc2 =
-        case lists:flatten(format_result(H, Cwd)) of
+        case lists:flatten(format_result(H, WWW, Cwd)) of
             []     -> Acc;
             Reason -> [Reason|Acc]
         end,
-    format_results(T, Cwd, Acc2);
-format_results([], _Cwd, Acc) ->
+    format_results(T, WWW, Cwd, Acc2);
+format_results([], _WWW, _Cwd, Acc) ->
     lists:reverse(Acc).
 
-format_result(Res, Cwd) ->
+format_result(Res, WWW, Cwd) ->
     case Res of
         {ok, _AbsFile, html} ->
             %% RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
@@ -317,7 +327,12 @@ format_result(Res, Cwd) ->
             %% RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             %% ["HTML OK:    ", RelFile];
             [];
-        {link_warning, AbsFile, Line, Col, Reason} ->
+        {link_warning, _AbsFile, _Line, _Col, _Reason}
+          when is_function(WWW,0) ->
+            %% Ignore link warning when we have www access
+            [];
+        {link_warning, AbsFile, Line, Col, Reason}
+        when WWW =:= undefined; WWW =:= false ->
             RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
             Reason2 = "Remote link: " ++ Reason,
             ["HTML LUX WARNING: ", RelFile, opt_pos(Line, Col), Reason2];

@@ -21,7 +21,8 @@
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/3, equal/3, diff_iter/4, diff_iter/5, shrink_diff/3,
          cmd/1, cmd_expected/1, perms/1,
-         pick_opt/3, split/2, join/2, is_url/1]).
+         pick_opt/3, split/2, join/2,
+         is_url/1, start_app/1, stop_app/1]).
 
 -include("lux.hrl").
 
@@ -68,7 +69,7 @@ system_vars() ->
 expand_vars(MultiVars, String, MissingVar) when is_list(String) ->
     do_expand_vars(MultiVars, normal, String, [], MissingVar);
 expand_vars(MultiVars, Bin, MissingVar) when is_binary(Bin) ->
-    ?l2b(expand_vars(MultiVars, binary_to_list(Bin), MissingVar)).
+    ?l2b(expand_vars(MultiVars, ?b2l(Bin), MissingVar)).
 
 do_expand_vars(MultiVars, normal = Mode, [H | T], Acc, MissingVar) ->
     case H of
@@ -234,25 +235,29 @@ drop_prefix(File) ->
     drop_prefix(Cwd, File).
 
 drop_prefix(Prefix, File) when is_binary(Prefix) ->
-    drop_prefix(binary_to_list(Prefix), File);
+    drop_prefix(?b2l(Prefix), File);
 drop_prefix(Prefix, File) when is_binary(File) ->
-    ?l2b(drop_prefix(Prefix, binary_to_list(File)));
+    ?l2b(drop_prefix(Prefix, ?b2l(File)));
 drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
     SplitPrefix = filename:split(Prefix),
     SplitFile = filename:split(File),
-    do_drop_prefix(SplitPrefix, SplitFile, SplitFile).
+    do_drop_prefix(SplitPrefix, SplitFile, SplitPrefix, File).
 
-do_drop_prefix([H | Prefix], [H | File], OrigFile) ->
-    do_drop_prefix(Prefix, File, OrigFile);
-do_drop_prefix([], [], _OrigFile) ->
+do_drop_prefix([H | Prefix], [H | File], OrigPrefix, OrigFile) ->
+    do_drop_prefix(Prefix, File, OrigPrefix, OrigFile);
+do_drop_prefix([], [], _OrigPrefix, _OrigFile) ->
     ".";
-do_drop_prefix([], Rest, _OrigFile) ->
+do_drop_prefix([], Rest, _OrigPrefix, _OrigFile) ->
     filename:join(Rest);
-do_drop_prefix(_Prefix, _Rest, OrigFile) ->
-    filename:join(OrigFile).
+do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
+  when DownPrefix =/= OrigPrefix ->
+    UpPrefix = lists:duplicate(length(DownPrefix), ".."),
+    filename:join(UpPrefix ++ Rest);
+do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
+    OrigFile.
 
 normalize_filename(File) when is_binary(File) ->
-    ?l2b(normalize_filename(binary_to_list(File)));
+    ?l2b(normalize_filename(?b2l(File)));
 normalize_filename(File) ->
     Delim = "://",
     case split(File, Delim) of
@@ -342,7 +347,7 @@ strip_trailing_whitespaces(Bin) when is_binary(Bin) ->
 to_string(Atom) when is_atom(Atom) ->
     to_string(atom_to_list(Atom));
 to_string(Bin) when is_binary(Bin) ->
-    to_string(binary_to_list(Bin));
+    to_string(?b2l(Bin));
 to_string([H | T]) when is_integer(H) ->
     [$$ | Chars] = io_lib:write_char(H),
     case Chars of
@@ -373,7 +378,7 @@ progress_write(Progress, String) ->
 tag_prefix(Tag, Width) when is_atom(Tag) ->
     tag_prefix(atom_to_list(Tag), Width);
 tag_prefix(Tag, Width) when is_binary(Tag) ->
-    tag_prefix(binary_to_list(Tag), Width);
+    tag_prefix(?b2l(Tag), Width);
 tag_prefix(Tag, Width) ->
     string:left(Tag, Width-2) ++ ": ".
 
@@ -830,3 +835,24 @@ shrink([Other | T], Acc) ->
     shrink(T, [Other | Acc]);
 shrink([], Acc) ->
     lists:reverse(Acc).
+
+start_app(App) ->
+    case application:start(App) of
+        ok ->
+            {true, fun() -> application:stop(App) end};
+        {error,{already_started,App}} ->
+            {true, fun() -> ok end};
+        {error,_Reason} ->
+            {false, fun() -> ok end}
+    end.
+
+stop_app(WWW) ->
+    if
+        WWW =:= undefined ->
+            ok;
+        WWW =:= false ->
+            ok;
+        is_function(WWW, 0) ->
+            %% Exec WWW()
+            ok
+    end.
