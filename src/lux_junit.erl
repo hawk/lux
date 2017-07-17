@@ -10,51 +10,61 @@
 
 -include("lux.hrl").
 
-write_report(LogFile, RunDir, _Opts) ->
-    File = lux_utils:normalize_filename(LogFile),
+-define(INDENT, "    ").
+
+write_report(SummaryLog, RunDir, _Opts) ->
+    File = lux_utils:normalize_filename(SummaryLog),
     case lux_log:parse_summary_log(File) of
         {ok, _Result, Groups, _ConfigSection, _FileInfo, _EventLogs} ->
-            Content = testsuites(Groups, RunDir),
-            Filename = File ++ ".junit.xml",
-            file:write_file(Filename, Content);
+            Content = testsuites(Groups, RunDir, ""),
+            Dir = filename:dirname(File),
+            JunitFile = filename:join([Dir, "lux_junit.xml"]),
+            file:write_file(JunitFile, Content);
         {error, _File, _Reason} = Error ->
             Error
     end.
 
-testsuites(Groups, RunDir) ->
+testsuites(Groups, RunDir, Indent) ->
     TestsuiteFun = fun(Group) ->
-                           testsuite(Group, RunDir)
+                           testsuite(Group, RunDir, [Indent, ?INDENT])
                    end,
-    ["<?xml version=\"1.0\" encoding=\"utf-8\"?>",
-     "<testsuites>",
+    [
+     Indent, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n",
+     "\n",
+     Indent, "<testsuites>\n",
      lists:flatmap(TestsuiteFun, Groups),
-     "</testsuites>"].
+     Indent, "</testsuites>\n"
+    ].
 
-testsuite({test_group, _, Cases}, RunDir) ->
+testsuite({test_group, _, Cases}, RunDir, Indent) ->
     TestcaseFun = fun(Testcase) ->
-                          testcase(Testcase, RunDir)
+                          testcase(Testcase, RunDir, [Indent, ?INDENT])
                   end,
     Tests = erlang:integer_to_binary(erlang:length(Cases)),
-    ["<testsuite tests=\"", Tests, "\">",
-    lists:flatmap(TestcaseFun, Cases),
-     "</testsuite>"];
-testsuite(_, _) ->
+    [
+     Indent, "<testsuite tests=\"", Tests, "\">\n",
+     lists:flatmap(TestcaseFun, Cases),
+     Indent, "</testsuite>\n"
+    ];
+testsuite(_Group, _RunDir, _Indent) ->
     [].
 
-testcase({result_case, Filename, Reason, _Details}, RunDir) ->
-    ["<testcase ",
+testcase({result_case, Filename, Reason, _Details}, RunDir, Indent) ->
+    [
+     Indent, "<testcase ",
      "classname=\"", classname(Filename, RunDir), "\" ",
-     "name=\"", name(Filename), "\">",
-     "<system-out>", Reason, "</system-out>",
-     "</testcase>"];
-testcase({test_case, Filename, _, _, _, Result}, RunDir) ->
-    ["<testcase ",
+     "name=\"", name(Filename), "\">\n",
+     Indent, ?INDENT, "<system-out>", Reason, "</system-out>\n",
+     Indent, "</testcase>\n"
+    ];
+testcase({test_case, Filename, _, _, _, Result}, RunDir, Indent) ->
+    [
+     Indent, "<testcase ",
      "classname=\"", classname(Filename, RunDir), "\" ",
-     "name=\"", name(Filename), "\">",
-     body(Result),
-     "</testcase>"];
-testcase(_, _) ->
-    [].
+     "name=\"", name(Filename), "\">\n",
+     body(Result, [Indent, ?INDENT]),
+     Indent, "</testcase>\n"
+    ].
 
 classname(Filename, RunDir) ->
     DirName = lux_utils:drop_prefix(RunDir, filename:dirname(Filename)),
@@ -67,32 +77,34 @@ classname(Filename, RunDir) ->
 name(Filename) ->
     filename:basename(Filename).
 
-body({result, skip}) ->
-    ["<skipped/>"];
-body({result, {_, LineNo, Expected, Actual, Details}}) ->
-    ["<failure type=\"NoMatch\">",
+body({result, skip}, Indent) ->
+    [Indent, "<skipped/>\n"];
+body({result, {_, LineNo, _ExpectedTag, Expected, Actual, Details}}, _Indent) ->
+    [
+     "<failure type=\"NoMatch\">\n",
      "<![CDATA[",
      "\nLine number: ", LineNo,
      "\nExpected: ", Expected,
      "\nActual: ", Actual,
      "\nDetails:\n", join(Details, "\n"),
-     "]]>",
-     "</failure>"];
-body({error, Reason}) ->
-    ["<error message=\"error\" type=\"general_error\">",
+     "]]>", "</failure>\n"
+    ];
+body({result, Res}, Indent) ->
+    [Indent, "<!-- ", atom_to_list(Res), " -->\n"];
+body({error, Reason}, _Indent) ->
+    [
+     "<error message=\"error\" type=\"general_error\">\n",
      "<![CDATA[",
      join(Reason, "\n"),
-     "]]>",
-     "</error>"];
-body({error_line, LineNo, Reason}) ->
-    ["<error message=\"error\" type=\"general_error\">",
+     "]]>", "</error>\n"];
+body({error_line, LineNo, Reason}, _Indent) ->
+    [
+     "<error message=\"error\" type=\"general_error\">\n",
      "<![CDATA[",
      "Error at line ", LineNo,
      join(Reason, "\n"),
-     "]]>",
-     "</error>"];
-body(_) ->
-    [].
+     "]]>", "</error>\n"
+    ].
 
 join([], _) ->
     [];
