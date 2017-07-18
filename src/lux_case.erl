@@ -106,7 +106,10 @@ copy_orig(I, Script) ->
 case_log_dir(#istate{suite_log_dir = SuiteLogDir}, AbsScript) ->
     case_log_dir(SuiteLogDir, AbsScript);
 case_log_dir(SuiteLogDir, AbsScript) ->
-    RelScript0 = lux_utils:drop_prefix(AbsScript),
+    case lux_utils:drop_prefix(AbsScript) of
+        ".." ++ _  -> RelScript0 = AbsScript;
+        RelScript0 -> ok
+    end,
     RelScript =
         case filename:pathtype(RelScript0) of
             absolute -> tl(RelScript0);

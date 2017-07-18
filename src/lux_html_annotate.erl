@@ -89,26 +89,28 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0, WWW)
                     O = A#astate.opts,
                     SuiteLogDir = filename:dirname(AbsSummaryLog),
                     AnnotateEventLog =
-                        fun(EventLog0) ->
+                        fun(EventLog0, W) ->
                                 RelEventLog =
                                     drop_run_log_prefix(A, EventLog0),
                                 EventLog = lux_utils:join(SuiteLogDir,
                                                           RelEventLog),
-                                {GenRes, NewWWW} =
+                                {GenRes, W2} =
                                     do_generate(IsRecursive,
                                                 EventLog,
                                                 A#astate.suite_log_dir,
-                                                NewWWW,
+                                                W,
                                                 O),
                                 case GenRes of
-                                    {ok, _, _} = ValRes ->
+                                    {ok, _} = ValRes ->
                                         ValRes;
                                     {error, _, Reason} ->
                                         io:format("ERROR in ~s\n\~p\n",
                                                   [EventLog, Reason])
-                                end
+                                end,
+                                W2
                         end,
-                    NewWWW = lists:foldl(AnnotateEventLog, NewWWW, EventLogs);
+                    NewWWW2 = lists:foldl(AnnotateEventLog, NewWWW, EventLogs),
+                    NewWWW2 = NewWWW; % assert
                 false ->
                     NewWWW
             end,
@@ -118,41 +120,41 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0, WWW)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Return summary log as HTML
+%% Return summary log as HTML
 
-    html_groups(A, SummaryLog, Result, Groups, ConfigSection)
-        when is_list(SummaryLog) ->
-                                      Dir = filename:basename(filename:dirname(SummaryLog)),
-                                      RelSummaryLog = drop_new_log_prefix(A, SummaryLog),
-                                      RelResultLog = "lux_result.log",
-                                      RelConfigLog = "lux_config.log",
-                                      RelTapLog = "lux.tap",
-                                      IsTmp = lux_log:is_temporary(SummaryLog),
-                                      LogFun =
-                                          fun(L, S) ->
-                                                  ["    <td><strong>",
-                                                   lux_html_utils:html_href(L, S), "</strong></td>\n"]
-                                          end,
-                                      [
-                                       lux_html_utils:html_header(["Lux summary log (", Dir, ")"]),
-                                       "<table border=\"1\">\n",
-                                       "  <tr>\n",
-                                       "    <td><strong>Log files:</strong></td>\n",
-                                       LogFun(RelSummaryLog, "Summary"),
-                                       LogFun(RelResultLog, "Result"),
-                                       LogFun(RelConfigLog, "Config"),
-                                       LogFun(RelTapLog, "TAP"),
-                                       "  </tr>\n",
-                                       "</table>\n\n",
-                                       lux_html_utils:html_href("h3", "", "", "#suite_config",
-                                                                "Suite configuration"),
-                                       html_summary_result(A, Result, Groups, IsTmp),
-                                       html_groups2(A, Groups),
-                                       lux_html_utils:html_anchor("h2", "", "suite_config",
-                                                                  "Suite configuration:"),
-                                       html_div(<<"event">>, ConfigSection),
-                                       lux_html_utils:html_footer()
-                                      ].
+html_groups(A, SummaryLog, Result, Groups, ConfigSection)
+  when is_list(SummaryLog) ->
+    Dir = filename:basename(filename:dirname(SummaryLog)),
+    RelSummaryLog = drop_new_log_prefix(A, SummaryLog),
+    RelResultLog = "lux_result.log",
+    RelConfigLog = "lux_config.log",
+    RelTapLog = "lux.tap",
+    IsTmp = lux_log:is_temporary(SummaryLog),
+    LogFun =
+        fun(L, S) ->
+                ["    <td><strong>",
+                 lux_html_utils:html_href(L, S), "</strong></td>\n"]
+        end,
+    [
+     lux_html_utils:html_header(["Lux summary log (", Dir, ")"]),
+     "<table border=\"1\">\n",
+     "  <tr>\n",
+     "    <td><strong>Log files:</strong></td>\n",
+     LogFun(RelSummaryLog, "Summary"),
+     LogFun(RelResultLog, "Result"),
+     LogFun(RelConfigLog, "Config"),
+     LogFun(RelTapLog, "TAP"),
+     "  </tr>\n",
+     "</table>\n\n",
+     lux_html_utils:html_href("h3", "", "", "#suite_config",
+                              "Suite configuration"),
+     html_summary_result(A, Result, Groups, IsTmp),
+     html_groups2(A, Groups),
+     lux_html_utils:html_anchor("h2", "", "suite_config",
+                                "Suite configuration:"),
+     html_div(<<"event">>, ConfigSection),
+     lux_html_utils:html_footer()
+    ].
 
 html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
     %% io:format("Sections: ~p\n", [Sections]),
@@ -990,8 +992,16 @@ pick_time_prop(Tag, ConfigProps) ->
 pick_prop(Tag, ConfigProps) ->
     ?b2l(lux_log:find_config(Tag, ConfigProps, undefined)).
 
-orig_script(A, Script) when is_list(Script) ->
-    RelScript = rel_script(A, Script),
+orig_script(A, AbsScript) when is_list(AbsScript) ->
+    case rel_script(A, AbsScript) of
+        ".." ++ _ ->  RelScript0 = AbsScript;
+        RelScript0 -> ok
+    end,
+    RelScript =
+        case filename:pathtype(RelScript0) of
+            absolute -> tl(RelScript0);
+            _Type    -> RelScript0
+        end,
     lux_utils:join(A#astate.suite_log_dir, RelScript ++ ".orig").
 
 rel_script(A, Script) when is_list(Script) ->
