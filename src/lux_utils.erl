@@ -534,8 +534,6 @@ verbatim_match(_Actual, <<>>) ->
 verbatim_match(Actual, Expected) ->
     verbatim_search(Actual, Expected, Expected, 0).
 
-verbatim_normalize(<<"\r\r", Rest/binary>>) ->
-    verbatim_normalize(<<"\r", Rest/binary>>);
 verbatim_normalize(<<"\r\n", Rest/binary>>) ->
     {1, <<"\n", Rest/binary>>};
 verbatim_normalize(<<"\r", Rest/binary>>) ->
@@ -572,19 +570,19 @@ verbatim_collect(Actual, Expected, Orig, Base, Pos, Len) ->
     verbatim_collect2(Actual2, Expected2, Orig, Base, Pos+Add, Len+Add).
 
 verbatim_collect2(<<Match:1/binary, Actual/binary>>,
-                 <<Match:1/binary, Expected/binary>>,
-                 Orig,
-                 Base,
-                 Pos,
-                 Len) ->
+                  <<Match:1/binary, Expected/binary>>,
+                  Orig,
+                  Base,
+                  Pos,
+                  Len) ->
     %% Match
     verbatim_collect(Actual, Expected, Orig, Base, Pos+1, Len+1);
 verbatim_collect2(<<_A:1/binary, Actual/binary>>,
-                 <<_E:1/binary, _/binary>>,
-                 Orig,
-                 _Base,
-                 Pos,
-                 _Len) ->
+                  <<_E:1/binary, _/binary>>,
+                  Orig,
+                  _Base,
+                  Pos,
+                  _Len) ->
     %% No match
     verbatim_search(Actual, Orig, Orig, Pos+1);
 verbatim_collect2(_Actual, <<>>, _Orig, Base, _Pos, Len) ->
