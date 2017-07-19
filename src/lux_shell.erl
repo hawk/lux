@@ -624,9 +624,8 @@ shell_eval(#cstate{name = Name} = C0,
         progress ->
             true = is_list(Arg), % Assert
             String = Arg,
-            clog(C, progress, "\"~s\"", [String]),
             lux_utils:progress_write(C#cstate.progress, dequote(String)),
-            C;
+            C#cstate{events = save_event(C, progress, String)};
         change_timeout ->
             Millis = Arg,
             if
@@ -1084,8 +1083,7 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
                         "R" ++ _ -> % Pre 17.0
                             {catch pre_r17_fix(Actual, Multi), {multi, Multi}};
                         _ ->
-                            Opts = [{newline,any},notempty,
-                                    {capture,all_names,index}],
+                            Opts = [{capture,all_names,index} | ?RE_RUN_OPTS],
                             {catch re:run(Actual, MP, Opts), {multi, Multi}}
                     end;
                 {endshell, single, _RegExp, MP} ->
@@ -1094,7 +1092,7 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
     end.
 
 match_single(Actual, MP) ->
-    Opts = [{newline,any},notempty, {capture,all,index}],
+    Opts = [{capture,all,index} | ?RE_RUN_OPTS],
     {catch re:run(Actual, MP, Opts), single}.
 
 pre_r17_fix(Actual, Multi) ->
@@ -1103,8 +1101,7 @@ pre_r17_fix(Actual, Multi) ->
     Type = element(2, (element(3, hd(Multi)))#cmd.arg),
     Perms2 = [add_skip(Type, P) || P <- Perms],
     RegExps = [?l2b(Re) || Re <- Perms2],
-    Opts = [dupnames, multiline, {newline, anycrlf},
-            notempty,{capture,Names,index}],
+    Opts = [{capture,Names,index}, dupnames | ?RE_RUN_OPTS],
     pre_r17_fix(Actual, RegExps, Opts).
 
 pre_r17_fix(Actual, [RegExp | RegExps], Opts) ->
@@ -1183,7 +1180,7 @@ rebuild_multi_regexps(C, PreExpected0) ->
     Type = element(2, (hd(PreExpected))#cmd.arg),
     [First | Rest] = [add_skip(Type, P) || P <- Perms],
     NewRegExp = ?l2b(["(", First, ")", [["|(", R, ")"] ||  R <- Rest]]),
-    Opts = [dupnames, multiline, {newline, anycrlf}],
+    Opts = [dupnames | ?RE_COMPILE_OPTS],
     case re:compile(NewRegExp, Opts) of
         {ok, NewMP} ->
             Cmd = hd(PreExpected),

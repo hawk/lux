@@ -16,6 +16,8 @@
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
 -define(dmore, 10).
+-define(RE_COMPILE_OPTS, [{newline,anycrlf}, multiline]).
+-define(RE_RUN_OPTS,     [{newline,anycrlf}, notempty]).
 
 -record(cmd,
         {lineno :: non_neg_integer(),

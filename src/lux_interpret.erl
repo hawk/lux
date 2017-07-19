@@ -704,8 +704,7 @@ compile_regexp(I, Cmd, {regexp, RegExpOper, RegExp}) ->
     case safe_expand_vars(I, RegExp) of
         {ok, RegExp2} ->
             RegExp3 = lux_utils:normalize_match_regexp(RegExp2),
-            Opts = [multiline, {newline, anycrlf}],
-            case re:compile(RegExp3, Opts) of
+            case re:compile(RegExp3, ?RE_COMPILE_OPTS) of
                 {ok, MP3} ->
                     {ok, Cmd#cmd{arg = {mp, RegExpOper, RegExp3, MP3, []}}};
                 {error, {Reason, _Pos}} ->
