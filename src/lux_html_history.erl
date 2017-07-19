@@ -22,7 +22,7 @@
 generate(PrefixedSources, RelHtmlFile, Opts) ->
     io:format("Assembling history of logs from...", []),
     Sources = lists:map(fun split_source/1, PrefixedSources),
-    case [B || #source{branch=B} <- Sources] of
+    case lists:usort([B || #source{branch=B} <- Sources]) of
         %% [_NoBranch=undefined] -> LatestOnly = false;
         [_SingleBranch]       -> LatestOnly = false;
         _MultiBranch          -> LatestOnly = true
@@ -310,18 +310,18 @@ header(Section, AllRuns, ConfigTables, HostTables,
                               "Overview"),
      "</h3>\n\n",
 
-     case LatestOnly of
-         true ->
-             "<h3>No failed test cases page generated.</h3>\n";
-         false ->
-             [
-              "<h3>",
+     [
+      "<h3>",
+      case LatestOnly of
+          true ->
+              "Multiple branches. No failed test cases page generated.";
+          false ->
               html_suffix_href(HtmlFile,"","#content",
                                "Still failing test cases",
-                               ?CURRENT_SUFFIX),
-              "</h3>\n\n"
-             ]
-     end,
+                               ?CURRENT_SUFFIX)
+      end,
+      "</h3>\n\n"
+     ],
      if
          ConfigTables =:= [] ->
              "<h3>Only one config. No config page generated.</h3>\n";
@@ -801,7 +801,7 @@ parse_summary_logs(Source, Acc, Err, WWW, Opts) ->
                                      io:format("\n\t\t~s\n", [E]),
                                      {error, RelFile, E}
                              end,
-                    {Acc, lists:map(Format, Strings)}
+                    {{Acc, lists:map(Format, Strings)}, NewWWW}
             end;
         Base =:= "lux_summary.log" ->
             parse_summary_files(Source, RelDir, [Base],
