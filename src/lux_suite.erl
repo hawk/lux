@@ -351,7 +351,7 @@ compute_files(R, LogDir, LogBase) ->
 
 compute_rerun_files(R, LogDirs, LogBase, Acc) ->
     WWW = undefined,
-    {Res, NewWWW} = compute_rerun_files(R, LogDirs, LogBase, WWW, Acc),
+    {Res, NewWWW} = compute_rerun_files(R, LogDirs, LogBase, Acc, WWW),
     lux_utils:stop_app(NewWWW),
     Res.
 
