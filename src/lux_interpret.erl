@@ -308,7 +308,7 @@ dispatch_cmd(I,
             {Scope, Var, Val} = Arg,
             case safe_expand_vars(I, Val) of
                 {ok, Val2} ->
-                    QuotedVal = quote_val(Val2),
+                    QuotedVal = lux_utils:quote_newlines(Val2),
                     ilog(I, "~s(~p): ~p \"~s=~s\"\n",
                          [I#istate.active_name, LineNo, Scope, Var, QuotedVal]),
                     VarVal = lists:flatten([Var, $=, Val2]),
@@ -512,14 +512,6 @@ dispatch_cmd(I,
             %% Send next command to active shell
             shell_eval(I, Cmd)
     end.
-
-quote_val(IoList) ->
-    Replace = fun({From, To}, Acc) ->
-                      re:replace(Acc, From, To, [global, {return, binary}])
-              end,
-    Map = [{<<"\r">>, <<"\\\\r">>},
-           {<<"\n">>, <<"\\\\n">>}],
-    lists:foldl(Replace, IoList, Map).
 
 shell_eval(I, Cmd) ->
     dlog(I, ?dmore, "want_more=false (send ~p)", [Cmd#cmd.type]),

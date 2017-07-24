@@ -12,7 +12,8 @@
          summary/2, summary_prio/1,
          multiply/2, drop_prefix/1, drop_prefix/2,
          replace/2,
-         normalize_filename/1, normalize_newlines/1, normalize_match_regexp/1,
+         normalize_filename/1, quote_newlines/1,
+         normalize_newlines/1, normalize_match_regexp/1,
          strip_leading_whitespaces/1, strip_trailing_whitespaces/1,
          expand_lines/1, split_lines/1, shrink_lines/1,
          to_string/1, capitalize/1, tag_prefix/2,
@@ -598,6 +599,14 @@ expand_lines([_] = Line) ->
     Line;
 expand_lines([Line | Lines]) ->
     [Line, "\n", expand_lines(Lines)].
+
+quote_newlines(IoList) ->
+    Replace = fun({From, To}, Acc) ->
+                      re:replace(Acc, From, To, [global, {return, binary}])
+              end,
+    Map = [{<<"\r">>, <<"\\\\r">>},
+           {<<"\n">>, <<"\\\\n">>}],
+    lists:foldl(Replace, IoList, Map).
 
 split_lines(IoList) ->
     Normalized = normalize_newlines(IoList),

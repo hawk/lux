@@ -861,7 +861,8 @@ match_more(C, Skip, Rest, SubMatches) ->
             stop(C2, success, end_of_script);
         false ->
             SubVars = submatch_vars(SubMatches, 1),
-            [clog(C2, capture, "\"~s\"", [lux_utils:normalize_newlines(SV)]) ||
+            [clog(C2, capture, "\"~s\"",
+                  [ lux_utils:quote_newlines(SV)]) ||
                 SV <- SubVars],
             send_reply(C2, C2#cstate.parent,
                        {submatch_vars, self(), SubVars}),
