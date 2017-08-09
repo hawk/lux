@@ -154,17 +154,19 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
             shell_loop(C3, C3)
         catch
             error:ShellReason ->
+                LoopEST = erlang:get_stacktrace(),
                 ErrBin = ?l2b(io_lib:format("~p", [ShellReason])),
                 io:format("\nINTERNAL LUX ERROR: Shell crashed: ~s\n~p\n",
-                          [ErrBin, erlang:get_stacktrace()]),
+                          [ErrBin, LoopEST]),
                 stop(C2, error, ErrBin)
         end
     catch
         error:InitReason ->
-            EST = erlang:get_stacktrace(),
-            InitBinErr = ?l2b([FlatExec, ": ",
-                               file:format_error(InitReason)]),
-            io:format("~s\n~p\n", [InitBinErr, EST]),
+            InitEST = erlang:get_stacktrace(),
+            FileErr = file:format_error(InitReason),
+            InitBinErr = ?l2b([FlatExec, ": ", FileErr]),
+            clog(C2, error, "\"~s\"", [FileErr]),
+            io:format("\nINTERNAL LUX ERROR: ~s\n~p\n", [InitBinErr, InitEST]),
             stop(C2, error, InitBinErr)
     end.
 
