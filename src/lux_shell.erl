@@ -296,7 +296,13 @@ safe_flush_port(C, Data, ExtraPoll) ->
              actual = <<OldData/binary, NewData/binary>>,
              events = save_event(C, recv, NewData)}.
 
+interpreter_down(C, Reason) ->
+    TraceFrom = 'case',
+    TraceTo = C#cstate.name,
+    lux:trace_me(50, TraceFrom, TraceTo, 'DOWN', [{reason, Reason}]).
+
 interpreter_died(C, Reason) ->
+    interpreter_down(C, Reason),
     Waste = flush_port(C,
                        C#cstate.flush_timeout,
                        C#cstate.actual),
@@ -1372,6 +1378,7 @@ wait_for_down(C, Res) ->
             C2 = change_mode(C, From, Mode, Cmd, CmdStack),
             wait_for_down(C2, Res);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
+            interpreter_down(C, Reason),
             close_and_exit(C, Reason, Res);
         {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C2 = C#cstate{state_changed = true,
