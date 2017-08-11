@@ -404,6 +404,7 @@ internal_debug(MainOp, Args) ->
     FlatArgs = lists:flatten([[" ", A] || A <- Args,
                                           A =/= "-D",
                                           A =/= "--internal_debug"]),
+    %% Use "escript -d" to enable debugging of this escript. Break at main/1.
     DebugCmd = Shebang ++ " -d " ++ Escript ++ FlatArgs,
     io:format("~s\n", [DebugCmd]),
     PortOpts = [binary, stream, use_stdio, stderr_to_stdout, eof],
