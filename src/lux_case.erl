@@ -457,9 +457,9 @@ print_fail(OldI0, NewI, File, Results,
         end,
     {NewActual, NewRest} =
         case Actual of
-            <<"fail pattern matched ",  _/binary>> ->
+            <<?fail_pattern_matched, _/binary>> ->
                 {Actual, Rest};
-            <<"success pattern matched ", _/binary>> ->
+            << ?success_pattern_matched, _/binary>> ->
                 {Actual, Rest};
             _ when is_atom(Actual), is_binary(Rest) ->
                 {atom_to_list(Actual), Rest};
@@ -480,7 +480,7 @@ print_fail(OldI0, NewI, File, Results,
            io_lib:format("diff\n\t~s",
                          [simple_to_string(Diff)])
           ]),
-    case OldI0#istate.progress of
+   case OldI0#istate.progress of
         silent ->
             ok;
         _ ->

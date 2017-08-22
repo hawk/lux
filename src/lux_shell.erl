@@ -348,11 +348,9 @@ switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
             Loop = hd(LoopStack),
             LoopCmd = Loop#loop.mode,
             {_, RegExp} = extract_regexp(LoopCmd#cmd.arg),
-%% ??            RegExp2 = lux_utils:normalize_match_regexp(RegExp),
-            RegExp2 = RegExp,
-            Actual = <<"Loop ended without match of \"", RegExp2/binary, "\"">>,
-            C2 = do_prepare_stop(C),
-            stop(C2, fail, Actual);
+            {C2, RegExp2} = prepare_stop(C, RegExp, [],
+                                         <<"Loop ended without match of ">>),
+            stop(C2, fail, RegExp2);
         _ ->
             C#cstate{latest_cmd = NewCmd,
                      cmd_stack = CmdStack}
@@ -961,7 +959,7 @@ match_fail_pattern(C, Actual) ->
     case Res of
         {match, Matches} ->
             {C2, Actual2} = prepare_stop(C, Actual, Matches,
-                                         <<"fail pattern matched ">>),
+                                         <<?fail_pattern_matched>>),
             stop(C2, fail, Actual2);
         nomatch ->
             C;
@@ -978,7 +976,7 @@ match_success_pattern(C, Actual) ->
     case Res of
         {match, Matches} ->
             {C2, Actual2} = prepare_stop(C, Actual, Matches,
-                                         <<"success pattern matched ">>),
+                                         <<?success_pattern_matched>>),
             stop(C2, success, Actual2);
         nomatch ->
             C;
@@ -1030,15 +1028,11 @@ match_break_patterns(C, _Actual, [], Acc) ->
 
 prepare_stop(C, Actual, Matches, Context) ->
     {C2, Match} = post_match(C, Actual, Matches, Context),
-%% ??    Match2 = lux_utils:normalize_match_regexp(Match),
-    Match2 = Match,
+    Match2 = ?l2b(lux_utils:to_string(?b2l(Match))),
     Actual2 = <<Context/binary, "\"", Match2/binary, "\"">>,
-    C3 = do_prepare_stop(C2),
-    {C3, Actual2}.
-
-do_prepare_stop(C) ->
-    C2 = clear_expected(C, " (prepare stop)"),
-    opt_late_sync_reply(C2).
+    C3 = clear_expected(C2, " (prepare stop)"),
+    C4 = opt_late_sync_reply(C3),
+    {C4, Actual2}.
 
 clear_expected(C, Context) ->
     C2 = cancel_timer(C),
@@ -1052,7 +1046,9 @@ post_match(C, Actual, [{First, TotLen} | _], Context) ->
     clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{actual = Actual},
-    {C2, Match}.
+    {C2, Match};
+post_match(C, Actual, [], Context) ->
+    post_match(C, Actual, [{0, byte_size(Actual)}], Context).
 
 split_single_match(C, Matches, Actual, Context, AltSkip) ->
     [{First, TotLen} | SubMatches] = Matches,
@@ -1272,9 +1268,9 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
 prepare_outcome(C, Outcome, Actual) ->
     Context =
         case Actual of
-            <<"fail pattern matched ",    _/binary>> -> fail_pattern_matched;
-            <<"success pattern matched ", _/binary>> -> success_pattern_matched;
-            _                                        -> Actual
+            <<?fail_pattern_matched,    _/binary>> -> fail_pattern_matched;
+            <<?success_pattern_matched, _/binary>> -> success_pattern_matched;
+            _                                      -> Actual
         end,
     if
         Outcome =:= fail, Context =:= fail_pattern_matched ->

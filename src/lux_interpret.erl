@@ -907,10 +907,10 @@ prepare_result(#istate{latest_cmd = LatestCmd,
         end,
     Res3 =
         case Res2 of
-            #result{actual = <<"fail pattern matched ", _/binary>>} ->
+            #result{actual = <<?fail_pattern_matched, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             cmd_stack = CmdStack};
-            #result{actual = <<"success pattern matched ", _/binary>>} ->
+            #result{actual = <<?success_pattern_matched, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             cmd_stack = CmdStack};
             _ ->

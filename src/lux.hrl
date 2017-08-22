@@ -18,6 +18,8 @@
 -define(dmore, 10).
 -define(RE_COMPILE_OPTS, [{newline,anycrlf}, multiline]).
 -define(RE_RUN_OPTS,     [{newline,anycrlf}, notempty]).
+-define(fail_pattern_matched, "fail pattern matched ").
+-define(success_pattern_matched, "success pattern matched ").
 
 -record(cmd,
         {lineno :: non_neg_integer(),
