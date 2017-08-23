@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.17.2 - 2017-07-20
+Version 1.17.3 - 2017-08-23
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -116,13 +116,13 @@ Run a single script like this:
 Evaluate `lux examples/intro.lux`
 
 >     .../lux> lux examples/intro.lux
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_07_20_13_45_26_844111/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_14_493987/lux_summary.log
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:.:.....:...:.:...:.:..:..:..:..:...:..:..:.:..:.:.:.:.:....c....:.:...:..:..:..:..:.:..:..:.
+>     progress          : ..:...:.:..:.:..:....:...:.:.:..:..:.:..:..:..:.:...:..:..:.:.:..:..:.:.:....c....:.:...:..:..:..:..:.:..:..:.
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2017_07_20_13_45_26_844111/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_14_493987/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -155,8 +155,8 @@ Evaluate `lux --history .`
 
 >     .../lux> lux --history .
 >     Assembling history of logs from...
->     	.....................
->     Analyzed 20 test runs (0 errors)...ok
+>     	.....s...............
+>     Analyzed 19 test runs (0 errors)...ok
 >     file:///Users/hmattsso/dev/lux/lux_history.html
 >     .../lux> echo $?
 >     0
@@ -1678,14 +1678,14 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_07_20_13_45_55_531323/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_42_637562/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:...:.:...:..:.:.:....:..:..:..(....:..:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:..)(....:.:.:..:...)(..:.:..)..(..:.:..)......:..:...
+>     progress          : ..:...:.:...:..:.:.:....:..:..:..(....:..:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:..)(....:.:..:...)(..:..)..(.:..:..)......:..:...
 >     result            : SUCCESS
 >     test case         : examples/error.lux
 >     result            : FAIL as required variable MAKE is not set
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:...:..:.:.:.:..:..:.:....:..:..32C..:..:..:.:..:..:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:...:.:...:..:.:.:..:..:.:....:..:..32C..:...:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32
 >     expected*
 >     	19
@@ -1702,13 +1702,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:.:..:....:..:..:..:..:.:..:..:.:..:.:..:..:.:..:..:..:..:.:.:....c.....:..:.:..:..:..:..:.:..:..:.
+>     progress          : ..:..:..:..:..:....:..:..:.:..:..:.:..:..:..:.:..:..:.:..:.:...:..:.:.:....c....:..:..:...:.:..:..:.:..:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:...:.:.((.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))...:..:..:.:..:..:.:..:..:.:...:...:.:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:..z))c........:..:..:..:..:.:.
+>     progress          : ..:..:..:.((.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))...:..:..:...:.:.:..:.:..:...:..:..:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:..z))c........:..:..:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.((.i=1..:..:..z)(z..i=2...:.:..z)(z..i=3..:..:..z))5
+>     progress          : ..:..:..:.((.i=1..:..:..z)(z..i=2...:..z)(z..i=3..:..:..z))5
 >     result            : FAIL at 5:5
 >     expected*
 >     	
@@ -1721,7 +1721,7 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:...:.:....7
+>     progress          : ..:..:..:....7
 >     result            : WARNING at 7
 >     expected*
 >     	bar
@@ -1745,7 +1745,7 @@ Evaluate `lux examples`
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2017_07_20_13_45_55_531323/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_42_637562/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
