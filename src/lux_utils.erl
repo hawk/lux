@@ -45,15 +45,22 @@ timestamp() ->
 
 builtin_vars() ->
     %% Alphabetic order
+    ascii_vars() ++
     [
      "_BS_="  ++ [8],  % backspace
      "_CR_="  ++ [13]  % carriage return
-    ] ++  ctrl_vars() ++
+    ] ++
+    ctrl_vars() ++
     [
      "_DEL_=" ++ [127], % delete
+     "_ESC_=" ++ [27],  % escape
      "_LF_="  ++ [10],  % line feed
      "_TAB_=" ++ [9]    % tab
     ].
+
+ascii_vars() -> % From decimal 0 to 127
+    %% Alphabetic order
+    ["_ASCII_" ++ ?i2l(Dec) ++ "_=" ++ [Dec] ||  Dec <- lists:seq(0,127)].
 
 ctrl_vars() -> % From a-z
     %% Alphabetic order
