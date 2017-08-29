@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.17.3 - 2017-08-23
+Version 1.17.4 - 2017-08-29
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -503,15 +503,19 @@ variable.
 
 ###Builtin variables###
 
-    _BS_      - backspace       (ASCII 8)
-    _TAB_     - tab             (ASCII 9)
-    _LF_      - line feed       (ASCII (10)
-    _CR_      - carriage return (ASCII 13)
-    _DEL_     - delete          (ASCII 127)
-    _CTRL_A_  - control a       (ASCII 1)
+    _BS_        - backspace       (ASCII 8)
+    _TAB_       - horizontal tab  (ASCII 9)
+    _LF_        - line feed       (ASCII 10)
+    _CR_        - carriage return (ASCII 13)
+     _ESC_      - escape          (ASCII 27)
+    _DEL_       - delete          (ASCII 127)
+    _CTRL_A_    - control a       (ASCII 1)
     ...
-    _CTRL_Z_  - control z       (ASCII 26)
-    N         - where N is an integer refering to a captured substring
+    _CTRL_Z_    - control z       (ASCII 26)
+    _ASCII_0    - null            (ASCII 0)
+    ...
+    _ASCII_127_ - delete          (ASCII 127)
+    N           - where N is an integer refering to a captured substring
 
 ###Builtin environment variables###
 
