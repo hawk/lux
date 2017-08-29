@@ -27,7 +27,7 @@
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
-#include <sys/errno.h>
+#include <errno.h>
 
 #include <termios.h>
 
