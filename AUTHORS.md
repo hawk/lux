@@ -1,8 +1,10 @@
-Original author:
+Original author
+--------------
 
 * Håkan Mattsson
 
-Contributors:
+Contributors
+------------
 
 * Jan Lindblad (implemented a predecessor to Lux, called Qmscript, as a Python plugin to QMTest)
 * Sebastian Strollo (runpty)
