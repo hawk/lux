@@ -28,10 +28,12 @@ generate(PrefixedSources, RelHtmlFile, Opts) ->
         _MultiBranch          -> LatestOnly = true
     end,
     Opts2 = [{top, Sources} | Opts],
-    WWW = undefined,
-    {Res, NewWWW} =
-        generate2(Sources, RelHtmlFile, LatestOnly, Opts2, [], [], WWW),
-    lux_utils:stop_app(NewWWW),
+    {Runs, Errors, WWW} = collect(Sources, Opts2, [], [], undefined),
+    io:format("\nAnalyzed ~p test runs (~p errors)",
+              [length(Runs), length(Errors)]),
+    %% io:format("\nERRORS ~p\n", [Errors]),
+    Res = do_generate(RelHtmlFile, Runs, Errors, LatestOnly, Opts),
+    lux_utils:stop_app(WWW),
     Res.
 
 split_source(OrigSource) ->
@@ -59,22 +61,19 @@ source_dir(File) ->
     case filename:basename(File) of
         "lux_history.html" -> filename:dirname(File);
         "lux_summary.log"  -> filename:dirname(File);
-        _                  -> File
+        _                  -> File % Assume file is dir
     end.
 
-generate2([Source | Sources], RelHtmlFile, LatestOnly, Opts,
-          RunAcc, ErrAcc, WWW) ->
+collect([Source | Sources], Opts, Runs, Errors, WWW) ->
     io:format("\n\t~s", [Source#source.orig]),
-    {{AllRuns, Errors}, NewWWW} =
-        parse_summary_logs(Source, RunAcc, ErrAcc, WWW, Opts),
-    generate2(Sources, RelHtmlFile, LatestOnly, Opts, AllRuns, Errors, NewWWW);
-generate2([], RelHtmlFile, LatestOnly, Opts, AllRuns, Errors, WWW) ->
-    %% io:format("\nERRORS ~p\n", [Errors]),
-    io:format("\nAnalyzed ~p test runs (~p errors)",
-              [length(AllRuns), length(Errors)]),
-    {generate3(RelHtmlFile, AllRuns, Errors, LatestOnly, Opts), WWW}.
+    {{NewRuns, NewErrors}, NewWWW} =
+        parse_summary_logs(Source, Runs, Errors, WWW, Opts),
+    collect(Sources, Opts,
+              NewRuns, NewErrors, NewWWW);
+collect([], _Opts, Runs, Errors, WWW) ->
+    {Runs, Errors, WWW}.
 
-generate3(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
+do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
     AbsHtmlFile = lux_utils:normalize_filename(RelHtmlFile),
     HistoryLogDir = filename:dirname(AbsHtmlFile),
     SplitBranches = keysplit(#run.branch, AllRuns),
@@ -102,7 +101,7 @@ generate3(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
          lux_html_utils:html_footer()
         ],
     lux_html_utils:safe_write_file(RelHtmlFile, OverviewIoList);
-generate3(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
+do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
     AbsHtmlFile = lux_utils:normalize_filename(RelHtmlFile),
     HistoryLogDir = filename:dirname(AbsHtmlFile),
     SplitHosts = keysplit(#run.hostname, AllRuns),
