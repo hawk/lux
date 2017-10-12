@@ -57,7 +57,7 @@
          idle_count = 0          :: non_neg_integer(),
          no_more_input = false   :: boolean(),
          no_more_output = false  :: boolean(),
-         exit_status              :: integer(),
+         exit_status             :: integer(),
          timer                   :: undefined | infinity | reference(),
          timer_started_at        :: undefined | {non_neg_integer(),
                                                  non_neg_integer(),
@@ -253,6 +253,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {wakeup, Secs} ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             dlog(C, ?dmore,"mode=resume (wakeup)", []),
+            undefined = C#cstate.expected, % Assert
             C#cstate{mode = resume, wakeup = undefined};
         {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C#cstate{state_changed = true,
@@ -622,6 +623,7 @@ shell_eval(#cstate{name = Name} = C0,
             Secs = Arg,
             clog(C, sleep, "(~p seconds)", [Secs]),
             true = is_integer(Secs), % Assert
+            undefined = C#cstate.expected, % Assert
             Progress = C#cstate.progress,
             Self = self(),
             WakeUp = {wakeup, Secs},
@@ -748,8 +750,14 @@ sleep_walker(Progress, ReplyTo, WakeUp) ->
             sleep_walker(Progress, ReplyTo, WakeUp)
     end.
 
-want_more(#cstate{mode = Mode, expected = Expected, waiting = Waiting}) ->
-    Mode =:= resume andalso Expected =:= undefined andalso not Waiting.
+want_more(#cstate{mode = Mode,
+                  expected = Expected,
+                  waiting = Waiting,
+                  wakeup = Wakeup}) ->
+    Mode =:= resume andalso
+    Expected =:= undefined andalso
+    not Waiting andalso
+    Wakeup =:= undefined.
 
 expect_more(C) ->
     C2 = expect(C),
@@ -788,18 +796,26 @@ expect(#cstate{state_changed = true,
                timed_out = TimedOut} = C) ->
     %% Something has changed
     case Expected of
-        undefined when C#cstate.mode =:= suspend ->
-            %% Nothing to wait for
-            C2 =  match_patterns(C, Actual),
-            cancel_timer(C2);
+        _ when C#cstate.wakeup =/= undefined ->
+            %% Sleeping
+            undefined = Expected, % assert
+            resume = C#cstate.mode, % assert
+            undefined = C#cstate.timer, % assert
+            C;
+        _ when C#cstate.mode =:= suspend ->
+            %% Suspended
+            undefined = Expected, % assert
+            undefined = C#cstate.timer, % assert
+            match_patterns(C, Actual);
         undefined when C#cstate.mode =:= resume ->
             %% Nothing to wait for
-            cancel_timer(C);
-        #cmd{arg = Arg} ->
+            undefined = C#cstate.timer, % assert
+            C;
+        #cmd{arg = Arg} when C#cstate.mode =:= resume ->
             if
                 TimedOut ->
                     %% timeout - waited enough for more input
-                    C2 =  match_patterns(C, Actual),
+                    C2 = match_patterns(C, Actual),
                     Earlier = C2#cstate.timer_started_at,
                     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
                     clog(C2, timer, "failed (after ~p micro seconds)", [Diff]),
@@ -815,7 +831,7 @@ expect(#cstate{state_changed = true,
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
-                    C2 =  match_patterns(C, Actual),
+                    C2 = match_patterns(C, Actual),
                     ErrBin = <<"The command must be executed",
                                " in context of a shell">>,
                     stop(C2, error, ErrBin);
@@ -952,6 +968,12 @@ log_multi_nomatch(C, _Single, Actual) ->
     {C, TaggedExpected, Actual}.
 
 match_patterns(C, Actual) ->
+    %% Match against these patterns when
+    %%   - mode change
+    %%   - main pattern matched
+    %%   - main pattern timed out
+    %%   - state change in suspended shell
+    %%   - shell exit
     C2 = match_fail_pattern(C, Actual),
     C3 = match_success_pattern(C2, Actual),
     C4 = match_break_patterns(C3, Actual),

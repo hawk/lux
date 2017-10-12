@@ -169,9 +169,9 @@ loop(I) ->
             loop(I2)
     end.
 
-break_all_loops(#istate{loop_stack = LoopStack} = I) ->
+break_all_loops(#istate{loop_stack = LoopStack} = I, Cmds) ->
     Breaks = [L#loop{mode = break} || L <- LoopStack],
-    I#istate{loop_stack = Breaks}.
+    I#istate{commands = Cmds, loop_stack = Breaks}.
 
 break_loop(#istate{loop_stack = LoopStack} = I, LoopCmd) ->
     break_loop(I, LoopCmd, lists:reverse(LoopStack), []).
@@ -180,7 +180,7 @@ break_loop(I, LoopCmd, RevStack, Acc)
   when (hd(RevStack))#loop.cmd =:= LoopCmd ->
     %% Break all inner loops
     RevBreaks = [L#loop{mode = break} || L <- RevStack],
-    I#istate{loop_stack = lists:reverse(RevBreaks) ++ Acc};
+    I#istate{commands = [], loop_stack = lists:reverse(RevBreaks, Acc)};
 break_loop(I, LoopCmd, [Loop|RevStack], Acc) ->
     break_loop(I, LoopCmd, RevStack, [Loop|Acc]);
 break_loop(I, _LoopCmd, [], _Acc) ->
@@ -232,7 +232,7 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
     premature_stop(I, {fail, TimeoutType}, {fail, TimeoutType}).
 
 premature_stop(I, CleanupReason, StopRes) ->
-    I2 = break_all_loops(I),
+    I2 = break_all_loops(I, I#istate.commands),
     case I2#istate.mode of
         running ->
             %% An error has occurred, maybe the test case (or suite)
@@ -967,13 +967,10 @@ do_goto_cleanup(I, CleanupReason, LineNo) ->
             true ->
                 stopping
         end,
-    %% Break active loops
-    LoopStack = [L#loop{mode = break} || L <- I#istate.loop_stack],
-    I#istate{mode = NewMode,
-             loop_stack = LoopStack,
-             cleanup_reason = CleanupReason,
-             want_more = true,
-             commands = CleanupCmds}.
+    I2 = break_all_loops(I, CleanupCmds),
+    I2#istate{mode = NewMode,
+              cleanup_reason = CleanupReason,
+              want_more = true}.
 
 delete_shell(I, Pid) ->
     ActiveShell = I#istate.active_shell,
