@@ -62,6 +62,7 @@
          timer_started_at        :: undefined | {non_neg_integer(),
                                                  non_neg_integer(),
                                                  non_neg_integer()},
+         wakeup                  :: undefined | reference(),
          debug_level = 0         :: non_neg_integer(),
          events = []             :: [tuple()]}).
 
@@ -252,7 +253,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {wakeup, Secs} ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             dlog(C, ?dmore,"mode=resume (wakeup)", []),
-            C#cstate{mode = resume};
+            C#cstate{mode = resume, wakeup = undefined};
         {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C#cstate{state_changed = true,
                      no_more_output = true,
@@ -626,9 +627,9 @@ shell_eval(#cstate{name = Name} = C0,
             WakeUp = {wakeup, Secs},
             Fun = fun() -> sleep_walker(Progress, Self, WakeUp) end,
             Sleeper = spawn_link(Fun),
-            erlang:send_after(timer:seconds(Secs), Sleeper, WakeUp),
+            WakeupRef = erlang:send_after(timer:seconds(Secs), Sleeper, WakeUp),
             dlog(C, ?dmore,"mode=suspend (sleep)", []),
-            C#cstate{mode = suspend};
+            C#cstate{mode = suspend, wakeup = WakeupRef};
         progress ->
             true = is_list(Arg), % Assert
             String = Arg,
@@ -1004,11 +1005,11 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
             {Res, _OptMulti} = match(Actual, BreakCmd),
             case Res of
                 {match, Matches} ->
-                    C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
+                    C2 = clear_expected(C, " (break loop)"),
+                    C3 = opt_late_sync_reply(C2),
                     LoopCmd = Loop#loop.cmd,
                     BreakLoop = {break_pattern_matched, self(), LoopCmd},
-                    send_reply(C2, C2#cstate.parent, BreakLoop),
-                    C3 = clear_expected(C2, " (break loop)"),
+                    send_reply(C3, C3#cstate.parent, BreakLoop),
                     {C4, _Match} =
                         post_match(C3, Actual, Matches,
                                    <<"loop break pattern matched ">>),
@@ -1037,8 +1038,13 @@ prepare_stop(C, Actual, Matches, Context) ->
     {C4, Actual2}.
 
 clear_expected(C, Context) ->
+    Mode =
+        case C#cstate.wakeup of
+            undefined -> C#cstate.mode;
+            WakeupRef -> erlang:cancel_timer(WakeupRef), suspend
+    end,
     C2 = cancel_timer(C),
-    C3 = C2#cstate{expected = undefined},
+    C3 = C2#cstate{mode = Mode, expected = undefined, wakeup = undefined},
     dlog(C3, ?dmore, "expected=[]~s", [Context]),
     C3.
 
