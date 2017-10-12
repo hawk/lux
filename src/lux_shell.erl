@@ -579,44 +579,38 @@ shell_eval(#cstate{name = Name} = C0,
             C3 = start_timer(C2),
             dlog(C3, ?dmore, "expected=regexp (expect)", []),
             C3;
-        fail when Arg =:= reset ->
-            clog(C, fail, "pattern ~p", [Arg]),
-            Pattern = #pattern{cmd = undefined,
-                               cmd_stack = C#cstate.cmd_stack},
-            C#cstate{state_changed = true, fail = Pattern};
         fail ->
+            PatCmd =
+                if
+                    Arg =:= reset -> undefined;
+                    true          -> Cmd
+                end,
             {_, RegExp} = extract_regexp(Arg),
             clog(C, fail, "pattern ~p", [lux_utils:to_string(RegExp)]),
-            Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
+            Pattern = #pattern{cmd = PatCmd, cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, fail = Pattern};
-        success when Arg =:= reset ->
+        success ->
+            PatCmd =
+                if
+                    Arg =:= reset -> undefined;
+                    true          -> Cmd
+                end,
             clog(C, success, "pattern ~p", [Arg]),
-            Pattern = #pattern{cmd = undefined,
+            Pattern = #pattern{cmd = PatCmd,
                                cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
-        success ->
-            {_, RegExp} = extract_regexp(Arg),
-            clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
-            Pattern = #pattern{cmd = Cmd, cmd_stack = C#cstate.cmd_stack},
-            C#cstate{state_changed = true, success = Pattern};
-        break when Arg =:= reset ->
-            clog(C, break, "pattern ~p", [Arg]),
-            [Loop | LoopStack] = C#cstate.loop_stack,
-            Loop2 =
-                if
-                    Loop#loop.mode =:= break -> Loop; % Ignore
-                    true                     -> Loop#loop{mode = iterate}
-                end,
-            C#cstate{state_changed = true,
-                     loop_stack    = [Loop2|LoopStack]};
         break ->
             {_, RegExp} = extract_regexp(Arg),
             clog(C, break, "pattern ~p", [lux_utils:to_string(RegExp)]),
             [Loop | LoopStack] = C#cstate.loop_stack,
             Loop2 =
                 if
-                    Loop#loop.mode =:= break -> Loop; % Ignore
-                    true                     -> Loop#loop{mode = Cmd}
+                    Loop#loop.mode =:= break ->
+                        Loop; % Ignore
+                    Arg =:= reset ->
+                        Loop#loop{mode = reset};
+                    true ->
+                        Loop#loop{mode = Cmd}
                 end,
             C#cstate{state_changed = true, loop_stack = [Loop2|LoopStack]};
         sleep ->
