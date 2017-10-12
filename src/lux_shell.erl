@@ -219,8 +219,9 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             shell_wait_for_event(C2, OrigC);
-        {switch_cmd, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
-            C2 = switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun),
+        {adjust_stacks, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
+            C2 = adjust_stacks(C, From, When, IsRootLoop,
+                               NewCmd, CmdStack, Fun),
             shell_wait_for_event(C2, OrigC);
         {change_mode, From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->
@@ -323,9 +324,9 @@ timeout(C) ->
             IdleThreshold
     end.
 
-switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
+adjust_stacks(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
     Fun(),
-    send_reply(C, From, {switch_cmd_ack, self()}),
+    send_reply(C, From, {adjust_stacks_ack, self()}),
     LoopStack = C#cstate.loop_stack,
     case {NewCmd#cmd.type, When} of
         {loop, before} when IsRootLoop ->
@@ -392,8 +393,9 @@ block(C, From, OrigC) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             block(C2, From, OrigC);
-        {switch_cmd, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
-            C2 = switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun),
+        {adjust_stacks, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
+            C2 = adjust_stacks(C, From, When, IsRootLoop,
+                               NewCmd, CmdStack, Fun),
             block(C2, From, OrigC);
         {'DOWN', _, process, Pid, Reason} when Pid =:= C#cstate.parent ->
             interpreter_died(C, Reason);
@@ -1366,8 +1368,9 @@ wait_for_down(C, Res) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             wait_for_down(C2, Res);
-        {switch_cmd, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
-            C2 = switch_cmd(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun),
+        {adjust_stacks, From, When, IsRootLoop, NewCmd, CmdStack, Fun} ->
+            C2 = adjust_stacks(C, From, When, IsRootLoop,
+                               NewCmd, CmdStack, Fun),
             wait_for_down(C2, Res);
         {change_mode, From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->

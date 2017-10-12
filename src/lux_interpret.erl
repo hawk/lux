@@ -549,8 +549,8 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                           latest_cmd = Cmd,
                           cmd_stack = NewStack,
                           commands = Body},
-    BeforeI2 = switch_cmd(before, BeforeI, NewStack, Cmd,
-                          Enter, IsRootLoop),
+    BeforeI2 = adjust_stacks(before, BeforeI, Cmd, NewStack,
+                             Enter, IsRootLoop),
     try
         lux_utils:progress_write(BeforeI2#istate.progress, "("),
         AfterI = Fun(BeforeI2),
@@ -561,8 +561,8 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                                [InvokeLineNo, FirstLineNo, LastLineNo,
                                 CmdFile])
             end,
-        AfterI2 = switch_cmd('after', AfterI, OldStack, Cmd,
-                             AfterExit, IsRootLoop),
+        AfterI2 = adjust_stacks('after', AfterI, Cmd, OldStack,
+                                AfterExit, IsRootLoop),
         NewI = AfterI2#istate{call_level = call_level(OldI),
                               file = OldI#istate.file,
                               latest_cmd = OldI#istate.latest_cmd,
@@ -593,8 +593,8 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                 Class =:= throw, element(1, Reason) =:= error ->
                     BeforeExit();
                 true ->
-                    switch_cmd('after', BeforeI2, OldStack, Cmd,
-                               BeforeExit, IsRootLoop)
+                    adjust_stacks('after', BeforeI2, Cmd, OldStack,
+                                  BeforeExit, IsRootLoop)
             end,
             erlang:raise(Class, Reason, EST)
     end.
@@ -1183,26 +1183,27 @@ change_active_mode(I, _Cmd, _NewMode) ->
     %% No active shell
     {ok, I}.
 
-switch_cmd(When, #istate{active_shell = undefined} = I,
-           CmdStack, NewCmd, Fun, IsRootLoop) ->
+adjust_stacks(When, #istate{active_shell = undefined} = I,
+              NewCmd, CmdStack, Fun, IsRootLoop) ->
     Fun(),
-    do_switch_cmd(When, I, CmdStack, NewCmd, IsRootLoop, []);
-switch_cmd(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
-           CmdStack, NewCmd, Fun, IsRootLoop) ->
-    Msg = {switch_cmd, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
+    adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, []);
+adjust_stacks(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
+           NewCmd, CmdStack, Fun, IsRootLoop) ->
+    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
     case cast(I, Msg) of
         {ok, ActivePid} ->
-            do_switch_cmd(When, I, CmdStack, NewCmd, IsRootLoop, [ActivePid]);
+            adjust_suspended_stacks(When, I, NewCmd, CmdStack,
+                                    IsRootLoop, [ActivePid]);
         {bad_shell, I2} ->
             I2
     end.
 
-do_switch_cmd(When, I, CmdStack, NewCmd, IsRootLoop, ActivePids) ->
+adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, ActivePids) ->
     Fun = fun() -> ignore end,
-    Msg = {switch_cmd, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
+    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
     OtherPids = multicast(I#istate{active_shell = undefined}, Msg),
     Pids = ActivePids ++ OtherPids,
-    wait_for_reply(I, Pids, switch_cmd_ack, Fun, infinity).
+    wait_for_reply(I, Pids, adjust_stacks_ack, Fun, infinity).
 
 shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
     I2 = inactivate_shell(I, I#istate.want_more),
