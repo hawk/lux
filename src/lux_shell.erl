@@ -642,7 +642,9 @@ shell_eval(#cstate{name = Name} = C0,
             end,
             C#cstate{match_timeout = Millis};
         cleanup ->
-            C2 = cancel_timer(C),
+            C1 = cancel_timer(C),
+            Actual = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
+            C2 = match_patterns(C1#cstate{actual = Actual}, Actual),
             case C2#cstate.fail of
                 undefined -> ok;
                 _         -> clog(C2, fail, "pattern reset", [])
@@ -1247,8 +1249,16 @@ stop(C, Outcome, _Actual) when C#cstate.pre_expected =/= [],
                                Outcome =/= fail ->
     Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
     stop(C#cstate{pre_expected = []}, error, ?l2b(Err));
-stop(C, Outcome0, Actual) when is_binary(Actual);
-                               is_atom(Actual) ->
+stop(C0, Outcome0, Actual) when is_binary(Actual);
+                                is_atom(Actual) ->
+    Waste = flush_port(C0, C0#cstate.flush_timeout, C0#cstate.actual),
+    C =
+        if
+            Actual =:= end_of_script; Actual =:= relax ->
+                match_patterns(C0#cstate{mode = suspend}, Waste);
+            true ->
+                C0
+        end,
     Cmd = C#cstate.latest_cmd,
     case Outcome0 of
         {Outcome, {ExpectedTag, Expected}, Rest} ->
@@ -1259,7 +1269,6 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
             {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
             Rest = C#cstate.actual
     end,
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog_skip(C, Waste),
     clog(C, stop, "~p", [Outcome]),
     {NewOutcome, Extra} = prepare_outcome(C, Outcome, Actual),
