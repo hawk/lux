@@ -789,8 +789,9 @@ expect(#cstate{state_changed = true,
                no_more_output = NoMoreOutput,
                expected = Expected,
                actual = Actual,
-               timed_out = TimedOut} = C) ->
+               timed_out = TimedOut} = C0) ->
     %% Something has changed
+    C = C0#cstate{state_changed = false},
     case Expected of
         _ when C#cstate.wakeup =/= undefined ->
             %% Sleeping
@@ -972,8 +973,7 @@ match_patterns(C, Actual) ->
     %%   - shell exit
     C2 = match_fail_pattern(C, Actual),
     C3 = match_success_pattern(C2, Actual),
-    C4 = match_break_patterns(C3, Actual),
-    C4#cstate{state_changed = false}.
+    match_break_patterns(C3, Actual).
 
 match_fail_pattern(C, Actual) ->
     {Res, _OptMulti} = match(Actual, C#cstate.fail),
