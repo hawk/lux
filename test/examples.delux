@@ -19,7 +19,7 @@ result            : FAIL as required variable MAKE is not set
 """?
 test case         : .*examples/fail.lux
 result            : FAIL at 32
-expected
+expected\*
 	19
 actual match_timeout
 	
@@ -44,7 +44,7 @@ result            : SUCCESS
 """?
 test case         : .*examples/loop_fail.lux
 result            : FAIL at 5:5
-expected
+expected\*
 	
 actual error
 	Loop ended without match of "THIS WILL NEVER MATCH"
@@ -59,7 +59,7 @@ result            : SKIP as variable TEST_SUNOS is not set
 """?
 test case         : .*examples/unstable.lux
 result            : WARNING at 7
-expected
+expected\*
 	bar
 actual match_timeout
 	
