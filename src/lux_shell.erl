@@ -608,7 +608,7 @@ shell_eval(#cstate{name = Name} = C0,
                     Loop#loop.mode =:= break ->
                         Loop; % Ignore
                     Arg =:= reset ->
-                        Loop#loop{mode = reset};
+                        Loop#loop{mode = iterate};
                     true ->
                         Loop#loop{mode = Cmd}
                 end,
@@ -1033,7 +1033,7 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
                                    <<"loop break pattern matched ">>),
                     %% Break all inner loops
                     Breaks = [L#loop{mode = break} || L <- AllStack],
-                    C4#cstate{loop_stack = Breaks  ++ Acc};
+                    C4#cstate{waiting = true, loop_stack = Breaks  ++ Acc};
                 nomatch ->
                     match_break_patterns(C, Actual, Stack, [Loop|Acc]);
                 {{'EXIT', Reason}, _} ->
