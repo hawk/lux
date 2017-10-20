@@ -595,7 +595,8 @@ shell_eval(#cstate{name = Name} = C0,
                     Arg =:= reset -> undefined;
                     true          -> Cmd
                 end,
-            clog(C, success, "pattern ~p", [Arg]),
+            {_, RegExp} = extract_regexp(Arg),
+            clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = PatCmd,
                                cmd_stack = C#cstate.cmd_stack},
             C#cstate{state_changed = true, success = Pattern};
@@ -642,7 +643,7 @@ shell_eval(#cstate{name = Name} = C0,
             end,
             C#cstate{match_timeout = Millis};
         cleanup ->
-            C1 = cancel_timer(C),
+            C1 = clear_expected(C, "(cleanup)"),
             Actual = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
             C2 = match_patterns(C1#cstate{actual = Actual}, Actual),
             case C2#cstate.fail of
@@ -1310,20 +1311,16 @@ prepare_outcome(C, Outcome, Actual) ->
             NewOutcome = Outcome,
             Fail = C#cstate.fail,
             FailCmd = Fail#pattern.cmd,
-            Extra = element(2, FailCmd#cmd.arg),
-%% ??            Extra2 = lux_utils:normalize_match_regexp(
-%%                       lux_utils:to_string(Extra)),
-            Extra2 = lux_utils:to_string(Extra),
-            clog(C, pattern, "\"~p\"", [Extra2]);
+            {_, FailRegExp} = extract_regexp(FailCmd#cmd.arg),
+            Extra = FailRegExp,
+            clog(C, pattern, "~p", [lux_utils:to_string(FailRegExp)]);
         Outcome =:= success, Context =:= success_pattern_matched ->
             NewOutcome = Outcome,
             Success = C#cstate.success,
             SuccessCmd = Success#pattern.cmd,
-            Extra = element(2, SuccessCmd#cmd.arg),
-%% ??            Extra2 = lux_utils:normalize_match_regexp(
-%%                       lux_utils:to_string(Extra)),
-            Extra2 = lux_utils:to_string(Extra),
-            clog(C, pattern, "\"~p\"", [Extra2]);
+            {_, SuccessRegExp} = extract_regexp(SuccessCmd#cmd.arg),
+            Extra = SuccessRegExp,
+            clog(C, pattern, "~p", [lux_utils:to_string(SuccessRegExp)]);
         Outcome =:= error ->
             NewOutcome = fail,
             Extra = Actual;
