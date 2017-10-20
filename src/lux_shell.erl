@@ -238,12 +238,12 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
         {relax = Data, _From} ->
-            stop(C, relax, Data);
+            stop_relax(C, relax, Data);
         {end_of_script, _From} ->
             clog(C, 'end', "of script", []),
             dlog(C, ?dmore,"mode=resume (end_of_script)", []),
             %% C#cstate{no_more_input = true, mode = suspend};
-            stop(C, success, end_of_script);
+            stop_relax(C, success, end_of_script);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
             safe_flush_port(C, Data, 0);
         match_timeout ->
@@ -417,7 +417,7 @@ block(C, From, OrigC) ->
         {shutdown = Data, _From} ->
             stop(C, shutdown, Data);
         {relax = Data, _From} ->
-            stop(C, relax, Data)
+            stop_relax(C, relax, Data)
     end.
 
 debug_shell(OldC, _From, What) ->
@@ -651,8 +651,8 @@ shell_eval(#cstate{name = Name} = C0,
             C#cstate{match_timeout = Millis};
         cleanup ->
             C1 = clear_expected(C, "(cleanup)", suspend),
-            Actual = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
-            C2 = match_patterns(C1#cstate{actual = Actual}, Actual),
+            Data = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
+            C2 = match_patterns(C1#cstate{actual = Data}),
             case C2#cstate.fail of
                 undefined -> ok;
                 _         -> clog(C2, fail, "pattern reset", [])
@@ -681,8 +681,8 @@ shell_eval(#cstate{name = Name} = C0,
     end.
 
 reset_output_buffer(C, Context) ->
-    C2 = match_patterns(C, C#cstate.actual),
-    Data = flush_port(C2, C2#cstate.flush_timeout, C2#cstate.actual),
+    Data = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
+    C2 = match_patterns(C#cstate{actual = Data}),
     case Context of
         debugger ->
             C3 = C2,
@@ -821,11 +821,11 @@ expect(#cstate{state_changed = true,
             C;
         #cmd{arg = Arg} when C#cstate.mode =:= resume ->
             %% Waiting
-            C2 = match_patterns(C, C#cstate.actual),
             if
                 TimedOut ->
                     %% timeout - waited enough for more input
-                    Earlier = C#cstate.timer_started_at,
+                    C2 = match_patterns(C),
+                    Earlier = C2#cstate.timer_started_at,
                     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
                     clog(C2, timer, "failed (after ~p micro seconds)", [Diff]),
                     {C3, AltExpected, AltActual} =
@@ -833,21 +833,23 @@ expect(#cstate{state_changed = true,
                     stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
                     %% Successful match of end of file (port program closed)
+                    C2 = match_patterns(C),
                     C3 = cancel_timer(C2),
                     ExitStatus = ?l2b(?i2l(C3#cstate.exit_status)),
                     try_match(C3, ExitStatus, C3#cstate.expected, Actual),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
+                    C2 = match_patterns(C),
                     ErrBin = <<"The command must be executed",
                                " in context of a shell">>,
                     stop(C2, error, ErrBin);
                 element(1, Arg) =:= endshell ->
                     %% Still waiting for end of file
-                    C2;
+                    match_patterns(C);
                 true ->
                     %% Waiting for more data
-                    try_match(C2, Actual, C2#cstate.expected, undefined)
+                    try_match(C, Actual, C#cstate.expected, undefined)
 
             end
     end.
@@ -858,25 +860,28 @@ try_match(C, Actual, Expected, AltSkip) ->
         {{match, Matches}, single}  ->
             %% Successful single match
             C2 = cancel_timer(C),
-            {Skip, Rest, SubMatches} =
+            {Skip, SkipMatch, Rest, SubMatches} =
                 split_single_match(C2, Matches, Actual, Context, AltSkip),
-            match_more(C2, Skip, Rest, SubMatches);
+            C3 = match_patterns(C2, SkipMatch, Rest),
+            match_more(C3, Skip, SubMatches);
         {{match, Matches}, {multi, Multi}}  ->
             %% Successful match
             C2 = cancel_timer(C),
-            {Skip, Rest} =
+            {Skip, SkipMatch, Rest} =
                 split_multi_match(C2, Actual, Matches, Multi, Context),
+            C3 = match_patterns(C2, SkipMatch, Rest),
             SubMatches = [], % Don't bother about sub-patterns
-            match_more(C2, Skip, Rest, SubMatches);
+            match_more(C3, Skip, SubMatches);
         {nomatch, _} when AltSkip =:= undefined ->
             %% Main pattern does not match
             %% Wait for more input
-            C;
+             match_patterns(C);
         {nomatch, OptMulti} ->
             C2 = cancel_timer(C),
-            {C3, AltExpected, AltActual} =
-                log_multi_nomatch(C2, OptMulti, Actual),
-            stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
+            C3 = match_patterns(C2),
+            {C4, AltExpected, AltActual} =
+                log_multi_nomatch(C3, OptMulti, Actual),
+            stop(C4, {fail, AltExpected, AltActual}, ?match_fail);
         {{'EXIT', Reason}, _} ->
             {_, RegExp} = extract_regexp(Expected#cmd.arg),
             Err = io_lib:format("Bad regexp:\n\t~p\n"
@@ -885,18 +890,18 @@ try_match(C, Actual, Expected, AltSkip) ->
             stop(C, error, ?l2b(Err))
     end.
 
-match_more(C, _Skip, Rest, SubMatches) ->
+match_more(C, _Skip, SubMatches) ->
     case C#cstate.no_more_input of
         true ->
             %% End of input
-            stop(C, success, end_of_script);
+            stop_relax(C, success, end_of_script);
         false ->
             SubVars = submatch_vars(SubMatches, 1),
             [clog(C, capture, "\"~s\"",
                   [ lux_utils:quote_newlines(SV)]) ||
                 SV <- SubVars],
             send_reply(C, C#cstate.parent, {submatch_vars, self(), SubVars}),
-            C2 = C#cstate{expected = undefined, actual = Rest},
+            C2 = C#cstate{expected = undefined},
             dlog(C2, ?dmore, "expected=[] (waiting)", []),
             opt_late_sync_reply(C2)
     end.
@@ -919,7 +924,11 @@ split_multi_match(C, Actual, Matches, Multi, Context) ->
         end,
     NewMulti = lists:zipwith(Zip, Multi, Matches),
     SortedMulti = lists:keysort(2, NewMulti),
-    log_multi_match(C, 0, Actual, SortedMulti, Context, undefined).
+    {Skip, Rest} =
+        log_multi_match(C, 0, Actual, SortedMulti, Context, undefined),
+    Sz = byte_size(Actual) - byte_size(Rest),
+    {SkipMatch, Rest} = split_binary(Actual, Sz),
+    {Skip, SkipMatch, Rest}.
 
 log_multi_match(C, Offset, Actual, [Multi | More], Context, OptSkip) ->
     {_Name, Pos, Len, _NamedRegExp, Cmd} = Multi,
@@ -972,16 +981,22 @@ log_multi_nomatch(C, _Single, Actual) ->
     TaggedExpected = lux_utils:cmd_expected(Cmd),
     {C, TaggedExpected, Actual}.
 
-match_patterns(C, Actual) ->
-    %% Match against these patterns when
-    %%   - waiting for output to match
-    %%   - output buffer is reset
-    %%   - cleanup
-    %%   - relax
-    %%   - end_of_script
+match_patterns(C) ->
+    match_patterns(C, C#cstate.actual, C#cstate.actual).
+
+match_patterns(C, Actual, AltRest) ->
+    %% Match against fail+success+break patterns at:
+    %%   - try match (but not beyond a successful match)
+    %%   - reset of output buffer
+    %%   - endshell
+    %%     - shell exit
+    %%     - pre cleanup
+    %%     - relax
+    %%     - end_of_script
+    %% clog(C, match_patterns, "~p", [Actual]),
     C2 = match_fail_pattern(C, Actual),
     C3 = match_success_pattern(C2, Actual),
-    match_break_patterns(C3, Actual).
+    match_break_patterns(C3, Actual, AltRest).
 
 match_fail_pattern(C, Actual) ->
     {Res, _OptMulti} = match(Actual, C#cstate.fail),
@@ -1017,16 +1032,17 @@ match_success_pattern(C, Actual) ->
             stop(C, error, ?l2b(Err))
     end.
 
-match_break_patterns(C, Actual) ->
+match_break_patterns(C, Actual, AltRest) ->
     %% Search in reverse order. Top loop first.
-    match_break_patterns(C, Actual, lists:reverse(C#cstate.loop_stack), []).
+    AllStack = lists:reverse(C#cstate.loop_stack),
+    match_break_patterns(C, Actual, AltRest, AllStack, []).
 
-match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
+match_break_patterns(C, Actual, AltRest, [Loop|Stack] = AllStack, Acc) ->
     case Loop#loop.mode of
         iterate ->
-            match_break_patterns(C, Actual, Stack, [Loop|Acc]);
+            match_break_patterns(C, Actual, AltRest, Stack, [Loop|Acc]);
         break ->
-            match_break_patterns(C, Actual, Stack, [Loop|Acc]);
+            match_break_patterns(C, Actual, AltRest, Stack, [Loop|Acc]);
         BreakCmd = #cmd{type = break} ->
             {Res, _OptMulti} = match(Actual, BreakCmd),
             case Res of
@@ -1039,11 +1055,15 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
                     {C4, _Match} =
                         post_match(C3, Actual, Matches,
                                    <<"loop break pattern matched ">>),
+                    Rest = C4#cstate.actual,
                     %% Break all inner loops
                     Breaks = [L#loop{mode = break} || L <- AllStack],
-                    C4#cstate{waiting = true, loop_stack = Breaks  ++ Acc};
+                    Acc2 = Breaks ++ Acc,
+                    C4#cstate{actual = Rest,
+                              waiting = true,
+                              loop_stack = Acc2};
                 nomatch ->
-                    match_break_patterns(C, Actual, Stack, [Loop|Acc]);
+                    match_break_patterns(C, Actual, AltRest, Stack, [Loop|Acc]);
                 {{'EXIT', Reason}, _} ->
                     {_, RegExp} = extract_regexp(BreakCmd#cmd.arg),
                     Err = io_lib:format("Bad regexp:\n\t~p\n"
@@ -1052,8 +1072,8 @@ match_break_patterns(C, Actual, [Loop|Stack] = AllStack, Acc) ->
                     stop(C, error, ?l2b(Err))
             end
     end;
-match_break_patterns(C, _Actual, [], Acc) ->
-    C#cstate{loop_stack = Acc}.
+match_break_patterns(C, _Actual, AltRest, [], Acc) ->
+    C#cstate{actual = AltRest, loop_stack = Acc}.
 
 prepare_stop(C, Actual, Matches, Context) ->
     {C2, Match} = post_match(C, Actual, Matches, Context),
@@ -1074,11 +1094,11 @@ clear_expected(C, Context, Mode) ->
     C3.
 
 post_match(C, Actual, [{First, TotLen} | _], Context) ->
-    {Skip, Rest} = split_binary(Actual, First),
-    {Match, _Actual2} = split_binary(Rest, TotLen),
+    {Skip, NonSkip} = split_binary(Actual, First),
+    {Match, Rest} = split_binary(NonSkip, TotLen),
     clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
-    C2 = C#cstate{actual = Actual},
+    C2 = C#cstate{actual = Rest},
     {C2, Match};
 post_match(C, Actual, [], Context) ->
     post_match(C, Actual, [{0, byte_size(Actual)}], Context).
@@ -1096,7 +1116,8 @@ split_single_match(C, Matches, Actual, Context, AltSkip) ->
                 end
         end,
     SubBins = lists:map(Extract, SubMatches),
-    {Skip, Rest, SubBins}.
+    SkipMatch = <<Skip/binary, Match/binary>>,
+    {Skip, SkipMatch, Rest, SubBins}.
 
 split_total(Actual, First, TotLen, AltSkip) ->
     {Consumed, Rest} = split_binary(Actual, First+TotLen),
@@ -1186,7 +1207,6 @@ start_timer(#cstate{} = C) ->
 cancel_timer(#cstate{timer = undefined} = C) ->
     C;
 cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
-    %% io:format("\n\n========>\n\t~p\n", [?stacktrace()]),
     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
     clog(C, timer, "canceled (after ~p micro seconds)", [Diff]),
     case Timer of
@@ -1246,21 +1266,17 @@ add_skip(expect_add, [First|Rest]) ->
 add_skip(_PreExpected, Perms) ->
     Perms.
 
+stop_relax(C, OutCome, Actual) ->
+    C2 = match_patterns(C#cstate{mode = suspend}),
+    stop(C2, OutCome, Actual).
+
 stop(C, Outcome, _Actual) when C#cstate.pre_expected =/= [],
                                Outcome =/= error,
                                Outcome =/= fail ->
     Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
     stop(C#cstate{pre_expected = []}, error, ?l2b(Err));
-stop(C0, Outcome0, Actual) when is_binary(Actual);
+stop(C, Outcome0, Actual) when is_binary(Actual);
                                 is_atom(Actual) ->
-    Waste = flush_port(C0, C0#cstate.flush_timeout, C0#cstate.actual),
-    C =
-        if
-            Actual =:= end_of_script; Actual =:= relax ->
-                match_patterns(C0#cstate{mode = suspend}, Waste);
-            true ->
-                C0
-        end,
     Cmd = C#cstate.latest_cmd,
     case Outcome0 of
         {Outcome, {ExpectedTag, Expected}, Rest} ->
@@ -1271,6 +1287,7 @@ stop(C0, Outcome0, Actual) when is_binary(Actual);
             {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
             Rest = C#cstate.actual
     end,
+    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog_skip(C, Waste),
     clog(C, stop, "~p", [Outcome]),
     {NewOutcome, Extra} = prepare_outcome(C, Outcome, Actual),
