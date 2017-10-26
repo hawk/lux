@@ -34,8 +34,8 @@ A failing test case
 
 Test cases are executed until they succeed or fail. The script is
 aborted at the first failure. Which may occur when the expected output
-not has matched within the given timeout or when the fail pattern has
-matched. A fail pattern is local to the given shell and will cause
+not has matched within the given timeout or when the failure pattern has
+matched. A failure pattern is local to the given shell and will cause
 abort when it matches.
 
 The (match) timeout may explicitly be set within the script, in a

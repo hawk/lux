@@ -227,8 +227,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {change_mode, From, Mode, Cmd, CmdStack}
           when Mode =:= resume; Mode =:= suspend ->
             C2 = change_mode(C, From, Mode, Cmd, CmdStack),
-            C3 = match_patterns(C2, C2#cstate.actual),
-            expect_more(C3);
+            expect_more(C2);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
         {eval, From, Cmd} ->
@@ -539,17 +538,15 @@ shell_eval(#cstate{name = Name} = C0,
             true = is_binary(Arg), % Assert
             send_to_port(C, Arg);
         expect when Arg =:= reset ->
-            C2 = match_patterns(C, C#cstate.actual),
-            reset_output_buffer(C2, script);
+            reset_output_buffer(C, script);
         expect when element(1, Arg) =:= endshell ->
-            C2 = match_patterns(C, C#cstate.actual),
             single = element(2, Arg), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
-            clog(C2, ExpectTag, "\"endshell retcode=~s\"",
+            clog(C, ExpectTag, "\"endshell retcode=~s\"",
                  [lux_utils:to_string(RegExp)]),
-            dlog(C2, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
-            C3 = start_timer(C2),
-            C3#cstate{state_changed = true, expected = Cmd};
+            dlog(C, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
+            C2 = start_timer(C),
+            C2#cstate{state_changed = true, expected = Cmd};
         expect when element(2, Arg) =:= expect_add;
                     element(2, Arg) =:= expect_add_strict ->
             %% Add alternate regexp
@@ -568,57 +565,52 @@ shell_eval(#cstate{name = Name} = C0,
         expect when C#cstate.expected =:= undefined andalso
                     C#cstate.pre_expected =:= [] ->
             %% Single regexp
-            C2 = match_patterns(C, C#cstate.actual),
             true = lists:member(element(2, Arg), [single,multi]), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
-            clog(C2, ExpectTag, "\"~s\"", [lux_utils:to_string(RegExp)]),
-            dlog(C2, ?dmore, "expected=regexp (expect)", []),
-            C3 = start_timer(C2),
-            C3#cstate{state_changed = true, expected = Cmd};
+            clog(C, ExpectTag, "\"~s\"", [lux_utils:to_string(RegExp)]),
+            dlog(C, ?dmore, "expected=regexp (expect)", []),
+            C2 = start_timer(C),
+            C2#cstate{state_changed = true, expected = Cmd};
         expect when element(2, Arg) =:= multi,
                     C#cstate.pre_expected =/= [] ->
             %% Multiple regexps
-            C2 = match_patterns(C, C#cstate.actual),
-            Tag = element(2, (hd(C2#cstate.pre_expected))#cmd.arg),
+            Tag = element(2, (hd(C#cstate.pre_expected))#cmd.arg),
             {_, RegExp} = extract_regexp(Arg),
-            clog(C2, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
+            clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             PreExpected = [Cmd | C#cstate.pre_expected],
-            {ok, NewCmd, NewRegExp} = rebuild_multi_regexps(C2, PreExpected),
-            clog(C2, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
-            dlog(C2, ?dmore, "expected=regexp (expect)", []),
-            C3 = start_timer(C2),
-            C3#cstate{latest_cmd = NewCmd,
+            {ok, NewCmd, NewRegExp} = rebuild_multi_regexps(C, PreExpected),
+            clog(C, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
+            dlog(C, ?dmore, "expected=regexp (expect)", []),
+            C2 = start_timer(C),
+            C2#cstate{latest_cmd = NewCmd,
                       state_changed = true,
                       expected = NewCmd,
                       pre_expected = []};
         fail ->
-            C2 = match_patterns(C, C#cstate.actual),
             PatCmd =
                 if
                     Arg =:= reset -> undefined;
                     true          -> Cmd
                 end,
             {_, RegExp} = extract_regexp(Arg),
-            clog(C2, fail, "pattern ~p", [lux_utils:to_string(RegExp)]),
-            Pattern = #pattern{cmd = PatCmd, cmd_stack = C2#cstate.cmd_stack},
-            C2#cstate{state_changed = true, fail = Pattern};
+            clog(C, fail, "pattern ~p", [lux_utils:to_string(RegExp)]),
+            Pattern = #pattern{cmd = PatCmd, cmd_stack = C#cstate.cmd_stack},
+            C#cstate{state_changed = true, fail = Pattern};
         success ->
-            C2 = match_patterns(C, C#cstate.actual),
             PatCmd =
                 if
                     Arg =:= reset -> undefined;
                     true          -> Cmd
                 end,
             {_, RegExp} = extract_regexp(Arg),
-            clog(C2, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
+            clog(C, success, "pattern ~p", [lux_utils:to_string(RegExp)]),
             Pattern = #pattern{cmd = PatCmd,
-                               cmd_stack = C2#cstate.cmd_stack},
-            C2#cstate{state_changed = true, success = Pattern};
+                               cmd_stack = C#cstate.cmd_stack},
+            C#cstate{state_changed = true, success = Pattern};
         break ->
-            C2 = match_patterns(C, C#cstate.actual),
             {_, RegExp} = extract_regexp(Arg),
-            clog(C2, break, "pattern ~p", [lux_utils:to_string(RegExp)]),
-            [Loop | LoopStack] = C2#cstate.loop_stack,
+            clog(C, break, "pattern ~p", [lux_utils:to_string(RegExp)]),
+            [Loop | LoopStack] = C#cstate.loop_stack,
             Loop2 =
                 if
                     Loop#loop.mode =:= break ->
@@ -628,7 +620,7 @@ shell_eval(#cstate{name = Name} = C0,
                     true ->
                         Loop#loop{mode = Cmd}
                 end,
-            C2#cstate{state_changed = true, loop_stack = [Loop2|LoopStack]};
+            C#cstate{state_changed = true, loop_stack = [Loop2|LoopStack]};
         sleep ->
             Secs = Arg,
             clog(C, sleep, "(~p seconds)", [Secs]),
@@ -689,21 +681,22 @@ shell_eval(#cstate{name = Name} = C0,
     end.
 
 reset_output_buffer(C, Context) ->
-    Data = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
+    C2 = match_patterns(C, C#cstate.actual),
+    Data = flush_port(C2, C2#cstate.flush_timeout, C2#cstate.actual),
     case Context of
         debugger ->
-            C2 = C,
+            C3 = C2,
             Events = C#cstate.events;
         script when Data =:= <<>> ->
-            C2 = cancel_timer(C),
-            Events = C2#cstate.events;
+            C3 = cancel_timer(C2),
+            Events = C3#cstate.events;
         script ->
-            C2 = cancel_timer(C),
-            clog_skip(C2, Data),
-            Events = save_event(C2, recv, Data)
+            C3 = cancel_timer(C2),
+            clog_skip(C3, Data),
+            Events = save_event(C3, recv, Data)
     end,
-    clog(C2, output, "reset", []),
-    C2#cstate{state_changed = true,
+    clog(C3, output, "reset", []),
+    C3#cstate{state_changed = true,
               actual = <<>>,
               events = Events}.
 
@@ -809,7 +802,7 @@ expect(#cstate{state_changed = true,
                actual = Actual,
                timed_out = TimedOut} = C0) ->
     %% Something has changed
-    C = match_patterns(C0#cstate{state_changed = false}, Actual),
+    C = C0#cstate{state_changed = false},
     case Expected of
         _ when C#cstate.wakeup =/= undefined ->
             %% Sleeping
@@ -827,32 +820,34 @@ expect(#cstate{state_changed = true,
             undefined = C#cstate.timer, % Assert
             C;
         #cmd{arg = Arg} when C#cstate.mode =:= resume ->
+            %% Waiting
+            C2 = match_patterns(C, C#cstate.actual),
             if
                 TimedOut ->
                     %% timeout - waited enough for more input
                     Earlier = C#cstate.timer_started_at,
                     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
-                    clog(C, timer, "failed (after ~p micro seconds)", [Diff]),
-                    {C2, AltExpected, AltActual} =
-                        log_multi_nomatch(C, Arg, Actual),
-                    stop(C2, {fail, AltExpected, AltActual}, ?match_fail);
+                    clog(C2, timer, "failed (after ~p micro seconds)", [Diff]),
+                    {C3, AltExpected, AltActual} =
+                        log_multi_nomatch(C2, Arg, Actual),
+                    stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
                     %% Successful match of end of file (port program closed)
-                    C2 = cancel_timer(C),
-                    ExitStatus = ?l2b(?i2l(C2#cstate.exit_status)),
-                    try_match(C2, ExitStatus, C2#cstate.expected, Actual),
-                    opt_late_sync_reply(C2#cstate{expected = undefined});
+                    C3 = cancel_timer(C2),
+                    ExitStatus = ?l2b(?i2l(C3#cstate.exit_status)),
+                    try_match(C3, ExitStatus, C3#cstate.expected, Actual),
+                    opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
                     ErrBin = <<"The command must be executed",
                                " in context of a shell">>,
-                    stop(C, error, ErrBin);
+                    stop(C2, error, ErrBin);
                 element(1, Arg) =:= endshell ->
                     %% Still waiting for end of file
-                    C;
+                    C2;
                 true ->
                     %% Waiting for more data
-                    try_match(C, Actual, C#cstate.expected, undefined)
+                    try_match(C2, Actual, C2#cstate.expected, undefined)
 
             end
     end.
@@ -979,7 +974,8 @@ log_multi_nomatch(C, _Single, Actual) ->
 
 match_patterns(C, Actual) ->
     %% Match against these patterns when
-    %%   - waiting for shell outputmain pattern matched
+    %%   - waiting for output to match
+    %%   - output buffer is reset
     %%   - cleanup
     %%   - relax
     %%   - end_of_script
