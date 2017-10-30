@@ -277,7 +277,7 @@ pre_markdown(LuxAppDir, ToFile) ->
                     [
                      ToFile,
                      ": ",
-                     lists:join(" ", [FromFile | lists:reverse(InclFiles)])
+                     join(" ", [FromFile | lists:reverse(InclFiles)])
                     ],
                 DepsFile = ToFile ++ ".d",
                 %% Make dependency file
@@ -1339,14 +1339,24 @@ normalize_path(File) when is_binary(File) ->
 normalize_path(File) ->
     do_normalize_path(filename:split(filename:absname(File)), []).
 
-do_normalize_path([H|T], Acc) ->
+do_normalize_path([H | T], Acc) ->
     Acc2 =
         case H of
             "."                  -> Acc;
             ".." when Acc =:= [] -> Acc;
             ".."                 -> tl(Acc);
-            _                    -> [H|Acc]
+            _                    -> [H | Acc]
         end,
     do_normalize_path(T, Acc2);
 do_normalize_path([], Acc) ->
     filename:join(lists:reverse(Acc)).
+
+join(_Sep, []) ->
+    [];
+join(Sep, [H|T]) ->
+ [H | join2(Sep, T)].
+
+join2(_Sep, []) ->
+    [];
+join2(Sep, [H | T]) ->
+    [Sep , H | join2(Sep, T)].
