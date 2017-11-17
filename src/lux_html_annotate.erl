@@ -550,7 +550,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      "<div class=\"code\"><pre><a name=\"cleanup\"></a></pre></div>\n",
 
      lux_html_utils:html_anchor("h2", "", "stats", "Script statistics:"),
-     LogFun(EventLog ++ ".csv", "Csv data file", ""),
+     LogFun(EventLog ++ ".csv", "Csv data file", "application/excel"),
      html_stats(Timers),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
@@ -941,7 +941,7 @@ html_scripts(A, [{file, Path, OrigScript} | Files], Level) ->
     RelPath0 = drop_run_dir_prefix(A, Path),
     RelPath = add_up_dir(A, RelPath0, Level),
     [
-     "\n<br/>", lux_html_utils:html_href(RelScript, RelPath),
+     "\n<br/>", lux_html_utils:html_href("", RelScript, RelPath, "text/plain"),
      html_scripts(A, Files, include)
     ];
 html_scripts(_A, [], _Level) ->
