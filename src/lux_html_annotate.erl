@@ -133,7 +133,8 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
     LogFun =
         fun(L, S) ->
                 ["    <td><strong>",
-                 lux_html_utils:html_href(L, S), "</strong></td>\n"]
+                 lux_html_utils:html_href("", L, S, "text/plain"),
+                 "</strong></td>\n"]
         end,
     [
      lux_html_utils:html_header(["Lux summary log (", Dir, ")"]),
@@ -172,8 +173,9 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
                 LogFun =
                     fun(L, S) ->
                             ["    <td><strong>",
-                             lux_html_utils:html_href(drop_prefix(SuiteLogDir,
-                                                                  L), S),
+                             lux_html_utils:html_href(
+                               "", drop_prefix(SuiteLogDir, L), S,
+                               "text/plain"),
                              "</strong></td>\n"]
                     end,
                 [
@@ -498,9 +500,10 @@ html_events(A, EventLog, ConfigLog, Script, Result,
     ExtraLogs = EventLogBase ++ ".extra.logs",
     Dir = filename:basename(EventLogDir),
     LogFun =
-        fun(L, S) ->
+        fun(L, S, Type) ->
                 ["    <td><strong>",
-                 lux_html_utils:html_href(drop_prefix(EventLogDir, L), S),
+                 lux_html_utils:html_href(
+                   "", drop_prefix(EventLogDir, L), S, Type),
                  "</strong></td>\n"]
         end,
     PrefixScript = A#astate.case_prefix ++ drop_run_dir_prefix(A, Script),
@@ -528,10 +531,10 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      "\n<h3>Log files:</h3>\n ",
      "<table border=\"1\">\n",
      "  <tr>\n",
-     LogFun(EventLog, "Event"),
-     LogFun(ConfigLog, "Config"),
+     LogFun(EventLog, "Event", "text/plain"),
+     LogFun(ConfigLog, "Config", "text/plain"),
      case filelib:is_dir(ExtraLogs) of
-         true  -> LogFun(ExtraLogs, "Extra");
+         true  -> LogFun(ExtraLogs, "Extra", "");
          false -> "    <td><strong>No extra</strong></td>\n"
      end,
      html_logs(A, Logs),
@@ -547,7 +550,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      "<div class=\"code\"><pre><a name=\"cleanup\"></a></pre></div>\n",
 
      lux_html_utils:html_anchor("h2", "", "stats", "Script statistics:"),
-     LogFun(EventLog ++ ".csv", "Csv data file"),
+     LogFun(EventLog ++ ".csv", "Csv data file", ""),
      html_stats(Timers),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
@@ -822,10 +825,10 @@ html_logs(A, [{log, ShellName, Stdin, Stdout} | Logs]) ->
      "\n<tr>\n    ",
      "<td><strong>Shell ", ShellName, "</strong></td>",
      "<td><strong>",
-     lux_html_utils:html_href(rel_log(A, Stdin), "Stdin"),
+     lux_html_utils:html_href("", rel_log(A, Stdin), "Stdin", "text/plain"),
      "</strong></td>",
      "<td><strong>",
-     lux_html_utils:html_href(rel_log(A, Stdout), "Stdout"),
+     lux_html_utils:html_href("", rel_log(A, Stdout), "Stdout", "text/plain"),
      "</strong></td>",
      "\n</tr>\n",
      html_logs(A, Logs)

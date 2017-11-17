@@ -9,7 +9,7 @@
 
 -export([
          safe_write_file/2,
-         html_href/2, html_href/3, html_href/5,
+         html_href/2, html_href/3, html_href/4, html_href/5,
          html_anchor/2, html_anchor/4,
          html_quote/1,
          html_header/1,
@@ -50,7 +50,7 @@ html_href(Tag, Prefix, Protocol, Name, Label) when Tag =/= "" ->
      "</", Tag, ">\n"
     ].
 
-html_href(Protocol, Name, Label) when Protocol =:= "" -> % Temporary assert
+html_href(Protocol, Name, Label, "") when Protocol =:= "" -> % Temporary assert
     %% AbsHref = ?b2l(?l2b([Protocol, Name])),
     %% case chop_root(AbsHref) of
     %%     AbsHref ->
@@ -60,10 +60,18 @@ html_href(Protocol, Name, Label) when Protocol =:= "" -> % Temporary assert
     %% end,
     [
      "<a href=\"", Protocol, html_quote(Name), "\">", Label, "</a>"
+    ];
+html_href(Protocol, Name, Label, Type) when Protocol =:= "" ->
+    [
+     "<a href=\"", Protocol, html_quote(Name), "\""
+     " type=\"", Type, "\">", Label, "</a>"
     ].
 
 html_href(Name, Label) ->
     html_href("", Name, Label).
+
+html_href(Protocol, Name, Label) ->
+    html_href(Protocol, Name, Label, "").
 
 html_anchor(Tag, Prefix, Name, Label) ->
     [
