@@ -36,8 +36,9 @@
 #endif
 
 #ifdef DEBUG
+int dbgfd = -1;
 #define DBG(...) dprintf(dbgfd, __VA_ARGS__)
-#define DBGEXIT(status) { close(dbgfd); exit(status); }
+#define DBGEXIT(status) { DBG("EXIT %d\n", status); close(dbgfd); exit(status); }
 #define DBGDUMP(buf, len)                       \
     {                                           \
         dprintf(dbgfd, "\n<<<BEGIN>>>\n");      \
@@ -76,6 +77,7 @@
 
 static int quit = 0;
 void sighdlr(int sig) {
+    DBG("GOT SIGNAL %d\n", sig);
     switch (sig) {
     case SIGCHLD:
         break;
@@ -188,13 +190,13 @@ int main(int argc, char *argv[])
 
 #ifdef DEBUG
     char* shellname = getenv("LUX_SHELLNAME");
-    char*  dbgfile;
+    char* dbgfile;
     if (shellname) {
         asprintf(&dbgfile, "runpty.dbg.%s", shellname);
     } else {
         asprintf(&dbgfile, "runpty.dbg");
     }
-    int dbgfd = open(dbgfile, O_WRONLY |O_CREAT | O_TRUNC);
+    dbgfd = open(dbgfile, O_WRONLY |O_CREAT | O_TRUNC);
     if (dbgfd < 0 ) {
         perror("open runpty.dbg failed");
         exit(1);
@@ -354,6 +356,7 @@ quit:
         signal(SIGCHLD, sighdlr);
         /* Wait for SIGCHLD or timeout */
         if (select(0, NULL, NULL, NULL, &tv) == 0) {
+            DBG("KILL CHILD\n");
             kill(child, SIGKILL);
         }
         waitpid(child, &status, 0);
