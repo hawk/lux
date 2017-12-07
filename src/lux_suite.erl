@@ -414,7 +414,7 @@ flatten_results(Groups) ->
                         end;
                     {error, Reason} ->
                         {error, Script, "0", Reason};
-                    {fail, RawLineNo, _Expected, _Actual, _Details} ->
+                    {fail, RawLineNo, _ET, _Expected, _Actual, _Details} ->
                         {ok, fail, Script, ?b2l(RawLineNo), []}
                 end
         end,
