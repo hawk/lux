@@ -177,6 +177,7 @@
          send_lineno  :: [integer()], % Reversed stack of lineno
          send_data    :: [binary()],
          shell        :: binary(),                        % Name
+         callstack    :: binary(),                        % Name->Name->Name
          macro        :: binary(),                        % Name
          max_time     :: infinity | non_neg_integer(),    % Micros
          status       :: expected | started | matched | failed,

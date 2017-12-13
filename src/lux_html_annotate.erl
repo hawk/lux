@@ -52,7 +52,7 @@ do_generate(IsRecursive, LogFile, SuiteLogDir, WWW, Opts)
         end,
     {NewRes, NewWWW}.
 
-init_astate(LogFile, SuiteLogDir, Opts)                                     ->
+init_astate(LogFile, SuiteLogDir, Opts) ->
     AbsLogFile = lux_utils:normalize_filename(LogFile),
     LogDir = filename:dirname(AbsLogFile),
     CasePrefix = lux_utils:pick_opt(case_prefix, Opts, ""),
@@ -84,10 +84,10 @@ annotate_summary_log(IsRecursive, #astate{log_file=AbsSummaryLog} = A0, WWW)
                           end_time = EndTime},
             Html = html_groups(A, AbsSummaryLog, Result,
                                Groups, ConfigSection),
+            SuiteLogDir = filename:dirname(AbsSummaryLog),
             case IsRecursive of
                 true ->
                     O = A#astate.opts,
-                    SuiteLogDir = filename:dirname(AbsSummaryLog),
                     AnnotateEventLog =
                         fun(EventLog0, W) ->
                                 RelEventLog =
@@ -157,7 +157,7 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
      lux_html_utils:html_footer()
     ].
 
-html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
+html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
     %% io:format("Sections: ~p\n", [Sections]),
     ResultString = choose_tmp(IsTmp, "Preliminary ", "Final "),
     PrelScriptSection =
@@ -210,13 +210,13 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp)          ->
      "</pre></div>"
     ].
 
-choose_tmp(IsTmp, TmpString, String)                                        ->
+choose_tmp(IsTmp, TmpString, String) ->
     case IsTmp of
         true  -> TmpString;
         false -> String
     end.
 
-html_summary_section(A, {section, Slogan, Count, FileBins}, Groups)         ->
+html_summary_section(A, {section, Slogan, Count, FileBins}, Groups) ->
     [
      "<strong>", lux_html_utils:html_quote(Slogan), ": ", Count, "</strong>\n",
      case FileBins of
@@ -250,12 +250,12 @@ html_summary_file(A, {file, FileBin, LineNo}, Groups)
              "\n"]
     end.
 
-html_groups2(A, [{test_group, _Group, Cases} | Groups])                     ->
+html_groups2(A, [{test_group, _Group, Cases} | Groups]) ->
     [
      html_cases(A, Cases),
      html_groups2(A, Groups)
     ];
-html_groups2(_A, [])                                                        ->
+html_groups2(_A, []) ->
     [].
 
 html_cases(A, [{test_case, AbsScript, _Log, Doc, HtmlLog, Res} | Cases])
@@ -297,22 +297,20 @@ html_cases(A, [{result_case, AbsScript, Reason, Details} | Cases])
      "</pre></div>",
      html_cases(A, Cases)
     ];
-html_cases(_A, [])                                                          ->
+html_cases(_A, []) ->
     [].
 
-html_doc(_Tag, [])                                                          ->
+html_doc(_Tag, []) ->
     [];
-html_doc(Tag, [Slogan | Desc])                                              ->
+html_doc(Tag, [Slogan | Desc]) ->
     [
      "\n<", Tag, ">Description: <strong>",
      lux_html_utils:html_quote(Slogan),
      "</strong></",
      Tag, ">\n",
      case Desc of
-         [] ->
-             [];
-         _ ->
-             html_div(<<"event">>, lux_utils:expand_lines(Desc))
+         [] -> [];
+         _  -> html_div(<<"event">>, lux_utils:expand_lines(Desc))
      end
     ].
 
@@ -320,7 +318,7 @@ html_doc(Tag, [Slogan | Desc])                                              ->
 %% Annotate a lux with events from the log
 
 annotate_event_log(#astate{log_file=EventLog} = A, WWW)
-  when is_list(EventLog)   ->
+  when is_list(EventLog) ->
     try
         {Res, NewWWW} = lux_log:scan_events(EventLog, WWW),
         case Res of
@@ -372,13 +370,13 @@ pick_event_time(Op, #event{lineno =  0,
                            op = Op,
                            data = [Time]}) ->
     ?b2l(Time);
-pick_event_time(Op, Events = [_|_])                                         ->
+pick_event_time(Op, Events = [_|_]) ->
     case Op of
         <<"start_time">> -> pick_event_time(Op, hd(Events));
         <<"end_time">>   -> pick_event_time(Op, lists:last(Events));
         _                -> pick_event_time(Op, [])
     end;
-pick_event_time(_Op, _Event)                                                ->
+pick_event_time(_Op, _Event) ->
     "unknown".
 
 interleave_code(A, Events, Script, FirstLineNo, MaxLineNo, CmdStack, Files)
@@ -551,125 +549,110 @@ html_events(A, EventLog, ConfigLog, Script, Result,
 
      lux_html_utils:html_anchor("h2", "", "stats", "Script statistics:"),
      LogFun(EventLog ++ ".csv", "Csv data file", "application/excel"),
+     lux_html_utils:html_href("h4", "", "", "#macro_stats", "Macros"),
+     lux_html_utils:html_href("h4", "", "", "#shell_stats", "Shells"),
      html_stats(Timers),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
      lux_html_utils:html_footer()
     ].
 
-dotdot(["."], Base)                                                         ->
+dotdot(["."], Base) ->
     Base;
-dotdot(Path, Base)                                                          ->
+dotdot(Path, Base) ->
     DotDots = filename:join([".." || _ <- Path]),
     filename:join([DotDots, Base]).
 
-html_stats(OrigTimers)                                                      ->
-    Timers = strip_timers(OrigTimers, []),
+html_stats(Timers) ->
+    {MacroSplit, ShellSplit} = lux_html_utils:split_timers(Timers),
     [
-     "<table border=\"0\">\n",
-     "  <tr>\n",
-     "    <td>\n",
-     html_timers(#timer.shell, "Shells", Timers, OrigTimers),
-     "    </td>\n",
-     "    <td>\n",
-     html_timers(#timer.macro, "Macros", Timers, OrigTimers),
-     "    </td>\n",
-     "  </tr>\n",
-     "</table>\n"
+     lux_html_utils:html_anchor("h3", "", "macro_stats",
+                                "Statistics per macro"),
+     html_timers("Macro", MacroSplit),
+     lux_html_utils:html_anchor("h3", "", "shell_stats",
+                                "Statistics per shell"),
+     html_timers("Shell", ShellSplit)
     ].
 
-strip_timers([T | Timers], Acc)                                             ->
-    case T#timer.send_lineno =:= T#timer.match_lineno andalso
-         not lists:keymember(T#timer.shell, #timer.shell, Acc) of
-        true  -> strip_timers(Timers, Acc); % Strip shell start
-        false -> strip_timers(Timers, [T | Acc])
-    end;
-strip_timers([], Acc)                                                       ->
-    lists:reverse(Acc).
-
-html_timers(Pos, Label, Timers, _OrigTimers)                                ->
-    SplitTimers = keysplit(Pos, Timers),
-    Calc = fun({Tag, List}) ->
-                   Sum = lists:sum([E || #timer{elapsed_time = E,
-                                                status = matched} <- List]),
-                   {Tag, Sum, List}
-           end,
-    SplitSums = lists:reverse(lists:keysort(2, lists:map(Calc, SplitTimers))),
-    Total = lists:sum([Sum || {_Tag, Sum, _List} <- SplitSums]),
-    F = fun(L, Data) ->
-                Pretty = lux_utils:pretty_full_lineno(L),
-                ToolTip = lux_utils:expand_lines(Data),
-                [
-                 "\n<a href=\"#", lux_html_utils:html_quote(Pretty),
-                 "\" title=\"", lux_html_utils:html_quote(ToolTip),
-                 "\">", Pretty, "</a>"
-                ]
-        end,
-    Row = fun(Lab, Sum, List) ->
-                  [
-                   "  <tr>\n",
-                   "    <td>",
-                   case Lab of
-                       ""   -> "N/A";
-                       <<>> -> "N/A";
-                       _    -> Lab
-                   end,
-                   "</td>\n",
-                   if
-                       Sum =:= undefined ->
-                           [
-                            "    <td></td>\n",
-                            "    <td></td>\n"
-                           ];
-                       is_integer(Sum) ->
-                           Perc =
-                               case Total of
-                                   0 -> 0;
-                                   _ -> (Sum*100) div Total
-                               end,
-                           [
-                            "    <td align=\"right\">", ?i2l(Sum), "</td>\n",
-                            "    <td align=\"right\">", ?i2l(Perc), "%</td>\n"
-                           ]
-                   end,
-                   "    <td></td>\n",
-                   case List of
-                       [] ->
-                           [
-                            "    <td>", "Match", "</td>\n",
-                            "    <td>", "Send", "</td>\n"
-                           ];
-                       _ ->
-                           [
-                            "    <td></td>\n",
-                            "    <td></td>\n"
-                           ]
-                   end,
-                   "  </tr>\n",
-                   [["  <tr>\n",
-                     "    <td></td>\n",
-                     "    <td></td>\n",
-                     "    <td></td>\n",
-                     "    <td align=\"right\">",
-                     ?i2l(T#timer.elapsed_time),
-                     "</td>\n",
-                     "    <td>", F(T#timer.match_lineno,
-                                   T#timer.match_data), "</td>\n",
-                     "    <td>", F(T#timer.send_lineno,
-                                   T#timer.send_data), "</td>\n",
-                     "  </tr>\n"] || T <- List,
-                                     T#timer.status =:= matched]
-
-                  ]
-          end,
+html_timers(Label, {Total, SplitSums}) ->
     [
      "<table border=\"1\">\n",
-     Row(["<strong>", Label, "</strong>"], Total, []),
-     [Row(Tag, Sum, List) || {Tag, Sum, List} <- SplitSums],
+     html_timer_row(["<strong>", Label, "</strong>"], Total, [], Total),
+     [html_timer_row(Tag, Sum, List, Total) ||
+         {Tag, Sum, List} <- SplitSums],
      "</table>\n\n"
     ].
 
-html_result(Tag, {result, Result}, HtmlLog)                                 ->
+html_timer_row(Lab, Sum, List, Total) ->
+    [
+     "  <tr>\n",
+     "    <td>",
+     case Lab of
+         ""   -> "N/A";
+         <<>> -> "N/A";
+         _    -> Lab
+     end,
+     "</td>\n",
+     if
+         Sum =:= undefined ->
+             [
+              "    <td></td>\n",
+              "    <td></td>\n"
+             ];
+         is_integer(Sum) ->
+             Perc =
+                 case Total of
+                     0 -> 0;
+                     _ -> (Sum*100) div Total
+                 end,
+             [
+              "    <td align=\"right\">", ?i2l(Sum), "</td>\n",
+              "    <td align=\"right\">", ?i2l(Perc), "%</td>\n"
+             ]
+     end,
+     "    <td></td>\n",
+     case List of
+         [] ->
+             [
+              "    <td>", "Match", "</td>\n",
+              "    <td>", "Send", "</td>\n",
+              "    <td>", "Call stack", "</td>\n"
+             ];
+         _ ->
+             [
+              "    <td></td>\n",
+              "    <td></td>\n",
+              "    <td></td>\n"
+             ]
+     end,
+     "  </tr>\n",
+     [["  <tr>\n",
+       "    <td></td>\n",
+       "    <td></td>\n",
+       "    <td></td>\n",
+       "    <td align=\"right\">",
+       ?i2l(T#timer.elapsed_time),
+       "</td>\n",
+       "    <td>", html_timer_data(T#timer.match_lineno,
+                     T#timer.match_data), "</td>\n",
+       "    <td>", html_timer_data(T#timer.send_lineno,
+                     T#timer.send_data), "</td>\n",
+       "    <td>", T#timer.callstack, "</td>\n",
+       "  </tr>\n"] || T <- List,
+                       T#timer.status =:= matched]
+
+    ].
+
+html_timer_data(L, Data) ->
+    Pretty = lux_utils:pretty_full_lineno(L),
+    ToolTip = lux_utils:expand_lines(Data),
+    [
+     "\n<a href=\"#", lux_html_utils:html_quote(Pretty),
+     "\" title=\"", lux_html_utils:html_quote(ToolTip),
+     "\">", Pretty, "</a>"
+    ].
+
+html_result(Tag, {result, Result}, HtmlLog) ->
     case Result of
         success ->
             ["\n<", Tag, ">Result: <strong>SUCCESS</strong></", Tag, ">\n"];
@@ -1073,28 +1056,3 @@ elapsed_time_to_str(MicrosDiff) ->
     {Hours, Mins, Secs} = calendar:seconds_to_time(TotalSecs),
     lists:concat([Hours, ":", Mins, ":", Secs, ".",
                   string:right(?i2l(Micros), 6, $0), " (h:m:s.us)"]).
-
-%% Collect list of tuples and group them according to their tag
-%%
-%% The internal ordering is kept:
-%%
-%%   keysplit(1, [{3,3},{3,1},{3,2},{1,1},{1,2},{2,2},{2,1},{1,3}]).
-%%   -> [{3,[{3,3},{3,1},{3,2}]},
-%%       {1,[{1,1},{1,2},{1,3}]},
-%%       {2,[{2,2},{2,1}]}]
-
-keysplit(Pos, List) ->
-    do_keysplit(Pos, List, []).
-
-do_keysplit(Pos, [H | T], Acc) ->
-    Tag = element(Pos, H),
-    case lists:keyfind(Tag, 1, Acc) of
-        false ->
-            NewAcc = [{Tag, [H]} | Acc],
-            do_keysplit(Pos, T, NewAcc);
-        {Tag, Old} ->
-            NewAcc = lists:keyreplace(Tag, 1, Acc, {Tag, [H|Old]}),
-            do_keysplit(Pos, T, NewAcc)
-    end;
-do_keysplit(_Pos, [], Acc) ->
-    lists:reverse([{Tag, lists:reverse(List)} || {Tag, List} <- Acc]).

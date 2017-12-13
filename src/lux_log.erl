@@ -14,8 +14,8 @@
          write_results/5, print_results/5, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/3,
          open_event_log/5, close_event_log/1, write_event/4, scan_events/2,
-         parse_events/2, extract_timers/1, timers_to_csv/1, parse_io_logs/2,
-         open_config_log/3, close_config_log/2,
+         parse_events/2, parse_io_logs/2, open_config_log/3, close_config_log/2,
+         extract_timers/1, timers_to_csv/1, csv_to_timers/1,
          safe_format/5, safe_write/4, dequote/1
         ]).
 
@@ -774,13 +774,14 @@ extract_timers([E | Events], Send, Calls, Nums, Acc) ->
         #event{op = <<"expect", _/binary>>} ->
             {SendE, SendNums} = Send,
             SendLineNo = [SendE#event.lineno | SendNums],
+            Callstack = format_calls(Calls, []),
             MatchLineNo = [E#event.lineno | Nums],
             T = #timer{match_lineno = MatchLineNo,
                        match_data = E#event.data,
                        send_lineno = SendLineNo,
                        send_data = SendE#event.data,
                        shell = E#event.shell,
-                       macro = hd(Calls),
+                       callstack = Callstack,
                        status = expected},
             case Acc of
                 [AddT | NewAcc] when AddT#timer.status =:= expected ->
@@ -822,6 +823,11 @@ extract_timers([E | Events], Send, Calls, Nums, Acc) ->
 extract_timers([], Send, _Calls, _Nums, Acc) ->
     {Send, Acc}.
 
+format_calls([<<>>], Acc) ->
+    iolist_to_binary(join("->", Acc));
+format_calls([H|T], Acc) ->
+    format_calls(T, [H | Acc]).
+
 %% ---------
 %% new timer
 %% ---------
@@ -857,21 +863,14 @@ parse_timer(Data) ->
     end.
 
 timers_to_csv(Timers) ->
-    Header0 =
-        [
-         "Send",
-         "Match",
-         "Shell",
-         "Macro",
-         "MaxTime",
-         "Status",
-         "Elapsed"
-        ],
-    Header = [q(H) || H <- Header0],
+    Header = [q(H) || H <- timer_header()],
     ElemLines = [timer_to_elems(T) || T <- Timers,
                                       T#timer.status =/= expected],
     Sep = ";",
     [[join(Sep, E), "\n"] || E <- [Header | ElemLines]].
+
+timer_header() ->
+    ["Send", "Match", "Shell", "Macro", "MaxTime", "Status", "Elapsed"].
 
 join(_Sep, []) ->
     [];
@@ -882,7 +881,7 @@ timer_to_elems(#timer{match_lineno = MatchStack,
                       send_lineno  = SendStack,
                       send_data    = _SendData,
                       shell        = Shell,
-                      macro        = Macro,
+                      callstack    = Callstack,
                       max_time     = MaxTime,
                       status       = Status,
                       elapsed_time = Elapsed}) ->
@@ -893,7 +892,7 @@ timer_to_elems(#timer{match_lineno = MatchStack,
      end,
      q(["@", lux_utils:pretty_full_lineno(MatchStack)]),
      q(Shell),
-     q(Macro),
+     q(Callstack),
      case MaxTime of
          infinity -> q("infinity");
          _        -> ?i2l(MaxTime)
@@ -912,6 +911,30 @@ timer_to_elems(#timer{match_lineno = MatchStack,
 q(List) ->
     Replace = fun(C) -> case C of $; -> "<SEMI>"; _ -> C end end,
     ["\"", lists:map(Replace, ?b2l(?l2b(List))), "\""].
+
+csv_to_timers(CsvFile) ->
+    case file:read_file(CsvFile) of
+        {ok, FileBin} ->
+            RowBins = binary:split(FileBin, <<"\n">>, [global]),
+            Fun =
+                fun(RowBin) ->
+                        [Send, Match, Shell, Macro, MaxTime, Status, Elapsed] =
+                            binary:split(RowBin, <<"\n">>, [global]),
+                        #timer{match_lineno = Match,
+                               send_lineno  = Send,
+                               send_data    = undefined,
+                               shell        = Shell,
+                               callstack    = Macro,
+                               macro    = undefined,
+                               max_time     = MaxTime,
+                               status       = Status,
+                               elapsed_time = Elapsed}
+                end,
+            [#timer{match_lineno = "Match"} | Timers] = lists:map(Fun, RowBins),
+            Timers;
+        {error, FileReason} ->
+            {error, CsvFile, file:format_error(FileReason)}
+    end.
 
 scan_config(ConfigLog, WWW) when is_list(ConfigLog) ->
     {ReadRes, NewWWW} = read_log(ConfigLog, ?CONFIG_TAG, WWW),

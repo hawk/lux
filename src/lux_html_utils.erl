@@ -8,6 +8,8 @@
 -module(lux_html_utils).
 
 -export([
+         keysplit/2,
+         split_timers/1,
          safe_write_file/2,
          html_href/2, html_href/3, html_href/4, html_href/5,
          html_anchor/2, html_anchor/4,
@@ -17,6 +19,78 @@
         ]).
 
 -include("lux.hrl").
+
+
+%% Collect list of tuples and group them according to their tag
+%%
+%% The internal ordering is kept:
+%%
+%%   keysplit(1, [{3,3},{3,1},{3,2},{1,1},{1,2},{2,2},{2,1},{1,3}]).
+%%   -> [{3,[{3,3},{3,1},{3,2}]},
+%%       {1,[{1,1},{1,2},{1,3}]},
+%%       {2,[{2,2},{2,1}]}]
+
+keysplit(Pos, List) ->
+    do_keysplit(Pos, List, []).
+
+do_keysplit(Pos, [H | T], Acc) ->
+    Tag = element(Pos, H),
+    case lists:keyfind(Tag, 1, Acc) of
+        false ->
+            NewAcc = [{Tag, [H]} | Acc],
+            do_keysplit(Pos, T, NewAcc);
+        {Tag, Old} ->
+            NewAcc = lists:keyreplace(Tag, 1, Acc, {Tag, [H|Old]}),
+            do_keysplit(Pos, T, NewAcc)
+    end;
+do_keysplit(_Pos, [], Acc) ->
+    lists:reverse([{Tag, lists:reverse(List)} || {Tag, List} <- Acc]).
+
+split_timers(Timers) ->
+    ShellTimers = strip_timers(Timers, []),
+    ShellSplit = do_split_timers(#timer.shell, ShellTimers),
+    MacroTimers = expand_macros(ShellTimers),
+    MacroSplit = do_split_timers(#timer.macro, MacroTimers),
+    {MacroSplit, ShellSplit}.
+
+do_split_timers(Pos, Timers) ->
+    SplitTimers = keysplit(Pos, Timers),
+    Calc = fun({Tag, List}) ->
+                   Sum =
+                       lists:sum([opt_time(T#timer.elapsed_time) || T <- List]),
+                   {Tag, Sum, List}
+           end,
+    SplitSums = lists:reverse(lists:keysort(2, lists:map(Calc, SplitTimers))),
+    Total = lists:sum([Sum || {_Tag, Sum, _List} <- SplitSums]),
+    {Total, SplitSums}.
+
+opt_time(Time) ->
+    case Time of
+        undefined -> 0;
+        _         -> Time
+    end.
+
+%% Strip startup of shells and failures
+strip_timers([H | T], Acc) ->
+    Skip =
+        H#timer.send_lineno =:= H#timer.match_lineno andalso
+        not lists:keymember(H#timer.shell, #timer.shell, Acc) andalso
+        H#timer.status =:= matched,
+    Acc2 =
+        case Skip of
+            true  -> Acc;
+            false -> [H | Acc]
+        end,
+    strip_timers(T, Acc2);
+strip_timers([], Acc) ->
+    lists:reverse(Acc).
+
+expand_macros(Timers) ->
+    Expand = fun(#timer{callstack=C} = T) ->
+                    Macros = binary:split(C, <<"->">>, [global]),
+                    [T#timer{macro = M} || M <- Macros]
+             end,
+    lists:flatmap(Expand, Timers).
 
 safe_write_file(File, IoList) when is_binary(File) ->
     safe_write_file(?b2l(File), IoList);

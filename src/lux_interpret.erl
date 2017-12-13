@@ -798,7 +798,7 @@ do_eval_loop(OldI, Name, Items, First, Last, Body, LoopCmd, LoopFun, N) ->
             OldI
     end.
 
-pick_item([Item|Items])                                                 ->
+pick_item([Item|Items]) ->
     case split_range(Item, []) of
         false ->
             %% Not a range
