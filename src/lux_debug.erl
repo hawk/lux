@@ -1020,11 +1020,11 @@ pretty_param(#debug_param{name = Name, type = Type, help = Help}, Longest) ->
                 ];
             {Atom, Min, Max} ->
                 [
-                 io_lib:format("~p", [Min]),
+                 ?FF("~p", [Min]),
                  " >= ",
                  atom_to_list(Atom),
                  " =< ",
-                 io_lib:format("~p", [Max])
+                 ?FF("~p", [Max])
                 ];
             Atom ->
                 atom_to_list(Atom)
@@ -1161,7 +1161,7 @@ tail(#istate{suite_log_dir=SuiteLogDir} = I,
 tail_format("compact", Format, Data) ->
     format(Format, Data);
 tail_format("verbose", Format, Data) ->
-    Str = lists:flatten(io_lib:format(Format, Data)),
+    Str = lists:flatten(?FF(Format, Data)),
     format("~s", [lux_log:dequote(Str)]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -53,7 +53,7 @@ init(I, StartTime) ->
             {error, Reason, I5};
         error:Reason ->
             EST = erlang:get_stacktrace(),
-            ErrBin = ?l2b(io_lib:format("~p", [Reason])),
+            ErrBin = ?l2b(?FF("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
                       [ErrBin, EST]),
             {error, ErrBin, I}
@@ -1208,7 +1208,7 @@ shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
 shell_crashed(I, Pid, Reason) ->
     What =
         case lists:keyfind(Pid, #shell.pid, I#istate.shells) of
-            false -> ["Process ", io_lib:format("~p", [Pid])];
+            false -> ["Process ", ?FF("~p", [Pid])];
             Shell -> ["Shell ", Shell#shell.name]
         end,
     ErrBin2 =

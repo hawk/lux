@@ -24,7 +24,6 @@
         }).
 
 -define(TAB_LEN, 8).
--define(FF(Format, Args), io_lib:format(Format, Args)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse
@@ -741,31 +740,31 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
           #cmd{lineno = LineNo, arg = {config, Var, NameVal}} = Cmd) ->
     case Var of
         "skip" when not SkipSkip ->
-            {IsSet, Name} = test_var(P, NameVal),
+            {IsSet, Name, Val} = test_var(P, NameVal),
             case IsSet of
                 false ->
                     {P, Cmd};
                 true ->
-                    Reason = "SKIP as variable ~s is set",
-                    parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
+                    Format = "SKIP as variable ~s is set",
+                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
             end;
         "skip_unless" when not SkipSkip ->
-            {IsSet, Name} = test_var(P, NameVal),
+            {IsSet, Name, Val} = test_var(P, NameVal),
             case IsSet of
                 true ->
                     {P, Cmd};
                 false ->
-                    Reason = "SKIP as variable ~s is not set",
-                    parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
+                    Format = "SKIP as variable ~s is not set",
+                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
             end;
         "require" when RunMode =:= execute ->
-            {IsSet, Name} = test_var(P, NameVal),
+            {IsSet, Name, Val} = test_var(P, NameVal),
             case IsSet of
                 true ->
                     {P, Cmd};
                 false ->
-                    Reason = "FAIL as required variable ~s is not set",
-                    parse_skip(P, Fd, LineNo, ?FF(Reason, [Name]))
+                    Format = "FAIL as required variable ~s is not set",
+                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
             end;
         _ ->
             {P, Cmd}
@@ -773,6 +772,11 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
 
 test_var(P, VarVal) ->
     lux_utils:test_var(P#pstate.multi_vars, VarVal).
+
+format_val(Format, Args, false) ->
+    ?FF(Format, Args);
+format_val(Format, Args, Val) ->
+    ?FF(Format ++ " to ~p", Args ++ [Val]).
 
 expand_vars(P, Fd, Val, LineNo) ->
     try

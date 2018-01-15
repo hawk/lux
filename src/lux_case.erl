@@ -158,8 +158,7 @@ eval(OldI, StartTime, Progress, Verbose,
     end.
 
 internal_error(I, ReasonTerm) ->
-    ReasonBin = ?l2b(io_lib:format("INTERNAL LUX ERROR: ~p\n",
-                                             [ReasonTerm])),
+    ReasonBin = ?l2b(?FF("INTERNAL LUX ERROR: ~p\n", [ReasonTerm])),
     fatal_error(I, ReasonBin).
 
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
@@ -473,12 +472,9 @@ print_fail(OldI0, NewI, File, Results,
     FailBin =
         ?l2b(
           [
-           io_lib:format("~s\n\t~s\n",
-                         [ExpectedTag, simple_to_string(Expected)]),
-           io_lib:format("actual ~s\n\t~s\n",
-                         [NewActual, simple_to_string(NewRest)]),
-           io_lib:format("diff\n\t~s",
-                         [simple_to_string(Diff)])
+           ?FF("~s\n\t~s\n", [ExpectedTag, simple_to_string(Expected)]),
+           ?FF("actual ~s\n\t~s\n", [NewActual, simple_to_string(NewRest)]),
+           ?FF("diff\n\t~s", [simple_to_string(Diff)])
           ]),
    case OldI0#istate.progress of
         silent ->
@@ -504,23 +500,23 @@ unstable_warnings(#istate{unstable=U, unstable_unless=UU} = I, FullLineNo) ->
 filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
     case Var of
         "unstable" ->
-            {IsSet, Name} = test_var(I, NameVal),
+            {IsSet, Name, Val} = test_var(I, NameVal),
             case IsSet of
                 false ->
                     false;
                 true ->
                     Format = "Fail but UNSTABLE as variable ~s is set",
-                    Reason = ?l2b(io_lib:format(Format, [Name])),
+                    Reason = ?l2b(format_val(Format, [Name], Val)),
                     {true, {warning, File, FullLineNo, Reason}}
             end;
         "unstable_unless" ->
-            {IsSet, Name} = test_var(I, NameVal),
+            {IsSet, Name, Val} = test_var(I, NameVal),
             case IsSet of
                 true ->
                     false;
                 false ->
                     Format = "Fail but UNSTABLE as variable ~s is not set",
-                    Reason = ?l2b(io_lib:format(Format, [Name])),
+                    Reason = ?l2b(format_val(Format, [Name], Val)),
                     {true, {warning, File, FullLineNo, Reason}}
             end
     end.
@@ -530,6 +526,11 @@ test_var(#istate{builtin_vars = BuiltinVars,
               VarVal) ->
     MultiVars = [BuiltinVars, SystemVars],
     lux_utils:test_var(MultiVars, VarVal).
+
+format_val(Format, Args, false) ->
+    ?FF(Format, Args);
+format_val(Format, Args, Val) ->
+    ?FF(Format ++ " to ~p", Args ++ [Val]).
 
 full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
     RevFile = lux_utils:filename_split(I#istate.file),

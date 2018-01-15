@@ -191,18 +191,18 @@ test_var(Vars, VarVal) ->
         if
             Val =:= false ->
                 %% Variable exists
-                {true, Var};
+                {true, Var, Val};
             Val =:= Expanded ->
                 %% Value matches. Possible empty.
-                {true, Var};
+                {true, Var, Val};
             true ->
                 %% Value does not match
-                {false, Var}
+                {false, Var, Val}
         end
     catch
         throw:{no_such_var, _} ->
             %% Variable is not set
-            {false, Var}
+            {false, Var, Val}
     end.
 
 split_var([$= | Val], Var) ->

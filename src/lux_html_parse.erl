@@ -203,7 +203,7 @@ parse_file(URL, true, StopFun = WWW) when is_function(StopFun, 0) ->
             {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
                 {error, 0, 0, ReasonPhrase};
             {error, Reason} ->
-                String = lists:flatten(io_lib:format("~p", [Reason])),
+                String = lists:flatten(?FF("~p", [Reason])),
                 {error, 0, 0, String}
         end,
     {Res, WWW}.
@@ -238,7 +238,7 @@ parse_html(ParseFun) ->
         end
     catch
         exit:{fatal, {Reason, {file,_BadFile}, {line,Line}, {col,Col}}} ->
-            IoList = io_lib:format("~p", [Reason]),
+            IoList = ?FF("~p", [Reason]),
             {error, Line, Col, lists:flatten(IoList)}
     end.
 

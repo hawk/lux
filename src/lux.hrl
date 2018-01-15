@@ -8,6 +8,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Defines
 
+-define(FF(Format, Args), io_lib:format(Format, Args)).
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), iolist_to_binary(L)).
 -define(i2l(I), integer_to_list(I)).

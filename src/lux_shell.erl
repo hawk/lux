@@ -156,7 +156,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
         catch
             error:ShellReason ->
                 LoopEST = erlang:get_stacktrace(),
-                ErrBin = ?l2b(io_lib:format("~p", [ShellReason])),
+                ErrBin = ?l2b(?FF("~p", [ShellReason])),
                 io:format("\nINTERNAL LUX ERROR: Shell crashed: ~s\n~p\n",
                           [ErrBin, LoopEST]),
                 stop(C2, error, ErrBin)
@@ -556,8 +556,8 @@ shell_eval(#cstate{name = Name} = C0,
             dlog(C, ?dmore, "expected=regexp (~p)", [Tag]),
             if
                 element(2, (hd(C#cstate.pre_expected))#cmd.arg) =/= Tag ->
-                    Err = io_lib:format("Illegal syntax: "
-                                        "?+ cannot be mixed with ?++\n", []),
+                    Err = ?FF("Illegal syntax: "
+                              "?+ cannot be mixed with ?++\n", []),
                     stop(C, error, ?l2b(Err));
                 true ->
                     C#cstate{pre_expected = [Cmd | C#cstate.pre_expected]}
@@ -675,8 +675,8 @@ shell_eval(#cstate{name = Name} = C0,
             opt_late_sync_reply(C3);
         Unexpected ->
             clog(C, shell_got_msg, "~p\n", [element(1, Unexpected)]),
-            Err = io_lib:format("[shell ~s] got cmd with type ~p ~p\n",
-                                [Name, Unexpected, Arg]),
+            Err = ?FF("[shell ~s] got cmd with type ~p ~p\n",
+                      [Name, Unexpected, Arg]),
             stop(C, error, ?l2b(Err))
     end.
 
@@ -884,9 +884,9 @@ try_match(C, Actual, Expected, AltSkip) ->
             stop(C4, {fail, AltExpected, AltActual}, ?match_fail);
         {{'EXIT', Reason}, _} ->
             {_, RegExp} = extract_regexp(Expected#cmd.arg),
-            Err = io_lib:format("Bad regexp:\n\t~p\n"
-                                "Reason:\n\t~p\n",
-                                [RegExp, Reason]),
+            Err = ?FF("Bad regexp:\n\t~p\n"
+                      "Reason:\n\t~p\n",
+                      [RegExp, Reason]),
             stop(C, error, ?l2b(Err))
     end.
 
@@ -1009,9 +1009,9 @@ match_fail_pattern(C, Actual) ->
             C;
         {{'EXIT', Reason}, _} ->
             {_, RegExp} = extract_regexp((C#cstate.fail)#cmd.arg),
-            Err = io_lib:format("Bad regexp:\n\t~p\n"
-                                "Reason:\n\t~p\n",
-                                [RegExp, Reason]),
+            Err = ?FF("Bad regexp:\n\t~p\n"
+                      "Reason:\n\t~p\n",
+                      [RegExp, Reason]),
             stop(C, error, ?l2b(Err))
     end.
 
@@ -1026,9 +1026,9 @@ match_success_pattern(C, Actual) ->
             C;
         {{'EXIT', Reason}, _} ->
             {_, RegExp} = extract_regexp((C#cstate.success)#cmd.arg),
-            Err = io_lib:format("Bad regexp:\n\t~p\n"
-                                "Reason:\n\t~p\n",
-                                [RegExp, Reason]),
+            Err = ?FF("Bad regexp:\n\t~p\n"
+                      "Reason:\n\t~p\n",
+                      [RegExp, Reason]),
             stop(C, error, ?l2b(Err))
     end.
 
@@ -1066,9 +1066,9 @@ match_break_patterns(C, Actual, AltRest, [Loop|Stack] = AllStack, Acc) ->
                     match_break_patterns(C, Actual, AltRest, Stack, [Loop|Acc]);
                 {{'EXIT', Reason}, _} ->
                     {_, RegExp} = extract_regexp(BreakCmd#cmd.arg),
-                    Err = io_lib:format("Bad regexp:\n\t~p\n"
-                                        "Reason:\n\t~p\n",
-                                        [RegExp, Reason]),
+                    Err = ?FF("Bad regexp:\n\t~p\n"
+                              "Reason:\n\t~p\n",
+                              [RegExp, Reason]),
                     stop(C, error, ?l2b(Err))
             end
     end;

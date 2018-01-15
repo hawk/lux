@@ -359,8 +359,8 @@ annotate_event_log(#astate{log_file=EventLog} = A, WWW)
         error:Reason2 ->
             EST = erlang:get_stacktrace(),
             ReasonStr =
-                lists:flatten(io_lib:format("ERROR in ~s\n~p\n\~p\n",
-                                            [EventLog, Reason2, EST])),
+                lists:flatten(?FF("ERROR in ~s\n~p\n\~p\n",
+                                  [EventLog, Reason2, EST])),
             io:format("~s\n", [ReasonStr]),
             {{error, EventLog, ReasonStr}, WWW}
     end.

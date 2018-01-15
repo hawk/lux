@@ -12,8 +12,6 @@
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
 
--define(FF(Format, Args), lists:flatten(io_lib:format(Format, Args))).
-
 -record(rstate,
         {files                      :: [string()],
          orig_files                 :: [string()],
@@ -80,8 +78,7 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                 Class:Reason ->
                     EST = erlang:get_stacktrace(),
                     ReasonStr =
-                        lists:flatten(io_lib:format("~p:~p ~p",
-                                                    [Class, Reason, EST])),
+                        lists:flatten(?FF("~p:~p ~p", [Class, Reason, EST])),
                     {ok, Cwd} = file:get_cwd(),
                     {error, Cwd, ReasonStr}
             end;
@@ -104,8 +101,7 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                 Class:Reason ->
                     EST = erlang:get_stacktrace(),
                     ReasonStr =
-                        lists:flatten(io_lib:format("~p:~p ~p",
-                                                    [Class, Reason, EST])),
+                        lists:flatten(?FF("~p:~p ~p", [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
             after
                 cancel_timer(TimerRef)
@@ -567,10 +563,10 @@ check_file({Tag, File}) ->
                 true ->
                     ok;
                 false ->
-                    BinErr = io_lib:format("~p ~s: ~s\n",
-                                           [Tag,
-                                            File,
-                                            file:format_error(enoent)]),
+                    BinErr = ?FF("~p ~s: ~s\n",
+                                 [Tag,
+                                  File,
+                                  file:format_error(enoent)]),
                     throw_error(File, BinErr)
             end;
         file ->
@@ -578,9 +574,9 @@ check_file({Tag, File}) ->
                 true ->
                     ok;
                 false ->
-                    BinErr = io_lib:format("~s: ~s \n",
-                                           [File,
-                                            file:format_error(enoent)]),
+                    BinErr = ?FF("~s: ~s \n",
+                                 [File,
+                                  file:format_error(enoent)]),
                     throw_error(File, BinErr)
             end
     end.
@@ -606,10 +602,10 @@ run_cases(R, [{SuiteFile,{error=Summary,Reason}, _P, _LenP}|Scripts],
     io:format("~s:\n", [lux_utils:drop_prefix(SuiteFile)]),
     io:format("\tERROR ~s\n", [ReasonStr]),
     NewSummary = lux_utils:summary(OldSummary, Summary),
-    ListErr = ?l2b(io_lib:format( "~s~s: ~s\n",
-                                  [?TAG("error"),
-                                   SuiteFile,
-                                   ReasonStr])),
+    ListErr = ?l2b(?FF( "~s~s: ~s\n",
+                        [?TAG("error"),
+                         SuiteFile,
+                         ReasonStr])),
     Results2 = [{error, SuiteFile, ListErr} | Results],
     run_cases(R, Scripts, NewSummary, Results2, Max, CC+1, List, Opaque);
 run_cases(R, [{SuiteFile, {error,Reason}, P, LenP}|Scripts],
@@ -1097,7 +1093,7 @@ user_prefix() ->
     end.
 
 double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
-    IoList = io_lib:format(Format, Args),
+    IoList = ?FF(Format, Args),
     case Fd of
         undefined -> ?l2b(IoList);
         _         -> lux_log:double_write(Progress, Fd, IoList)
@@ -1106,7 +1102,7 @@ double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
 init_case_rlog(#rstate{progress = Progress, log_fd = Fd},
                RelScript, AbsScript) ->
     Tag = ?TAG("test case"),
-    AbsIoList = io_lib:format("\n~s~s\n", [Tag, AbsScript]),
+    AbsIoList = ?FF("\n~s~s\n", [Tag, AbsScript]),
     case Fd of
         undefined ->
             ?l2b(AbsIoList);
@@ -1116,7 +1112,7 @@ init_case_rlog(#rstate{progress = Progress, log_fd = Fd},
                 silent ->
                     ok;
                 _ ->
-                    RelIoList = io_lib:format("\n~s~s\n", [Tag, RelScript]),
+                    RelIoList = ?FF("\n~s~s\n", [Tag, RelScript]),
                     lux_log:safe_write(undefined, ?l2b(RelIoList))
             end,
             AbsBin

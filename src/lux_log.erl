@@ -61,18 +61,18 @@ open_summary_log(Progress, SummaryLog, ExtendRun) when is_list(SummaryLog) ->
         true ->
             case file:open(TmpSummaryLog, [WriteMode]) of
                 {ok, SummaryFd} ->
-                    LogIoList = io_lib:format("~s~s\n",
-                                              [?TAG(?SUMMARY_TAG),
-                                               ?SUMMARY_LOG_VERSION]),
+                    LogIoList = ?FF("~s~s\n",
+                                    [?TAG(?SUMMARY_TAG),
+                                     ?SUMMARY_LOG_VERSION]),
                     safe_write(SummaryFd, LogIoList),
                     case Progress of
                         silent ->
                             ok;
                         _ ->
                             StdoutIoList =
-                                io_lib:format("~s~s\n",
-                                              [?TAG(?SUMMARY_TAG),
-                                               SummaryLog]),
+                                ?FF("~s~s\n",
+                                    [?TAG(?SUMMARY_TAG),
+                                     SummaryLog]),
                             safe_write(undefined, StdoutIoList)
                     end,
                     {ok, Exists, SummaryFd};
@@ -102,9 +102,9 @@ parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
         error:Reason ->
             EST = erlang:get_stacktrace(),
             ReasonStr =
-                lists:flatten(io_lib:format("\nINTERNAL LUX ERROR"
-                                            " in ~s\n~p\n\~p\n",
-                                            [SummaryLog, Reason, EST])),
+                lists:flatten(?FF("\nINTERNAL LUX ERROR"
+                                  " in ~s\n~p\n\~p\n",
+                                  [SummaryLog, Reason, EST])),
             io:format("~s\n", [ReasonStr]),
             {{error, SummaryLog, ReasonStr}, WWW}
     end.
@@ -206,7 +206,7 @@ fetch_log(Log, StopFun = WWW) when is_function(StopFun, 0) ->
                     {ok, {{_Version, _Code, ReasonPhrase}, _Headers, _Body}} ->
                         {error, ReasonPhrase, <<>>};
                     {error, Reason} ->
-                        String = lists:flatten(io_lib:format("~p", [Reason])),
+                        String = lists:flatten(?FF("~p", [Reason])),
                         {error, String, <<>>}
                 end;
             false ->
@@ -300,9 +300,9 @@ parse_run_summary(Source, File, Res, Opts) ->
         error:Reason ->
             EST = erlang:get_stacktrace(),
             ReasonStr =
-                lists:flatten(io_lib:format("\nINTERNAL LUX ERROR"
-                                            " in ~s\n~p\n\~p\n",
-                                            [File, Reason, EST])),
+                lists:flatten(?FF("\nINTERNAL LUX ERROR"
+                                  " in ~s\n~p\n\~p\n",
+                                  [File, Reason, EST])),
             io:format("~s\n", [ReasonStr]),
             {error, File, ReasonStr}
     end.
@@ -598,7 +598,7 @@ pick_result(Results, Outcome) ->
         O =:= Outcome].
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->
-    IoList = io_lib:format(Format, Args),
+    IoList = ?FF(Format, Args),
     if
         Fd =:= undefined    -> ?l2b(IoList);
         Fd =:= standard_io,
@@ -630,14 +630,14 @@ close_event_log(EventFd) ->
 
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, "", []}) ->
     OpStr = atom_to_list(Op),
-    Data = io_lib:format("~s(~p): ~s\n", [Shell, LineNo, OpStr]),
+    Data = ?FF("~s(~p): ~s\n", [Shell, LineNo, OpStr]),
     safe_write(Progress, LogFun, Fd, Data);
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
     OpStr = atom_to_list(Op),
-    Data = io_lib:format(Fmt, Args),
+    Data = ?FF(Fmt, Args),
 %% ??   Data2 = lux_utils:normalize_match_regexp(Data),
     Data2 = Data,
-    Data3 = io_lib:format("~s(~p): ~s ~s\n", [Shell, LineNo, OpStr, Data2]),
+    Data3 = ?FF("~s(~p): ~s ~s\n", [Shell, LineNo, OpStr, Data2]),
     safe_write(Progress, LogFun, Fd, Data3).
 
 scan_events(EventLog, WWW) when is_list(EventLog) ->
@@ -1106,9 +1106,9 @@ close_config_log(ConfigFd, Logs) ->
         fun({Name, Stdin, Stdout}) ->
                 Data =
                     [
-                     io_lib:format("~s~s: ~s\n",
+                     ?FF("~s~s: ~s\n",
                                    [?TAG("stdin  log file"), Name, Stdin]),
-                     io_lib:format("~s~s: ~s\n",
+                     ?FF("~s~s: ~s\n",
                                    [?TAG("stdout log file"), Name, Stdout])
                     ],
                 ok = file:write(ConfigFd, Data)
@@ -1129,11 +1129,11 @@ format_config(Config) ->
 format_config(Tag, Val, Types) ->
     case format_val_choice(Tag, Val, Types) of
         [] ->
-            io_lib:format("~s\n", [?TAG(Tag)]);
+            ?FF("~s\n", [?TAG(Tag)]);
         [String] ->
-            io_lib:format("~s~s\n", [?TAG(Tag), to_printable(String)]);
+            ?FF("~s~s\n", [?TAG(Tag), to_printable(String)]);
         [String|Strings] ->
-            [io_lib:format("~s~s\n", [?TAG(Tag), to_printable(String)]),
+            [?FF("~s~s\n", [?TAG(Tag), to_printable(String)]),
              [[lists:duplicate(?TAG_WIDTH, $\ ),to_printable(S),"\n"] ||
                  S <- Strings]
             ]
@@ -1156,7 +1156,7 @@ format_val_choice(Tag, Val, [Type | Types]) ->
             format_val_choice(Tag, Val, Types)
     end;
 format_val_choice(Tag, Val, []) ->
-    [lists:flatten(io_lib:format("~s~w\n", [?TAG(Tag), Val]))].
+    [lists:flatten(?FF("~s~w\n", [?TAG(Tag), Val]))].
 
 try_format_val(_Tag, Val = undefined, _Type) ->
     [atom_to_list(Val)];
@@ -1179,7 +1179,7 @@ try_format_val(Tag, Val, Type) ->
     end.
 
 safe_format(Fd, Format, Args) ->
-    IoList = io_lib:format(Format, Args),
+    IoList = ?FF(Format, Args),
     safe_write(Fd, IoList).
 
 safe_write(OptFd, IoList) when is_list(IoList) ->
@@ -1204,7 +1204,7 @@ double_write(Progress, Fd, IoList) when Fd =/= undefined ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 safe_format(Progress, LogFun, Fd, Format, Args) ->
-    IoList = io_lib:format(Format, Args),
+    IoList = ?FF(Format, Args),
     safe_write(Progress, LogFun, Fd, IoList).
 
 safe_write(Progress, LogFun, Fd, IoList) when is_list(IoList) ->
