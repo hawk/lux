@@ -961,9 +961,9 @@ goto_cleanup(OldI, CleanupReason) ->
     LineNo = ?i2l((OldI#istate.latest_cmd)#cmd.lineno),
     NewLineNo =
         case OldI#istate.results of
-            [#result{actual= <<"fail pattern matched ", _/binary>>}|_] ->
+            [#result{actual= <<?fail_pattern_matched, _/binary>>}|_] ->
                 "-" ++ LineNo;
-            [#result{actual= <<"success pattern matched ", _/binary>>}|_] ->
+            [#result{actual= <<?success_pattern_matched, _/binary>>}|_] ->
                 "+" ++ LineNo;
             [#result{outcome = success}|_] ->
                 "";
