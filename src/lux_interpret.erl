@@ -348,14 +348,22 @@ dispatch_cmd(I,
         fail ->
             case compile_regexp(I, Cmd, Arg) of
                 {ok, Cmd2} ->
-                    shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                    ShellPos = #shell.fail_pattern,
+                    {_ExpectTag, RegExp} =
+                        lux_shell:extract_regexp(Cmd2#cmd.arg),
+                    RegExp2 = opt_regexp(RegExp),
+                    change_shell_var(I, ShellPos, RegExp2, Cmd2);
                 {bad_regexp, I2} ->
                     I2
             end;
         success ->
             case compile_regexp(I, Cmd, Arg) of
                 {ok, Cmd2} ->
-                    shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                    ShellPos = #shell.success_pattern,
+                    {_ExpectTag, RegExp} =
+                        lux_shell:extract_regexp(Cmd2#cmd.arg),
+                    RegExp2 = opt_regexp(RegExp),
+                    change_shell_var(I, ShellPos, RegExp2, Cmd2);
                 {bad_regexp, I2} ->
                     I2
             end;
@@ -387,21 +395,27 @@ dispatch_cmd(I,
                     no_such_var(I, Cmd, LineNo, BadName)
             end;
         change_timeout ->
+            ShellPos = #shell.match_timeout,
             case Arg of
                 "" ->
                     Millis = I#istate.default_timeout,
+                    Secs =
+                        case Millis of
+                            infinity -> Millis;
+                            _        -> Millis / 1000
+                        end,
                     Cmd2 = Cmd#cmd{arg = Millis},
-                    shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                    change_shell_var(I, ShellPos, Secs, Cmd2);
                 "infinity" ->
-                    Millis = infinity,
-                    Cmd2 = Cmd#cmd{arg = Millis},
-                    shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                    Timeout = infinity,
+                    Cmd2 = Cmd#cmd{arg = Timeout},
+                    change_shell_var(I, ShellPos, Timeout, Cmd2);
                 SecsStr ->
                     case parse_int(I, SecsStr, Cmd) of
                         {ok, Secs} ->
                             Millis = timer:seconds(Secs),
                             Cmd2 = Cmd#cmd{arg = Millis},
-                            shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                            change_shell_var(I, ShellPos, Secs, Cmd2);
                         {bad_int, I2} ->
                             I2
                     end
@@ -492,7 +506,7 @@ dispatch_cmd(I,
                     OrigLine =
                         lux_utils:strip_leading_whitespaces(Cmd#cmd.orig),
                     handle_error(I, <<E/binary, ". Bad line: ",
-                                     OrigLine/binary>>)
+                                      OrigLine/binary>>)
             end;
         loop when element(2, Arg) =:= forever ->
             eval_loop(I, Cmd);
@@ -521,6 +535,15 @@ shell_eval(I, Cmd) ->
         {bad_shell, I2} ->
             I2
     end.
+
+change_shell_var(#istate{active_shell = Shell} = I, Pos, Val, Cmd) ->
+    Shell2 =
+        case Shell of
+            undefined -> Shell;
+            #shell{}  -> setelement(Pos, Shell, Val)
+        end,
+    I2 = I#istate{latest_cmd = Cmd, active_shell = Shell2},
+    shell_eval(I2, Cmd).
 
 eval_include(OldI, InclLineNo, FirstLineNo, LastLineNo,
              InclFile, InclCmds, InclCmd) ->
@@ -1235,16 +1258,44 @@ expand_vars(#istate{active_shell  = Shell,
                     submatch_vars = SubVars,
                     macro_vars    = MacroVars,
                     global_vars   = OptGlobalVars,
-                    builtin_vars  = BuiltinVars,
+                    builtin_vars  = BuiltinGlobalVars,
                     system_vars   = SystemVars},
             Val,
             MissingVar) ->
     case Shell of
-        #shell{vars = LocalVars} -> ok;
-        undefined                -> LocalVars = OptGlobalVars
+        #shell{vars = LocalVars,
+               match_timeout = MatchTimeout,
+               fail_pattern = FailPattern,
+               success_pattern = SuccessPattern} ->
+            BuiltinLocalVars =
+                [
+                 lists:flatten("LUX_TIMEOUT=",
+                               ?FF("~p", [MatchTimeout])),
+                 lists:flatten("LUX_FAIL_PATTERN=",
+                               ?FF("~s", [opt_binary(FailPattern)])),
+                 lists:flatten("LUX_SUCCESS_PATTERN=",
+                               ?FF("~s", [opt_binary(SuccessPattern)]))
+                ];
+        undefined ->
+            LocalVars = OptGlobalVars,
+            BuiltinLocalVars = []
     end,
-    Varss = [SubVars, MacroVars, LocalVars, BuiltinVars, SystemVars],
+    Varss = [SubVars, MacroVars,
+             LocalVars, BuiltinLocalVars,
+             BuiltinGlobalVars, SystemVars],
     lux_utils:expand_vars(Varss, Val, MissingVar).
+
+opt_binary(OptBin) ->
+    case OptBin of
+        undefined               -> <<"">>;
+        Bin when is_binary(Bin) -> Bin
+    end.
+
+opt_regexp(OptRegExp) ->
+    case OptRegExp of
+        reset -> undefined;
+        RegExp when is_binary(RegExp) -> RegExp
+    end.
 
 add_active_var(#istate{active_shell = undefined} = I, _VarVal) ->
     I;

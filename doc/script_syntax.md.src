@@ -287,9 +287,12 @@ variable.
 
 ###Builtin environment variables###
 
-    LUX_SHELLNAME    - name of active Lux shell
-    LUX_START_REASON - reason for starting a shell (normal|fail|success)
-    PS1              - shell prompt variable set by Lux
+    LUX_SHELLNAME       - name of active Lux shell
+    LUX_START_REASON    - reason for starting a shell (normal|fail|success)
+    LUX_TIMEOUT         - value of match timeout in the active Lux shell
+    LUX_FAIL_PATTERN    - value of fail pattern in the active Lux shell
+    LUX_SUCCESS_PATTERN - value of success pattern in the active Lux shell
+    PS1                 - shell prompt variable set by Lux
 
 ###Miscellaneous statements###
 

@@ -29,11 +29,14 @@
          orig   :: binary()}).
 
 -record(shell,
-        {name   :: string(),
-         pid    :: pid(),
-         ref    :: reference(),
-         health :: alive | zombie,
-         vars   :: [string()]}). % ["name=val"]
+        {name            :: string(),
+         pid             :: pid(),
+         ref             :: reference(),
+         health          :: alive | zombie,
+         vars            :: [string()],                     % ["name=val"]
+         match_timeout   :: infinity  | non_neg_integer(),
+         fail_pattern    :: undefined | binary(),
+         success_pattern :: undefined | binary()}).
 
 -record(cmd_pos,
         {rev_file   :: [string()],

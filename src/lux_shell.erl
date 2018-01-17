@@ -7,7 +7,7 @@
 
 -module(lux_shell).
 
--export([start_monitor/4]).
+-export([start_monitor/4, extract_regexp/1]).
 
 -include("lux.hrl").
 
@@ -102,7 +102,8 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                            pid = Pid,
                            ref = Ref,
                            health = alive,
-                           vars = NewVarVals ++ I#istate.global_vars},
+                           vars = NewVarVals ++ I#istate.global_vars,
+                           match_timeout = C#cstate.match_timeout},
             I2 = I#istate{active_shell = Shell,
                           active_name = Name},
             {ok, I2#istate{logs = I2#istate.logs ++ [Logs]}};
