@@ -655,22 +655,23 @@ invoke_macro(I,
     OldMacroVars = I#istate.macro_vars,
     case macro_vars(I, ArgNames, ArgVals, InvokeCmd) of
         {ok, MacroVars} ->
-            ilog(I, "~s(~p): invoke_~s \"~s\"\n",
+            QuotedMacroVars = format_macro_vars(MacroVars),
+            ilog(I, "~s(~p): invoke_~s~s\n",
                  [I#istate.active_name,
                   LineNo,
                   Name,
-                  lists:flatten(string:join(MacroVars, " "))]),
+                  QuotedMacroVars]),
 
             BeforeI = I#istate{macro_vars = MacroVars, latest_cmd = InvokeCmd},
             DefaultFun = get_eval_fun(),
             AfterI = eval_body(BeforeI, LineNo, FirstLineNo, LastLineNo,
                                MacroFile, Body, MacroCmd, DefaultFun, false),
 
-            ilog(I, "~s(~p): exit_~s \"~s\"\n",
+            ilog(I, "~s(~p): exit_~s~s\n",
                  [I#istate.active_name,
                   LineNo,
                   Name,
-                  lists:flatten(string:join(MacroVars, " "))]),
+                  QuotedMacroVars]),
             AfterI#istate{macro_vars = OldMacroVars};
         {bad_vars, I2} ->
             I2
@@ -681,6 +682,11 @@ invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
     BinName = ?l2b(Name),
     handle_error(I, <<"Ambiguous macro: ", BinName/binary>>).
+
+format_macro_vars([]) ->
+    " \"\"";
+format_macro_vars(MacroVars) ->
+    [[" ", io_lib:write_string(MV)] || MV <- MacroVars].
 
 macro_vars(I, [Name | Names], [Val | Vals], Invoke) ->
     case safe_expand_vars(I, Val) of
