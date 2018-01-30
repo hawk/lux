@@ -1,0 +1,16 @@
+[doc invoking a macro with a multiline argument]
+
+[macro hello A B]
+    
+[endmacro]
+
+[invoke hello "Is\nthis\na\nmulti line\nstring?" "How\nabout\nthis?\n"]
+
+"""[invoke hello "
+This is
+also a multi
+line string"
+"So is
+this"]
+"""
+
