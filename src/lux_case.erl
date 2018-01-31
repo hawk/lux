@@ -120,8 +120,14 @@ case_log_dir(SuiteLogDir, AbsScript) ->
 
 eval(OldI, StartTime, Progress, Verbose,
      LogFun, EventLog, EventFd, ConfigFd, Docs) ->
+    TraceMode =
+        case dbg:get_tracer() of
+            {error, _} -> none;
+            {ok, _}    -> suite
+        end,
     NewI = OldI#istate{event_log_fd =  {Verbose, EventFd},
-                       config_log_fd = {Verbose, ConfigFd}},
+                       config_log_fd = {Verbose, ConfigFd},
+                       trace_mode = TraceMode},
     Flag = process_flag(trap_exit, true),
     try
         lux_log:safe_format(Progress, LogFun, undefined,
@@ -135,21 +141,26 @@ eval(OldI, StartTime, Progress, Verbose,
         ReplyTo = self(),
         Interpret =
             fun() ->
-                    lux_debug:start_link(OldI#istate.debug_file),
-                    Res = lux_interpret:init(NewI, StartTime),
+                    Dpid = lux_debug:start_link(OldI#istate.debug_file),
+                    DbgI = NewI#istate{debug_pid = Dpid},
+                    ReplyTo ! {debug_pid, DbgI},
+                    Res = lux_interpret:init(DbgI, StartTime),
                     lux:trace_me(70, 'case', shutdown, []),
                     unlink(ReplyTo),
                     ReplyTo ! {done, self(), Res},
                     exit(shutdown)
             end,
-        Pid = spawn_link(Interpret),
+        Ipid = spawn_link(Interpret),
+        receive
+            {debug_pid, DbgI} -> ok
+        end,
         %% Poor mans hibernate
         ShrinkedI =
-            NewI#istate{commands     = shrinked,
+            DbgI#istate{commands     = shrinked,
                         macro_vars   = shrinked,
                         global_vars  = shrinked},
         garbage_collect(),
-        wait_for_done(ShrinkedI, Pid, Docs)
+        wait_for_done(ShrinkedI, Ipid, Docs)
     after
         process_flag(trap_exit, Flag),
         lux_log:close_event_log(EventFd),

@@ -60,9 +60,9 @@ init(I, StartTime) ->
     after
         safe_cancel_timer(Ref),
         EndTime = lux_utils:timestamp(),
-        lux_interpret:ilog(I,
-                           "lux(0): end_time \"~s\"\n",
-                           [lux_utils:now_to_string(EndTime)])
+        ilog(I,
+             "lux(0): end_time \"~s\"\n",
+             [lux_utils:now_to_string(EndTime)])
     end.
 
 collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
@@ -111,8 +111,8 @@ loop(#istate{commands = [], call_level = CallLevel} = I)
 loop(I) ->
     Timeout = timeout(I),
     receive
-        {debug_call, Pid, Cmd, CmdState} ->
-            I2 = lux_debug:eval_cmd(I, Pid, Cmd, CmdState),
+        {debug_call, Pid, DbgCmd, CmdState} ->
+            I2 = lux_debug:eval_cmd(I, Pid, DbgCmd, CmdState),
             loop(I2);
         {stopped_by_user, Scope} ->
             %% Ordered to stop by user
@@ -391,6 +391,15 @@ dispatch_cmd(I,
                 {ok, String} ->
                     Cmd2 = Cmd#cmd{arg = String},
                     shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
+                {no_such_var, BadName} ->
+                    no_such_var(I, Cmd, LineNo, BadName)
+            end;
+        debug ->
+            case safe_expand_vars(I, Arg) of
+                {ok, DbgCmd} ->
+                    Dbgpid = I#istate.debug_pid,
+                    CmdState = undefined,
+                    lux_debug:eval_cmd(I, Dbgpid, DbgCmd, CmdState);
                 {no_such_var, BadName} ->
                     no_such_var(I, Cmd, LineNo, BadName)
             end;

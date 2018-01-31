@@ -85,6 +85,8 @@
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),
          debug_file                 :: string(),
+         debug_pid                  :: pid(),
+         trace_mode                 :: none | suite | 'case',
          skip = []                  :: [string()],
          skip_unless = []           :: [string()],
          unstable = []              :: [string()],

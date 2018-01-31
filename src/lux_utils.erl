@@ -32,16 +32,8 @@ version() ->
     {_Name, _Slogan, Version} = lists:keyfind(?APPLICATION, 1, LoadedApps),
     Version.
 
-hidden_apply(M, F, A) ->
-    Obfuscated = fun() -> M end(),
-    apply(Obfuscated, F, A).
-
 timestamp() ->
-    try
-        hidden_apply(erlang, timestamp, []) % Avoid xref warning
-    catch error:undef ->
-        hidden_apply(erlang, now, []) % Avoid compiler warning
-    end.
+    lux_main:timestamp().
 
 builtin_vars() ->
     %% Alphabetic order
@@ -264,48 +256,11 @@ do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
 do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
     OrigFile.
 
-normalize_filename(File) when is_binary(File) ->
-    ?l2b(normalize_filename(?b2l(File)));
 normalize_filename(File) ->
-    Delim = "://",
-    case split(File, Delim) of
-        {Prefix, Rel} ->
-            Delim2 = Delim,
-            Abs = Rel;
-        false ->
-            Prefix = "",
-            Delim2 = "",
-            Abs = filename:absname(File)
-    end,
-    File2 = do_normalize_filename(filename:split(Abs), []),
-    Prefix ++ Delim2 ++ File2.
-
-do_normalize_filename([H|T], Acc) ->
-    Acc2 =
-        case H of
-            "."                  -> Acc;
-            ".." when Acc =:= [] -> Acc;
-            ".."                 -> tl(Acc);
-            _                    -> [H|Acc]
-        end,
-    do_normalize_filename(T, Acc2);
-do_normalize_filename([], Acc) ->
-    filename:join(lists:reverse(Acc)).
+    lux_main:normalize_filename(File).
 
 split(File, Delim) ->
-    split2(File, Delim, Delim, [], 0).
-
-split2([H|T], [H|DT], OrigDelim, Acc, N) ->
-    %% Partial match delim
-    split2(T, DT, OrigDelim, [H|Acc], N+1);
-split2(Rest, [], _OrigDelim, Acc, N) ->
-    %% Full match delim
-    {lists:reverse(lists:nthtail(N, Acc)), Rest};
-split2([H|T], _Delim, OrigDelim, Acc, _N) ->
-    %% Reset delim
-    split2(T, OrigDelim, OrigDelim, [H|Acc], 0);
-split2([], _Delim, _OrigDelim, _Acc, _N) ->
-    false.
+    lux_main:split(File, Delim).
 
 join(_Dir, File) when hd(File) =:= $/ ->
     File;

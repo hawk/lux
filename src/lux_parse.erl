@@ -614,6 +614,8 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             {P, Cmd#cmd{type = sleep, arg = string:strip(Time)}};
         "progress" ++ String ->
             {P, Cmd#cmd{type = progress, arg = string:strip(String)}};
+        "debug" ++ DbgCmd ->
+            {P, Cmd#cmd{type = debug, arg = string:strip(DbgCmd)}};
         "include" ++ RelFile ->
             CurrFile = P#pstate.file,
             CurrPosStack = P#pstate.pos_stack,

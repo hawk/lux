@@ -7,7 +7,7 @@
 
 -module(lux_suite).
 
--export([run/3, args_to_opts/3, annotate_log/3]).
+-export([run/4, args_to_opts/3, annotate_log/3]).
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -16,6 +16,7 @@
         {files                      :: [string()],
          orig_files                 :: [string()],
          orig_args                  :: [string()],
+         prev_log_dir               :: undefined | string(),
          mode = execute             :: lux:run_mode(),
          skip_skip = false          :: boolean(),
          progress = brief           :: silent | summary | brief |
@@ -56,14 +57,21 @@
          junit = false              :: boolean()
         }).
 
-run(Files, Opts, OrigArgs) when is_list(Files) ->
-    SuiteStartTime = lux_utils:timestamp(),
+adjust_files(R) ->
+    RelFiles = R#rstate.files,
+    TagFiles = [{config_dir, R#rstate.config_dir} |
+                [{file, F} || F <- RelFiles]],
+    lists:foreach(fun check_file/1, TagFiles), % May throw error
+    AbsFiles = [lux_utils:normalize_filename(F) || F <- RelFiles],
+    R#rstate{files = AbsFiles}.
+
+run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
     R0 = #rstate{files = Files,
                  orig_files = Files,
                  orig_args = OrigArgs,
-                 start_time = SuiteStartTime},
+                 prev_log_dir = PrevLogDir},
     case parse_ropts(Opts, R0) of
-        {ok, R, _UserLogDir}
+        {ok, R}
           when R#rstate.mode =:= list;
                R#rstate.mode =:= list_dir;
                R#rstate.mode =:= doc ->
@@ -82,7 +90,7 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
                     {ok, Cwd} = file:get_cwd(),
                     {error, Cwd, ReasonStr}
             end;
-        {ok, R, UserLogDir} ->
+        {ok, R} ->
             TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
             LogBase = "lux_summary.log",
@@ -90,7 +98,7 @@ run(Files, Opts, OrigArgs) when is_list(Files) ->
             try
                 {ConfigData, R2} = parse_config(R), % May throw error
                 R3 = compute_files(R2, LogDir, LogBase),
-                R4 = ensure_log_dir(R3, SummaryLog, UserLogDir),
+                R4 = adjust_files(R3),
                 full_run(R4, ConfigData, SummaryLog)
             catch
                 throw:{error, undefined, no_input_files} ->
@@ -225,7 +233,8 @@ initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
   when Exists =:= true ->
     TmpLog = SummaryLog ++ ".tmp",
     WWW = undefined,
-    {Res, WWW} = lux_log:parse_summary_log(TmpLog, WWW), % assert
+    {Res, NewWWW} = lux_log:parse_summary_log(TmpLog, WWW),
+    lux_utils:stop_app(NewWWW),
     NewRes =
         case Res of
             {ok, _, Groups, _, _, _} ->
@@ -341,17 +350,21 @@ compute_files(R, _LogDir, _LogBase) when R#rstate.rerun =:= disable ->
 compute_files(R, _LogDir, LogBase) when R#rstate.files =/= [] ->
     OldLogDirs = R#rstate.files,
     compute_rerun_files(R, OldLogDirs, LogBase, []);
-compute_files(R, LogDir, LogBase) ->
-    OldLogDirs = [filename:join([filename:dirname(LogDir), "latest_run"])],
-    compute_rerun_files(R, OldLogDirs, LogBase, []).
+compute_files(R, _LogDir, LogBase) ->
+    case R#rstate.prev_log_dir of
+        undefined ->
+            throw_error(undefined, no_input_files);
+        PrevLogDir ->
+            compute_rerun_files(R, [PrevLogDir], LogBase, [])
+    end.
 
 compute_rerun_files(R, LogDirs, LogBase, Acc) ->
     WWW = undefined,
-    {Res, NewWWW} = compute_rerun_files(R, LogDirs, LogBase, Acc, WWW),
+    {Res, NewWWW} = compute_rerun_files2(R, LogDirs, LogBase, Acc, WWW),
     lux_utils:stop_app(NewWWW),
     Res.
 
-compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc, WWW) ->
+compute_rerun_files2(R, [LogDir|LogDirs], LogBase, Acc, WWW) ->
     OldLog = filename:join([LogDir, LogBase]),
     {ParseRes, NewWWW} = lux_log:parse_summary_log(OldLog, WWW),
     LatestRes =
@@ -362,8 +375,8 @@ compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc, WWW) ->
                 []
         end,
     Files = filter_rerun_files(R, LatestRes),
-    compute_rerun_files(R, LogDirs, LogBase, Files ++ Acc, NewWWW);
-compute_rerun_files(R, [], _LogBase, Acc, WWW) ->
+    compute_rerun_files2(R, LogDirs, LogBase, Files ++ Acc, NewWWW);
+compute_rerun_files2(R, [], _LogBase, Acc, WWW) ->
     {R#rstate{files = lists:usort(Acc)}, WWW}.
 
 filter_rerun_files(R, InitialRes) ->
@@ -399,6 +412,8 @@ flatten_results(Groups) ->
                         {ok, Res, Script, "0", []};
                     warning ->
                         {ok, Res, Script, "0", []};
+                    {warning, _RawLineNo, _ET, _Expected, _Actual, _Details} ->
+                        {ok, warning, Script, "0", []};
                     {error_line, RawLineNo, Reason} ->
                         {error, Script, RawLineNo, Reason};
                     {error, [Reason]} ->
@@ -435,7 +450,12 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{progress = Val,
                                     user_args = UserArgs});
         config_dir when is_list(Val) ->
-            parse_ropts(T, R#rstate{config_dir = lux_utils:normalize_filename(Val)});
+            parse_ropts(T, R#rstate{config_dir =
+                                        lux_utils:normalize_filename(Val)});
+        start_time when tuple_size(Val) =:= 3 ->
+            parse_ropts(T, R#rstate{start_time = Val});
+        log_dir when is_list(Val) ->
+            parse_ropts(T, R#rstate{log_dir = Val});
         config_name when is_list(Val) ->
             parse_ropts(T, R#rstate{config_name = Val});
         suite when is_list(Val) ->
@@ -478,81 +498,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
     end;
 parse_ropts([], R) ->
     UserArgs = opts_to_args(lists:reverse(R#rstate.user_args), []),
-    R2 = R#rstate{user_args = UserArgs},
-    UserLogDir = pick_val(log_dir, R2, undefined),
-    {ok, adjust_log_dir(R2, UserLogDir), UserLogDir}.
-
-adjust_log_dir(R, UserLogDir) ->
-    UniqStr = uniq_str(R#rstate.start_time),
-    UniqRun = "run_" ++ UniqStr,
-    Run =
-        case R#rstate.run of
-            undefined -> UniqRun;
-            UserRun   -> UserRun
-        end,
-    RelLogDir =
-        case UserLogDir of
-            undefined -> filename:join(["lux_logs", UniqRun]);
-            LogDir    -> LogDir
-        end,
-    AbsLogDir0 = lux_utils:normalize_filename(RelLogDir),
-    AbsLogDir =
-        if
-            UserLogDir =:= undefined, R#rstate.extend_run ->
-                ParentDir0 = filename:dirname(AbsLogDir0),
-                Link0 = filename:join([ParentDir0, "latest_run"]),
-                case file:read_link(Link0) of
-                    {ok, LinkTo} ->
-                        %% Reuse old log dir
-                        lux_utils:normalize_filename(
-                          filename:join([ParentDir0, LinkTo]));
-                    {error, _} ->
-                        AbsLogDir0
-                end;
-            true ->
-                AbsLogDir0
-        end,
-    UserArgs = opts_to_args([{log_dir, AbsLogDir}], R#rstate.user_args),
-    R#rstate{run = Run,
-             log_dir = AbsLogDir,
-             user_args = UserArgs}.
-
-ensure_log_dir(R, SummaryLog, UserLogDir) ->
-    RelFiles = R#rstate.files,
-    TagFiles = [{config_dir, R#rstate.config_dir} |
-                [{file, F} || F <- RelFiles]],
-    lists:foreach(fun check_file/1, TagFiles), % May throw error
-    AbsLogDir = R#rstate.log_dir,
-    case opt_ensure_dir(R#rstate.extend_run, SummaryLog) of
-        ok ->
-            opt_create_latest_link(UserLogDir, AbsLogDir),
-            AbsFiles = [lux_utils:normalize_filename(F) || F <- RelFiles],
-            R#rstate{files = AbsFiles};
-        summary_log_exists ->
-            throw_error(AbsLogDir,
-                        "ERROR: Summary log file already exists: ~s\n",
-                        [SummaryLog]);
-        {error, FileReason} ->
-            throw_error(AbsLogDir,
-                        "ERROR: Failed to create log directory: ~s -> ~s\n",
-                        [AbsLogDir, file:format_error(FileReason)])
-    end.
-
-opt_create_latest_link(undefined, AbsLogDir) ->
-    ParentDir = filename:dirname(AbsLogDir),
-    Link = filename:join([ParentDir, "latest_run"]),
-    Base = filename:basename(AbsLogDir),
-    _ = file:delete(Link),
-    _ = file:make_symlink(Base, Link),
-    ok;
-opt_create_latest_link(_UserLogDir, _AbsLogDir) ->
-    ok.
-
-opt_ensure_dir(ExtendRun, SummaryLog) ->
-    case not ExtendRun andalso filelib:is_dir(SummaryLog) of
-        true  -> summary_log_exists;
-        false -> filelib:ensure_dir(SummaryLog)
-    end.
+    {ok, R#rstate{user_args = UserArgs}}.
 
 check_file({Tag, File}) ->
     case Tag of
@@ -580,18 +526,6 @@ check_file({Tag, File}) ->
                     throw_error(File, BinErr)
             end
     end.
-
-uniq_str({_MegaSecs, _Secs, MicroSecs} = Now) ->
-    {{Year, Month, Day}, {Hour, Min, Sec}} =
-        calendar:now_to_universal_time(Now),
-    lists:concat([Year, "_", r2(Month), "_", r2(Day), "_",
-                  r2(Hour), "_", r2(Min), "_", r2(Sec), "_",
-                  ?i2l(MicroSecs)]).
-
-r2(Int) when is_integer(Int) ->
-    r2(?i2l(Int));
-r2(String) when is_list(String) ->
-    string:right(String, 2, $0).
 
 run_cases(R, [{SuiteFile,{error=Summary,Reason}, _P, _LenP}|Scripts],
           OldSummary, Results, Max, CC, List, Opaque)
@@ -899,7 +833,7 @@ parse_script(R, _SuiteFile, Script) ->
             R2 = R#rstate{internal_args = [],
                           file_args = FileArgs,
                           warnings = NewWarnings},
-            LogDir = pick_val(log_dir, R, undefined),
+            LogDir = R#rstate.log_dir,
             LogFd = R#rstate.log_fd,
             LogFun = fun(Bin) -> lux_log:safe_write(LogFd, Bin) end,
             InternalArgs = [{log_dir, LogDir},
@@ -1396,7 +1330,3 @@ tap_case_end(#rstate{}, _CaseCount, _Script,
 
 throw_error(File, Reason) ->
     throw({error, File, Reason}).
-
-throw_error(File, Format, Args) ->
-    throw_error(File,
-                lux_log:safe_format(undefined, Format, Args)).

@@ -10,6 +10,13 @@
 
 -module(lux_main).
 -mode(compile).
+-export([
+         start_trace/4,
+         stop_trace/0,
+         normalize_filename/1,
+         split/2,
+         timestamp/0
+        ]).
 
 -define(APPLICATION, lux).
 -define(FILES, "--").
@@ -21,7 +28,8 @@ main(["--make" = Op]) ->
 main(OrigArgs) ->
     ensure_lux_app_dir(true),
     LuxAppDir = require_app(undefined, ?APPLICATION),
-    OpModes = ["--internal_trace", "--internal_debug", "--event_trace",
+    OpModes = ["--internal_debug", "--suite_trace",
+               "--display_trace", "--event_trace",
                "--help", "--version", "--install",
                "--annotate", "--history",
                "--reltool", "--xref",
@@ -33,13 +41,22 @@ main(OrigArgs) ->
     ExitCode = dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs),
     safe_halt(ExitCode).
 
+dispatch([{files, Files}, {prev_log_dir, PrevLogDir} | Opts],
+         _LuxAppDir, _OpModes, _Specs, OrigArgs) ->
+    run(Opts, Files, PrevLogDir, OrigArgs);
 dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs) ->
     case select_op(Opts, OpModes) of
         {Op, Args} ->
             do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs);
         undefined ->
-            run(Opts, OrigArgs)
-        end.
+            case add_defaults(Opts) of
+                {ok, [{files, Files}, {prev_log_dir, PrevLogDir} | Opts2]} ->
+                    run(Opts2, Files, PrevLogDir, OrigArgs);
+                {error, Format, Args} ->
+                    io:format(Format, Args),
+                    1
+            end
+    end.
 
 do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
     case {Op, Args} of
@@ -50,8 +67,9 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
         {"--internal_debug", [_]}   -> internal_debug(Op, OrigArgs);
         {"--event_trace", [_]}      -> event_trace(Op, LuxAppDir, Opts,
                                                    OpModes, Specs, OrigArgs);
-        {"--internal_trace", [_]}   -> internal_trace(Op, LuxAppDir, Opts,
-                                                      OpModes, Specs, OrigArgs);
+        {"--suite_trace", [_]}      -> suite_trace(Op, LuxAppDir, Opts,
+                                                   OpModes, Specs, OrigArgs);
+        {"--display_trace", [File]} -> display_trace(File);
         {"--install", [InstallDir]} -> install(Op, LuxAppDir, InstallDir, Opts);
         {"--reltool", [_]}          -> reltool(Op, LuxAppDir, Opts);
         {"--xref", [_]}             -> xref(Op, LuxAppDir, Opts);
@@ -100,7 +118,7 @@ specs() ->
      {"-d",                   ["--debug"]},
      {"-D",                   ["--internal_debug"]},
      {"-E",                   ["--event_trace"]},
-     {"-T",                   ["--internal_trace"]},
+     {"-T",                   ["--suite_trace"]},
      {?FILES,                 "",          string,                 mandatory},
      {"--help",               false,       boolean,                none},
      {"--version",            false,       boolean,                none},
@@ -108,7 +126,8 @@ specs() ->
      {"--pre_markdown",       undefined,   string,                 mandatory},
      {"--internal_debug",     false,       boolean,                none},
      {"--event_trace",        false,       boolean,                none},
-     {"--internal_trace",     false,       boolean,                none},
+     {"--suite_trace",        false,       boolean,                none},
+     {"--display_trace",      undefined,   string,                 mandatory},
      {"--install",            "",          string,                 optional},
      {"--install_app",        undefined,   string,                 mandatory},
      {"--install_profile",    standalone,  {enum, profile},        mandatory},
@@ -178,6 +197,166 @@ enum_value(Enum, Value) when is_list(Value) ->
     Strings = [atom_to_list(A) || A <- Atoms],
     true = lists:member(Value, Strings), % Assert
     list_to_existing_atom(Value).
+
+add_defaults(Opts) ->
+    case lists:keymember(files, 1, Opts) of
+        true ->
+            Opts;
+        false ->
+            {Files, Opts2} = translate_opts(Opts),
+            do_add_defaults(Files, Opts2)
+    end.
+
+do_add_defaults(Files, Opts) ->
+    UserRun = proplists:get_value(run, Opts),
+    UserLogDir = proplists:get_value(log_dir, Opts),
+    UserExtendRun = proplists:get_value(extend_run, Opts),
+    case UserExtendRun of
+        undefined -> ExtendRun = false;
+        ExtendRun -> ok
+    end,
+    StartTime = timestamp(),
+    UniqStr = uniq_str(StartTime),
+    UniqRun = "run_" ++ UniqStr,
+    Run =
+        case UserRun of
+            undefined -> UniqRun;
+            UserRun   -> UserRun
+        end,
+    case UserLogDir of
+        undefined -> RelLogDir = filename:join(["lux_logs", UniqRun]);
+        RelLogDir -> ok
+    end,
+    AbsLogDir0 = lux_utils:normalize_filename(RelLogDir),
+    ParentDir0 = filename:dirname(AbsLogDir0),
+    Link0 = filename:join([ParentDir0, "latest_run"]),
+    PrevLogDir =
+        case file:read_link(Link0) of
+            {ok, LinkTo} ->
+                %% Reuse old log dir
+                normalize_filename(filename:join([ParentDir0, LinkTo]));
+            {error, _} ->
+                undefined
+        end,
+    AbsLogDir =
+        if
+            UserLogDir =:= undefined, ExtendRun ->
+                if
+                    PrevLogDir =:= undefined ->
+                        AbsLogDir0;
+                    true ->
+                        PrevLogDir
+                end;
+            true ->
+                AbsLogDir0
+        end,
+    LogBase = "lux_summary.log",
+    SummaryLog = filename:join([AbsLogDir, LogBase]),
+    case opt_ensure_dir(ExtendRun, SummaryLog) of
+        ok ->
+            opt_create_latest_link(UserLogDir, AbsLogDir),
+            MoreOpts =
+                [
+                 {start_time, StartTime},
+                 {run, Run},
+                 {log_dir, AbsLogDir}
+                ],
+            Replace = fun({Tag, _Val} = Opt, Acc) ->
+                              lists:keystore(Tag, 1, Acc, Opt)
+                      end,
+            Opts2 = lists:foldl(Replace, Opts, MoreOpts),
+            {ok, [{files, Files}, {prev_log_dir, PrevLogDir} | Opts2]};
+        summary_log_exists ->
+            {error,
+             "ERROR: Summary log file already exists: ~s\n",
+             [SummaryLog]};
+        {error, FileReason} ->
+            {error,
+             "ERROR: Failed to create log directory: ~s -> ~s\n",
+             [AbsLogDir, file:format_error(FileReason)]}
+    end.
+
+timestamp() ->
+    try
+        hidden_apply(erlang, timestamp, []) % Avoid xref warning
+    catch error:undef ->
+        hidden_apply(erlang, now, []) % Avoid compiler warning
+    end.
+
+hidden_apply(M, F, A) ->
+    Obfuscated = fun() -> M end(),
+    apply(Obfuscated, F, A).
+
+uniq_str({_MegaSecs, _Secs, MicroSecs} = Now) ->
+    {{Year, Month, Day}, {Hour, Min, Sec}} =
+        calendar:now_to_universal_time(Now),
+    lists:concat([Year, "_", r2(Month), "_", r2(Day), "_",
+                  r2(Hour), "_", r2(Min), "_", r2(Sec), "_",
+                  integer_to_list(MicroSecs)]).
+
+r2(Int) when is_integer(Int) ->
+    r2(integer_to_list(Int));
+r2(String) when is_list(String) ->
+    string:right(String, 2, $0).
+
+normalize_filename(File) when is_binary(File) ->
+    list_to_binary(normalize_filename(binary_to_list(File)));
+normalize_filename(File) when is_list(File) ->
+    Delim = "://",
+    case split(File, Delim) of
+        {Prefix, Rel} ->
+            Delim2 = Delim,
+            Abs = Rel;
+        false ->
+            Prefix = "",
+            Delim2 = "",
+            Abs = filename:absname(File)
+    end,
+    File2 = do_normalize_filename(filename:split(Abs), []),
+    Prefix ++ Delim2 ++ File2.
+
+do_normalize_filename([H|T], Acc) ->
+    Acc2 =
+        case H of
+            "."                  -> Acc;
+            ".." when Acc =:= [] -> Acc;
+            ".."                 -> tl(Acc);
+            _                    -> [H|Acc]
+        end,
+    do_normalize_filename(T, Acc2);
+do_normalize_filename([], Acc) ->
+    filename:join(lists:reverse(Acc)).
+
+split(File, Delim) ->
+    split2(File, Delim, Delim, [], 0).
+
+split2([H|T], [H|DT], OrigDelim, Acc, N) ->
+    %% Partial match delim
+    split2(T, DT, OrigDelim, [H|Acc], N+1);
+split2(Rest, [], _OrigDelim, Acc, N) ->
+    %% Full match delim
+    {lists:reverse(lists:nthtail(N, Acc)), Rest};
+split2([H|T], _Delim, OrigDelim, Acc, _N) ->
+    %% Reset delim
+    split2(T, OrigDelim, OrigDelim, [H|Acc], 0);
+split2([], _Delim, _OrigDelim, _Acc, _N) ->
+    false.
+
+opt_ensure_dir(ExtendRun, SummaryLog) ->
+    case not ExtendRun andalso filelib:is_dir(SummaryLog) of
+        true  -> summary_log_exists;
+        false -> filelib:ensure_dir(SummaryLog)
+    end.
+
+opt_create_latest_link(undefined, AbsLogDir) ->
+    ParentDir = filename:dirname(AbsLogDir),
+    Link = filename:join([ParentDir, "latest_run"]),
+    Base = filename:basename(AbsLogDir),
+    _ = file:delete(Link),
+    _ = file:make_symlink(Base, Link),
+    ok;
+opt_create_latest_link(_UserLogDir, _AbsLogDir) ->
+    ok.
 
 usage(Specs, LuxAppDir) ->
     do_usage(Specs, LuxAppDir),
@@ -412,31 +591,101 @@ internal_debug(MainOp, Args) ->
     spawn_link(fun() -> forward_stdin(Port, 1) end),
     forward_stdout(Port).
 
-internal_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
+suite_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
-    AppFile = filename:join([LuxAppDir, "ebin", "lux.app"]),
-    Mods =
-        case file:consult(AppFile) of
-            {ok, [{application, lux, Spec}]} ->
-                {_, AppMods} = lists:keyfind(modules, 1, Spec),
-                [?MODULE | AppMods];
-            {ok, _} ->
-                io:format("WARNING: ~s: Bad file format\n", [AppFile]),
-                ['_'];
-            {error, Reason} ->
-                io:format("WARNING: ~s: ~s\n",
-                          [AppFile, file:format_error(Reason)]),
-                ['_']
-        end,
-    stop_after(timer:seconds(30)),
-    dbg:start(),
-    dbg:tracer(),
-    dbg:p(self(), [c, p, sos]),
-    %% dbg:p(self(), [c, m, p, sos]),
-    [dbg:tpl({M, '_', '_'}, [{'_', [], [{return_trace}]}]) || M <- Mods],
-    Key = "--internal_trace",
-    NewOpts = lists:keyreplace(Key, 1, Opts, {Key, []}),
-    dispatch(NewOpts, LuxAppDir, OpModes, Specs, OrigArgs).
+    case add_defaults(Opts) of
+        {ok, Opts2} ->
+            LogDir = proplists:get_value(log_dir, Opts2),
+            TraceFile0 = filename:join([LogDir, "lux.trace"]),
+            {ok, TraceFile} = start_trace(TraceFile0),
+            io:format("WARNING: Internal tracing of suite started,"
+                      " see file ~s\n",
+                      [TraceFile]),
+            Key = "--suite_trace",
+            NewOpts = lists:keyreplace(Key, 1, Opts2, {Key, []}),
+            Res = dispatch(NewOpts, LuxAppDir, OpModes, Specs, OrigArgs),
+            stop_trace(),
+            Res;
+        {error, Format, Args} ->
+            io:format(Format, Args),
+            1
+    end.
+
+display_trace(TraceFile) ->
+    ClientPid = dbg:trace_client(file, TraceFile, {fun trace_client/2, self()}),
+    link(ClientPid),
+    receive end_of_trace -> ok end,
+    0.
+
+trace_client(end_of_trace, ReplyTo) ->
+    ReplyTo ! end_of_trace,
+    ReplyTo;
+trace_client(Data, ReplyTo) ->
+    io:format("~p.\n", [Data]),
+    ReplyTo.
+
+start_trace(TraceFile) ->
+    start_trace(suite, TraceFile, self(), [c, p]).
+
+start_trace(TraceMode, TraceFile, TracePid, TraceFlags) ->
+    case dbg:get_tracer() of
+        {error, _Reason} ->
+            %% {ok, _} = dbg:start(),
+            TraceFile2 = uniq_file(TraceFile, "", 2),
+            TracePids = trace_pids(TraceMode, TracePid),
+            do_start_trace(TraceFile2, TracePids, TraceFlags);
+        {ok, _Tracer} ->
+            {error, already_started}
+    end.
+
+uniq_file(Base, Suffix, Count) ->
+    File = Base ++ Suffix,
+    case file:read_file_info(File) of
+        {ok, _FileInfo} ->
+            uniq_file(Base, "." ++ integer_to_list(Count), Count+1);
+        {error, enoent} ->
+            File
+    end.
+
+trace_pids(TraceMode, TracePid) ->
+    case TraceMode of
+        suite  ->
+            [TracePid];
+        script ->
+            [P || P <- processes(),
+                  P >= TracePid]
+    end.
+
+do_start_trace(TraceFile, TracePids, TraceFlags0) ->
+    TraceFlags = [timestamp | TraceFlags0],
+    LuxAppDir = code:lib_dir(?APPLICATION),
+    Mods = modules(LuxAppDir, ?APPLICATION),
+    TracePort = dbg:trace_port(file, TraceFile),
+    {ok, _} = dbg:tracer(port, TracePort),
+    [{ok, _} = dbg:p(P, TraceFlags) || P <- TracePids],
+    MatchSpec = [{'_', [], [{return_trace}]}],
+    [{ok, _} = dbg:tpl({M, '_', '_'}, MatchSpec) || M <- Mods],
+    {ok, TraceFile}.
+
+stop_trace() ->
+    dbg:flush_trace_port(),
+    dbg:stop_clear().
+
+modules(AppDir, App) ->
+    AppStr = atom_to_list(App),
+    AppFile = filename:join([AppDir, "ebin", AppStr++".app"]),
+    case file:consult(AppFile) of
+        {ok, [{application, App, Spec}]} ->
+            {_, AppMods} = lists:keyfind(modules, 1, Spec),
+            [?MODULE | AppMods];
+        {ok, _} ->
+            io:format("WARNING: ~s: Bad file format\n", [AppFile]),
+            ['_'];
+        {error, Reason} ->
+            io:format("WARNING: ~s: ~s\n",
+                      [AppFile, file:format_error(Reason)]),
+            ['_']
+    end.
 
 event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
     require_app(MainOp, runtime_tools),
@@ -467,19 +716,6 @@ event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
             io:format("Event tracer error: ~p\n", [Reason]),
             1
     end.
-
-stop_after(Timeout) ->
-    spawn(fun() ->
-                  receive
-                  after Timeout ->
-                          dbg:stop_clear(),
-                          io:format("\n\nlux watchdog -"
-                                    " Tracing interrupted and node"
-                                    " killed after ~p seconds\n\n",
-                                    [Timeout div 1000]),
-                          safe_halt(11)
-                  end
-          end).
 
 forward_stdin(Port, N) ->
     case io:get_line("") of
@@ -866,9 +1102,8 @@ history(RelLogDir, Opts) ->
             1
     end.
 
-run(Opts, OrigArgs) ->
-    {Files, Opts2} = translate_opts(Opts),
-    case do_run(Files, Opts2, OrigArgs) of
+run(Opts, Files, PrevLogDir, OrigArgs) ->
+    case do_run(Files, Opts, PrevLogDir, OrigArgs) of
         ok -> % HTML
             Summary = success,
             ok;
@@ -882,13 +1117,13 @@ run(Opts, OrigArgs) ->
     end,
     exit_code(Summary).
 
-do_run(Files, Opts, OrigArgs) ->
+do_run(Files, Opts, PrevLogDir, OrigArgs) ->
     case is_html(Files) of
         true ->
             lux_html_parse:validate_html(hd(Files), Opts);
         false ->
             ThisEscript = escript:script_name(),
-            lux:run(Files, Opts, [ThisEscript | OrigArgs])
+            lux:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
     end.
 
 is_html(Files) ->
@@ -911,7 +1146,8 @@ translate_opts([
      {"--pre_markdown",       _PreMarkdown},
      {"--internal_debug",     _InternalDebug},
      {"--event_trace",        _EventTrace},
-     {"--internal_trace",     _InternalTrace},
+     {"--suite_trace",        _SuiteTrace},
+     {"--display_trace",      _DisplayTrace},
      {"--install",            _InstallDir},
      {"--install_app",        _InstallApp},
      {"--install_profile",    _InstallProfile},

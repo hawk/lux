@@ -97,30 +97,40 @@ loop(#dstate{mode=Mode} = Dstate) ->
             loop(Dstate);
         Data when Mode =:= background ->
             [$\n | Rest] = lists:reverse(Data),
-            ChoppedCmd = lists:reverse(Rest),
-            NewCmd =
-                case string:tokens(ChoppedCmd, " ") of
-                    [] when ChoppedCmd =:= "" ->
+            ChoppedCmdStr = lists:reverse(Rest),
+            CmdStr =
+                case string:tokens(ChoppedCmdStr, " ") of
+                    [] when ChoppedCmdStr =:= "" ->
                         %% Repeat previous command
                         Dstate#dstate.prev_cmd;
                     _ ->
                         %% Execute new command
-                        ChoppedCmd
+                        ChoppedCmdStr
                 end,
-            Dstate2 = call(Dstate, NewCmd),
-            loop(Dstate2#dstate{n_cmds=N+1, prev_cmd=NewCmd})
+            Dstate2 = call(Dstate, CmdStr),
+            loop(Dstate2#dstate{n_cmds=N+1, prev_cmd=CmdStr})
     end.
 
-call(Dstate, Cmd) when is_list(Cmd); is_function(Cmd, 2) ->
+call(Dstate0, Cmd) when is_list(Cmd) -> % ; is_function(Cmd, 2) ->
     %% format("DEBUG: ~p\n", [CmdStr]),
-            Dstate#dstate.interpreter_pid !
-                {debug_call, self(), Cmd, Dstate#dstate.cmd_state},
-    wait_for_reply(Dstate, Cmd, 5000).
+    Ipid = Dstate0#dstate.interpreter_pid,
+    Dstate = flush_replies(Dstate0, Ipid),
+    Dstate#dstate.interpreter_pid !
+        {debug_call, self(), Cmd, Dstate#dstate.cmd_state},
+    wait_for_reply(Dstate, Ipid, 5000).
 
-wait_for_reply(Dstate, Cmd, Timeout) ->
-    Ipid = Dstate#dstate.interpreter_pid,
+
+flush_replies(Dstate, Ipid) ->
+    case wait_for_reply(Dstate, Ipid, 0) of
+        flushed ->
+            Dstate;
+        NewDstate ->
+            flush_replies(NewDstate, Ipid)
+    end.
+
+wait_for_reply(Dstate, Ipid, Timeout) ->
     receive
-        {debug_reply, Ipid, NewCmdState, Dshell} ->
+        {debug_reply, Ipid, CmdStr, NewCmdState, Dshell} ->
             case Dshell of
                 undefined ->
                     ShellName = undefined,
@@ -135,62 +145,70 @@ wait_for_reply(Dstate, Cmd, Timeout) ->
                           mode=Mode,
                           shell_pid=ShellPid,
                           shell_name=ShellName,
-                          prev_cmd=Cmd,
+                          prev_cmd=CmdStr,
                           cmd_state=NewCmdState}
     after Timeout ->
-            %% Display process info for interpreter and its children
-            format("\nInterpreter: ~p\n", [Ipid]),
-            Show = fun(Pid) ->
-                           Info = process_info(Pid,
-                                               [current_stacktrace, messages]),
-                           format("Info for ~p:\n\t~p\n", [Pid, Info])
-                   end,
-            Pids = [P || P <- processes(), P > Ipid],
-            lists:foreach(Show, [Ipid | Pids]),
-            wait_for_reply(Dstate, Cmd, infinity)
+            if
+                Timeout =:= 0 ->
+                    flushed;
+                is_integer(Timeout) ->
+                    %% Display process info for interpreter and its children
+                    Dpid = self(),
+                    format("\nDebugger: ~p\n", [Dpid]),
+                    format("Interpreter: ~p\n", [Ipid]),
+                    Item = [current_stacktrace, messages],
+                    Show = fun(Pid) ->
+                                   Info = process_info(Pid, Item),
+                                   format("Info for ~p:\n\t~p\n", [Pid, Info])
+                           end,
+                    Pids = [P || P <- processes(), P > Ipid],
+                    AllPids = [Ipid | Pids],
+                    lists:foreach(Show, AllPids),
+                    wait_for_reply(Dstate, Ipid, infinity)
+            end
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse and evaluate one command
 
-eval_cmd(I, Dpid, Data, CmdState) ->
+eval_cmd(I, Dpid, CmdStr, CmdState) when Dpid =:= I#istate.debug_pid ->
     case I#istate.debug_shell of
         undefined ->
-            {CmdState2, I2} = do_eval_cmd(I, Data, CmdState),
+            {CmdState2, I2} = do_eval_cmd(I, CmdStr, CmdState),
             Dshell = I2#istate.debug_shell,
-            Dpid ! {debug_reply, self(), CmdState2, Dshell},
+            Dpid ! {debug_reply, self(), CmdStr, CmdState2, Dshell},
             I2;
         #debug_shell{name=Name, mode=Mode, pid=ShellPid} ->
-            case Data of
+            case CmdStr of
                 [$! | Rest] when Mode =:= background ->
                     io:format("\nSend data to shell ~p.\n", [Name]),
                     Bin = ?l2b([Rest, "\n"]),
                     ShellPid ! {debug_shell, Dpid, {send,Bin}},
                     Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
                     I;
                 [$~ | Rest] when Mode =:= background ->
                     io:format("\nSend data to shell ~p.\n", [Name]),
                     Bin = ?l2b(Rest),
                     ShellPid ! {debug_shell, Dpid, {send,Bin}},
                     Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
                     I;
                 "?" when Mode =:= background ->
                     io:format("\nReset output buffer for shell ~p.\n", [Name]),
                     ShellPid ! {debug_shell, Dpid, {send,reset}},
                     Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
                     I;
                 "=" when Mode =:= background ->
                     ShellPid ! {debug_shell, Dpid, display_stdout},
                     Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdState, Dshell},
+                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
                     I;
-                Data2 ->
-                    {CmdState2, I2} = do_eval_cmd(I, Data2, CmdState),
+                CmdStr2 ->
+                    {CmdState2, I2} = do_eval_cmd(I, CmdStr2, CmdState),
                     Dshell = I2#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdState2, Dshell},
+                    Dpid ! {debug_reply, self(), CmdStr2, CmdState2, Dshell},
                     I2
             end
     end.
@@ -438,30 +456,6 @@ cmds() ->
                                        help = "debugger command"}],
                 help = "display description of a command",
                 callback = fun cmd_help/3},
-     #debug_cmd{name = "tail",
-                params = [#debug_param{name = "index",
-                                       type = {integer, 1, infinity},
-                                       presence = optional,
-                                       help = "log number"},
-                          #debug_param{name = "format",
-                                       type = {enum, ["compact", "verbose"]},
-                                       presence = optional,
-                                       help = "display format"},
-                          #debug_param{name = "n_lines",
-                                       type = {integer, 1, infinity},
-                                       presence = optional,
-                                       help = "fixed number of lines"}],
-
-                help = "display log files\n\n"
-                "With no argument, the names of the log files will be listed.\n"
-                "Each one is preceeded by its index number and optionally a\n"
-                "star. The star means that the log has been updated since the\n"
-                "previous status check. Use the index to display a particular\n"
-                "log. Such as \"t 5\" for the event log. Press enter to\n"
-                "display more lines. n_lines can be used to override that\n"
-                "behavior andonly display a fixed number of lines regardless\n"
-                "of the command is repeated or not.",
-                callback = fun cmd_tail/3},
      #debug_cmd{name = "list",
                 params = [#debug_param{name = "n_lines",
                                        type = {integer, 1, infinity},
@@ -486,7 +480,7 @@ cmds() ->
                 callback = fun cmd_load/3},
      #debug_cmd{name = "next",
                 params = [],
-                help = "execute next command. "
+                help = "execute next command\n"
                 "A multi-line command counts as one command.",
                 callback = fun cmd_next/3},
      #debug_cmd{name = "progress",
@@ -506,9 +500,8 @@ cmds() ->
                                        type = {enum, ["case","suite"]},
                                        presence = optional,
                                        help = "scope of exit"}],
-                help = "quit a single test case or the entire test suite "
-                       "in a controlled manner. "
-                       "Runs cleanup if applicable.",
+                help = "quit a single test case or the entire test suite\n"
+                       "in a controlled manner. Runs cleanup if applicable.",
                 callback = fun cmd_quit/3},
      #debug_cmd{name = "save",
                 params = [#debug_param{name = "file",
@@ -523,7 +516,7 @@ cmds() ->
                                        type = lineno,
                                        presence = optional,
                                        help = "lineno in source file"}],
-                help = "skip execution of one or more commands. "
+                help = "skip execution of one or more commands\n"
                 "Skip until given lineno is reached.",
                 callback = fun cmd_skip/3},
      #debug_cmd{name = "shell",
@@ -555,7 +548,39 @@ cmds() ->
                 "commands which only is available in background mode:\n"
                 "\n"
                 ++ format_shell_sub_cmds(),
-                callback = fun cmd_shell/3}
+                callback = fun cmd_shell/3},
+     #debug_cmd{name = "tail",
+                params = [#debug_param{name = "index",
+                                       type = {integer, 1, infinity},
+                                       presence = optional,
+                                       help = "log number"},
+                          #debug_param{name = "format",
+                                       type = {enum, ["compact", "verbose"]},
+                                       presence = optional,
+                                       help = "display format"},
+                          #debug_param{name = "n_lines",
+                                       type = {integer, 1, infinity},
+                                       presence = optional,
+                                       help = "fixed number of lines"}],
+
+                help = "display log files\n\n"
+                "With no argument, the names of the log files will be listed.\n"
+                "Each one is preceeded by its index number and optionally a\n"
+                "star. The star means that the log has been updated since the\n"
+                "previous status check. Use the index to display a particular\n"
+                "log. Such as \"t 5\" for the event log. Press enter to\n"
+                "display more lines. n_lines can be used to override that\n"
+                "behavior andonly display a fixed number of lines regardless\n"
+                "of the command is repeated or not.",
+                callback = fun cmd_tail/3},
+     #debug_cmd{name = "TRACE",
+                params = [#debug_param{name = "action",
+                                       type = {enum, ["START", "STOP"]},
+                                       presence = optional,
+                                       help = "Trace action"}],
+                help = "start or stop internal tracing\n"
+                "Default is to display the trace mode (none|case|suite).",
+                callback = fun cmd_trace/3}
     ].
 
 
@@ -1317,7 +1342,7 @@ cmd_next(I, [], CmdState) ->
 cmd_progress(I, Args, CmdState) ->
     case Args of
         [{"level", Level0}] ->
-            Level = list_to_atom(Level0);
+            Level = list_to_existing_atom(Level0);
         [] ->
             Level =
                 case I#istate.progress of
@@ -1342,7 +1367,7 @@ cmd_quit(I, Args, _CmdState) ->
         [] ->
             ScopeStr = "case"
         end,
-    Scope = list_to_atom(ScopeStr),
+    Scope = list_to_existing_atom(ScopeStr),
     format("\nWARNING: Test ~s stopped by user\n", [ScopeStr]),
     {_, I2} = opt_unblock(I),
     InterpreterPid = self(),
@@ -1472,6 +1497,52 @@ shell_name(I) ->
         undefined               -> undefined;
         #debug_shell{name=Name} -> Name
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+cmd_trace(I, Args, _CmdState) ->
+    CmdState =  undefined,
+    TraceMode = I#istate.trace_mode,
+    case Args of
+        [{"action", Action}] ->
+            case list_to_existing_atom(Action) of
+                'START' when TraceMode =:= none ->
+                    TraceFlags = [c, p, sos],
+                    TracePids = self(),
+                    LogDir = I#istate.case_log_dir,
+                    Base = filename:basename(I#istate.orig_file) ++ ".trace",
+                    TraceLog0 = lux_utils:join(LogDir, Base),
+                    {ok, TraceLog} =
+                        lux_main:start_trace(script, TraceLog0,
+                                             TracePids, TraceFlags),
+                    Base2 = filename:basename(TraceLog),
+                    TraceMode2 = 'case',
+                    format("\nInternal tracing of test ~s started.\n",
+                           [atom_to_list(TraceMode2)]),
+                    elog(I, "trace start (~s)", [Base2]),
+                    {CmdState, I#istate{trace_mode = TraceMode2}};
+                'STOP' when TraceMode =:= 'case' ->
+                    format("\nInternal tracing of test ~s stopped.\n",
+                           [atom_to_list(TraceMode)]),
+                    elog(I, "trace stop", []),
+                    lux_main:stop_trace(),
+                    {CmdState, I#istate{trace_mode = none}};
+                _ ->
+                    format("\nERROR: Refused to ~p internal tracing of test"
+                           " case as test ~s is being traced.\n",
+                           [Action, atom_to_list(TraceMode)]),
+                    elog(I, "trace failed (~s)", [atom_to_list(TraceMode)]),
+                    {CmdState, I}
+            end;
+        [] ->
+            format("Internal trace mode: ~p\n", [TraceMode]),
+            {CmdState, I}
+    end.
+
+elog(I, Format, Args) ->
+    lux_interpret:ilog(I, "~s(~p): "++Format++"\n",
+                 [I#istate.active_name,
+                  (I#istate.latest_cmd)#cmd.lineno | Args]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
