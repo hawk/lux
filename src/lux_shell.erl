@@ -1212,11 +1212,20 @@ cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
     clog(C, timer, "canceled (after ~p micro seconds)", [Diff]),
     case Timer of
         infinity -> ok;
-        _        -> erlang:cancel_timer(Timer)
+        _        -> flush_timer(Timer)
     end,
     C#cstate{idle_count = 0,
              timer = undefined,
              timer_started_at = undefined}.
+
+flush_timer(Timer) ->
+    erlang:cancel_timer(Timer),
+    receive
+        match_timeout ->
+            true
+    after 0 ->
+            false
+    end.
 
 extract_regexp(ExpectArg) ->
     case ExpectArg of
