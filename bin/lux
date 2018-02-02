@@ -876,16 +876,7 @@ reltool_opts(MainOp, LuxAppDir, Opts) ->
                  [{hipe, exclude}, {reltool, exclude}]}
         end,
     AppCondsCommon = [{erts, include}, {crypto, exclude}, {tools, exclude}],
-    AppCondsMain =
-        case MainOp of
-            "--install" ->
-                AppCondsWx ++ [{runtime_tools, exclude}];
-            "--reltool" ->
-                AppCondsWx;
-            "--xref" ->
-                AppCondsWx
-        end,
-    AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsMain,
+    AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsWx,
     {_, InstallApps} = lists:keyfind("--install_app", 1, Opts),
     InstallApps2 = [{list_to_atom(A), include} || A <- InstallApps],
     AppConds2 = [{A, C} || {A, C} <- AppConds,
