@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.17.4 - 2017-08-29
+Version 1.18 - 2018-02-21
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -12,7 +12,7 @@ Version 1.17.4 - 2017-08-29
 * [Debugger for Lux scripts](#debug_cmds)
 * [Examples](#examples)
 * [Installation](#../INSTALL)
-* [Original author:](#../AUTHORS)
+* [Original author](#../AUTHORS)
 * [References](#references)
 
 <a name="../README"/>
@@ -324,42 +324,43 @@ the usage of `?`. `?+` is always used together with `?`. It is
 
 **-**  
 **-Regexp**  
-Sets a failure pattern to a regular expression (see [regular
-expression][]). It is typically used to match error messages. If the
-given `Regexp` ever matches, the test case is considered to have
-failed (no further processing of the script will be performed besides
-the `cleanup`). If no `Regexp` is given, the old failure pattern is
-reset (cleared).
+Sets the failure pattern for a shell to a regular expression (see
+[regular expression][]). It is typically used to match error
+messages. If the given `Regexp` matches, the test case is considered
+to have failed (no further processing of the script will be performed
+besides the `cleanup`). If no `Regexp` is given, the failure pattern
+is reset (cleared).
 
-In the active shell, the `Regexp` is tried on the output preceding
-each successful match of expect expressions. The characters up to, but
-not including, the (successful) match are tried against the failure
-pattern. In non-active shells the `Regexp` is tried when the shell
-produces new output.
+The failure pattern is primarily searched for when the script
+explicitly is expecting some output. That is when a command like `?`,
+`??` or `???` is evaluated. It is also searched for when a shell
+cannot produce more output, for example when a shell exits or when
+there are no more commands to evaluate.
 
 **+**  
 **+Regexp**  
-Sets a success pattern to a regular expression (see [regular
-expression][]). If the given `Regexp` ever matches, the test case is
-considered a success (no further processing of the script will be
-performed besides the `cleanup`). If no `Regexp` is given, the old
+Sets the success pattern for a shell to a regular expression (see
+[regular expression][]). If the given `Regexp` matches, the test case
+is considered to be a success (no further processing of the script
+will be performed besides the `cleanup`). If no `Regexp` is given, the
 success pattern is reset (cleared).
 
-In the active shell, the `Regexp` is tried on the output preceding
-each successful match of expect expressions. The characters up to, but
-not including, the (successful) match are tried against the success
-pattern. In non-active shells the `Regexp` is tried when the shell
-produces new output.
+The success pattern is primarily searched for when the script
+explicitly is expecting some output. That is when a command like `?`,
+`??` or `???` is evaluated. It is also searched for when a shell
+cannot produce more output, for example when a shell exits or when
+there are no more commands to evaluate.
 
 **@**  
 **@Regexp**  
-Sets a loop break pattern to a regular expression (see [regular
-expression][]). This statement is only valid in loops. It is typically
-used to match output from a poll like command. When the given `Regexp`
-matches, the loop is immediately exited. The execution continues with
-the first statement after the loop. The test case fails if the loop is
-exited before the break pattern is matched. If no `Regexp` is given,
-the break failure pattern is reset (cleared).
+Sets a loop break pattern for a shell to a regular expression (see
+[regular expression][]). This statement is only valid in loops. Even
+in nested loops. It is typically used to match output from a poll like
+command. When the given `Regexp` matches, the loop is immediately
+exited. The execution continues with the first statement after the
+loop. The test case fails if the loop is exited before the break
+pattern is matched. If no `Regexp` is given, the loop break pattern is
+reset (cleared).
 
 **\[endshell\]**  
 **\[endshell Regexp\]**
@@ -519,9 +520,12 @@ variable.
 
 ###Builtin environment variables###
 
-    LUX_SHELLNAME    - name of active Lux shell
-    LUX_START_REASON - reason for starting a shell (normal|fail|success)
-    PS1              - shell prompt variable set by Lux
+    LUX_SHELLNAME       - name of active Lux shell
+    LUX_START_REASON    - reason for starting a shell (normal|fail|success)
+    LUX_TIMEOUT         - value of match timeout in the active Lux shell
+    LUX_FAIL_PATTERN    - value of fail pattern in the active Lux shell
+    LUX_SUCCESS_PATTERN - value of success pattern in the active Lux shell
+    PS1                 - shell prompt variable set by Lux
 
 ###Miscellaneous statements###
 
@@ -1213,15 +1217,16 @@ Available commands:
 * break    - set, delete and list breakpoints
 * continue - continue script execution
 * help     - display description of a command
-* tail     - display log files
 * list     - list script source
 * load     - load file with debug commands
-* next     - execute next command. A multi-line command counts as one command.
+* next     - execute next command
 * progress - set verbosity level of progress
-* quit     - quit a single test case or the entire test suite in a controlled manner. Runs cleanup if applicable.
+* quit     - quit a single test case or the entire test suite
 * save     - save debug state to file
-* skip     - skip execution of one or more commands. Skip until given lineno is reached.
+* skip     - skip execution of one or more commands
 * shell    - connect to a shell
+* tail     - display log files
+* TRACE    - start or stop internal tracing
 
 
 lineno parameter
@@ -1251,6 +1256,16 @@ Here are a few examples of how lineno can be used:
             on line 4 in main.
 
 
+
+TRACE \[action\]
+----------------
+
+Start or stop internal tracing
+Default is to display the trace mode (none|case|suite).
+
+**Parameters:**  
+
+* action - Trace action; enum(START|STOP)  
 
 attach
 ------
@@ -1326,7 +1341,8 @@ Load file with debug commands
 next
 ----
 
-Execute next command. A multi-line command counts as one command.
+Execute next command
+A multi-line command counts as one command.
 
 **Parameters:**  
 
@@ -1345,7 +1361,8 @@ Set verbosity level of progress
 quit \[scope\]
 --------------
 
-Quit a single test case or the entire test suite in a controlled manner. Runs cleanup if applicable.
+Quit a single test case or the entire test suite
+in a controlled manner. Runs cleanup if applicable.
 
 **Parameters:**  
 
@@ -1397,7 +1414,8 @@ Sub commands for "shell":
 skip \[lineno\]
 ---------------
 
-Skip execution of one or more commands. Skip until given lineno is reached.
+Skip execution of one or more commands
+Skip until given lineno is reached.
 
 **Parameters:**  
 
@@ -1519,8 +1537,8 @@ A failing test case
 
 Test cases are executed until they succeed or fail. The script is
 aborted at the first failure. Which may occur when the expected output
-not has matched within the given timeout or when the fail pattern has
-matched. A fail pattern is local to the given shell and will cause
+not has matched within the given timeout or when the failure pattern has
+matched. A failure pattern is local to the given shell and will cause
 abort when it matches.
 
 The (match) timeout may explicitly be set within the script, in a
@@ -1682,14 +1700,14 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_42_637562/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2018_01_29_14_59_41_325930/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:...:.:...:..:.:.:....:..:..:..(....:..:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:..)(....:.:..:...)(..:..)..(.:..:..)......:..:...
+>     progress          : ..:..:..:...:..:.:.:....:..:..:.:..(....:..:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:..)(....:.:..:...)(.:..:..)..(.:..:..)......:..:...
 >     result            : SUCCESS
 >     test case         : examples/error.lux
 >     result            : FAIL as required variable MAKE is not set
 >     test case         : examples/fail.lux
->     progress          : ..:...:.:...:..:.:.:..:..:.:....:..:..32C..:...:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:...:..:.:.:..:..:.:....:..:..32C..:..:..:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32
 >     expected*
 >     	19
@@ -1706,13 +1724,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:..:....:..:..:.:..:..:.:..:..:..:.:..:..:.:..:.:...:..:.:.:....c....:..:..:...:.:..:..:.:..:..:.
+>     progress          : ..:..:..:..:..:....:...:.:..:..:.:..:..:.:..:.:..:.:.....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:..:.((.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))...:..:..:...:.:.:..:.:..:...:..:..:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:..z))c........:..:..:..:..:.:.
+>     progress          : ..:..:..:.((.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:...:.:...:.:..:.:..:...:..:..:.((.i=1...:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):).c........:..:..:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.((.i=1..:..:..z)(z..i=2...:..z)(z..i=3..:..:..z))5
+>     progress          : ..:..:..:.((.i=1...:.:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))5
 >     result            : FAIL at 5:5
 >     expected*
 >     	
@@ -1725,7 +1743,7 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:..:..:....7
+>     progress          : ..:...:.:.:....7
 >     result            : WARNING at 7
 >     expected*
 >     	bar
@@ -1749,7 +1767,7 @@ Evaluate `lux examples`
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_42_637562/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2018_01_29_14_59_41_325930/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -1849,11 +1867,13 @@ Simply do
 >     open ../lux.html
 <a name="../AUTHORS"/>
 
-Original author:
+Original author
+--------------
 
 * Håkan Mattsson
 
-Contributors:
+Contributors
+------------
 
 * Jan Lindblad (implemented a predecessor to Lux, called Qmscript, as a Python plugin to QMTest)
 * Sebastian Strollo (runpty)
