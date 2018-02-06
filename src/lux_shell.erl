@@ -519,6 +519,13 @@ assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
     ok;
 assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
+                                 Cmd#cmd.type =:= sleep;
+                                 Cmd#cmd.type =:= debug;
+                                 Cmd#cmd.type =:= fail;
+                                 Cmd#cmd.type =:= success;
+                                 Cmd#cmd.type =:= break;
+                                 Cmd#cmd.type =:= progress;
+                                 Cmd#cmd.type =:= change_timeout;
                                  Cmd#cmd.type =:= cleanup ->
     ok;
 assert_eval(C, Cmd, _From) ->
