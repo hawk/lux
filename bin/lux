@@ -407,11 +407,10 @@ version() ->
     0.
 
 version_str() ->
-    try
-        lux_utils:version()
-    catch
-        error:undef ->
-            "unknown"
+    Mod = lux_utils,
+    case code:ensure_loaded(Mod) of
+        {module, Mod} -> Mod:version();
+        {error, What} -> atom_to_list(What)
     end.
 
 gen_markdown(ToFile) ->

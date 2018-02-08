@@ -29,8 +29,12 @@
 
 version() ->
     LoadedApps = application:loaded_applications(),
-    {_Name, _Slogan, Version} = lists:keyfind(?APPLICATION, 1, LoadedApps),
-    Version.
+    case lists:keyfind(?APPLICATION, 1, LoadedApps) of
+        {_Name, _Slogan, Version} ->
+            Version;
+        false ->
+            "lux_not_loaded"
+    end.
 
 timestamp() ->
     lux_main:timestamp().
