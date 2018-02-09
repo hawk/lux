@@ -12,10 +12,10 @@ AC_PREFIX_DEFAULT(/usr/local/lux)
 # Default config installation dir is $prefix/etc. Override with --sysconfdir
 
 use_default_sysconfdir=false
-if test "x$sysconfdir" == 'x${prefix}/etc'; then
+if test "x$sysconfdir" = 'x${prefix}/etc'; then
   # $sysconfdir is not set
   use_default_sysconfdir=true
-  if test "x$prefix" == "xNONE"; then
+  if test "x$prefix" = "xNONE"; then
     # $prefix is not set
     sysconfdir="/usr/local/lux/priv"
   else
@@ -75,20 +75,20 @@ AC_SUBST(C_SRC_TARGET)
 
 # AC_ERLANG_NEED_ERL is not available on old systems
 AC_PATH_PROG(ERL, erl, no)
-if test "x$ERL" == "xno"; then
+if test "x$ERL" = "xno"; then
   AC_MSG_ERROR([erl: command not found])
 fi
 
 # AC_ERLANG_NEED_ERLC is not available on old systems
 AC_PATH_PROG(ERLC, erlc, no)
-if test "x$ERLC" == "xno"; then
+if test "x$ERLC" = "xno"; then
   AC_MSG_ERROR([erlc: command not found])
 fi
 
 ################################################################################
 # Doc
 AC_PATH_PROG(MARKDOWN, markdown, no)
-if test "x$MARKDOWN" == "xno"; then
+if test "x$MARKDOWN" = "xno"; then
   # Enforce a runtime error when doc is built
   MARKDOWN=markdown
 fi
