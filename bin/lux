@@ -1517,6 +1517,16 @@ ensure_lux_app_dir(Retry) ->
                     %% Development
                     AppDir = TopDir
             end,
+            BaseDir = filename:basename(AppDir),
+            case lists:prefix("lux-", BaseDir) of
+                true ->
+                    ok;
+                false when BaseDir =:= "lux" ->
+                    ok;
+                false ->
+                    fatal_error(2, "Application directory not named lux: ~p\n",
+                                [AppDir])
+            end,
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
             %%           [AppName, EbinDir]),
