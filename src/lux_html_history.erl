@@ -94,8 +94,9 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
     OverviewIoList =
         [
          OverviewHeader,
-         table_latest(HistoryLogDir, LatestRuns, AbsHtmlFile,
-                      "Latest run on each branch"),
+         table_latest(HistoryLogDir, LatestRuns,
+                      ConfigTables, LatestOnly,
+                      AbsHtmlFile, "Latest run on each branch"),
          HtmlArgs,
          HtmlErrors,
          lux_html_utils:html_footer()
@@ -198,7 +199,9 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
     OverviewIoList =
         [
          OverviewHeader,
-         table_latest(HistoryLogDir, LatestRuns, AbsHtmlFile, LatestSlogan),
+         table_latest(HistoryLogDir, LatestRuns,
+                      ConfigTables, LatestOnly,
+                      AbsHtmlFile, LatestSlogan),
          table_all(HistoryLogDir, AllRuns, AbsHtmlFile),
          HtmlArgs,
          HtmlErrors,
@@ -377,13 +380,21 @@ legend() ->
      "  </table>\n"
     ].
 
-table_latest(HistoryLogDir, LatestRuns, HtmlFile, Slogan) ->
-    T = table(HistoryLogDir, "Latest", "All test suites",
-              LatestRuns, HtmlFile, none, worst),
+table_latest(HistoryLogDir, LatestRuns, ConfigTables,
+             LatestOnly, HtmlFile, Slogan) ->
+    {Slogan2, IoList} =
+        if
+            ConfigTables =:= [], not LatestOnly ->
+                {"Only one config. No latest run generated.", <<>>};
+            true ->
+                T = table(HistoryLogDir, "Latest", "All test suites",
+                          LatestRuns, HtmlFile, none, worst),
+                {Slogan, T#table.iolist}
+        end,
     [
-     lux_html_utils:html_anchor("h3", "", "content", Slogan),
+     lux_html_utils:html_anchor("h3", "", "content", Slogan2),
      "\n",
-     T#table.iolist
+     IoList
     ].
 
 table_all(HistoryLogDir, AllRuns, HtmlFile) ->
