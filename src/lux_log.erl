@@ -337,14 +337,14 @@ do_parse_run_summary(Source, File, Res, Opts) ->
                 HostName ->
                     ok
             end,
-            ConfigName0 = find_config(<<"architecture">>, ConfigProps, CN0),
+            ConfigName0 = find_config(<<"config name">>, ConfigProps, CN0),
             ConfigName =
                 if
                     ConfigName0 =/= CN0,
                     ConfigName0 =/= <<"undefined">> ->
                         ConfigName0;
                     true ->
-                        find_config(<<"config name">>, ConfigProps, CN0)
+                        find_config(<<"architecture">>, ConfigProps, CN0)
                 end,
             OrigSuite = find_config(<<"suite">>, ConfigProps, R#run.test),
             Suite =

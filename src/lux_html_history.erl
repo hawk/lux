@@ -78,8 +78,10 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
     HistoryLogDir = filename:dirname(AbsHtmlFile),
     SplitBranches = keysplit(#run.branch, AllRuns),
     LatestRuns = latest_runs(SplitBranches),
-    ConfigTables = [],
     HostTables = [],
+    HasHosts = true,
+    ConfigTables = [],
+    HasConfigs = false,
     HtmlDir = filename:dirname(RelHtmlFile),
     HtmlArgs = args(RelHtmlFile, Opts),
     HtmlErrors = errors(Errors),
@@ -96,7 +98,8 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
          OverviewHeader,
          table_latest(HistoryLogDir, LatestRuns,
                       ConfigTables, LatestOnly,
-                      AbsHtmlFile, "Latest run on each branch"),
+                      AbsHtmlFile, "Latest run on each branch",
+                      HasHosts, HasConfigs),
          HtmlArgs,
          HtmlErrors,
          lux_html_utils:html_footer()
@@ -107,21 +110,13 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
     HistoryLogDir = filename:dirname(AbsHtmlFile),
     SplitHosts = keysplit(#run.hostname, AllRuns),
     LatestRuns = latest_runs(SplitHosts),
-    HostTables =
-        case SplitHosts of
-            [_] ->
-                [];
-            _ ->
-                table_hosts(HistoryLogDir, SplitHosts, AbsHtmlFile)
-        end,
+    HasHosts = length(SplitHosts) > 1,
     SplitConfigs = keysplit(#run.config_name, AllRuns, fun compare_run/2),
-    ConfigTables =
-        case SplitConfigs of
-            [_] ->
-                [];
-            _ ->
-                table_configs(HistoryLogDir, SplitConfigs, AbsHtmlFile)
-        end,
+    HasConfigs = length(SplitConfigs) > 1,
+    HostTables = table_hosts(HistoryLogDir, SplitHosts, AbsHtmlFile,
+                             HasHosts, HasConfigs),
+    ConfigTables = table_configs(HistoryLogDir, SplitConfigs, AbsHtmlFile,
+                                 HasHosts, HasConfigs),
     HtmlDir = filename:dirname(RelHtmlFile),
     HtmlArgs = args(RelHtmlFile, Opts),
     HtmlErrors = errors(Errors),
@@ -180,7 +175,8 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
     CurrentIoList =
         [
          CurrentHeader,
-         table_current(HistoryLogDir, AllRuns, AbsHtmlFile),
+         table_current(HistoryLogDir, AllRuns, AbsHtmlFile,
+                       HasHosts, HasConfigs),
          HtmlArgs,
          HtmlErrors,
          lux_html_utils:html_footer()
@@ -201,8 +197,9 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
          OverviewHeader,
          table_latest(HistoryLogDir, LatestRuns,
                       ConfigTables, LatestOnly,
-                      AbsHtmlFile, LatestSlogan),
-         table_all(HistoryLogDir, AllRuns, AbsHtmlFile),
+                      AbsHtmlFile, LatestSlogan,
+                      HasHosts, HasConfigs),
+         table_all(HistoryLogDir, AllRuns, AbsHtmlFile, HasHosts, HasConfigs),
          HtmlArgs,
          HtmlErrors,
          lux_html_utils:html_footer()
@@ -381,14 +378,16 @@ legend() ->
     ].
 
 table_latest(HistoryLogDir, LatestRuns, ConfigTables,
-             LatestOnly, HtmlFile, Slogan) ->
+             LatestOnly, HtmlFile, Slogan,
+             HasHosts, HasConfigs) ->
     {Slogan2, IoList} =
         if
             ConfigTables =:= [], not LatestOnly ->
                 {"Only one config. No latest run generated.", <<>>};
             true ->
                 T = table(HistoryLogDir, "Latest", "All test suites",
-                          LatestRuns, HtmlFile, none, worst),
+                          LatestRuns, HtmlFile, none, worst,
+                          HasHosts, HasConfigs),
                 {Slogan, T#table.iolist}
         end,
     [
@@ -397,15 +396,16 @@ table_latest(HistoryLogDir, LatestRuns, ConfigTables,
      IoList
     ].
 
-table_all(HistoryLogDir, AllRuns, HtmlFile) ->
+table_all(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
     T = table(HistoryLogDir, "All", "All test suites",
-              AllRuns, HtmlFile, none, latest),
+              AllRuns, HtmlFile, none, latest,
+              HasHosts, HasConfigs),
     [
      lux_html_utils:html_anchor("h3", "", "all_runs", "All runs"),
      T#table.iolist
     ].
 
-table_current(HistoryLogDir, AllRuns, HtmlFile) ->
+table_current(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
     Rebase =
         fun(#run{log=SL}, #run{log=EL})
               when SL =/= <<"unknown">>,
@@ -424,7 +424,8 @@ table_current(HistoryLogDir, AllRuns, HtmlFile) ->
                      log = Rebase(R, D)} || R <- AllRuns,
                                             D <- R#run.details],
     T = table(HistoryLogDir, "All", "Still failing test cases",
-              Details, HtmlFile, latest_success, latest),
+              Details, HtmlFile, latest_success, latest,
+              HasHosts, HasConfigs),
     [
      lux_html_utils:html_anchor("h3", "", "content",
                                 "Still failing test cases"),
@@ -432,18 +433,24 @@ table_current(HistoryLogDir, AllRuns, HtmlFile) ->
      T#table.iolist
     ].
 
-table_configs(NewLogDir, SplitConfigs, HtmlFile) ->
+table_configs(_NewLogDir, _SplitConfigs, _HtmlFile, _HasHosts, false) ->
+    [];
+table_configs(NewLogDir, SplitConfigs, HtmlFile, HasHosts, true=HasConfigs) ->
     [
      double_table(NewLogDir,
                   ConfigName,
                   "Config: " ++ ConfigName,
                   Runs,
                   HtmlFile,
-                  latest) ||
+                  latest,
+                  HasHosts,
+                  HasConfigs) ||
         {ConfigName, Runs} <- SplitConfigs
     ].
 
-table_hosts(HistoryLogDir, SplitHosts, HtmlFile) ->
+table_hosts(_HistoryLogDir, _SplitHosts, _HtmlFile, false, _HasConfigs) ->
+    [];
+table_hosts(HistoryLogDir, SplitHosts, HtmlFile, true=HasHosts, HasConfigs) ->
     [
      double_table(HistoryLogDir,
                   Host,
@@ -451,17 +458,22 @@ table_hosts(HistoryLogDir, SplitHosts, HtmlFile) ->
                    " (", (hd(Runs))#run.config_name, ")"],
                   Runs,
                   HtmlFile,
-                  latest) ||
+                  latest,
+                  HasHosts,
+                  HasConfigs) ||
         {Host, Runs} <- SplitHosts
     ].
 
-double_table(HistoryLogDir, Name, Label, AllRuns, HtmlFile, Select) ->
+double_table(HistoryLogDir, Name, Label, AllRuns, HtmlFile, Select,
+             HasHosts, HasConfigs) ->
     AllT = table(HistoryLogDir, Name, "All test suites",
-                 AllRuns, HtmlFile, none, Select),
+                 AllRuns, HtmlFile, none, Select,
+                 HasHosts, HasConfigs),
     Details = [D#run{details=[D]} || R <- AllRuns,
                                      D <- R#run.details],
     FailedT = table(HistoryLogDir, Name, "Failed test cases",
-                    Details, HtmlFile, any_success, Select),
+                    Details, HtmlFile, any_success, Select,
+                    HasHosts, HasConfigs),
     #table{name=Name,
            res=AllT#table.res,
            iolist=
@@ -475,7 +487,8 @@ double_table(HistoryLogDir, Name, Label, AllRuns, HtmlFile, Select) ->
 
 %% Suppress :: latest_success | any_success | none
 %% Select   :: worst | latest
-table(HistoryLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
+table(HistoryLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select,
+      HasHosts, HasConfigs) ->
     SplitTests0 = keysplit(#run.test, Runs, fun compare_run/2),
     SplitTests = lists:keysort(1, SplitTests0),
     SplitIds = keysplit(#run.id, Runs, fun compare_run/2),
@@ -488,6 +501,7 @@ table(HistoryLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
         ],
     PickRes = fun(#row{res=R}, Acc) -> lux_utils:summary(Acc, R) end,
     SelectedRes = lists:foldl(PickRes, no_data, Rows),
+    HostInfo = fun(R, I) -> host_info(R, I, HasHosts, HasConfigs) end,
     #table{name=Name,
            res=SelectedRes,
            %% rows=Rows,
@@ -499,7 +513,7 @@ table(HistoryLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
                      lists:map(fun run_info/1, SplitIds2),
                      "    </tr>\n",
                      "    <tr>\n",
-                     element(1, lists:mapfoldl(fun host_info/2,
+                     element(1, lists:mapfoldl(HostInfo,
                                                HtmlFile,
                                                SplitIds2)),
                      "    </tr>\n",
@@ -512,7 +526,6 @@ table(HistoryLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select) ->
                      "  </table>\n"
                     ])
           }.
-
 
 run_info({Id, [#run{start_time=Time, branch=RunBranch, repos_rev=Rev} | _]}) ->
     OptBranch =
@@ -530,15 +543,26 @@ run_info({Id, [#run{start_time=Time, branch=RunBranch, repos_rev=Rev} | _]}) ->
      "</td>\n"
     ].
 
-host_info({_, [#run{hostname=Host, config_name=CN} | _]}, HtmlFile) ->
+host_info({_, [#run{hostname=Host, config_name=CN} | _]}, HtmlFile,
+          HasHosts, HasConfigs) ->
     Html =
         [
          "      <td>",
          "<strong>",
-         html_suffix_href(HtmlFile, "", "#"++Host, Host, ?HOST_SUFFIX),
+         case HasHosts of
+             true ->
+                 html_suffix_href(HtmlFile, "", "#"++Host, Host, ?HOST_SUFFIX);
+             false ->
+                 Host
+         end,
          "</strong>",
          "<br/>",
-         html_suffix_href(HtmlFile, "", "#" ++ CN, CN, ?CONFIG_SUFFIX),
+         case HasConfigs of
+             true ->
+                 html_suffix_href(HtmlFile, "", "#" ++ CN, CN, ?CONFIG_SUFFIX);
+             false ->
+                 CN
+         end,
          "</td>\n"
         ],
     {Html, HtmlFile}.
