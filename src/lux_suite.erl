@@ -728,7 +728,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                          FullLineNo, ?b2l(SkipReason), <<>>),
             NewSummary = lux_utils:summary(OldSummary, Summary),
             Res = {ok, Summary, Script2, FullLineNo,
-                   NewR#rstate.log_dir, [], <<>>, []},
+                   NewR#rstate.log_dir, [], SkipReason, []},
             Results2 = [Res | Results],
             ParseWarnings = NewR#rstate.warnings,
             AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
@@ -762,13 +762,17 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                      lineno = FullLineNo,
                      type = ErrorBin2} =
                 stack_error(ErrorStack, ErrorBin),
+            Script2 = lux_utils:pretty_filename(RevMainFile),
             MainFile = lux_utils:pretty_filename(RevMainFile),
             init_case_rlog(ErrR, P, Script),
-            double_rlog(ErrR, "~sERROR ~s\n",
-                        [?TAG("result"), ErrorBin2]),
+            double_rlog2(ErrR, "~sERROR ~s\n",
+                         [?TAG("result"), ErrorBin2],
+                         "~s~s\n",
+                         [?TAG("result"), ErrorBin2]),
             Summary = error,
             tap_case_begin(ErrR, Script),
             lux:trace_me(70, 'case', suite, Summary, []),
+            {ok, _} = lux_case:copy_orig(ErrR#rstate.log_dir, Script2),
             tap_case_end(ErrR, CC, Script,
                          P, LenP, Max, Summary,
                          "0", ErrorBin, ErrorBin),
@@ -1031,6 +1035,17 @@ double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
     case Fd of
         undefined -> ?l2b(IoList);
         _         -> lux_log:double_write(Progress, Fd, IoList)
+    end.
+
+double_rlog2(#rstate{progress = Progress, log_fd = Fd},
+             ResFormat, ResArgs, ConFormat, ConArgs) ->
+    ResIoList = ?FF(ResFormat, ResArgs),
+    case Fd of
+        undefined ->
+            ?l2b(ResIoList);
+        _ ->
+            ConIoList = ?FF(ConFormat, ConArgs),
+            lux_log:double_write(Progress, Fd, {ResIoList, ConIoList})
     end.
 
 init_case_rlog(#rstate{progress = Progress, log_fd = Fd},

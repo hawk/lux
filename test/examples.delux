@@ -14,7 +14,7 @@ result            : SUCCESS
 """
 """?
 test case         : .*examples/error.lux
-result            : FAIL as required variable MAKE is not set
+result            : Syntax error at line 1: '\]' is expected to be at end of line
 """
 """?
 test case         : .*examples/fail.lux
@@ -53,6 +53,10 @@ diff
 	\+ Loop ended without match of "THIS WILL NEVER MATCH"
 """
 """?
+test case         : .*examples/require.lux
+result            : FAIL as required variable MAKE is not set
+"""
+"""?
 test case         : .*examples/skip.lux
 result            : SKIP as variable TEST_SUNOS is not set
 """
@@ -79,10 +83,12 @@ warnings          : 2
 	.*examples/unstable.lux:7 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 	.*examples/warning.lux:3 - Trailing whitespaces
 failed            : 3
-	.*examples/error.lux:3 - FAIL as required variable MAKE is not set
 	.*examples/fail.lux:32 - match_timeout
 	.*examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"
-summary           : FAIL
+	.*examples/require.lux:3 - FAIL as required variable MAKE is not set
+errors            : 1
+	.*examples/error.lux:1 - Syntax error at line 1: '\]' is expected to be at end of line
+summary           : ERROR
 """
 
     [invoke check_status 1]

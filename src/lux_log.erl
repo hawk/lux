@@ -589,12 +589,17 @@ pick_result(Warnings, Outcome) when Outcome =:= warning ->
     [{Script, FullLineNo, Reason} ||
         {warning, Script, FullLineNo, Reason} <- Warnings];
 pick_result(Results, Outcome) ->
-    Actual = fun(#result{actual=NewAcc}, _Acc) -> NewAcc;
-                (_, Acc)                       -> Acc
-             end,
-    [{Script, FullLineNo, lists:foldl(Actual, Outcome, Events)} ||
+    Pick = fun(fail, <<"FAIL", _/binary>> = FailBin, _Events) ->
+                   FailBin;
+              (_Outcome, _FailBin, Events) ->
+                   Actual = fun(#result{actual=NewAcc}, _Acc) -> NewAcc;
+                               (_, Acc)                       -> Acc
+                            end,
+                   lists:foldl(Actual, Outcome, Events)
+           end,
+    [{Script, FullLineNo, Pick(Outcome, FailBin, Events)} ||
         {ok, O, Script, FullLineNo, _LogDir,
-         Events, _FailBin, _Opaque} <- Results,
+         Events, FailBin, _Opaque} <- Results,
         O =:= Outcome].
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->
@@ -1194,12 +1199,15 @@ safe_write(OptFd, Bin) when is_binary(Bin) ->
             Bin
     end.
 
-double_write(Progress, Fd, IoList) when Fd =/= undefined ->
-    Bin = safe_write(Fd, IoList),
+double_write(Progress, Fd, {ResIoList, ConIoList}) when Fd =/= undefined ->
+    Bin = safe_write(Fd, ResIoList),
     case Progress of
-        silent -> Bin;
-        _      -> safe_write(undefined, Bin)
-    end.
+        silent -> ok;
+        _      -> safe_write(undefined, ConIoList)
+    end,
+    Bin;
+double_write(Progress, Fd, IoList) ->
+    double_write(Progress, Fd, {IoList, IoList}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

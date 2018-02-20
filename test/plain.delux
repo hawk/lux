@@ -7,19 +7,17 @@
     [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
     !../bin/lux --progress=summary --timeout=5000 \
                 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate plain
-
-"""?
-test case         : .*plain/nested_fail_html.lux
-result            : FAIL at 8:4:12
-expected
-.*SH-PROMPT:
-actual fail pattern matched "echo xxx"
-"""
-"""?
-successful        : 0
-failed            : 1
-.*plain/nested_fail_html.lux:8:4:12 - fail pattern matched "echo xxx"
-summary           : FAIL
-"""
-
-[invoke check_status 1]
+    """?
+    test case         : .*plain/nested_fail_html.lux
+    result            : FAIL at 8:4:12
+    expected\*
+    .*SH-PROMPT:
+    actual fail pattern matched "echo xxx"
+    """
+    """?
+    successful        : 0
+    failed            : 1
+    .*plain/nested_fail_html.lux:8:4:12 - fail pattern matched "echo xxx"
+    summary           : FAIL
+    """
+    [invoke check_status 1]
