@@ -16,7 +16,7 @@
          open_event_log/5, close_event_log/1, write_event/4, scan_events/2,
          parse_events/2, parse_io_logs/2, open_config_log/3, close_config_log/2,
          extract_timers/1, timers_to_csv/1, csv_to_timers/1,
-         safe_format/5, safe_write/4, dequote/1
+         safe_format/5, safe_write/4, unquote/1, dequote/1, split_quoted_lines/1
         ]).
 
 -include_lib("kernel/include/file.hrl").
@@ -237,7 +237,7 @@ split_result2([Heading | Lines], Acc) ->
     {Files, Lines2} = lists:splitwith(Pred, Lines),
     Parse = fun(<<"\t", File/binary>>) ->
                     [File2, LineNo] = binary:split(File, <<":">>),
-                    {file, File2, LineNo}
+                    {file_lineno, File2, LineNo}
             end,
     Files2 = lists:map(Parse, Files),
     split_result2(Lines2, [{section, Slogan2, Count, Files2} | Acc]);
@@ -709,27 +709,33 @@ do_parse_events([Event | Events], Acc) ->
     [Prefix, Details] = binary:split(Event, <<"): ">>),
     [Shell, RawLineNo] = binary:split(Prefix, <<"(">>),
     LineNo = list_to_integer(?b2l(RawLineNo)),
-    [Op | RawContents] = binary:split(Details, <<" ">>),
-    Data =
-        case RawContents of
-            [] ->
-                %% cli(86): suspend
-                [<<>>];
-            [Contents] ->
-                case unquote(Contents) of
-                    {quote, C} ->
-                        %% cli(26): recv "echo ==$?==\r\n==0==\r\n$ "
-                        split_quoted_lines(C);
-                    {plain, C} ->
-                        %% cli(70): timer start (10 seconds)
-                        [C]
-                end
+    {Op, Data} =
+        case binary:split(Details, <<" ">>) of
+            [O]    -> {O, <<>>};
+            [O, D] -> {O, D}
         end,
-    E = #event{lineno = LineNo,
-               shell = Shell,
-               op = Op,
-               data = Data},
-    do_parse_events(Events, [E | Acc]);
+    {Quote, Plain} = unquote(Data),
+    E2 =
+        case Acc of
+            [#event{lineno = LineNo,
+                    shell = Shell,
+                    op = Op,
+                    data = PrevData,
+                    quote = Quote} = E | Acc2]
+              when Quote =:= quote,
+                   Op =:= <<"recv">>,
+                   Data =/= <<"timeout">> ->
+                %% Combine consecutive two chunks of recv data
+                %% into one in order to improve readability
+                E#event{data = [Plain | PrevData]};
+            Acc2 ->
+                #event{lineno = LineNo,
+                       shell = Shell,
+                       op = Op,
+                       quote = Quote,
+                       data = [Plain]}
+        end,
+    do_parse_events(Events, [E2 | Acc2]);
 do_parse_events([], Acc) ->
     lists:reverse(Acc).
 
@@ -1042,8 +1048,12 @@ parse_result(RawResult) ->
     %% io:format("Result: ~p\n", [R]),
     {result, R}.
 
-split_quoted_lines(IoList) ->
-    Normalized = lux_utils:replace(?l2b(IoList), [{quoted_crlf, <<"\n">>}]),
+split_quoted_lines(Bin) when byte_size(Bin) > 10000 ->
+    Sz = list_to_binary(integer_to_list(byte_size(Bin))),
+    [<<"...This is an insane amount of output. ", Sz/binary,
+       " bytes ignored. See textual LUX event log for details...">>];
+split_quoted_lines(Bin) when is_binary(Bin) ->
+    Normalized = lux_utils:replace(Bin, [{quoted_crlf, <<"\n">>}]),
     lux_utils:split_lines(Normalized).
 
 unquote(Bin) ->

@@ -578,11 +578,15 @@ split_lines(IoList) ->
     Normalized = normalize_newlines(IoList),
     binary:split(Normalized, <<"\n">>, [global]).
 
+normalize_newlines(Bin) when is_binary(Bin) ->
+    replace(Bin, [{crlf, <<"\n">>}]);
 normalize_newlines(IoList) ->
-    replace(?l2b(IoList), [{crlf, <<"\n">>}]).
+    normalize_newlines(?l2b(IoList)).
 
+normalize_match_regexp(Bin) when is_binary(Bin) ->
+    replace(Bin, [{crlf, <<"\\R">>}]);
 normalize_match_regexp(IoList) ->
-    replace(?l2b(IoList), [{crlf, <<"\\R">>}]).
+    normalize_match_regexp(?l2b(IoList)).
 
 replace(Bin, [Transform|Rest]) when is_binary(Bin) ->
     Bin2 =

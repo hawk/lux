@@ -168,6 +168,7 @@
         {lineno  :: non_neg_integer(),
          shell   :: binary(),
          op      :: binary(),
+         quote   :: quote | plain,
          data    :: [binary()]}).
 
 -record(body,
