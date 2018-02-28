@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.18 - 2018-02-21
+Version 1.18.1 - 2018-02-28
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1651,16 +1651,7 @@ and another `.../lux_config/SunOS-sun4u.luxcfg`
 
 Snippet from the enclosed `.../lux/examples/error.lux` file:
 
->     [doc Demonstrate an error]
->     
->     [config require=MAKE]
->     
->     [shell setup]
->         !$MAKE start
->     
->     
->     [cleanup]
->         !$MAKE stop
+>     [
 >     
 
 Snippet from the enclosed `.../lux/examples/warning.lux` file:
@@ -1700,14 +1691,14 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2018_01_29_14_59_41_325930/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2018_02_28_13_00_38_253484/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:..:...:..:.:.:....:..:..:.:..(....:..:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:..)(....:.:..:...)(.:..:..)..(.:..:..)......:..:...
+>     progress          : ..:..:..:.:...:..:.:.:.:....:..:..:.:..(....:..:.:.:.:...)(.:..:..)...:..:..:.:..(.:..:..)..(.:..:..)(....:.:.:....)(.:..:..)..(.:.:..:..)......:..:...
 >     result            : SUCCESS
 >     test case         : examples/error.lux
->     result            : FAIL as required variable MAKE is not set
+>     result            : ERROR as Syntax error at line 1: ']' is expected to be at end of line
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:...:..:.:.:..:..:.:....:..:..32C..:..:..:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:.:...:.:..:.:.:...:.:.:....:..:..32C..:...:.:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32
 >     expected*
 >     	19
@@ -1724,13 +1715,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:..:....:...:.:..:..:.:..:..:.:..:.:..:.:.....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:..:.
+>     progress          : ..:..:..:..:..:....:..:..:..:..:.:..:.:..:.:.:..:.:..:.:.....:..:.:.:....c......:.:.:..:..:..:..:.:..:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:..:.((.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:...:.:...:.:..:.:..:...:..:..:.((.i=1...:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):).c........:..:..:..:..:.:.
+>     progress          : ..:...:.:.((.:..:.:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.))...:...:.:.:...:.:.:..:.:..:.:...:..:..:.:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:..:...:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.((.i=1...:.:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))5
+>     progress          : ..:..:..:.:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))5
 >     result            : FAIL at 5:5
 >     expected*
 >     	
@@ -1740,10 +1731,12 @@ Evaluate `lux examples`
 >     	- 
 >     	+ Loop ended without match of "THIS WILL NEVER MATCH"
 >     	
+>     test case         : examples/require.lux
+>     result            : FAIL as required variable MAKE is not set
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:...:.:.:....7
+>     progress          : ..:..:..:....7
 >     result            : WARNING at 7
 >     expected*
 >     	bar
@@ -1763,11 +1756,13 @@ Evaluate `lux examples`
 >     	examples/unstable.lux:7 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 >     	examples/warning.lux:3 - Trailing whitespaces
 >     failed            : 3
->     	examples/error.lux:3 - fail
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"
->     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2018_01_29_14_59_41_325930/lux_summary.log.html
+>     	examples/require.lux:3 - FAIL as required variable MAKE is not set
+>     errors            : 1
+>     	examples/error.lux:1 - Syntax error at line 1: ']' is expected to be at end of line
+>     summary           : ERROR
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2018_02_28_13_00_38_253484/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
