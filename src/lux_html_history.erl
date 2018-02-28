@@ -32,7 +32,7 @@ generate(PrefixedSources, RelHtmlFile, Opts) ->
     io:format("\nAnalyzed ~p test runs (~p errors)",
               [length(Runs), length(Errors)]),
     %% io:format("\nERRORS ~p\n", [Errors]),
-    Res = do_generate(RelHtmlFile, Runs, Errors, LatestOnly, Opts),
+    Res = do_generate(RelHtmlFile, Runs, Errors, LatestOnly, Opts2),
     lux_utils:stop_app(WWW),
     Res.
 
