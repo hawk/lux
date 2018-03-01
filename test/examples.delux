@@ -14,7 +14,7 @@ result            : SUCCESS
 """
 """?
 test case         : .*examples/error.lux
-result            : ERROR as Syntax error at line 1: '\]' is expected to be at end of line
+result            : ERROR Syntax error at line 1: '\]' is expected to be at end of line
 """
 """?
 test case         : .*examples/fail.lux

@@ -765,10 +765,12 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
             Script2 = lux_utils:pretty_filename(RevMainFile),
             MainFile = lux_utils:pretty_filename(RevMainFile),
             init_case_rlog(ErrR, P, Script),
-            double_rlog2(ErrR, "~s~s\n",
-                         [?TAG("result"), ErrorBin2],
-                          "~sERROR as ~s\n",
+            double_rlog(ErrR, "~sERROR ~s\n",
                          [?TAG("result"), ErrorBin2]),
+            %% double_rlog2(ErrR, "~s~s\n",
+            %%              [?TAG("result"), ErrorBin2],
+            %%               "~sERROR as ~s\n",
+            %%              [?TAG("result"), ErrorBin2]),
             Summary = error,
             tap_case_begin(ErrR, Script),
             lux:trace_me(70, 'case', suite, Summary, []),
@@ -1037,16 +1039,16 @@ double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
         _         -> lux_log:double_write(Progress, Fd, IoList)
     end.
 
-double_rlog2(#rstate{progress = Progress, log_fd = Fd},
-             ResFormat, ResArgs, ConFormat, ConArgs) ->
-    ResIoList = ?FF(ResFormat, ResArgs),
-    case Fd of
-        undefined ->
-            ?l2b(ResIoList);
-        _ ->
-            ConIoList = ?FF(ConFormat, ConArgs),
-            lux_log:double_write(Progress, Fd, {ResIoList, ConIoList})
-    end.
+%% double_rlog2(#rstate{progress = Progress, log_fd = Fd},
+%%              ResFormat, ResArgs, ConFormat, ConArgs) ->
+%%     ResIoList = ?FF(ResFormat, ResArgs),
+%%     case Fd of
+%%         undefined ->
+%%             ?l2b(ResIoList);
+%%         _ ->
+%%             ConIoList = ?FF(ConFormat, ConArgs),
+%%             lux_log:double_write(Progress, Fd, {ResIoList, ConIoList})
+%%     end.
 
 init_case_rlog(#rstate{progress = Progress, log_fd = Fd},
                RelScript, AbsScript) ->
