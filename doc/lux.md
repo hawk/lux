@@ -1781,6 +1781,8 @@ The following software is required:
   `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
 >     sudo apt-get install erlang
 
+* On BSD based systems, GNU Make is required.
+
   Once `Lux` has been installed, it will be self-contained and does
   not need a separate `Erlang/OTP` runtime system any more.
 
