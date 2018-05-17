@@ -14,6 +14,8 @@ The following software is required:
   Once `Lux` has been installed, it will be self-contained and does
   not need a separate `Erlang/OTP` runtime system any more.
 
+* On BSD based systems, GNU Make is required.
+
 * The documentation is pre-built. Re-generation of the documentation
   requires **[Markdown][]**.
 
