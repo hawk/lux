@@ -11,6 +11,8 @@
 
 -module(lux_diff).
 
+-include("lux.hrl").
+
 -export([
          compare/2, compare2/3,
          split_diff/1,
@@ -566,8 +568,7 @@ test2(A, B) ->
         B = apply_verbose_diff(A, VerboseComp3),
         {ok, Time1, Time2}
     catch
-        error:Reason ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(error, Reason, EST)
             io:format("Test failed for:\n"
                       "  ~p:test2(\n"
                       "      ~p\n,"

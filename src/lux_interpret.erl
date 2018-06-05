@@ -51,8 +51,7 @@ init(I, StartTime) ->
     catch
         throw:{error, Reason, I5} ->
             {error, Reason, I5};
-        error:Reason ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(error, Reason, EST)
             ErrBin = ?l2b(?FF("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
                       [ErrBin, EST]),
@@ -612,8 +611,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                 NewI
         end
     catch
-        Class:Reason ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(Class, Reason, EST)
             lux_utils:progress_write(OldI#istate.progress, ")"),
             BeforeExit =
                 fun() ->

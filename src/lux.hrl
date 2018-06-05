@@ -12,7 +12,6 @@
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), iolist_to_binary(L)).
 -define(i2l(I), integer_to_list(I)).
--define(stacktrace(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
 -define(APPLICATION, lux).
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
@@ -197,3 +196,18 @@
  -define(DEFAULT_RUN, <<"unknown">>).
  -define(DEFAULT_REV, <<"">>).
  -define(DEFAULT_TIME, <<"yyyy-mm-dd hh:mm:ss">>).
+
+-ifdef(OTP_RELEASE).
+    -define(stacktrace(),
+            fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason:Stacktrace ->
+           ).
+-else.
+    -define(stacktrace(),
+            try throw(1) catch _:_ -> erlang:get_stacktrace() end).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+           ).
+-endif.

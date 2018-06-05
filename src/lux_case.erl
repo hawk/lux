@@ -7,8 +7,6 @@
 
 -module(lux_case).
 
--include("lux.hrl").
-
 -export([
          interpret_commands/6,
          default_istate/1,
@@ -20,6 +18,8 @@
          copy_orig/2,
          case_log_dir/2
         ]).
+
+-include("lux.hrl").
 
 interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     %% io:format("\nCmds ~p\n", [Cmds]),
@@ -68,8 +68,7 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
                 internal_error(I2, ParseReason)
         end
     catch
-        Class:Reason ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(Class, Reason, EST)
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason, EST}})
     end.
 

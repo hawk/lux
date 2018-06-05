@@ -383,8 +383,7 @@ annotate_event_log(#astate{log_file=EventLog} = A, WWW)
                 {Error, NewWWW}
         end
     catch
-        error:Reason2 ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(error, Reason2, EST)
             ReasonStr =
                 lists:flatten(?FF("ERROR in ~s\n~p\n\~p\n",
                                   [EventLog, Reason2, EST])),

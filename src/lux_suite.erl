@@ -81,10 +81,9 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                 R2 = compute_files(R, LogDir, LogBase),
                 doc_run(R2)
             catch
-                throw:{error, FileErr, Reason} ->
+                ?CATCH_STACKTRACE(throw, {error, FileErr, Reason}, _EST)
                     {error, FileErr, Reason};
-                Class:Reason ->
-                    EST = erlang:get_stacktrace(),
+                ?CATCH_STACKTRACE(Class, Reason, EST)
                     ReasonStr =
                         lists:flatten(?FF("~p:~p ~p", [Class, Reason, EST])),
                     {ok, Cwd} = file:get_cwd(),
@@ -106,8 +105,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                     {error, Cwd, "ERROR: No input files\n"};
                 throw:{error, FileErr, ReasonStr} ->
                     {error, FileErr, ReasonStr};
-                Class:Reason ->
-                    EST = erlang:get_stacktrace(),
+                ?CATCH_STACKTRACE(Class, Reason, EST)
                     ReasonStr =
                         lists:flatten(?FF("~p:~p ~p", [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
@@ -147,7 +145,8 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
         lux:trace_me(80, suite, NewSummary, []),
         tap_suite_end(NewR, NewSummary, NewResults),
         {NewR, NewSummary, NewResults}
-    catch Class:Reason ->
+    catch
+        ?CATCH_STACKTRACE(Class, Reason, EST)
             lux:trace_me(80, suite, Class, [Reason]),
             if
                 R#rstate.tap =/= undefined ->
@@ -155,7 +154,7 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
                 true ->
                     ok
             end,
-            erlang:Class(Reason)
+            erlang:raise(Class, Reason, EST)
     end.
 
 expand_suite(R, [SuiteFile | SuiteFiles], Acc, Max) ->

@@ -99,8 +99,7 @@ parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
     try
         do_parse_summary_log(Source, WWW)
     catch
-        error:Reason ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(error, Reason, EST)
             ReasonStr =
                 lists:flatten(?FF("\nINTERNAL LUX ERROR"
                                   " in ~s\n~p\n\~p\n",
@@ -297,8 +296,7 @@ parse_run_summary(Source, File, Res, Opts) ->
     try
         do_parse_run_summary(Source, File, Res, Opts)
     catch
-        error:Reason ->
-            EST = erlang:get_stacktrace(),
+        ?CATCH_STACKTRACE(error, Reason, EST)
             ReasonStr =
                 lists:flatten(?FF("\nINTERNAL LUX ERROR"
                                   " in ~s\n~p\n\~p\n",
