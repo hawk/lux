@@ -9,6 +9,7 @@
 
 -export([
          is_temporary/1, parse_summary_log/2, parse_run_summary/4,
+         default_run/2,
          open_summary_log/3, close_summary_tmp_log/1, close_summary_log/2,
          write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
@@ -306,22 +307,7 @@ parse_run_summary(Source, File, Res, Opts) ->
     end.
 
 do_parse_run_summary(Source, File, Res, Opts) ->
-    {ok, Cwd} = file:get_cwd(),
-    CN0 = ?DEFAULT_CONFIG_NAME,
-    Log = filename:basename(File),
-    NewLogDir = lux_utils:normalize_filename(filename:dirname(File)),
-    R = #run{test = ?DEFAULT_SUITE,
-             id = ?DEFAULT_RUN,
-             result = fail,
-             log = Log,
-             start_time = ?DEFAULT_TIME,
-             hostname = ?DEFAULT_HOSTNAME,
-             config_name = CN0,
-             run_dir = Cwd,
-             run_log_dir = Source#source.dir,
-             new_log_dir = NewLogDir,
-             repos_rev = ?DEFAULT_REV,
-             details = []},
+    R = default_run(Source, File),
     case Res of
         {ok, Result, Groups, SummaryConfig, Ctime, _EventLogs} ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
@@ -335,6 +321,7 @@ do_parse_run_summary(Source, File, Res, Opts) ->
                 HostName ->
                     ok
             end,
+            CN0 = R#run.config_name,
             ConfigName0 = find_config(<<"config name">>, ConfigProps, CN0),
             ConfigName =
                 if
@@ -361,9 +348,10 @@ do_parse_run_summary(Source, File, Res, Opts) ->
             RunId = find_config(<<"run">>, ConfigProps, R#run.id),
             ReposRev =
                 find_config(<<"revision">>, ConfigProps, R#run.repos_rev),
-            CwdBin = ?l2b(Cwd),
+            CwdBin = ?l2b(R#run.run_dir),
             RunDir = ?b2l(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
             RunLogDir = ?b2l(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
+            NewLogDir = R#run.new_log_dir,
             Cases = [parse_run_case(NewLogDir, RunDir, RunLogDir,
                                     StartTime, Branch, HostName, ConfigName,
                                     Suite, RunId, ReposRev, Case) ||
@@ -383,6 +371,23 @@ do_parse_run_summary(Source, File, Res, Opts) ->
         {error, _SummaryLog, _ReasonStr} ->
             R
     end.
+
+default_run(Source, File) ->
+    {ok, Cwd} = file:get_cwd(),
+    Log = filename:basename(File),
+    NewLogDir = lux_utils:normalize_filename(filename:dirname(File)),
+    #run{test = ?DEFAULT_SUITE,
+         id = ?DEFAULT_RUN,
+         result = fail,
+         log = Log,
+         start_time = ?DEFAULT_TIME,
+         hostname = ?DEFAULT_HOSTNAME,
+         config_name = ?DEFAULT_CONFIG_NAME,
+         run_dir = Cwd,
+         run_log_dir = Source#source.dir,
+         new_log_dir = NewLogDir,
+         repos_rev = ?DEFAULT_REV,
+         details = []}.
 
 split_config(ConfigBins) ->
     Split =

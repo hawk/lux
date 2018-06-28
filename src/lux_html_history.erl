@@ -22,13 +22,13 @@
 generate(PrefixedSources, RelHtmlFile, Opts) ->
     io:format("Assembling history of logs from...", []),
     Sources = lists:map(fun split_source/1, PrefixedSources),
-    case lists:usort([B || #source{branch=B} <- Sources]) of
-        %% [_NoBranch=undefined] -> LatestOnly = false;
+    SplitSources = keysplit(#source.branch, Sources),
+    case SplitSources of
         [_SingleBranch]       -> LatestOnly = false;
         _MultiBranch          -> LatestOnly = true
     end,
     Opts2 = [{top, Sources} | Opts],
-    {Runs, Errors, WWW} = collect(Sources, Opts2, [], [], undefined),
+    {Runs, Errors, WWW} = collect(SplitSources, Opts2, [], [], undefined),
     io:format("\nAnalyzed ~p test runs (~p errors)",
               [length(Runs), length(Errors)]),
     %% io:format("\nERRORS ~p\n", [Errors]),
@@ -64,13 +64,36 @@ source_dir(File) ->
         _                  -> File % Assume file is dir
     end.
 
-collect([Source | Sources], Opts, Runs, Errors, WWW) ->
+collect([{Branch, Sources} | SplitSources], Opts, Runs, Errors, WWW) ->
+    {OptRuns, OptErrors, NewWWW} =
+        collect_branch(Sources, Opts, [], Errors, WWW),
+    case OptRuns of
+        [] ->
+            S = hd(Sources),
+            File = S#source.file,
+            Enoent = file:format_error(enoent),
+            Reason = "HTML LUX WARNING: " ++ File ++ ": " ++ Enoent,
+            io:format("\n~s\n", [Reason]),
+            R = lux_log:default_run(S, File),
+            MoreRuns = [R#run{id = Branch,
+                              branch = Branch,
+                              repos_rev = Branch}],
+            MoreErrors = [{error, File, Reason}];
+        MoreRuns ->
+            MoreErrors = []
+    end,
+    NewRuns = MoreRuns ++ Runs,
+    NewErrors = MoreErrors ++ OptErrors,
+    collect(SplitSources, Opts, NewRuns, NewErrors, NewWWW);
+collect([], _Opts, Runs, Errors, WWW) ->
+    {Runs, Errors, WWW}.
+
+collect_branch([Source | Sources], Opts, Runs, Errors, WWW) ->
     io:format("\n\t~s", [Source#source.orig]),
     {{NewRuns, NewErrors}, NewWWW} =
         parse_summary_logs(Source, Runs, Errors, WWW, Opts),
-    collect(Sources, Opts,
-              NewRuns, NewErrors, NewWWW);
-collect([], _Opts, Runs, Errors, WWW) ->
+    collect_branch(Sources, Opts, NewRuns, NewErrors, NewWWW);
+collect_branch([], _Opts, Runs, Errors, WWW) ->
     {Runs, Errors, WWW}.
 
 do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=true, Opts) ->
@@ -900,14 +923,7 @@ candidate_files() ->
 
 parse_summary_files(Source, RelDir, [Base | Bases], Acc, Err, WWW, Opts) ->
     io:format(".", []),
-    RelFile = Source#source.file,
-    case filename:basename(RelFile) of
-        "lux_summary.log" ->
-            File = RelFile;
-        _ ->
-            Tmp = lux_utils:join(RelFile, RelDir),
-            File = lux_utils:join(Tmp, Base)
-    end,
+    File = source_file(Source, RelDir, Base),
     {ParseRes, NewWWW} = lux_log:parse_summary_log(File, WWW),
     {Acc2, Err2} =
         case ParseRes of
@@ -924,6 +940,16 @@ parse_summary_files(Source, RelDir, [Base | Bases], Acc, Err, WWW, Opts) ->
     parse_summary_files(Source, RelDir, Bases, Acc2, Err2, NewWWW, Opts);
 parse_summary_files(_Source, _RelDir, [], Acc, Err, WWW, _Opts) ->
     {{Acc, Err}, WWW}.
+
+source_file(Source, RelDir, Base) ->
+    RelFile = Source#source.file,
+    case filename:basename(RelFile) of
+        "lux_summary.log" ->
+            RelFile;
+        _ ->
+            Tmp = lux_utils:join(RelFile, RelDir),
+            lux_utils:join(Tmp, Base)
+    end.
 
 multi_member([H | T], Files) ->
     case lists:member(H, Files) of
