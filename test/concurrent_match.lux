@@ -1,0 +1,6 @@
+[doc Test concurrent match of fail pattern and regular match]
+
+[shell test]
+    -good
+    !echo "The good, the bad and the ugly"
+    ?bad
