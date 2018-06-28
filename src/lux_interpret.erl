@@ -255,8 +255,9 @@ premature_stop(I, CleanupReason, StopRes) ->
             multicast(I2, {shutdown, self()}),
             I#istate{mode = stopping, cleanup_reason = CleanupReason};
         stopping ->
-            %% Shutdown has already been sent to the shells.
-            %% Continue to collect their states.
+            %% Shutdown has already been sent to the normal shells.
+            %% Continue to collect their states as well as cleanup shells.
+            multicast(I2, {shutdown, self()}),
             I2
     end.
 
@@ -881,23 +882,23 @@ split_range([H|T], Acc) ->
 split_range([], _Acc) ->
     false.
 
-prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
+prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
     %% Handle stop procedure
-    {CleanupReason, Res3} = prepare_result(I, Res),
+    {CleanupReason, Res} = prepare_result(I, RawRes),
     NewLevel =
-        case Res3#result.actual of
+        case Res#result.actual of
             internal_error -> ?dmore;
             _              -> I#istate.debug_level
         end,
-    I2 = I#istate{results = [Res3 | Acc],
+    I2 = I#istate{results = [Res | Acc],
                   debug_level = NewLevel}, % Activate debug after first error
     {ShellName, I3} = delete_shell(I2, Pid),
     lux:trace_me(50, 'case', stop,
                  [{mode, I3#istate.mode},
-                  {stop, ShellName, Res3#result.outcome, Res3#result.actual},
+                  {stop, ShellName, Res#result.outcome, Res#result.actual},
                   {active_shell, I3#istate.active_shell},
                   {shells, I3#istate.shells},
-                  Res3]),
+                  Res]),
     case I3#istate.mode of
         running ->
             multicast(I3, {relax, self()}),
@@ -905,7 +906,7 @@ prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
         cleanup when Res#result.outcome =:= relax -> % Orig outcome
             I3; % Continue with cleanup
         cleanup ->
-            %% Initiate stop by sending shutdown to the remaining shells.
+           %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I3, {shutdown, self()}),
             I3#istate{mode = stopping};
         stopping ->
@@ -914,7 +915,8 @@ prepare_stop(#istate{results = Acc} = I, Pid, Res) ->
             I3
     end.
 
-prepare_result(#istate{latest_cmd = LatestCmd,
+prepare_result(#istate{mode = Mode,
+                       latest_cmd = LatestCmd,
                        cmd_stack = CmdStack,
                        cleanup_reason = OrigCleanupReason},
                Res) ->
@@ -960,7 +962,7 @@ prepare_result(#istate{latest_cmd = LatestCmd,
             _ ->
                 Res2
         end,
-    {CleanupReason, Res3}.
+    {CleanupReason, Res3#result{mode = Mode}}.
 
 goto_cleanup(I, CleanupReason) ->
     lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),

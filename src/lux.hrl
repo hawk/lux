@@ -54,6 +54,7 @@
 
 -record(result,
         {outcome       :: fail | success | shutdown,
+         mode          :: running | cleanup | stopping,
          name          :: string(),
          latest_cmd    :: #cmd{},
          cmd_stack     :: [{string(), non_neg_integer(), atom()}],

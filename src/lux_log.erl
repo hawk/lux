@@ -505,10 +505,10 @@ write_results(Progress, SummaryLog, Summary, Results, Warnings)
                 file:close(Fd),
                 ok = file:rename(TmpResultFile, ResultFile)
             catch
-                Class:Reason ->
+                ?CATCH_STACKTRACE(Class, Reason, EST)
                     file:close(Fd),
                     file:delete(TmpResultFile),
-                    erlang:Class(Reason)
+                    erlang:raise(Class, Reason, EST)
             end;
         {error, FileReason} ->
             ReasonStr = ResultFile ++ ": " ++file:format_error(FileReason),
@@ -562,7 +562,9 @@ print_fail(Progress, Fd, Results) ->
         [] ->
             ok;
         FailScripts ->
-            Norm = fun(Str) -> lux_utils:to_string(Str) end,
+            Norm = fun({fail,R}) -> lux_utils:to_string(R);
+                      (R)        -> lux_utils:to_string(R)
+                   end,
             result_format(Progress, Fd, "~s~p\n",
                           [?TAG("failed"), length(FailScripts)]),
             [result_format(Progress, Fd, "\t~s:~s - ~s\n",

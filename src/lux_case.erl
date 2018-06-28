@@ -395,33 +395,60 @@ handle_done(OldI, NewI0, Docs) ->
     Results = NewI#istate.results,
     case lists:keyfind('EXIT', 1, Results) of
         false ->
-            case lists:keyfind(fail, #result.outcome, Results) of
-                #result{outcome = fail} = Fail ->
-                    print_fail(OldI, NewI, File, Results, Fail);
+            case pick_fail(NewI, Results) of
                 false ->
-                    Reason = NewI#istate.cleanup_reason,
-                    if
-                        Reason =:= normal;
-                        Reason =:= success ->
-                            print_success(NewI, File, Results);
-                        true ->
-                            LatestCmd = NewI#istate.latest_cmd,
-                            CmdStack = NewI#istate.cmd_stack,
-                            R = #result{outcome    = fail,
-                                        latest_cmd = LatestCmd,
-                                        cmd_stack  = CmdStack,
-                                        expected   = success,
-                                        extra      = undefined,
-                                        actual     = Reason,
-                                        rest       = fail},
-                            print_fail(OldI, NewI, File, Results, R)
-                    end
+                    print_success(NewI, File);
+                R ->
+                    print_fail(OldI, NewI, File, Results, R)
             end;
         {'EXIT', Reason} ->
             internal_error(NewI, {'EXIT', Reason})
     end.
 
-print_success(I, File, Results) ->
+pick_fail(NewI, Results) ->
+    Failed =
+        [R || R <- Results,
+              R#result.outcome =:= fail],
+    Stopping =
+        [R || R <- Failed,
+              R#result.mode =:= stopping],
+    case Stopping of
+        [] ->
+            Cleanup =
+                [R || R <- Failed,
+                      R#result.mode =:= cleanup],
+            case Cleanup of
+                [] ->
+                    Reason = NewI#istate.cleanup_reason,
+                    case Failed of
+                        [] when Reason =:= normal;
+                                Reason =:= success ->
+                            false;
+                        [] ->
+                            cleanup_fail(NewI, Reason);
+                        [R | _] ->
+                            R
+                    end;
+                [R | _] ->
+                    R
+            end;
+        [R | _] ->
+            R
+    end.
+
+cleanup_fail(I, Reason) ->
+    LatestCmd = I#istate.latest_cmd,
+    CmdStack = I#istate.cmd_stack,
+    #result{outcome      = fail,
+            latest_cmd   = LatestCmd,
+            cmd_stack    = CmdStack,
+            expected_tag = expected,
+            expected     = success,
+            extra        = undefined,
+            actual       = Reason,
+            rest         = fail}.
+
+print_success(I, File) ->
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = ?i2l(LatestCmd#cmd.lineno),
     Warnings = I#istate.warnings,
@@ -434,73 +461,111 @@ print_success(I, File, Results) ->
                 double_ilog(I, "~sSUCCESS\n", [?TAG("result")]),
                 success
         end,
+    Results = [],
     {ok, Outcome, File, FullLineNo, I#istate.case_log_dir, Warnings,
      Results, <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
 print_fail(OldI0, NewI, File, Results,
            #result{outcome      = fail,
+                   mode         = _Mode,
                    latest_cmd   = LatestCmd,
                    cmd_stack    = CmdStack,
                    expected_tag = ExpectedTag,
                    expected     = Expected,
                    extra        = _Extra,
                    actual       = Actual,
-                   rest         = Rest}) ->
+                   rest         = Rest} = Fail) ->
     OldI = OldI0#istate{progress = silent},
     OldWarnings = OldI#istate.warnings,
     FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
+    HiddenWarnings = [hidden_warning(OldI, File, R) ||
+                         R <- Results,
+                         R#result.outcome =:= fail,
+                         R =/= Fail],
     UnstableWarnings = unstable_warnings(OldI, FullLineNo),
     {Outcome, Warnings, ResStr} =
         if
             UnstableWarnings =/= [] ->
                 {warning,
-                 OldWarnings ++ UnstableWarnings,
+                 OldWarnings ++ HiddenWarnings ++ UnstableWarnings,
                  double_ilog(OldI, "~sWARNING at ~s\n",
                              [?TAG("result"), FullLineNo])
                 };
             true ->
                 {fail,
-                 OldWarnings,
+                 OldWarnings ++ HiddenWarnings,
                  double_ilog(OldI, "~sFAIL at ~s\n",
                              [?TAG("result"), FullLineNo])
                 }
         end,
-    {NewActual, NewRest} =
-        case Actual of
-            <<?fail_pattern_matched, _/binary>> ->
-                {Actual, Rest};
-            << ?success_pattern_matched, _/binary>> ->
-                {Actual, Rest};
-            _ when is_atom(Actual), is_binary(Rest) ->
-                {atom_to_list(Actual), Rest};
-            _ when is_atom(Actual), is_atom(Rest) ->
-                {atom_to_list(Actual), list_to_binary(atom_to_list(Rest))};
-            _ when is_binary(Actual) ->
-                {<<"error">>, Actual}
-        end,
-    Diff = lux_utils:shrink_diff(ExpectedTag, Expected, NewRest),
-    ExpectStr = atom_to_list(ExpectedTag),
-    FailBin =
-        ?l2b(
-          [
-           ?FF("~s\n\t~s\n", [ExpectedTag, simple_to_string(Expected)]),
-           ?FF("actual ~s\n\t~s\n", [NewActual, simple_to_string(NewRest)]),
-           ?FF("diff\n\t~s", [simple_to_string(Diff)])
-          ]),
-   case OldI0#istate.progress of
+    {OldActual, NewActual, NewExpected, NewRest} =
+        new_actual(Actual, Expected, Rest),
+    FailBin = fail_bin(ExpectedTag, NewExpected, OldActual, NewRest),
+    case OldI0#istate.progress of
         silent ->
             ok;
         _ ->
             io:format("~s", [ResStr]),
             io:format("~s\n", [FailBin])
     end,
+    ExpectStr = atom_to_list(ExpectedTag),
     double_ilog(OldI, "~s\n\"~s\"\n",
                 [ExpectStr, lux_utils:to_string(Expected)]),
     double_ilog(OldI, "actual ~s\n\"~s\"\n",
                 [NewActual, lux_utils:to_string(NewRest)]),
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
+    NewResults = [Fail],
     {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir, Warnings,
-     Results, FailBin, Opaque}.
+     NewResults, FailBin, Opaque}.
+
+new_actual(Actual, Expected, Rest) when is_atom(Expected) ->
+    NewExpected = list_to_binary(atom_to_list(Expected)),
+    new_actual(Actual, NewExpected, Rest);
+new_actual(Actual, Expected, Rest) when is_atom(Rest) ->
+    NewRest = list_to_binary(atom_to_list(Rest)),
+    new_actual(Actual, Expected, NewRest);
+new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
+    case Actual of
+        <<?fail_pattern_matched, _/binary>> ->
+            {Actual, Actual, Expected, Rest};
+        << ?success_pattern_matched, _/binary>> ->
+            {Actual, Actual, Expected, Rest};
+        {fail, OldActual} when is_atom(OldActual) ->
+            NewActual = atom_to_list(OldActual),
+            {OldActual, NewActual, Expected, Rest};
+        _ when is_atom(Actual) ->
+            NewActual = atom_to_list(Actual),
+            {Actual, NewActual, Expected, Rest};
+        _ when is_atom(Actual) ->
+            NewActual = atom_to_list(Actual),
+            {Actual, NewActual, Expected, Rest};
+        _ when is_binary(Actual) ->
+            NewActual = <<"error">>,
+            {Actual, NewActual, Expected, Actual}
+    end.
+
+fail_bin(ExpectedTag, Expected, NewActual, NewRest) ->
+    Diff = lux_utils:shrink_diff(ExpectedTag, Expected, NewRest),
+    ?l2b(
+       [
+        ?FF("~s\n\t~s\n", [ExpectedTag, simple_to_string(Expected)]),
+        ?FF("actual ~s\n\t~s\n", [NewActual, simple_to_string(NewRest)]),
+        ?FF("diff\n\t~s", [simple_to_string(Diff)])
+       ]).
+
+hidden_warning(OldI,
+               File,
+               #result{outcome      = fail,
+                       mode         = _Mode,
+                       latest_cmd   = LatestCmd,
+                       cmd_stack    = CmdStack,
+                       expected_tag = _ExpectedTag,
+                       expected     = _Expected,
+                       extra        = _Extra,
+                       actual       = Actual,
+                       rest         = _Rest}) ->
+    FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
+    {warning, File, FullLineNo, Actual}.
 
 unstable_warnings(#istate{unstable=U, unstable_unless=UU} = I, FullLineNo) ->
     F = fun(Var, NameVal) -> filter_unstable(I, FullLineNo, Var, NameVal) end,
