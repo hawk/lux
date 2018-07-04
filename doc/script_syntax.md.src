@@ -171,7 +171,9 @@ run in order to enable a controlled cleanup of leftovers. Such as
 killing processes, removing files etc. When the cleanup marker is
 evaluated, the running shells will be set into a non accessible mode
 (**zombie mode**) and their failure and success patterns will be
-reset (cleared). A brand new shell (called something beginning with
+reset (cleared). This means that output received by zombie shells
+during the cleanup is not matched against failure or success
+patterns. A brand new shell (called something beginning with
 `cleanup`) will also be started. If the cleanup code causes a failure
 the remaining statements (on that level) will be skipped.
 
