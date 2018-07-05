@@ -1,0 +1,8 @@
+[config timeout=10000]
+[config case_timeout=2000]
+
+[shell test]
+    !echo foo
+    ?bar
+
+[cleanup]

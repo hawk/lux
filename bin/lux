@@ -618,8 +618,8 @@ suite_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
     case add_defaults(Opts) of
         {ok, Opts2} ->
             LogDir = proplists:get_value(log_dir, Opts2),
-            TraceFile0 = filename:join([LogDir, "lux.trace"]),
-            {ok, TraceFile} = start_trace(TraceFile0),
+            TraceFile0 = filename:join([LogDir, "lux_suite"]),
+            {ok, TraceFile} = start_suite_trace(TraceFile0),
             io:format("WARNING: Internal tracing of suite started,"
                       " see file ~s\n",
                       [TraceFile]),
@@ -634,27 +634,89 @@ suite_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
     end.
 
 display_trace(TraceFile) ->
-    ClientPid = dbg:trace_client(file, TraceFile, {fun trace_client/2, self()}),
-    link(ClientPid),
-    receive end_of_trace -> ok end,
-    0.
+    case filelib:is_regular(TraceFile) of
+        true ->
+            ReplyTo = self(),
+            Indent = 0,
+            HandlerSpec = {fun trace_client/2, {ReplyTo, Indent}},
+            ClientPid = dbg:trace_client(file, TraceFile, HandlerSpec),
+            link(ClientPid),
+            receive
+                end_of_trace ->
+                    0;
+                {'EXIT', Reason} ->
+                    io:format("ERROR: ~s: ~p\n", [TraceFile, Reason]),
+                    1
+                end;
+        false ->
+            io:format("ERROR: ~s: no such file\n", [TraceFile]),
+            1
+    end.
 
-trace_client(end_of_trace, ReplyTo) ->
+trace_client(end_of_trace, {ReplyTo, _Indent}) ->
     ReplyTo ! end_of_trace,
     ReplyTo;
-trace_client(Data, ReplyTo) ->
-    io:format("~p.\n", [Data]),
-    ReplyTo.
+trace_client(Data, {ReplyTo, Indent}) ->
+    NewData = map_trace(Data, true, [istate]),
+    Stripped = strip_time(NewData),
+    io:format("~s~p.\n", [lists:duplicate(Indent, " "), Stripped]),
+    NewIndent =
+        case element(3, Data) of
+            call ->
+                Indent+1;
+            return_from when Indent > 0->
+                Indent-1;
+            _ ->
+                Indent
+        end,
+    {ReplyTo, NewIndent}.
 
-start_trace(TraceFile) ->
+map_trace(List, Default, Filter) when is_list(List) ->
+    [map_trace(Elem, Default, Filter) || Elem <- List];
+map_trace(Tuple, Default, Filter) when is_tuple(Tuple) ->
+    DeepMap =
+        fun(T) ->
+                list_to_tuple(map_trace(tuple_to_list(T),
+                                        Default,
+                                        Filter))
+        end,
+    Tag = element(1, Tuple),
+    if
+        is_atom(Tag), Tag =/= trace, Tag =/= trace_ts ->
+            Match = lists:member(Tag, Filter),
+            State = lists:suffix("state", atom_to_list(Tag));
+        true ->
+            Match = undefined,
+            State = false
+    end,
+    case {Default, Match} of
+        _ when not State -> DeepMap(Tuple);
+        {true, true}     -> {Tag};
+        {true, false}    -> DeepMap(Tuple);
+        {false, true}    -> DeepMap(Tuple);
+        {false, false}   -> {Tag}
+    end;
+map_trace(Data, _Default, _Filter) ->
+    Data.
+
+strip_time(Data) ->
+    [Tag, _Pid | Rest] = tuple_to_list(Data),
+    Rev = lists:reverse(Rest),
+    NewRev =
+        case Tag of
+            trace_ts -> tl(Rev);
+            trace    -> Rev
+        end,
+    list_to_tuple(lists:reverse(NewRev)).
+
+start_suite_trace(TraceFile) ->
     start_trace(suite, TraceFile, self(), [c, p]).
 
-start_trace(TraceMode, TraceFile, TracePid, TraceFlags) ->
+start_trace(TraceMode, TraceFile, FirstTracePid, TraceFlags) ->
     case dbg:get_tracer() of
         {error, _Reason} ->
-            %% {ok, _} = dbg:start(),
             TraceFile2 = uniq_file(TraceFile, "", 2),
-            TracePids = trace_pids(TraceMode, TracePid),
+            TracePids = trace_pids(TraceMode, FirstTracePid),
             do_start_trace(TraceFile2, TracePids, TraceFlags);
         {ok, _Tracer} ->
             {error, already_started}
@@ -673,7 +735,7 @@ trace_pids(TraceMode, TracePid) ->
     case TraceMode of
         suite  ->
             [TracePid];
-        script ->
+        'case' ->
             [P || P <- processes(),
                   P >= TracePid]
     end.
@@ -682,7 +744,8 @@ do_start_trace(TraceFile, TracePids, TraceFlags0) ->
     TraceFlags = [timestamp | TraceFlags0],
     LuxAppDir = code:lib_dir(?APPLICATION),
     Mods = modules(LuxAppDir, ?APPLICATION),
-    TracePort = dbg:trace_port(file, TraceFile),
+    WrapFilesSpec = {TraceFile ++ ".", wrap, ".etrace", 16*1024*1024, 8},
+    TracePort = dbg:trace_port(file, WrapFilesSpec),
     {ok, _} = dbg:tracer(port, TracePort),
     [{ok, _} = dbg:p(P, TraceFlags) || P <- TracePids],
     MatchSpec = [{'_', [], [{return_trace}]}],

@@ -73,7 +73,8 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     end.
 
 default_istate(File) ->
-    #istate{file = lux_utils:normalize_filename(File),
+    #istate{top_pid = self(),
+            file = lux_utils:normalize_filename(File),
             log_fun = fun(Bin) -> console_write(?b2l(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),

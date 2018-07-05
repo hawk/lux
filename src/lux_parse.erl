@@ -12,15 +12,14 @@
 -include("lux.hrl").
 
 -record(pstate,
-        {
-          file       :: string(),
-          orig_file  :: string(),
-          pos_stack  :: [#cmd_pos{}],
-          mode       :: lux:run_mode(),
-          skip_skip  :: boolean(),
-          multi_vars :: [[string()]], % ["name=val"]
-          warnings   :: [binary()],
-          top_doc    :: undefined | non_neg_integer()
+        {file       :: string(),
+         orig_file  :: string(),
+         pos_stack  :: [#cmd_pos{}],
+         mode       :: lux:run_mode(),
+         skip_skip  :: boolean(),
+         multi_vars :: [[string()]], % ["name=val"]
+         warnings   :: [binary()],
+         top_doc    :: undefined | non_neg_integer()
         }).
 
 -define(TAB_LEN, 8).

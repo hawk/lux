@@ -229,6 +229,8 @@ summary_prio(Summary) ->
         disable        -> 999
     end.
 
+multiply(_Timeout, infinity) ->
+    infinity;
 multiply(infinity, _Factor) ->
     infinity;
 multiply(Timeout, Factor) ->

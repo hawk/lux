@@ -1505,18 +1505,19 @@ cmd_trace(I, Args, _CmdState) ->
     TraceMode = I#istate.trace_mode,
     case Args of
         [{"action", Action}] ->
-            case list_to_existing_atom(Action) of
+            case list_to_atom(Action) of
                 'START' when TraceMode =:= none ->
                     TraceFlags = [c, p, sos],
-                    TracePids = self(),
+                    FirstTracePid = self(),
                     LogDir = I#istate.case_log_dir,
-                    Base = filename:basename(I#istate.orig_file) ++ ".trace",
+                    Base = filename:basename(I#istate.orig_file) ++
+                        ".case",
                     TraceLog0 = lux_utils:join(LogDir, Base),
-                    {ok, TraceLog} =
-                        lux_main:start_trace(script, TraceLog0,
-                                             TracePids, TraceFlags),
-                    Base2 = filename:basename(TraceLog),
                     TraceMode2 = 'case',
+                    {ok, TraceLog} =
+                        lux_main:start_trace(TraceMode2, TraceLog0,
+                                             FirstTracePid, TraceFlags),
+                    Base2 = filename:basename(TraceLog),
                     format("\nInternal tracing of test ~s started.\n",
                            [atom_to_list(TraceMode2)]),
                     elog(I, "trace start (~s)", [Base2]),
@@ -1528,8 +1529,8 @@ cmd_trace(I, Args, _CmdState) ->
                     lux_main:stop_trace(),
                     {CmdState, I#istate{trace_mode = none}};
                 _ ->
-                    format("\nERROR: Refused to ~p internal tracing of test"
-                           " case as test ~s is being traced.\n",
+                    format("\nERROR: Refused to ~p internal tracing of"
+                           " test case as test ~s is being traced.\n",
                            [Action, atom_to_list(TraceMode)]),
                     elog(I, "trace failed (~s)", [atom_to_list(TraceMode)]),
                     {CmdState, I}

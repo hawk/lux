@@ -17,12 +17,14 @@
          expand_vars/3
         ]).
 
+-define(call_level(I), I#istate.call_level).
+
 init(I, StartTime) ->
     ilog(I,
          "lux(0): start_time \"~s\"\n",
          [lux_utils:now_to_string(StartTime)]),
-    Ref = safe_send_after(I, I#istate.case_timeout, self(),
-                          {case_timeout, I#istate.case_timeout}),
+    CaseRef = safe_send_after(I, I#istate.case_timeout, self(),
+                              {case_timeout, I#istate.case_timeout}),
     OrigCmds = I#istate.commands,
     try
         I2 =
@@ -31,7 +33,8 @@ init(I, StartTime) ->
                      has_been_blocked = false,
                      want_more = true,
                      old_want_more = undefined,
-                     orig_commands = OrigCmds},
+                     orig_commands = OrigCmds,
+                     case_timer_ref = CaseRef},
         I4 =
             if
                 I2#istate.stopped_by_user =:= suite ->
@@ -57,7 +60,7 @@ init(I, StartTime) ->
                       [ErrBin, EST]),
             {error, ErrBin, I}
     after
-        safe_cancel_timer(Ref),
+        safe_cancel_timer(CaseRef),
         EndTime = lux_utils:timestamp(),
         ilog(I,
              "lux(0): end_time \"~s\"\n",
@@ -150,6 +153,13 @@ loop(I) ->
             loop(I2);
         {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
                                           TimeoutType =:= case_timeout ->
+            %% TraceFile = filename:join([I#istate.case_log_dir,
+            %%                           "timeout_trace"]),
+            %% io:format("\n=======> ~p ->\n lux --display_trace  ~s\n",
+            %%           [TimeoutType, TraceFile]),
+            %% lux_main:stop_trace(),
+            %% lux_main:start_trace('case', TraceFile,
+            %%                      I#istate.top_pid,[c, p, sos]),
             I2 = opt_timeout_stop(I, TimeoutType, TimeoutMillis),
             loop(I2);
         Unexpected ->
@@ -163,7 +173,7 @@ loop(I) ->
              %% io:format("\nDEBUG(~p):\n\t~p\n",
              %%        [?LINE, process_info(self(), messages)]),
             loop(I)
-    after multiply(I, Timeout) ->
+    after lux_utils:multiply(I#istate.multiplier, Timeout) ->
             I2 = opt_dispatch_cmd(I),
             loop(I2)
     end.
@@ -203,7 +213,8 @@ stopped_by_user(I, Scope) ->
 timeout(I) ->
     if
         I#istate.want_more,
-        not I#istate.blocked ->
+        not I#istate.blocked,
+        I#istate.mode =/= stopping ->
             0;
         true ->
             infinity
@@ -280,7 +291,7 @@ opt_dispatch_cmd(#istate{commands = Cmds, want_more = WantMore} = I) ->
             I;
         [] ->
             %% End of script
-            CallLevel = call_level(I),
+            CallLevel = ?call_level(I),
             if
                 CallLevel > 1 ->
                     I;
@@ -466,7 +477,7 @@ dispatch_cmd(I,
                     true ->
                         cleanup
                 end,
-            I3 = inactivate_shell(I2, I2#istate.want_more),
+            I3 = inactivate_shell(I2),
             I3#istate.debug_shell =:= undefined orelse
                 lux_debug:format("\nCleanup. "
                                  "Turn existing shells into zombies.\n",
@@ -478,7 +489,7 @@ dispatch_cmd(I,
                            shells = Zombies,
                            debug_shell = undefined},
             Suffix =
-                case call_level(I4) of
+                case ?call_level(I4) of
                     1 -> "";
                     N -> ?i2l(N)
                 end,
@@ -575,7 +586,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                  lineno = InvokeLineNo,
                  type = Type},
     NewStack = [CurrentPos | OldStack],
-    BeforeI = OldI#istate{call_level = call_level(OldI) + 1,
+    BeforeI = OldI#istate{call_level = ?call_level(OldI) + 1,
                           file = CmdFile,
                           latest_cmd = Cmd,
                           cmd_stack = NewStack,
@@ -594,7 +605,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
             end,
         AfterI2 = adjust_stacks('after', AfterI, Cmd, OldStack,
                                 AfterExit, IsRootLoop),
-        NewI = AfterI2#istate{call_level = call_level(OldI),
+        NewI = AfterI2#istate{call_level = ?call_level(OldI),
                               file = OldI#istate.file,
                               latest_cmd = OldI#istate.latest_cmd,
                               cmd_stack = OldI#istate.cmd_stack,
@@ -628,9 +639,6 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
             end,
             erlang:raise(Class, Reason, EST)
     end.
-
-call_level(#istate{call_level = CallLevel}) ->
-    CallLevel.
 
 lookup_macro(I, #cmd{arg = {invoke, Name, ArgVals}} = Cmd) ->
     case safe_expand_vars(I, Name) of
@@ -954,11 +962,11 @@ prepare_result(#istate{latest_cmd = LatestCmd,
         end,
     {CleanupReason, Res3}.
 
-goto_cleanup(OldI, CleanupReason) ->
+goto_cleanup(I, CleanupReason) ->
     lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
-    LineNo = ?i2l((OldI#istate.latest_cmd)#cmd.lineno),
+    LineNo = ?i2l((I#istate.latest_cmd)#cmd.lineno),
     NewLineNo =
-        case OldI#istate.results of
+        case I#istate.results of
             [#result{actual= <<?fail_pattern_matched, _/binary>>}|_] ->
                 "-" ++ LineNo;
             [#result{actual= <<?success_pattern_matched, _/binary>>}|_] ->
@@ -968,13 +976,22 @@ goto_cleanup(OldI, CleanupReason) ->
             _ ->
                 LineNo
         end,
-    lux_utils:progress_write(OldI#istate.progress, NewLineNo),
+    lux_utils:progress_write(I#istate.progress, NewLineNo),
 
     %% Ensure that the cleanup does not take too long time
-    safe_send_after(OldI, OldI#istate.case_timeout, self(),
-                    {case_timeout, OldI#istate.case_timeout}),
-    dlog(OldI, ?dmore, "want_more=true (goto_cleanup)", []),
-    do_goto_cleanup(OldI, CleanupReason, LineNo).
+    CaseRef = I#istate.case_timer_ref,
+    I2 =
+        case erlang:read_timer(CaseRef) of
+            TimeLeft when is_integer(TimeLeft) ->
+                I;
+            _NoTimer ->
+                CaseRef2 =
+                    safe_send_after(I, I#istate.case_timeout, self(),
+                                    {case_timeout, I#istate.case_timeout}),
+                I#istate{case_timer_ref = CaseRef2}
+        end,
+    dlog(I2, ?dmore, "want_more=true (goto_cleanup)", []),
+    do_goto_cleanup(I2, CleanupReason, LineNo).
 
 do_goto_cleanup(I, CleanupReason, LineNo) ->
     case I#istate.cmd_stack of
@@ -1018,7 +1035,7 @@ delete_shell(I, Pid) ->
             erlang:demonitor(Ref, [flush]),
             if
                 Pid =:= ActiveShell#shell.pid ->
-                    I2 = inactivate_shell(I, I#istate.want_more),
+                    I2 = inactivate_shell(I),
                     {Name, I2#istate{shells = OldShells}};
                 true ->
                     NewShells = lists:keydelete(Pid, #shell.pid, OldShells),
@@ -1116,7 +1133,7 @@ flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
 
 ensure_shell(I, #cmd{arg = ""}) ->
     %% No name. Inactivate the shell
-    inactivate_shell(I, I#istate.want_more);
+    inactivate_shell(I);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
     case safe_expand_vars(I, Name) of
         {ok, Name2} when I#istate.active_shell#shell.name =:= Name2 ->
@@ -1139,7 +1156,7 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
 shell_start(I, #cmd{arg = Name} = Cmd) ->
     case change_active_mode(I, Cmd, suspend) of
         {ok, I2} ->
-            I3 = inactivate_shell(I2, I2#istate.want_more),
+            I3 = inactivate_shell(I2),
             case safe_expand_vars(I3, "$LUX_EXTRA_LOGS") of
                 {ok, ExtraLogs} ->
                     case lux_shell:start_monitor(I3, Cmd, Name, ExtraLogs) of
@@ -1175,7 +1192,7 @@ shell_switch(OldI, Cmd, #shell{health = alive, name = NewName} = NewShell) ->
     %% Activate shell
     case change_active_mode(OldI, Cmd, suspend) of
         {ok, I2} ->
-            I3 = inactivate_shell(I2, I2#istate.want_more),
+            I3 = inactivate_shell(I2),
             NewShells = lists:keydelete(NewName, #shell.name, I3#istate.shells),
             NewI = I3#istate{active_shell = NewShell,
                              active_name = NewName,
@@ -1194,13 +1211,11 @@ shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
          [Name, (OldI#istate.latest_cmd)#cmd.lineno]),
     handle_error(OldI, ?l2b(Name ++ " is a zombie shell")).
 
-inactivate_shell(#istate{active_shell = undefined} = I, _WantMore) ->
+inactivate_shell(#istate{active_shell = undefined} = I) ->
     I;
-inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I,
-                 WantMore) ->
+inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I) ->
     I#istate{active_shell = undefined,
              active_name = "lux",
-             want_more = WantMore,
              shells = [ActiveShell | Shells]}.
 
 change_active_mode(I, Cmd, NewMode)
@@ -1239,7 +1254,7 @@ adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, ActivePids) ->
     wait_for_reply(I, Pids, adjust_stacks_ack, Fun, infinity).
 
 shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
-    I2 = inactivate_shell(I, I#istate.want_more),
+    I2 = inactivate_shell(I),
     shell_crashed(I2, Pid, Reason);
 shell_crashed(I, Pid, Reason) ->
     What =
@@ -1328,8 +1343,8 @@ dlog(I, Level, Format, Args) when I#istate.debug_level >= Level ->
 dlog(_I, _Level, _Format, _Args) ->
     ok.
 
-safe_send_after(State, Timeout, Pid, Msg) ->
-    case multiply(State, Timeout) of
+safe_send_after(I, Timeout, Pid, Msg) ->
+    case lux_utils:multiply(I#istate.multiplier, Timeout) of
         infinity   -> infinity;
         NewTimeout -> erlang:send_after(NewTimeout, Pid, Msg)
     end.
@@ -1339,12 +1354,6 @@ safe_cancel_timer(Timer) ->
         infinity  -> undefined;
         undefined -> undefined;
         Ref       -> erlang:cancel_timer(Ref)
-    end.
-
-multiply(#istate{multiplier = Factor}, Timeout) ->
-    case Timeout of
-        infinity -> infinity;
-        _        -> lux_utils:multiply(Timeout, Factor)
     end.
 
 handle_error(#istate{active_shell = ActiveShell,

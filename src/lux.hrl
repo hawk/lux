@@ -86,7 +86,8 @@
          pid  :: pid()}).
 
 -record(istate,
-        {file                       :: string(),
+        {top_pid                    :: pid(),
+         file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
          warnings                   :: [{warning,string(),string(),string()}],
@@ -116,6 +117,7 @@
          multiplier = 1000          :: non_neg_integer(),
          suite_timeout = infinity   :: non_neg_integer() | infinity,
          case_timeout = 5*60*1000   :: non_neg_integer() | infinity,
+         case_timer_ref             :: reference(),
          flush_timeout = 0          :: non_neg_integer(),
          poll_timeout = 0           :: non_neg_integer(), % 100
          default_timeout = 10*1000  :: non_neg_integer() | infinity,

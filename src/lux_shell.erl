@@ -245,7 +245,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             stop_relax(C, success, end_of_script);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
             safe_flush_port(C, Data, 0);
-        match_timeout ->
+        ?match_fail ->
             C#cstate{state_changed = true,
                      timed_out = true,
                      events = save_event(C, recv, ?match_fail)};
@@ -955,30 +955,31 @@ log_multi_match(_C, _Offset, Rest, [], _Context, Skip) ->
     {Skip, Rest}.
 
 log_multi_nomatch(C, {multi, Multi}, Actual) ->
-    Log = fun({_Name, _NamedRegExp, #cmd{arg = Arg}}, {E, A}) ->
-                  {mp, _RegExpOper, RegExp, MP, []} = Arg,
-                  Context = "",
-                  P = lux_utils:to_string(RegExp),
-                  clog(C, partitial, "~s\"~s\"", [Context, P]),
-                  PE = ["Sub-pattern: ", P, "\n"],
-                  F = lux_utils:to_string(".*"),
-                  FE = ["    Found: ", F, "\n"],
-                  {OptMatch, single} = match_single(Actual, MP),
-                  case OptMatch of
-                      {match, [{First, TotLen} | _] = _Matches} ->
-                          {_Skip, Match, _Rest} =
-                              split_total(Actual, First, TotLen, undefined),
-                          clog(C, found, "~s\"~s\"", [Context, F]),
-                          FA = ["    Found: ",
-                                lux_utils:to_string(Match), "\n"],
-                          {[FE, PE | E], [FA, PE | A]};
-                      nomatch ->
-                          clog(C, missing, "~s", [Context]),
-                          FA = ["    Missing\n"],
-                          {[FE, PE | E], [FA, PE | A]}
-                  end
-          end,
-    {RevAltExpected, RevAltActual} = lists:foldl(Log, {[], []}, Multi),
+    LogFun =
+        fun({_Name, _NamedRegExp, #cmd{arg = Arg}}, {E, A}) ->
+                {mp, _RegExpOper, RegExp, MP, []} = Arg,
+                Context = "",
+                P = lux_utils:to_string(RegExp),
+                clog(C, partitial, "~s\"~s\"", [Context, P]),
+                PE = ["Sub-pattern: ", P, "\n"],
+                F = lux_utils:to_string(".*"),
+                FE = ["    Found: ", F, "\n"],
+                {OptMatch, single} = match_single(Actual, MP),
+                case OptMatch of
+                    {match, [{First, TotLen} | _] = _Matches} ->
+                        {_Skip, Match, _Rest} =
+                            split_total(Actual, First, TotLen, undefined),
+                        clog(C, found, "~s\"~s\"", [Context, F]),
+                        FA = ["    Found: ",
+                              lux_utils:to_string(Match), "\n"],
+                        {[FE, PE | E], [FA, PE | A]};
+                    nomatch ->
+                        clog(C, missing, "~s", [Context]),
+                        FA = ["    Missing\n"],
+                        {[FE, PE | E], [FA, PE | A]}
+                end
+        end,
+    {RevAltExpected, RevAltActual} = lists:foldl(LogFun, {[], []}, Multi),
     {C, ?l2b(lists:reverse(RevAltExpected)), ?l2b(lists:reverse(RevAltActual))};
 log_multi_nomatch(C, {mp, regexp, _RegExp, _Mp, Multi}, _Actual) ->
     log_multi_nomatch(C, {multi, Multi}, _Actual);
@@ -1204,7 +1205,7 @@ start_timer(#cstate{timer = undefined} = C) ->
     Multiplier = C#cstate.multiplier / 1000,
     clog(C, timer, "started (~p seconds * ~.3f multiplier)",
          [Seconds, Multiplier]),
-    Timer = safe_send_after(C, C#cstate.match_timeout, self(), match_timeout),
+    Timer = safe_send_after(C, C#cstate.match_timeout, self(), ?match_fail),
     C#cstate{timer = Timer, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{} = C) ->
     clog(C, timer, "already set", []),
@@ -1226,7 +1227,7 @@ cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
 flush_timer(Timer) ->
     erlang:cancel_timer(Timer),
     receive
-        match_timeout ->
+        ?match_fail ->
             true
     after 0 ->
             false
