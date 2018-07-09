@@ -406,7 +406,7 @@ pick_event_time(Op, Events = [_|_]) ->
         end,
     pick_event_time(Op, Default);
 pick_event_time(_Op, _Event) ->
-    "unknown".
+    ?DEFAULT_TIME_STR.
 
 interleave_code(A, Events, Script) ->
     Files = [],
@@ -1086,7 +1086,7 @@ pick_log_dir(ConfigProps) ->
     pick_prop(<<"log_dir">>, ConfigProps).
 
 pick_time_prop(Tag, ConfigProps) ->
-    ?b2l(lux_log:find_config(Tag, ConfigProps, <<"unknown">>)).
+    ?b2l(lux_log:find_config(Tag, ConfigProps, ?DEFAULT_TIME)).
 
 pick_prop(Tag, ConfigProps) ->
     ?b2l(lux_log:find_config(Tag, ConfigProps, undefined)).
@@ -1152,7 +1152,7 @@ elapsed_time(StartStr, EndStr) ->
     end.
 
 %% Format: 2016-11-25 10:51:18.307279
-parse_time("unknown") ->
+parse_time(?DEFAULT_TIME_STR) ->
     undefined;
 parse_time(DateTime) ->
     [Date, Time] = string:tokens(DateTime, " "),

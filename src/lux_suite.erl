@@ -29,7 +29,7 @@
          summary_log                :: string(),
          config_name                :: string(),
          config_file                :: string(),
-         suite = "unknown"          :: string(),
+         suite = ?b2l(?DEFAULT_SUITE) :: string(),
          start_time                 :: {non_neg_integer(),
                                         non_neg_integer(),
                                         non_neg_integer()},

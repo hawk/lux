@@ -21,6 +21,16 @@
 -define(fail_pattern_matched, "fail pattern matched ").
 -define(success_pattern_matched, "success pattern matched ").
 
+ -define(DEFAULT_LOG, <<"unknown">>).
+ -define(DEFAULT_HOSTNAME, <<"no_host">>).
+ -define(DEFAULT_CONFIG_NAME, <<"no_config">>).
+ -define(DEFAULT_SUITE, <<"no_suite">>).
+ -define(DEFAULT_CASE, <<"no_case">>).
+ -define(DEFAULT_RUN, <<"no_runid">>).
+ -define(DEFAULT_REV, <<"">>).
+ -define(DEFAULT_TIME,     <<"yyyy-mm-dd hh:mm:ss">>).
+ -define(DEFAULT_TIME_STR,   "yyyy-mm-dd hh:mm:ss").
+
 -record(cmd,
         {lineno :: non_neg_integer(),
          type   :: atom(),
@@ -142,19 +152,27 @@
 
 
 -record(run,
-        {test         :: binary(),              % [prefix "::"] suite [":" case]
-         result       :: success | warning | skip | fail,
-         id           :: binary(),              % --run
-         log          :: file:filename(),       % file rel to summary log dir
-         start_time   :: binary(),
+        {test = ?DEFAULT_SUITE
+                      :: binary(),              % [prefix "::"] suite [":" case]
+         result = fail
+                      :: success | warning | skip | fail,
+         id = ?DEFAULT_RUN
+                      :: binary(),              % --run
+         log = ?DEFAULT_LOG
+                      :: file:filename(),       % file rel to summary log dir
+         start_time = ?DEFAULT_TIME
+                      :: binary(),
          branch       :: undefined | string(),
-         hostname     :: binary(),              % $HOSTNAME or --hostname
-         config_name  :: binary(),              % --config
+         hostname = ?DEFAULT_HOSTNAME
+                      :: binary(),              % $HOSTNAME or --hostname
+         config_name = ?DEFAULT_CONFIG_NAME
+                      :: binary(),              % --config
          run_dir      :: file:filename(),       % current dir during run
          run_log_dir  :: file:dirname(),        % dir where logs was created
          new_log_dir  :: file:dirname(),        % top dir for new logs
-         repos_rev    :: binary(),              % --revision
-         details      :: [#run{}]}).            % list of cases
+         repos_rev = ?DEFAULT_REV
+                      :: binary(),              % --revision
+         details = [] :: [#run{}]}).            % list of cases
 
 -record(source,
         {branch       :: undefined | string(),
@@ -188,14 +206,6 @@
          max_time     :: infinity | non_neg_integer(),    % Micros
          status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
-
- -define(DEFAULT_LOG, <<"unknown">>).
- -define(DEFAULT_HOSTNAME, <<"unknown">>).
- -define(DEFAULT_CONFIG_NAME, <<"unknown">>).
- -define(DEFAULT_SUITE, <<"unknown">>).
- -define(DEFAULT_RUN, <<"unknown">>).
- -define(DEFAULT_REV, <<"">>).
- -define(DEFAULT_TIME, <<"yyyy-mm-dd hh:mm:ss">>).
 
 -ifdef(OTP_RELEASE).
     -define(stacktrace(),

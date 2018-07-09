@@ -249,11 +249,11 @@ split_cases([Case | Cases], Acc, EventLogs) ->
     Name =
         case binary:split(NameRow, <<": ">>) of
             [<<"test case", _/binary>>, NameBin] -> ?b2l(NameBin);
-            [<<>>]                               -> "unknown"
+            [<<>>]                               -> ?DEFAULT_CASE
         end,
     case Sections of
         [] ->
-            Res = {result_case, Name, <<"ERROR">>, <<"unknown">>},
+            Res = {result_case, Name, <<"ERROR">>, ?DEFAULT_CASE},
             split_cases(Cases, [Res | Acc], EventLogs);
         [ScriptRow, LogRow | DocAndResult] when LogRow =/= <<>> ->
             case {binary:split(LogRow,  <<": ">>), ScriptRow} of
@@ -277,7 +277,7 @@ split_cases([Case | Cases], Acc, EventLogs) ->
                     [<<"error", _/binary>>, Reason2] ->
                         {result_case, Name, <<"ERROR">>, Reason2};
                     [<<>>] ->
-                        {result_case, Name, <<"ERROR">>, <<"unknown">>}
+                        {result_case, Name, <<"ERROR">>, ?DEFAULT_CASE}
                 end,
             split_cases(Cases, [Res | Acc], EventLogs)
     end;
@@ -313,7 +313,13 @@ do_parse_run_summary(Source, File, Res, Opts) ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
             ConfigProps = split_config(ConfigBins),
             StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
-            Branch = Source#source.branch,
+            Branch0 = Source#source.branch,
+            case Branch0 of
+                undefined ->
+                    Branch = find_config(<<"branch">>, ConfigProps, Branch0);
+                Branch ->
+                    ok
+            end,
             case lux_utils:pick_opt(hostname, Opts, undefined) of
                 undefined ->
                     HostName = find_config(<<"hostname">>, ConfigProps,
@@ -326,7 +332,7 @@ do_parse_run_summary(Source, File, Res, Opts) ->
             ConfigName =
                 if
                     ConfigName0 =/= CN0,
-                    ConfigName0 =/= <<"undefined">> ->
+                    ConfigName0 =/= ?DEFAULT_CONFIG_NAME ->
                         ConfigName0;
                     true ->
                         find_config(<<"architecture">>, ConfigProps, CN0)
@@ -376,18 +382,10 @@ default_run(Source, File) ->
     {ok, Cwd} = file:get_cwd(),
     Log = filename:basename(File),
     NewLogDir = lux_utils:normalize_filename(filename:dirname(File)),
-    #run{test = ?DEFAULT_SUITE,
-         id = ?DEFAULT_RUN,
-         result = fail,
-         log = Log,
-         start_time = ?DEFAULT_TIME,
-         hostname = ?DEFAULT_HOSTNAME,
-         config_name = ?DEFAULT_CONFIG_NAME,
+    #run{log = Log,
          run_dir = Cwd,
          run_log_dir = Source#source.dir,
-         new_log_dir = NewLogDir,
-         repos_rev = ?DEFAULT_REV,
-         details = []}.
+         new_log_dir = NewLogDir}.
 
 split_config(ConfigBins) ->
     Split =
@@ -431,10 +429,9 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
   when is_list(RunDir), is_list(RunLogDir),
        is_list(AbsName) ->
     RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
-    #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
+   #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
          result = run_result(Res),
-         log = ?DEFAULT_LOG,
          start_time = StartTime,
          branch = Branch,
          hostname = Host,

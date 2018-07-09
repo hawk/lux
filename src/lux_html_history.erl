@@ -23,10 +23,11 @@ generate(PrefixedSources, RelHtmlFile, Opts) ->
     io:format("Assembling history of logs from...", []),
     Sources = lists:map(fun split_source/1, PrefixedSources),
     SplitSources = keysplit(#source.branch, Sources),
-    case SplitSources of
-        [_SingleBranch]       -> LatestOnly = false;
-        _MultiBranch          -> LatestOnly = true
-    end,
+    LatestOnly =
+        case SplitSources of
+            [_SingleBranch] -> false;
+            _MultiBranch    -> true
+        end,
     Opts2 = [{top, Sources} | Opts],
     {Runs, Errors, WWW} = collect(SplitSources, Opts2, [], [], undefined),
     io:format("\nAnalyzed ~p test runs (~p errors)",
@@ -288,11 +289,10 @@ header(Section, AllRuns, ConfigTables, HostTables,
     Dir = filename:basename(filename:dirname(HtmlFile)),
     case lists:keysort(#run.repos_rev, AllRuns) of
         [] ->
-            Default = <<"unknown">>,
-            FirstRev = Default,
-            LatestRev = Default,
-            FirstTime = Default,
-            LatestTime = Default,
+            FirstRev = ?DEFAULT_REV,
+            LatestRev = ?DEFAULT_REV,
+            FirstTime = ?DEFAULT_TIME,
+            LatestTime = ?DEFAULT_TIME,
             N = 0;
         SortedRuns ->
             FirstRev = (hd(SortedRuns))#run.repos_rev,
@@ -433,8 +433,8 @@ table_all(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
 table_current(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
     Rebase =
         fun(#run{log=SL}, #run{log=EL})
-              when SL =/= <<"unknown">>,
-                   EL =/= <<"unknown">> ->
+              when SL =/= ?DEFAULT_LOG,
+                   EL =/= ?DEFAULT_LOG ->
                 case lux_utils:is_url(SL) of
                     true ->
                         SLD = filename:dirname(SL),
