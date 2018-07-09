@@ -60,7 +60,7 @@ dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs) ->
 
 do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
     case {Op, Args} of
-        {"--help", [_]}             -> help(LuxAppDir, Specs);
+        {"--help", [HelpMode]}      -> help(LuxAppDir, Specs, HelpMode);
         {"--version", [_]}          -> version();
         {"--gen_markdown", [File]}  -> gen_markdown(File);
         {"--pre_markdown", [File]}  -> pre_markdown(LuxAppDir, File);
@@ -110,7 +110,7 @@ select_op(_Opts, []) ->
 
 specs() ->
     [
-     {"-h",                   ["--help"]},
+     {"-h",                   ["--help=usage"]},
      {"-r",                   ["--rerun=fail"]},
      {"-c",                   ["--progress=compact"]},
      {"-v",                   ["--progress=verbose"]},
@@ -120,7 +120,7 @@ specs() ->
      {"-E",                   ["--event_trace"]},
      {"-T",                   ["--suite_trace"]},
      {?FILES,                 "",          string,                 mandatory},
-     {"--help",               false,       boolean,                none},
+     {"--help",               usage,       {enum, help},           optional},
      {"--version",            false,       boolean,                none},
      {"--gen_markdown",       undefined,   string,                 mandatory},
      {"--pre_markdown",       undefined,   string,                 mandatory},
@@ -185,18 +185,23 @@ enum(prio) ->
 enum(html) ->
     [validate | enum(prio)];
 enum(progress) ->
-    [silent, summary, brief, doc, compact, verbose].
+    [silent, summary, brief, doc, compact, verbose];
+enum(help) ->
+    [usage, info, app_dir].
 
 enum_usage(Enum) ->
     Atoms = enum(Enum),
     Strings = [atom_to_list(A) || A <- Atoms],
     "enum(" ++ string:join(Strings, "|") ++ ")".
 
-enum_value(Enum, Value) when is_list(Value) ->
-    Atoms = enum(Enum),
-    Strings = [atom_to_list(A) || A <- Atoms],
-    true = lists:member(Value, Strings), % Assert
-    list_to_existing_atom(Value).
+enum_value(Enum, Val) when is_list(Val) ->
+    enum_value(Enum, list_to_atom(Val));
+enum_value(Enum, Val) when is_atom(Val) ->
+    Vals = enum(Enum),
+    case lists:member(Val, Vals) of
+        true  -> Val;
+        false -> badarg(Val, Enum)
+    end.
 
 add_defaults(Opts) ->
     case lists:keymember(files, 1, Opts) of
@@ -359,10 +364,10 @@ opt_create_latest_link(_UserLogDir, _AbsLogDir) ->
     ok.
 
 usage(Specs, LuxAppDir) ->
-    do_usage(Specs, LuxAppDir),
+    do_usage(Specs, LuxAppDir, usage),
     1.
 
-do_usage(Specs0, LuxAppDir) ->
+do_usage(Specs0, LuxAppDir, usage) ->
     Specs = [{"--make", false, boolean, none}] ++ Specs0,
     io:format("usage: ~s [OPTION]... [FILE]...\n", [script_base_name()]),
     P = fun(Atom) -> [H | T] = atom_to_list(Atom), [string:to_upper(H) | T] end,
@@ -387,19 +392,37 @@ do_usage(Specs0, LuxAppDir) ->
                      end
              end,
     [Pretty(S) || S <- Specs, element(1, S) =/= ?FILES],
-    info_doc(LuxAppDir).
+    info_doc(LuxAppDir);
+do_usage(_Specs, _LuxAppDir, info) ->
+    display_app_info();
+do_usage(_Specs, LuxAppDir, app_dir) ->
+    io:format("~s\n", [LuxAppDir]).
 
 info_doc(LuxAppDir) ->
+    DefaultDir = filename:join([code:lib_dir(?APPLICATION), "luxcfg"]),
+    io:format("\nThe site default configuration file is located here:"
+              "\n\n\t ~s\n",
+              [DefaultDir]),
+    ExampDir = filename:join([code:lib_dir(?APPLICATION), "examples"]),
+    case filelib:is_dir(ExampDir) of
+        true ->
+            io:format("\nThe examples are installed here:"
+                      "\n\n\t ~s\n",
+                      [ExampDir]);
+        false ->
+            io:format("\nThere are no examples installed.\n", [])
+    end,
     io:format("\nRead the full documentation of Lux (version ~s)"
-              " in the browser:\n\n\t~s\n",
+              " in the browser:"
+              "\n\n\t~s\n",
               [version_str(), doc_url(LuxAppDir)]).
 
 doc_url(AppDir) ->
     UsersGuide = filename:join([AppDir, "lux.html"]),
     "file://" ++ filename:absname(UsersGuide).
 
-help(LuxAppDir, Specs) ->
-    do_usage(Specs, LuxAppDir),
+help(LuxAppDir, Specs, HelpMode) ->
+    do_usage(Specs, LuxAppDir, HelpMode),
     0.
 
 version() ->
@@ -1382,7 +1405,7 @@ validate(Name, Val, Type, Presence) ->
                 Val
         end
     catch
-        _:_ ->
+        _Class:_Reason ->
             badarg(Name, Val, Type)
     end.
 
@@ -1426,15 +1449,19 @@ do_throw(Reason) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 fatal_error(RetCode, Format, Args) ->
+    io:format("\nFATAL ERROR : " ++ Format, Args),
+    display_app_info(),
+    safe_halt(RetCode).
+
+display_app_info() ->
     {ok, Cwd} = file:get_cwd(),
     ThisEscript = escript:script_name(),
-    io:format("\nFATAL ERROR : " ++ Format, Args),
     io:format("ESCRIPT     : ~s\n", [ThisEscript]),
     io:format("VERSION     : ~s\n", [version_str()]),
     io:format("CWD         : ~s\n", [Cwd]),
+    io:format("APP DIR     : ~s\n", [code:lib_dir(?APPLICATION)]),
     io:format("ROOT DIR    : ~s\n", [code:root_dir()]),
-    io:format("CODE PATH   : ~p\n", [code:get_path()]),
-    safe_halt(RetCode).
+    io:format("CODE PATH   : ~p\n", [code:get_path()]).
 
 safe_halt(RetCode) ->
     error_logger:tty(false),
