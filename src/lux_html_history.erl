@@ -64,6 +64,8 @@ source_dir(File) ->
         _                  -> File % Assume file is dir
     end.
 
+collect([{undefined, Sources} | SplitSources], Opts, Runs, Errors, WWW) ->
+    collect([{<<"no_branch">>, Sources} | SplitSources], Opts, Runs, Errors, WWW);
 collect([{Branch, Sources} | SplitSources], Opts, Runs, Errors, WWW) ->
     {OptRuns, OptErrors, NewWWW} =
         collect_branch(Sources, Opts, [], Errors, WWW),
