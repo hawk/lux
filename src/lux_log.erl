@@ -448,17 +448,17 @@ run_result({result, Res}) ->
     run_result(Res);
 run_result(Res) ->
     case Res of
-        success                                               -> success;
-        warning                                               -> warning;
-        {skip, _}                                             -> skip;
-        {warning, _LineNo, _ET, _Expected, _Actual, _Details} -> warning;
-        {fail, _LineNo, _ET,__Expected, _Actual, _Details}    -> fail;
-        {error, _Reason}                                      -> fail;
-        <<"SUCCESS">>                                         -> success;
-        <<"SKIP", _/binary>>                                  -> skip;
-        <<"FAIL", _/binary>>                                  -> fail;
-        <<"ERROR", _/binary>>                                 -> fail;
-        <<"WARNING", _/binary>>                               -> warning
+        success                               -> success;
+        warning                               -> warning;
+        {skip, _}                             -> skip;
+        {warning, _LN, _SN, _ET, _E, _A, _D}  -> warning;
+        {fail, _LN, _SN, _ET, _E, _A, _D}     -> fail;
+        {error, _Reason}                      -> fail;
+        <<"SUCCESS">>                         -> success;
+        <<"SKIP", _/binary>>                  -> skip;
+        <<"FAIL", _/binary>>                  -> fail;
+        <<"ERROR", _/binary>>                 -> fail;
+        <<"WARNING", _/binary>>               -> warning
     end.
 
 find_config(Key, Tuples, Default) ->
@@ -1000,18 +1000,18 @@ parse_result(RawResult) ->
                 {error, [Reason | Rest]};
             <<"INTERNAL_ERROR ", Reason/binary>> ->
                 {error, [Reason | Rest]};
-            <<"WARNING at ", Fail/binary>> ->
-                [TagStr = <<"expected", _/binary>>, Expected,
+            <<"WARNING at ", FailBin/binary>> ->
+                [TagBin = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
-                ExpectedTag = list_to_existing_atom(?b2l(TagStr)),
-                RawLineNo =
-                    case binary:split(Fail, <<":">>) of
+                ExpectedTag = list_to_existing_atom(?b2l(TagBin)),
+                {RawLineNo, ShellName} =
+                    case binary:split(FailBin, <<":">>) of
                         [_] -> % Main
-                            Fail;
+                            split_fail_bin(FailBin);
                         [Before, After] -> % Nested
                             try
                                 _ = list_to_integer(?b2l(Before)),
-                                Fail
+                                split_fail_bin(FailBin)
                             catch
                                 _:badarg ->
                                     After
@@ -1021,19 +1021,21 @@ parse_result(RawResult) ->
                 Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
                 Details3 = split_quoted_lines(Details2),
-                {warning, RawLineNo, ExpectedTag, Expected3, Actual, Details3};
-            <<"FAIL at ", Fail/binary>> ->
-                [TagStr = <<"expected", _/binary>>, Expected,
+                {warning, RawLineNo, ShellName,
+                 ExpectedTag, Expected3,
+                 Actual, Details3};
+            <<"FAIL at ", FailBin/binary>> ->
+                [TagBin = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
-                ExpectedTag = list_to_existing_atom(?b2l(TagStr)),
-                RawLineNo =
-                    case binary:split(Fail, <<":">>) of
+                ExpectedTag = list_to_existing_atom(?b2l(TagBin)),
+                {RawLineNo, ShellName} =
+                    case binary:split(FailBin, <<":">>) of
                         [_] -> % Main
-                            Fail;
+                            split_fail_bin(FailBin);
                         [Before, After] -> % Nested
                             try
                                 _ = list_to_integer(?b2l(Before)),
-                                Fail
+                                split_fail_bin(FailBin)
                             catch
                                 _:badarg ->
                                     After
@@ -1043,7 +1045,9 @@ parse_result(RawResult) ->
                 Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
                 Details3 = split_quoted_lines(Details2),
-                {fail, RawLineNo, ExpectedTag, Expected3, Actual, Details3};
+                {fail, RawLineNo, ShellName,
+                 ExpectedTag, Expected3,
+                 Actual, Details3};
             <<"FAIL as ", _/binary>> = Fail->
                 {error, [Fail]}
         end,
@@ -1057,6 +1061,12 @@ parse_result(RawResult) ->
 split_quoted_lines(Bin) when is_binary(Bin) ->
     Normalized = lux_utils:replace(Bin, [{quoted_crlf, <<"\n">>}]),
     lux_utils:split_lines(Normalized).
+
+split_fail_bin(FailBin) ->
+    case binary:split(FailBin, <<" in shell ">>, []) of
+        [RawLineNo] -> {RawLineNo, <<"lux">>};
+        [RawLineNo, ShellName] -> {RawLineNo, ShellName}
+    end.
 
 unquote(Bin) ->
     Quote = <<"\"">>,

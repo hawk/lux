@@ -759,18 +759,18 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              "<h3>Reason</h3>",
              html_div(<<"event">>, lux_utils:expand_lines(Reason))
             ];
-        {How, RawLineNo, ExpectedTag, Expected, Actual, Details}
+        {How, RawLineNo, ShellName, ExpectedTag, Expected, Actual, Details}
           when How =:= fail; How =:= warning ->
             HtmlDiff = html_diff(ExpectedTag, Expected, Details),
             Anchor = RawLineNo,
             [
-             "\n<", Tag, ">",
-             lux_html_utils:html_href([HtmlLog, "#logs"], "Result"),
-             ": <strong>",
-             lux_html_utils:html_href([HtmlLog, "#failed"], "FAILED"),
+             "\n<", Tag, ">Result: <strong>",
+             lux_html_utils:html_href([HtmlLog, "#failed"], "FAIL"),
              " at line ",
              lux_html_utils:html_href([HtmlLog, "#", Anchor], Anchor),
-             "</strong></", Tag, ">\n",
+             "</strong> in shell ",
+             lux_html_utils:html_href([HtmlLog, "#logs"], ShellName),
+             "</", Tag, ">\n",
 
              "<h3>Expected:</h3>",
              html_div(<<"event">>, lux_utils:expand_lines(Expected)),

@@ -55,7 +55,7 @@
 -record(result,
         {outcome       :: fail | success | shutdown,
          mode          :: running | cleanup | stopping,
-         name          :: string(),
+         shell_name    :: string(),
          latest_cmd    :: #cmd{},
          cmd_stack     :: [{string(), non_neg_integer(), atom()}],
          expected_tag  :: 'expected=' | 'expected*',

@@ -442,6 +442,7 @@ cleanup_fail(I, Reason) ->
     #result{outcome      = fail,
             latest_cmd   = LatestCmd,
             cmd_stack    = CmdStack,
+            shell_name   = I#istate.active_name,
             expected_tag = expected,
             expected     = success,
             extra        = undefined,
@@ -470,6 +471,7 @@ print_fail(OldI0, NewI, File, Results,
                    mode         = _Mode,
                    latest_cmd   = LatestCmd,
                    cmd_stack    = CmdStack,
+                   shell_name   = ShellName,
                    expected_tag = ExpectedTag,
                    expected     = Expected,
                    extra        = _Extra,
@@ -488,14 +490,14 @@ print_fail(OldI0, NewI, File, Results,
             UnstableWarnings =/= [] ->
                 {warning,
                  OldWarnings ++ HiddenWarnings ++ UnstableWarnings,
-                 double_ilog(OldI, "~sWARNING at ~s\n",
-                             [?TAG("result"), FullLineNo])
+                 double_ilog(OldI, "~sWARNING at ~s in shell ~s\n",
+                             [?TAG("result"), FullLineNo, ShellName])
                 };
             true ->
                 {fail,
                  OldWarnings ++ HiddenWarnings,
-                 double_ilog(OldI, "~sFAIL at ~s\n",
-                             [?TAG("result"), FullLineNo])
+                 double_ilog(OldI, "~sFAIL at ~s in shell ~s\n",
+                             [?TAG("result"), FullLineNo, ShellName])
                 }
         end,
     {OldActual, NewActual, NewExpected, NewRest} =
