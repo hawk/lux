@@ -85,7 +85,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                     {error, FileErr, Reason};
                 ?CATCH_STACKTRACE(Class, Reason, EST)
                     ReasonStr =
-                        lists:flatten(?FF("~p:~p ~p", [Class, Reason, EST])),
+                        lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
                     {ok, Cwd} = file:get_cwd(),
                     {error, Cwd, ReasonStr}
             end;
@@ -107,7 +107,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                     {error, FileErr, ReasonStr};
                 ?CATCH_STACKTRACE(Class, Reason, EST)
                     ReasonStr =
-                        lists:flatten(?FF("~p:~p ~p", [Class, Reason, EST])),
+                        lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
             after
                 cancel_timer(TimerRef)
@@ -761,7 +761,6 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                      lineno = FullLineNo,
                      type = ErrorBin2} =
                 stack_error(ErrorStack, ErrorBin),
-            Script2 = lux_utils:pretty_filename(RevMainFile),
             MainFile = lux_utils:pretty_filename(RevMainFile),
             init_case_rlog(ErrR, P, Script),
             double_rlog(ErrR, "~sERROR ~s\n",
@@ -773,7 +772,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
             Summary = error,
             tap_case_begin(ErrR, Script),
             lux:trace_me(70, 'case', suite, Summary, []),
-            {ok, _} = lux_case:copy_orig(ErrR#rstate.log_dir, Script2),
+            {ok, _} = lux_case:copy_orig(ErrR#rstate.log_dir, MainFile),
             tap_case_end(ErrR, CC, Script,
                          P, LenP, Max, Summary,
                          "0", ErrorBin, ErrorBin),
@@ -973,8 +972,8 @@ all_config_args(R) ->
     lists:append(lists:reverse(args_dicts(R))).
 
 stack_error(ErrorStack, ErrorBin) ->
-    #cmd_pos{rev_file = RevMainFile} = hd(ErrorStack),
-    #cmd_pos{rev_file = RevErrorFile} = lists:last(ErrorStack),
+    #cmd_pos{rev_file = RevMainFile} = lists:last(ErrorStack),
+    #cmd_pos{rev_file = RevErrorFile} = hd(ErrorStack),
     FullLineNo = lux_utils:pretty_full_lineno(ErrorStack),
     if
         RevErrorFile =:= RevMainFile ->
