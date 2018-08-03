@@ -602,60 +602,69 @@ shell_sub_cmds() ->
     ].
 
 intro_help() ->
-    ""
-        "Debugger for Lux scripts\n"
-        "========================\n"
-        "When `lux` is started with the `--debug` option, the debugger\n"
-        "will attach to the script before its execution has started. An\n"
-        "optional file with saved commands may be processed at this stage.\n"
-        "The debugger can also be attached to the script in the middle of\n"
-        "the execution by entering the command \"attach\" (or an abbreviation\n"
-        "of the command) and pressing the enter key.\n"
-        "\n"
-        "Several parameters has a lineno as parameter see `help lineno`.\n"
-        "\n"
-        "Blank command lines implies that the previous command is repeated.\n"
-        "If no command has been entered yet, the command `help` is assumed.\n"
-        "\n"
-        "Commands may be abbreviated. Use the help command (for example\n"
-        "`help help` (or `h h` for short) to get more detailed descriptions\n"
-        "of the commands.\n\n".
+    "Debugger for Lux scripts\n"
+    "========================\n"
+    "When `lux` is started with the `--debug` option, the debugger\n"
+    "will attach to the script before its execution has started. An\n"
+    "optional file with saved commands may be processed at this stage.\n"
+    "The debugger can also be attached to the script in the middle of\n"
+    "the execution by entering the command \"attach\" (or an abbreviation\n"
+    "of the command) and pressing the enter key.\n"
+    "\n"
+    "Several parameters has a lineno as parameter see `help lineno`.\n"
+    "\n"
+    "Blank command lines implies that the previous command is repeated.\n"
+    "If no command has been entered yet, the command `help` is assumed.\n"
+    "\n"
+    "Commands may be abbreviated. Use the help command (for example\n"
+    "`help help` (or `h h` for short) to get more detailed descriptions\n"
+    "of the commands.\n\n".
+
+param_help() ->
+    "Available parameters:\n"
+    "---------------------\n"
+    "* lineno - lineno in source file\n\n".
 
 lineno_help() ->
+    "lineno parameter\n"
+    "----------------\n"
+    "Several commands has a lineno as parameter. It is a string which\n"
+    "is divided in several components. The components are separated\n"
+    "with a colon and are used to refer to line numbers in include\n"
+    "files, macros and loops. The first component is a bit special.\n"
+    "It may be a file name or a line number. The file name may be\n"
+    "abbreviated.\n"
     "\n"
-        "lineno parameter\n"
-        "----------------\n"
-        "Several commands has a lineno as parameter. It is a string which\n"
-        "is divided in several components. The components are separated\n"
-        "with a colon and are used to refer to line numbers in include\n"
-        "files, macros and loops. The first component is a bit special.\n"
-        "It may be a file name or a line number. The file name may be\n"
-        "abbreviated.\n"
-        "\n"
-        "Assume that there is a file called main, which includes a file\n"
-        "called outer at line 4 and the file outer includes a file called\n"
-        "inner at line 12.\n"
-        "\n"
-        "Here are a few examples of how lineno can be used:\n"
-        "\n"
-        "* 3       - line 3 in current file\n"
-        "* main    - line 1 in file main\n"
-        "* m:3     - line 3 in file main\n"
-        "* :3      - line 3 in file main\n"
-        "* inner   - line 1 in file inner\n"
-        "* outer   - line 1 in file outer\n"
-        "* o:12    - line 12 in file outer\n"
-        "* 4:12:6  - line 6 in file inner if it is included\n"
-        "            on line 12 in outer and outer is included\n"
-        "            on line 4 in main.\n\n".
+    "Assume that there is a file called main, which includes a file\n"
+    "called outer at line 4 and the file outer includes a file called\n"
+    "inner at line 12.\n"
+    "\n"
+    "Here are a few examples of how lineno can be used:\n"
+    "\n"
+    "* 3       - line 3 in current file\n"
+    "* main    - line 1 in file main\n"
+    "* m:3     - line 3 in file main\n"
+    "* :3      - line 3 in file main\n"
+    "* inner   - line 1 in file inner\n"
+    "* outer   - line 1 in file outer\n"
+    "* o:12    - line 12 in file outer\n"
+    "* 4:12:6  - line 6 in file inner if it is included\n"
+    "            on line 12 in outer and outer is included\n"
+    "            on line 4 in main.\n\n".
 
 gen_markdown(File) ->
     Intro = intro_help(),
     {error, Ambiguous} = select(undefined, ""),
+    Params = param_help(),
     LineNo = lineno_help(),
     Cmds = [["\n", pretty_cmd(Cmd)] ||
                Cmd <- lists:keysort(#debug_cmd.name, cmds())],
-    file:write_file(File, [Intro, "\n", Ambiguous, "\n", LineNo, "\n", Cmds]).
+    file:write_file(File,
+                    [Intro, "\n",
+                     Ambiguous, "\n",
+                     Params, "\n",
+                     LineNo, "\n",
+                     Cmds]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -989,7 +998,8 @@ opt_unblock(I) ->
 
 cmd_help(I, [], CmdState) ->
     {error, Ambiguous} = select(undefined, ""),
-    format("\n~s~s", [intro_help(), Ambiguous]),
+    Params = param_help(),
+    format("\n~s~s\n~s", [intro_help(), Ambiguous, Params]),
     {CmdState, I};
 cmd_help(I, [{_, "lineno"}], CmdState) ->
     format("~s", [lineno_help()]),
