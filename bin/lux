@@ -22,23 +22,32 @@
 -define(FILES, "--").
 
 -spec(main([string()]) -> no_return()).
-main(["--make" = Op]) ->
-    ExitCode = make(Op),
-    safe_halt(ExitCode);
 main(OrigArgs) ->
-    ensure_lux_app_dir(true),
-    LuxAppDir = require_app(undefined, ?APPLICATION),
-    OpModes = ["--internal_debug", "--suite_trace",
-               "--display_trace", "--event_trace",
-               "--help", "--version", "--install",
-               "--annotate", "--history",
-               "--reltool", "--xref",
-               "--gen_markdown", "--pre_markdown"],
-    Args  = expand_flags(OrigArgs, OpModes),
-    Specs = specs(),
-    Opts  = getopts(Args, Specs, LuxAppDir),
-    %% io:format("Args: ~p\n", [Opts]),
-    ExitCode = dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs),
+    ExitCode =
+        try
+            case OrigArgs of
+                ["--make" = Op] ->
+                    make(Op);
+                _ ->
+                    ensure_lux_app_dir(true),
+                    LuxAppDir = require_app(undefined, ?APPLICATION),
+                    OpModes = ["--internal_debug", "--suite_trace",
+                               "--display_trace", "--event_trace",
+                               "--help", "--version", "--install",
+                               "--annotate", "--history",
+                               "--reltool", "--xref",
+                               "--gen_markdown", "--pre_markdown"],
+                    Args  = expand_flags(OrigArgs, OpModes),
+                    Specs = specs(),
+                    Opts  = getopts(Args, Specs, LuxAppDir),
+                    %% io:format("Args: ~p\n", [Opts]),
+                    dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs)
+            end
+        catch
+            Class:Reason ->
+                io:format("\n\nFATAL ERROR: ~p:~p\n", [Class, Reason]),
+                2
+        end,
     safe_halt(ExitCode).
 
 dispatch([{files, Files}, {prev_log_dir, PrevLogDir} | Opts],
@@ -284,8 +293,9 @@ do_add_defaults(Files, Opts) ->
 timestamp() ->
     try
         hidden_apply(erlang, timestamp, []) % Avoid xref warning
-    catch error:undef ->
-        hidden_apply(erlang, now, []) % Avoid compiler warning
+    catch
+        error:undef ->
+            hidden_apply(erlang, now, []) % Avoid compiler warning
     end.
 
 hidden_apply(M, F, A) ->
@@ -1545,7 +1555,7 @@ safe_halt(RetCode) ->
     try
         erlang:halt(SafeRetCode, [{flush,false}]) % Introduced in OTP R16
     catch
-        _:_ ->
+        error:badarg ->
             erlang:halt(SafeRetCode) % May hang in some older OTP releases...
     end.
 
