@@ -19,7 +19,8 @@
          skip_skip  :: boolean(),
          multi_vars :: [[string()]], % ["name=val"]
          warnings   :: [binary()],
-         top_doc    :: undefined | non_neg_integer()
+         top_doc    :: undefined | non_neg_integer(),
+         newshell   :: boolean()
         }).
 
 -define(TAB_LEN, 8).
@@ -45,16 +46,18 @@ parse_file(RelFile, RunMode, SkipSkip, CheckDoc, Opts) ->
                             skip_skip = SkipSkip,
                             multi_vars = MultiVars,
                             warnings = [],
-                            top_doc = undefined},
+                            top_doc = undefined,
+                            newshell = I#istate.newshell},
                 test_user_config(P, I),
                 {P2, _FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
                                               [], File, [], Cmds),
-                garbage_collect(),
-                case parse_config(I, lists:reverse(Config)) of
-                    {ok, I2} ->
-                        File2 = I2#istate.file,
-                        UpdatedOpts = updated_opts(I2, I),
+                I2 = I#istate{newshell = P2#pstate.newshell},
+                case parse_config(I2, lists:reverse(Config)) of
+                    {ok, I3} ->
+                        garbage_collect(),
+                        File2 = I3#istate.file,
+                        UpdatedOpts = updated_opts(I3, I),
                         P3 =
                             if
                                 CheckDoc, P2#pstate.top_doc =/= 1 ->
@@ -559,34 +562,10 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "cleanup" ++ Name ->
             {P, Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
         "shell" ++ Name ->
-            Name2 = string:strip(Name),
-            Match = re:run(Name2, "\\$\\$", [{capture,none}]),
-            case {Name2, Match} of
-                %%                 {"", _} ->
-                %%                     parse_error(P, Fd, LineNo,
-                %%                                 ?FF("Syntax error at line ~p"
-                %%                                     ": missing shell name",
-                %%                                     [LineNo]));
-                {"lux"++_, _} ->
-                    parse_error(P, Fd, LineNo,
-                                ?FF("Syntax error at line ~p"
-                                    ": ~s is a reserved"
-                                    " shell name",
-                                    [LineNo, Name2]));
-                {"cleanup"++_, _} ->
-                    parse_error(P, Fd, LineNo,
-                                ?FF("Syntax error at line ~p"
-                                    ": ~s is a reserved"
-                                    " shell name",
-                                    [LineNo, Name2]));
-                {_, match} ->
-                    parse_error(P, Fd, LineNo,
-                                ?FF("Syntax error at line ~p"
-                                    ": $$ in shell name",
-                                    [LineNo]));
-                {_, nomatch} ->
-                    {P, Cmd#cmd{type = shell, arg = Name2}}
-            end;
+            parse_shell(P, Fd, Cmd, LineNo, Name, shell);
+        "newshell" ++ Name when Name =/= "" ->
+            P2 = P#pstate{newshell = true},
+            parse_shell(P2, Fd, Cmd, LineNo, Name, newshell);
         "endshell" ++ Data ->
             case ?l2b(string:strip(Data)) of
                 %% <<>>   -> RegExp = <<"0">>;
@@ -723,6 +702,36 @@ parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
     end,
     {P2#pstate{top_doc = TopDoc},
      Cmd#cmd{type = doc, arg = {Level, Suffix, Doc}}}.
+
+parse_shell(P, Fd, Cmd, LineNo, Name, Type) ->
+    Name2 = string:strip(Name),
+    Match = re:run(Name2, "\\$\\$", [{capture,none}]),
+    case {Name2, Match} of
+        %%                 {"", _} ->
+        %%                     parse_error(P, Fd, LineNo,
+        %%                                 ?FF("Syntax error at line ~p"
+        %%                                     ": missing shell name",
+        %%                                     [LineNo]));
+        {"lux"++_, _} ->
+            parse_error(P, Fd, LineNo,
+                        ?FF("Syntax error at line ~p"
+                            ": ~s is a reserved"
+                            " shell name",
+                            [LineNo, Name2]));
+        {"cleanup"++_, _} ->
+            parse_error(P, Fd, LineNo,
+                        ?FF("Syntax error at line ~p"
+                            ": ~s is a reserved"
+                            " shell name",
+                            [LineNo, Name2]));
+        {_, match} ->
+            parse_error(P, Fd, LineNo,
+                        ?FF("Syntax error at line ~p"
+                            ": $$ in shell name",
+                            [LineNo]));
+        {_, nomatch} ->
+            {P, Cmd#cmd{type = Type, arg = Name2}}
+    end.
 
 test_user_config(P, I) ->
     T =

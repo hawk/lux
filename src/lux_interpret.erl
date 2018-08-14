@@ -494,9 +494,16 @@ dispatch_cmd(I,
                     1 -> "";
                     N -> ?i2l(N)
                 end,
-            ShellCmd = Cmd#cmd{type = shell, arg = "cleanup" ++ Suffix},
+            ShellType =
+                case I3#istate.newshell of
+                    true  -> newshell;
+                    false -> shell
+                end,
+            ShellCmd = Cmd#cmd{type = ShellType, arg = "cleanup" ++ Suffix},
             ensure_shell(I4, ShellCmd);
         shell ->
+            ensure_shell(I, Cmd);
+        newshell ->
             ensure_shell(I, Cmd);
         include ->
             {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
@@ -1136,14 +1143,22 @@ flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Control a shell
 
-ensure_shell(I, #cmd{arg = ""}) ->
+ensure_shell(I, #cmd{arg = "", type = shell}) ->
     %% No name. Inactivate the shell
     inactivate_shell(I);
-ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
+ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
+  when Name =/= "" ->
     case safe_expand_vars(I, Name) of
         {ok, Name2} when I#istate.active_shell#shell.name =:= Name2 ->
-            %% Keep active shell
-            I;
+            case Type of
+                shell ->
+                    %% Keep active shell
+                    I;
+                newshell ->
+                    ilog(I, "~s(~p): newshell may only start a shell once\n",
+                         [Name, (I#istate.latest_cmd)#cmd.lineno]),
+                    handle_error(I, ?l2b("shell " ++ Name ++ " already exists"))
+            end;
         {ok, Name2} ->
             I2 = I#istate{want_more = false},
             case lists:keyfind(Name2, #shell.name, I2#istate.shells) of
@@ -1158,6 +1173,11 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name} = Cmd) ->
             no_such_var(I, Cmd, LineNo, BadName)
     end.
 
+shell_start(I, #cmd{arg = Name, type = Type})
+  when I#istate.newshell andalso Type =:= shell ->
+    ilog(I, "~s(~p): In newshell mode the shell cmd may not start a shell\n",
+         [Name, (I#istate.latest_cmd)#cmd.lineno]),
+    handle_error(I, ?l2b("shell " ++ Name ++ " must be started with newshell"));
 shell_start(I, #cmd{arg = Name} = Cmd) ->
     case change_active_mode(I, Cmd, suspend) of
         {ok, I2} ->
@@ -1193,6 +1213,11 @@ prepare_shell_prompt(I, Cmd) ->
     dlog(I, ?dmore, "want_more=false (shell_start)", []),
     I#istate{commands = Cmds}.
 
+shell_switch(I, #cmd{type = Type}, #shell{name = Name})
+  when Type =:= newshell ->
+    ilog(I, "~s(~p): The newshell cmd may not be used to change shell\n",
+         [Name, (I#istate.latest_cmd)#cmd.lineno]),
+    handle_error(I, ?l2b("shell " ++ Name ++ " already exists"));
 shell_switch(OldI, Cmd, #shell{health = alive, name = NewName} = NewShell) ->
     %% Activate shell
     case change_active_mode(OldI, Cmd, suspend) of

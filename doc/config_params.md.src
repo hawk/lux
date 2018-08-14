@@ -367,6 +367,11 @@ commands to add to such a file.
 Miscellaneous
 -------------
 
+**--newshell**  
+In `--newshell` mode shells are created with the `[newshell Name]` command
+and making another shell active is done with `[shell Name]`. That is the
+`[shell Name]` command cannot be used to create new shells in newhell mode.
+
 **--shell\_cmd Cmd**  
 **--shell\_args Arg**  
 These parameters controls which program that will be started when a

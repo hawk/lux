@@ -123,6 +123,7 @@
          poll_timeout = 0           :: non_neg_integer(), % 100
          default_timeout = 10*1000  :: non_neg_integer() | infinity,
          cleanup_timeout = 100*1000 :: non_neg_integer() | infinity,
+         newshell = false           :: boolean(),
          shell_wrapper              :: undefined | string(),
          shell_cmd = "/bin/sh"      :: string(),
          shell_args = ["-i"]        :: [string()],

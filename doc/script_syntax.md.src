@@ -142,12 +142,8 @@ ehell, such as `[endshell ^0$]`.
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a `]`.
 
-**\[shell\]**  
-**\[shell Name\]**  
-Switches to the named shell, to make it active. In case there is no
-such shell started yet, a new shell named `Name` is created.  If
-`Name` is missing, the active shell is deactivated. This implies
-no shell to be activated.
+**\[newshell Name\]**  
+Creates a new shell named `Name`.
 
 By default a `/bin/sh` shell (Bourne shell) is started. See
 the `--shell_wrapper`, `--shell_cmd` and `--shell_arg` configuration
@@ -160,6 +156,15 @@ the shell is ready for input. The `Name` may contain variables. Shell
 names beginning with `lux` and `cleanup` are reserved for internal
 purposes. The **environment variable** `LUX_START_REASON` is
 initially set to `normal`. See also `[cleanup]`.
+
+**\[shell\]**  
+**\[shell Name\]**  
+Switches to the named shell, to make it active. If `Name` is omitted,
+the active shell is deactivated. This implies no shell to be activated.
+
+If `--newshell` mode is not activated, the command may also be used
+to create a new shell named `Name`. See the configuration parameter
+`--newshell`.
 
 **\[cleanup\]**  
 is the cleanup marker. If the script is prematurely aborted due to

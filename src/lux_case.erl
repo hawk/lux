@@ -257,6 +257,8 @@ config_type(Name) ->
         cleanup_timeout ->
             {ok, #istate.cleanup_timeout, [{integer, 0, infinity},
                                            {atom, [infinity]}]};
+        newshell ->
+            {ok, #istate.newshell, [{atom, [false, true]}]};
         shell_wrapper ->
             {ok, #istate.shell_wrapper, [string,
                                          {atom, [undefined]}]};
@@ -704,6 +706,7 @@ user_config_keys() ->
      poll_timeout,
      timeout,
      cleanup_timeout,
+     newshell,
      shell_wrapper,
      shell_cmd,
      shell_args,
