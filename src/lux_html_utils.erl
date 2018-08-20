@@ -15,7 +15,9 @@
          html_anchor/2, html_anchor/4,
          html_quote/1,
          html_header/1,
-         html_footer/0
+         html_footer/0,
+         html_table_td/3,
+         html_td/4
         ]).
 
 -include("lux.hrl").
@@ -49,9 +51,18 @@ do_keysplit(_Pos, [], Acc) ->
 split_timers(Timers) ->
     ShellTimers = strip_timers(Timers, []),
     ShellSplit = do_split_timers(#timer.shell, ShellTimers),
-    MacroTimers = expand_macros(ShellTimers),
-    MacroSplit = do_split_timers(#timer.macro, MacroTimers),
-    {MacroSplit, ShellSplit}.
+    DeepMacroTimers = expand_macros(ShellTimers),
+    AccMacroTimers = lists:append(DeepMacroTimers),
+    AccMacroSplit = do_split_timers(#timer.macro, AccMacroTimers),
+    Last = fun(T) ->
+                   case T of
+                       [] -> false;
+                       _  -> {true, lists:last(T)}
+                   end
+           end,
+    ExactMacroTimers = lists:filtermap(Last, DeepMacroTimers),
+    ExactMacroSplit = do_split_timers(#timer.macro, ExactMacroTimers),
+    {ShellSplit, ExactMacroSplit, AccMacroSplit}.
 
 do_split_timers(Pos, Timers) ->
     SplitTimers = keysplit(Pos, Timers),
@@ -74,8 +85,8 @@ opt_time(Time) ->
 strip_timers([H | T], Acc) ->
     Skip =
         H#timer.send_lineno =:= H#timer.match_lineno andalso
-        not lists:keymember(H#timer.shell, #timer.shell, Acc) andalso
-        H#timer.status =:= matched,
+        not lists:keymember(H#timer.shell, #timer.shell, Acc),
+        %% andalso H#timer.status =:= matched,
     Acc2 =
         case Skip of
             true  -> Acc;
@@ -87,10 +98,10 @@ strip_timers([], Acc) ->
 
 expand_macros(Timers) ->
     Expand = fun(#timer{callstack=C} = T) ->
-                    Macros = binary:split(C, <<"->">>, [global]),
-                    [T#timer{macro = M} || M <- Macros]
+                     Macros = binary:split(C, <<"->">>, [global]),
+                     [T#timer{macro = M} || M <- Macros]
              end,
-    lists:flatmap(Expand, Timers).
+    lists:map(Expand, Timers).
 
 safe_write_file(File, IoList) when is_binary(File) ->
     safe_write_file(?b2l(File), IoList);
@@ -193,6 +204,33 @@ safe_latin1(Bin, Acc) ->
         Good ->
             safe_latin1(<<>>, [Good | Acc])
     end.
+
+html_table_td(Text, skip, Align) ->
+    html_table_td(Text, none, Align);
+html_table_td(Text, Res, Align) ->
+    [
+     "      ",
+     "<td class=\"", atom_to_list(Res), "\" align=\"", Align,
+     "\" rowspan=\"3\">",
+     "<strong>", Text, "</strong>",
+     "</td>\n"
+    ].
+
+html_td(Text, skip, Align, Title) ->
+    html_td(Text, none, Align, Title);
+html_td(Text, Res, Align, Title) ->
+    [
+     "    ",
+     "<td class=\"", atom_to_list(Res),
+     "\" align=\"", Align, "\"",
+     case Title of
+         "" -> [];
+         _  -> [" title=\"", Title, "\""]
+     end,
+     ">",
+     Text,
+     "</td>\n"
+    ].
 
 html_header(Title) ->
     [

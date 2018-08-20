@@ -1,0 +1,26 @@
+[doc Demo stats for nested macros]
+
+[shell test]
+    !sleep 1
+    ?SH-PROMPT:
+    [invoke outer]
+    [invoke middle]
+    [invoke inner]
+
+[macro inner]
+    !sleep 1
+    ?SH-PROMPT:
+[endmacro]
+
+[macro middle]
+    !sleep 1
+    ?SH-PROMPT:
+    [invoke inner]
+[endmacro]
+
+[macro outer]
+    !sleep 1
+    ?SH-PROMPT:
+    [invoke middle]
+    [invoke inner]
+[endmacro]

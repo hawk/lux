@@ -8,6 +8,7 @@
 -module(lux_html_annotate).
 
 -export([generate/4]).
+-import(lux_html_utils, [html_table_td/3, html_td/4]).
 
 -include("lux.hrl").
 
@@ -609,7 +610,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      "\n<h3>Source files: ",
      html_scripts(A, Files, main),
      "\n</h3>",
-     "\n<h3>", lux_html_utils:html_anchor("Log files", ""), ":</h3>\n ",
+     "\n<h3>", lux_html_utils:html_anchor("logs", "Log files"), ":</h3>\n ",
      "<table border=\"1\">\n",
      "  <tr>\n",
      LogFun(EventLog, "Event", "text/plain"),
@@ -632,8 +633,11 @@ html_events(A, EventLog, ConfigLog, Script, Result,
 
      lux_html_utils:html_anchor("h2", "", "stats", "Script statistics:"),
      LogFun(EventLog ++ ".csv", "Csv data file", "application/excel"),
-     lux_html_utils:html_href("h4", "", "", "#macro_stats", "Macros"),
      lux_html_utils:html_href("h4", "", "", "#shell_stats", "Shells"),
+     lux_html_utils:html_href("h4", "", "", "#macro_exact_stats",
+                              "Macros"),
+     lux_html_utils:html_href("h4", "", "", "#macro_accum_stats",
+                              "Accumulated per macro"),
      html_stats(Timers),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
@@ -647,14 +651,18 @@ dotdot(Path, Base) ->
     filename:join([DotDots, Base]).
 
 html_stats(Timers) ->
-    {MacroSplit, ShellSplit} = lux_html_utils:split_timers(Timers),
+    {ShellSplit, ExactMacroSplit, AccumMacroSplit} =
+        lux_html_utils:split_timers(Timers),
     [
-     lux_html_utils:html_anchor("h3", "", "macro_stats",
-                                "Statistics per macro"),
-     html_timers("Macro", MacroSplit),
      lux_html_utils:html_anchor("h3", "", "shell_stats",
                                 "Statistics per shell"),
-     html_timers("Shell", ShellSplit)
+     html_timers("Shell", ShellSplit),
+     lux_html_utils:html_anchor("h3", "", "macro_exact_stats",
+                                "Statistics per macro"),
+     html_timers("Macro", ExactMacroSplit),
+     lux_html_utils:html_anchor("h3", "", "macro_accum_stats",
+                                "Statistics accumulated per macro"),
+     html_timers("Macro", AccumMacroSplit)
     ].
 
 html_timers(Label, {Total, SplitSums}) ->
@@ -666,14 +674,14 @@ html_timers(Label, {Total, SplitSums}) ->
      "</table>\n\n"
     ].
 
-html_timer_row(Lab, Sum, List, Total) ->
+html_timer_row(Label, Sum, List, Total) ->
     [
      "  <tr>\n",
      "    <td>",
-     case Lab of
+     case Label of
          ""   -> "N/A";
          <<>> -> "N/A";
-         _    -> Lab
+         _    -> Label
      end,
      "</td>\n",
      if
@@ -693,16 +701,19 @@ html_timer_row(Lab, Sum, List, Total) ->
               "    <td align=\"right\">", ?i2l(Perc), "%</td>\n"
              ]
      end,
-     "    <td></td>\n",
      case List of
          [] ->
              [
+              "    <td>Timer</td>\n"
+              "    <td>", "Max", "</td>\n",
               "    <td>", "Match", "</td>\n",
               "    <td>", "Send", "</td>\n",
               "    <td>", "Call stack", "</td>\n"
              ];
          _ ->
              [
+              "    <td></td>\n",
+              "    <td></td>\n",
               "    <td></td>\n",
               "    <td></td>\n",
               "    <td></td>\n"
@@ -713,17 +724,27 @@ html_timer_row(Lab, Sum, List, Total) ->
        "    <td></td>\n",
        "    <td></td>\n",
        "    <td></td>\n",
-       "    <td align=\"right\">",
-       ?i2l(T#timer.elapsed_time),
-       "</td>\n",
+       "    <td align=\"right\">", ?i2l(T#timer.elapsed_time), "</td>\n",
+       case T#timer.max_time of
+           infinity ->
+               html_td("N/A", warning, "right", "");
+           Max when T#timer.status =/= matched ->
+               html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
+                       fail, "right", "");
+           Max when T#timer.elapsed_time > trunc(Max * 0.75) ->
+               html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
+                       warning, "right", "");
+           Max ->
+               html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
+                       no_data, "right", "")
+       end,
        "    <td>", html_timer_data(T#timer.match_lineno,
-                     T#timer.match_data), "</td>\n",
+                                   T#timer.match_data), "</td>\n",
        "    <td>", html_timer_data(T#timer.send_lineno,
-                     T#timer.send_data), "</td>\n",
+                                   T#timer.send_data), "</td>\n",
        "    <td>", T#timer.callstack, "</td>\n",
-       "  </tr>\n"] || T <- List,
-                       T#timer.status =:= matched]
-
+       "  </tr>\n"] || T <- List
+     ]
     ].
 
 html_timer_data(L, Data) ->

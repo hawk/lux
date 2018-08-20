@@ -8,6 +8,7 @@
 -module(lux_html_history).
 
 -export([generate/3]).
+-import(lux_html_utils, [html_table_td/3, html_td/4]).
 
 -include("lux.hrl").
 
@@ -392,12 +393,12 @@ legend() ->
      "<h3>Legend</h3>\n",
      "  <table border=\"1\">\n",
      "    <tr>\n",
-     td("First fail", fail, "left", ""),
-     td("Secondary fails on same host", secondary_fail, "left",""),
-     td("Warning", warning, "left", ""),
-     td("Skipped", none, "left", ""),
-     td("Success", success, "left", ""),
-     td("No data", no_data, "left", ""),
+     html_td("First fail", fail, "left", ""),
+     html_td("Secondary fails on same host", secondary_fail, "left",""),
+     html_td("Warning", warning, "left", ""),
+     html_td("Skipped", none, "left", ""),
+     html_td("Success", success, "left", ""),
+     html_td("No data", no_data, "left", ""),
      "    </tr>\n",
      "  </table>\n"
     ].
@@ -534,7 +535,7 @@ table(HistoryLogDir, Name, Grain, Runs, HtmlFile, Suppress, Select,
                ?l2b([
                      "  <table border=\"1\">\n",
                      "    <tr>\n",
-                     table_td(Grain, SelectedRes, "left"),
+                     html_table_td(Grain, SelectedRes, "left"),
                      lists:map(fun run_info/1, SplitIds2),
                      "    </tr>\n",
                      "    <tr>\n",
@@ -647,7 +648,7 @@ row(HistoryLogDir, Test, Runs, SplitIds, HtmlFile, Select, Suppress) ->
                          iolist=
                              [
                               "    <tr>\n",
-                              td(Test, SelectedRes, "left", ""),
+                              html_td(Test, SelectedRes, "left", ""),
                               [C#cell.iolist || C <- Cells],
                               "    </tr>\n"
                              ]
@@ -715,7 +716,7 @@ compare_split({_, [#run{}=R1|_]}, {_, [#run{}=R2|_]}) ->
 cell(HistoryLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
     case lists:keyfind(Id, #run.id, Runs) of
         false ->
-            Td = td("-", no_data, "right", Test),
+            Td = html_td("-", no_data, "right", Test),
             {#cell{res=no_data, run=undefined,
                    n_run=0, n_fail=0,
                    iolist=Td}, AccRes};
@@ -768,7 +769,7 @@ cell(HistoryLogDir, Test, Id, Runs, _HtmlFile, AccRes) ->
                        Run#run.id,"\n",
                        Run#run.repos_rev,
                        OptBranch],
-            Td = td(Text, Res, "right", ToolTip),
+            Td = html_td(Text, Res, "right", ToolTip),
             {#cell{res=Res, run=Run,
                    n_run=RunN, n_fail=FailN,
                    iolist=Td}, AccRes2}
@@ -781,33 +782,6 @@ html_suffix_href_td(HtmlFile, Text, Res, Suffix) ->
      "    ",
      "<td class=\"", atom_to_list(Res), "\"> ",
      html_suffix_href(HtmlFile,"", "#" ++ Text, Text, Suffix),
-     "</td>\n"
-    ].
-
-table_td(Text, skip, Align) ->
-    table_td(Text, none, Align);
-table_td(Text, Res, Align) ->
-    [
-     "      ",
-     "<td class=\"", atom_to_list(Res), "\" align=\"", Align,
-     "\" rowspan=\"3\">",
-     "<strong>", Text, "</strong>",
-     "</td>\n"
-    ].
-
-td(Text, skip, Align, Title) ->
-    td(Text, none, Align, Title);
-td(Text, Res, Align, Title) ->
-    [
-     "    ",
-     "<td class=\"", atom_to_list(Res),
-     "\" align=\"", Align, "\"",
-     case Title of
-         "" -> [];
-         _  -> [" title=\"", Title, "\""]
-     end,
-     ">",
-     Text,
      "</td>\n"
     ].
 
