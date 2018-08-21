@@ -173,7 +173,9 @@ internal_error(I, ReasonTerm) ->
     fatal_error(I, ReasonBin).
 
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
-    FullLineNo = full_lineno(I, I#istate.latest_cmd, I#istate.cmd_stack),
+    FullLineNo = lux_utils:full_lineno(I#istate.file,
+                                       I#istate.latest_cmd,
+                                       I#istate.cmd_stack),
     double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
     {error, I#istate.file, FullLineNo, I#istate.case_log_dir, ReasonBin}.
 
@@ -392,9 +394,12 @@ wait_for_done(I, Pid, Docs) ->
     end.
 
 handle_done(OldI, NewI0, Docs) ->
-    NewI = post_ilog(NewI0, Docs),
-    File = NewI#istate.file,
-    Results = NewI#istate.results,
+    File = NewI0#istate.file,
+    Results = NewI0#istate.results,
+    OldWarnings = NewI0#istate.warnings,
+    ExtraWarnings = [R#result.warnings || R <- Results],
+    NewWarnings = lists:flatten([OldWarnings, ExtraWarnings]),
+    NewI = post_ilog(NewI0#istate{warnings = NewWarnings}, Docs),
     case lists:keyfind('EXIT', 1, Results) of
         false ->
             case pick_fail(NewI, Results) of
@@ -449,7 +454,8 @@ cleanup_fail(I, Reason) ->
             expected     = success,
             extra        = undefined,
             actual       = Reason,
-            rest         = fail}.
+            rest         = fail,
+            warnings     = []}.
 
 print_success(I, File) ->
     LatestCmd = I#istate.latest_cmd,
@@ -480,14 +486,14 @@ print_fail(OldI0, NewI, File, Results,
                    actual       = Actual,
                    rest         = Rest} = Fail) ->
     OldI = OldI0#istate{progress = silent},
-    OldWarnings = OldI#istate.warnings,
-    FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
-    HiddenWarnings = [hidden_warning(OldI, File, R) ||
+    OldWarnings = NewI#istate.warnings,
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    HiddenWarnings = [hidden_warning(File, R) ||
                          R <- Results,
                          R#result.outcome =:= fail,
                          R =/= Fail],
     UnstableWarnings = unstable_warnings(OldI, FullLineNo),
-    {Outcome, Warnings, ResStr} =
+    {Outcome, NewWarnings, ResStr} =
         if
             UnstableWarnings =/= [] ->
                 {warning,
@@ -519,8 +525,8 @@ print_fail(OldI0, NewI, File, Results,
                 [NewActual, lux_utils:to_string(NewRest)]),
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
     NewResults = [Fail],
-    {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir, Warnings,
-     NewResults, FailBin, Opaque}.
+    {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir,
+     NewWarnings, NewResults, FailBin, Opaque}.
 
 new_actual(Actual, Expected, Rest) when is_atom(Expected) ->
     NewExpected = list_to_binary(atom_to_list(Expected)),
@@ -557,8 +563,7 @@ fail_bin(ExpectedTag, Expected, NewActual, NewRest) ->
         ?FF("diff\n\t~s", [simple_to_string(Diff)])
        ]).
 
-hidden_warning(OldI,
-               File,
+hidden_warning(File,
                #result{outcome      = fail,
                        mode         = _Mode,
                        latest_cmd   = LatestCmd,
@@ -568,7 +573,7 @@ hidden_warning(OldI,
                        extra        = _Extra,
                        actual       = Actual,
                        rest         = _Rest}) ->
-    FullLineNo = full_lineno(OldI, LatestCmd, CmdStack),
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
     {warning, File, FullLineNo, Actual}.
 
 unstable_warnings(#istate{unstable=U, unstable_unless=UU} = I, FullLineNo) ->
@@ -611,12 +616,6 @@ format_val(Format, Args, false) ->
     ?FF(Format, Args);
 format_val(Format, Args, Val) ->
     ?FF(Format ++ " to ~p", Args ++ [Val]).
-
-full_lineno(I, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
-    RevFile = lux_utils:filename_split(I#istate.file),
-    CmdPos = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type},
-    FullStack = [CmdPos | CmdStack],
-    lux_utils:pretty_full_lineno(FullStack).
 
 post_ilog(#istate{progress = Progress,
                   logs = Logs,

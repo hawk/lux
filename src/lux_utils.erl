@@ -18,7 +18,8 @@
          expand_lines/1, split_lines/1, shrink_lines/1,
          to_string/1, capitalize/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
-         pretty_full_lineno/1, pretty_filename/1, filename_split/1,
+         full_lineno/3, pretty_full_lineno/1,
+         pretty_filename/1, filename_split/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/3, equal/3, diff_iter/4, diff_iter/5, shrink_diff/3,
          cmd/1, cmd_expected/1, perms/1,
@@ -459,6 +460,12 @@ do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
     do_foldl_cmds(Fun, Acc2, File, RevFile, CmdStack, Cmds, FullDepth);
 do_foldl_cmds(_Fun, Acc, _File, _RevFile, _CmdStack, [], {_Depth, _OptI}) ->
     Acc.
+
+full_lineno(File, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
+    RevFile = filename_split(File),
+    CmdPos = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type},
+    FullStack = [CmdPos | CmdStack],
+    pretty_full_lineno(FullStack).
 
 pretty_full_lineno(FullStack) ->
     Pick = fun(#cmd_pos{lineno=L}) when is_integer(L) -> L;

@@ -731,7 +731,7 @@ html_timer_row(Label, Sum, List, Total) ->
            Max when T#timer.status =/= matched ->
                html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
                        fail, "right", "");
-           Max when T#timer.elapsed_time > trunc(Max * 0.75) ->
+           Max when T#timer.elapsed_time > trunc(Max * ?TIMER_THRESHOLD) ->
                html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
                        warning, "right", "");
            Max ->

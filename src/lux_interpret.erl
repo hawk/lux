@@ -947,7 +947,8 @@ prepare_result(#istate{mode = Mode,
                          expected     = Expected,
                          extra        = undefined,
                          actual       = FailReason,
-                         rest         = fail}};
+                         rest         = fail,
+                         warnings     = []}};
             {fail, FailReason} ->
                 {ExpectedTag, Expected} = lux_utils:cmd_expected(LatestCmd),
                 {fail,
@@ -959,7 +960,8 @@ prepare_result(#istate{mode = Mode,
                          expected     = Expected,
                          extra        = undefined,
                          actual       = FailReason,
-                         rest         = fail}}
+                         rest         = fail,
+                         warnings     = []}}
         end,
     Res3 =
         case Res2 of

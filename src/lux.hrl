@@ -20,16 +20,17 @@
 -define(RE_RUN_OPTS,     [{newline,anycrlf}, notempty]).
 -define(fail_pattern_matched, "fail pattern matched ").
 -define(success_pattern_matched, "success pattern matched ").
+-define(TIMER_THRESHOLD, 0.85).
 
- -define(DEFAULT_LOG, <<"unknown">>).
- -define(DEFAULT_HOSTNAME, <<"no_host">>).
- -define(DEFAULT_CONFIG_NAME, <<"no_config">>).
- -define(DEFAULT_SUITE, <<"no_suite">>).
- -define(DEFAULT_CASE, <<"no_case">>).
- -define(DEFAULT_RUN, <<"no_runid">>).
- -define(DEFAULT_REV, <<"">>).
- -define(DEFAULT_TIME,     <<"yyyy-mm-dd hh:mm:ss">>).
- -define(DEFAULT_TIME_STR,   "yyyy-mm-dd hh:mm:ss").
+-define(DEFAULT_LOG, <<"unknown">>).
+-define(DEFAULT_HOSTNAME, <<"no_host">>).
+-define(DEFAULT_CONFIG_NAME, <<"no_config">>).
+-define(DEFAULT_SUITE, <<"no_suite">>).
+-define(DEFAULT_CASE, <<"no_case">>).
+-define(DEFAULT_RUN, <<"no_runid">>).
+-define(DEFAULT_REV, <<"">>).
+-define(DEFAULT_TIME,     <<"yyyy-mm-dd hh:mm:ss">>).
+-define(DEFAULT_TIME_STR,   "yyyy-mm-dd hh:mm:ss").
 
 -record(cmd,
         {lineno :: non_neg_integer(),
@@ -65,7 +66,8 @@
          rest          :: binary() | atom(),
          events        :: [{non_neg_integer(),
                             atom(),
-                            binary() | atom() | string()}]}).
+                            binary() | atom() | string()}],
+         warnings      :: [{warning,string(),string(),string()}]}).
 
 -record(break,
         {pos            :: {string(), non_neg_integer()} | [non_neg_integer()],

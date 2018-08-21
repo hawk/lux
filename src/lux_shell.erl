@@ -64,7 +64,8 @@
                                                  non_neg_integer()},
          wakeup                  :: undefined | reference(),
          debug_level = 0         :: non_neg_integer(),
-         events = []             :: [tuple()]}).
+         events = []             :: [tuple()],
+         warnings = []           :: [{warning,string(),string(),string()}]}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Client
@@ -1240,16 +1241,35 @@ start_timer(#cstate{} = C) ->
 
 cancel_timer(#cstate{timer = undefined} = C) ->
     C;
-cancel_timer(#cstate{timer = Timer, timer_started_at = Earlier} = C) ->
-    Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
-    clog(C, timer, "canceled (after ~p micro seconds)", [Diff]),
-    case Timer of
-        infinity -> ok;
-        _        -> flush_timer(Timer)
-    end,
+cancel_timer(#cstate{orig_file = File, match_timeout = MaxTimeout,
+                     timer = Timer, timer_started_at = Earlier,
+                     latest_cmd = LatestCmd, cmd_stack = CmdStack,
+                     warnings = OldWarnings} = C) ->
+    ElapsedTime = timer:now_diff(lux_utils:timestamp(), Earlier),
+    clog(C, timer, "canceled (after ~p micro seconds)", [ElapsedTime]),
+    Warn =
+        fun(Reason) ->
+                clog(C, warning, "\"" ++ Reason ++ "\"", []),
+                FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+                [{warning, File, FullLineNo, Reason} | OldWarnings]
+        end,
+    Threshold = erlang:trunc(multiply(C, MaxTimeout*1000) * ?TIMER_THRESHOLD),
+    NewWarnings =
+        if
+            Timer =:= infinity ->
+                Warn("infinite timer");
+            ElapsedTime > Threshold ->
+                flush_timer(Timer),
+                Percent = integer_to_list(trunc(?TIMER_THRESHOLD * 100)),
+                Warn("sensitive timer > " ++ Percent ++ "%");
+            true ->
+                flush_timer(Timer),
+                OldWarnings
+        end,
     C#cstate{idle_count = 0,
              timer = undefined,
-             timer_started_at = undefined}.
+             timer_started_at = undefined,
+             warnings = NewWarnings}.
 
 flush_timer(Timer) ->
     erlang:cancel_timer(Timer),
@@ -1343,7 +1363,8 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
                   extra = Extra,
                   actual = Actual,
                   rest = Rest,
-                  events = lists:reverse(C#cstate.events)},
+                  events = lists:reverse(C#cstate.events),
+                  warnings = C#cstate.warnings},
     %% io:format("\nRES ~p\n", [Res]),
     lux:trace_me(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
 %%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
@@ -1413,7 +1434,8 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   extra = undefined,
                   actual = internal_error,
                   rest = C#cstate.actual,
-                  events = lists:reverse(C#cstate.events)},
+                  events = lists:reverse(C#cstate.events),
+                  warnings = C#cstate.warnings},
     if
         Why =:= interpreter_died ->
             clog(C, error, "stop", []);

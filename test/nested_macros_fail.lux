@@ -1,7 +1,7 @@
 [doc Demo stats for nested macros]
 
 [shell test]
-    !sleep 8
+    !sleep 9
     ?SH-PROMPT:
     [invoke outer]
     [invoke middle]
