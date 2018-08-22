@@ -177,7 +177,8 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
                                        I#istate.latest_cmd,
                                        I#istate.cmd_stack),
     double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
-    {error, I#istate.file, FullLineNo, I#istate.case_log_dir, ReasonBin}.
+    {error, I#istate.file, FullLineNo, I#istate.case_log_dir,
+     I#istate.warnings, ReasonBin}.
 
 parse_iopts(I, Opts) ->
     {Res, _U} = do_parse_iopts(I, Opts, []),
@@ -373,12 +374,13 @@ wait_for_done(I, Pid, Docs) ->
             Pid ! {suite_timeout, SuiteTimeout},
             case wait_for_done(I, Pid, Docs) of
                 {ok, _Summary, File, FullLineNo, CaseLogDir,
-                 _Warnings, _Results, _FailBin, _NewOpaque} ->
+                 Warnings, _Results, _FailBin, _NewOpaque} ->
                     ok;
-                {error, File, FullLineNo, CaseLogDir, _} ->
+                {error, File, FullLineNo, CaseLogDir, Warnings, _} ->
                     ok
             end,
-            {error, File, FullLineNo, CaseLogDir, <<"suite_timeout">>};
+            {error, File, FullLineNo, CaseLogDir,
+             Warnings, <<"suite_timeout">>};
         {done, Pid, Res} ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
@@ -518,7 +520,7 @@ print_fail(OldI0, NewI, File, Results,
             io:format("~s", [ResStr]),
             io:format("~s\n", [FailBin])
     end,
-    ExpectStr = atom_to_list(ExpectedTag),
+    ExpectStr = ?a2l(ExpectedTag),
     double_ilog(OldI, "~s\n\"~s\"\n",
                 [ExpectStr, lux_utils:to_string(Expected)]),
     double_ilog(OldI, "actual ~s\n\"~s\"\n",
@@ -529,10 +531,10 @@ print_fail(OldI0, NewI, File, Results,
      NewWarnings, NewResults, FailBin, Opaque}.
 
 new_actual(Actual, Expected, Rest) when is_atom(Expected) ->
-    NewExpected = list_to_binary(atom_to_list(Expected)),
+    NewExpected = ?l2b(?a2l(Expected)),
     new_actual(Actual, NewExpected, Rest);
 new_actual(Actual, Expected, Rest) when is_atom(Rest) ->
-    NewRest = list_to_binary(atom_to_list(Rest)),
+    NewRest = ?l2b(?a2l(Rest)),
     new_actual(Actual, Expected, NewRest);
 new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
     case Actual of
@@ -541,13 +543,13 @@ new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
         << ?success_pattern_matched, _/binary>> ->
             {Actual, Actual, Expected, Rest};
         {fail, OldActual} when is_atom(OldActual) ->
-            NewActual = atom_to_list(OldActual),
+            NewActual = ?a2l(OldActual),
             {OldActual, NewActual, Expected, Rest};
         _ when is_atom(Actual) ->
-            NewActual = atom_to_list(Actual),
+            NewActual = ?a2l(Actual),
             {Actual, NewActual, Expected, Rest};
         _ when is_atom(Actual) ->
-            NewActual = atom_to_list(Actual),
+            NewActual = ?a2l(Actual),
             {Actual, NewActual, Expected, Rest};
         _ when is_binary(Actual) ->
             NewActual = <<"error">>,
@@ -655,7 +657,7 @@ log_doc(#istate{log_fun = LogFun}, Docs) ->
     lists:foreach(Fun, Docs).
 
 simple_to_string(Atom) when is_atom(Atom) ->
-    simple_to_string(atom_to_list(Atom));
+    simple_to_string(?a2l(Atom));
 simple_to_string(Bin) when is_binary(Bin) ->
     simple_to_string(?b2l(Bin));
 simple_to_string([$\r | T]) ->

@@ -302,8 +302,8 @@ parse_params(I, [#debug_param{name = Name,type = Type} | Params],
         error:_ ->
             Type2 =
                 if
-                    is_atom(Type) -> atom_to_list(Type);
-                    true          -> atom_to_list(element(1, Type))
+                    is_atom(Type) -> ?a2l(Type);
+                    true          -> ?a2l(element(1, Type))
                 end,
             ReasonStr = lists:flatten(["Bad type of parameter ", Name,
                                        ". Expected ", Type2]),
@@ -1057,12 +1057,12 @@ pretty_param(#debug_param{name = Name, type = Type, help = Help}, Longest) ->
                 [
                  ?FF("~p", [Min]),
                  " >= ",
-                 atom_to_list(Atom),
+                 ?a2l(Atom),
                  " =< ",
                  ?FF("~p", [Max])
                 ];
             Atom ->
-                atom_to_list(Atom)
+                ?a2l(Atom)
         end,
     ["* ", string:left(Name, Longest, $\ ),
      " - ", Help, "; ", PrettyType, "  \n"].
@@ -1529,20 +1529,20 @@ cmd_trace(I, Args, _CmdState) ->
                                              FirstTracePid, TraceFlags),
                     Base2 = filename:basename(TraceLog),
                     format("\nInternal tracing of test ~s started.\n",
-                           [atom_to_list(TraceMode2)]),
+                           [?a2l(TraceMode2)]),
                     elog(I, "trace start (~s)", [Base2]),
                     {CmdState, I#istate{trace_mode = TraceMode2}};
                 'STOP' when TraceMode =:= 'case' ->
                     format("\nInternal tracing of test ~s stopped.\n",
-                           [atom_to_list(TraceMode)]),
+                           [?a2l(TraceMode)]),
                     elog(I, "trace stop", []),
                     lux_main:stop_trace(),
                     {CmdState, I#istate{trace_mode = none}};
                 _ ->
                     format("\nERROR: Refused to ~p internal tracing of"
                            " test case as test ~s is being traced.\n",
-                           [Action, atom_to_list(TraceMode)]),
-                    elog(I, "trace failed (~s)", [atom_to_list(TraceMode)]),
+                           [Action, ?a2l(TraceMode)]),
+                    elog(I, "trace failed (~s)", [?a2l(TraceMode)]),
                     {CmdState, I}
             end;
         [] ->

@@ -402,7 +402,7 @@ parse_var(P, Fd, Cmd, Scope, String) ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", ?i2l(LineNo),
-                         ": illegal ", atom_to_list(Scope),
+                         ": illegal ", ?a2l(Scope),
                          " variable "," '", String, "'"])
     end.
 

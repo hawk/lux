@@ -315,7 +315,7 @@ strip_trailing_whitespaces(Bin) when is_binary(Bin) ->
     re:replace(Bin, "[\s\t]+$", "", [{return, binary}]).
 
 to_string(Atom) when is_atom(Atom) ->
-    to_string(atom_to_list(Atom));
+    to_string(?a2l(Atom));
 to_string(Bin) when is_binary(Bin) ->
     to_string(?b2l(Bin));
 to_string([H | T]) when is_integer(H) ->
@@ -346,7 +346,7 @@ progress_write(Progress, String) ->
     end.
 
 tag_prefix(Tag, Width) when is_atom(Tag) ->
-    tag_prefix(atom_to_list(Tag), Width);
+    tag_prefix(?a2l(Tag), Width);
 tag_prefix(Tag, Width) when is_binary(Tag) ->
     tag_prefix(?b2l(Tag), Width);
 tag_prefix(Tag, Width) ->
@@ -812,7 +812,7 @@ shrink_diff(ExpectedTag, Old, New) when is_binary(Old), is_binary(New) ->
     Diff = diff(ExpectedTag, split_lines(Old), split_lines(New)),
     ShrinkedDiff = shrink(Diff, []),
     Expanded = lux_diff:split_diff(ShrinkedDiff),
-    iolist_to_binary(lists:map(ToIoList, Expanded)).
+    ?l2b(lists:map(ToIoList, Expanded)).
 
 shrink([Common | T], Acc) when is_list(Common) ->
     Shrinked = shrink_lines(Common),

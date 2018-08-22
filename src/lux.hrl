@@ -11,7 +11,9 @@
 -define(FF(Format, Args), io_lib:format(Format, Args)).
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), iolist_to_binary(L)).
+-define(i2b(I), integer_to_binary(I)).
 -define(i2l(I), integer_to_list(I)).
+-define(a2l(A), atom_to_list(A)).
 -define(APPLICATION, lux).
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
@@ -67,7 +69,7 @@
          events        :: [{non_neg_integer(),
                             atom(),
                             binary() | atom() | string()}],
-         warnings      :: [{warning,string(),string(),string()}]}).
+         warnings      :: [{warning,string(),string(),binary()}]}).
 
 -record(break,
         {pos            :: {string(), non_neg_integer()} | [non_neg_integer()],
@@ -93,7 +95,7 @@
          file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
-         warnings                   :: [{warning,string(),string(),string()}],
+         warnings                   :: [{warning,string(),string(),binary()}],
          loop_stack = []            :: [#loop{}],
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),

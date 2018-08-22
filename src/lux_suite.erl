@@ -148,11 +148,11 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
     catch
         ?CATCH_STACKTRACE(Class, Reason, EST)
             lux:trace_me(80, suite, Class, [Reason]),
-            if
-                R#rstate.tap =/= undefined ->
-                    lux_tap:bail_out(R#rstate.tap, "Internal error");
-                true ->
-                    ok
+            case R#rstate.tap of
+                undefined ->
+                    ok;
+                TAP ->
+                    lux_tap:bail_out(TAP, "Internal error")
             end,
             erlang:raise(Class, Reason, EST)
     end.
@@ -627,7 +627,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     end,
                     double_rlog(NewR, "~s~s\n",
                                 [?TAG("result"),
-                                 string:to_upper(atom_to_list(Summary))]),
+                                 string:to_upper(?a2l(Summary))]),
                     AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
                     run_cases(NewR#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, Results2,
@@ -645,9 +645,11 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     case Res of
                         {ok, Summary, _, FullLineNo, CaseLogDir, RunWarnings,
                          Events, FailBin, NewOpaque} ->
+                            AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
+                            NewR2 = NewR#rstate{warnings = AllWarnings},
                             lux:trace_me(70, 'case', suite, Summary,
                                          []),
-                            tap_case_end(NewR, CC, Script,
+                            tap_case_end(NewR2, CC, Script,
                                          P, LenP, Max, Summary,
                                          FullLineNo, SkipReason, FailBin),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
@@ -655,27 +657,31 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                                     CaseLogDir, Events, FailBin, Opaque},
                             NewResults = [Res2 | Results],
                             NewScripts = Scripts;
-                        {error, MainFile, FullLineNo, CaseLogDir, ErrorMsg}
+                        {error, MainFile, FullLineNo, CaseLogDir,
+                         RunWarnings, ErrorMsg}
                           when ErrorMsg =:= <<"suite_timeout" >> ->
-                            RunWarnings = ParseWarnings,
-                            Res2 = {error, MainFile, FullLineNo, ErrorMsg},
                             Summary = error,
+                            Res2 = {error, MainFile, FullLineNo, ErrorMsg},
+                            AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
+                            NewR2 = NewR#rstate{warnings = AllWarnings},
                             lux:trace_me(70, 'case', suite, Summary,
                                          [FullLineNo]),
-                            tap_case_end(NewR, CC, Script,
+                            tap_case_end(NewR2, CC, Script,
                                          P, LenP, Max, Summary,
                                          FullLineNo, SkipReason, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
                             NewResults = [Res2 | Results],
                             NewScripts = [],
                             NewOpaque  = Opaque;
-                        {error, MainFile, FullLineNo, CaseLogDir, ErrorMsg} ->
-                            RunWarnings = ParseWarnings,
-                            Res2 = {error, MainFile, FullLineNo, ErrorMsg},
+                        {error, MainFile, FullLineNo, CaseLogDir,
+                         RunWarnings, ErrorMsg} ->
                             Summary = error,
+                            Res2 = {error, MainFile, FullLineNo, ErrorMsg},
+                            AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
+                            NewR2 = NewR#rstate{warnings = AllWarnings},
                             lux:trace_me(70, 'case', suite, Summary,
                                          [FullLineNo]),
-                            tap_case_end(NewR, CC, Script,
+                            tap_case_end(NewR2, CC, Script,
                                          P, LenP, Max, Summary,
                                          FullLineNo, SkipReason, ErrorMsg),
                             NewSummary = lux_utils:summary(OldSummary, Summary),
@@ -683,8 +689,6 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                             NewScripts = Scripts,
                             NewOpaque  = Opaque
                     end,
-                    AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
-                    NewR2 = NewR#rstate{warnings = AllWarnings},
                     annotate_event_log(NewR2, Script, NewSummary,
                                        CaseLogDir, Opts),
                     _ = write_results(NewR2, NewSummary, NewResults),
@@ -1274,8 +1278,9 @@ tap_suite_begin(R, Scripts, Directive)
 tap_suite_begin(R, _Scripts, _Directive) ->
     {ok, R#rstate{tap = undefined}}.
 
-tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results)
-  when TAP =/= undefined ->
+tap_suite_end(#rstate{tap = undefined}, _Summary, _Results) ->
+    ok;
+tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results) ->
     Len = fun(Res, Tag) -> ?i2l(length(lux_log:pick_result(Res, Tag))) end,
     ok = lux_tap:diag(TAP, "\n"),
     lux_tap:diag(TAP, ["Errors:     ", Len(Results, error)]),
@@ -1283,23 +1288,21 @@ tap_suite_end(#rstate{tap = TAP, warnings = Warnings}, Summary, Results)
     lux_tap:diag(TAP, ["Warnings:   ", Len(Warnings, warning)]),
     lux_tap:diag(TAP, ["Skipped:    ", Len(Results, skip)]),
     lux_tap:diag(TAP, ["Successful: ", Len(Results, success)]),
-    lux_tap:diag(TAP, ["Summary:    ", atom_to_list(Summary)]),
-    lux_tap:close(TAP);
-tap_suite_end(_R, _Summary, _Results) ->
-    ok.
+    lux_tap:diag(TAP, ["Summary:    ", ?a2l(Summary)]),
+    lux_tap:close(TAP).
 
-%% tap_case_begin(#rstate{tap = TAP} = R, AbsScript)
-%%   when TAP =/= undefined ->
-%%     PrefixedRelScript = prefixed_rel_script(R, AbsScript),
-%%     ok = lux_tap:diag(TAP, "lux " ++ PrefixedRelScript);
 tap_case_begin(#rstate{}, _AbsScript) ->
     ok.
 
+tap_case_end(#rstate{tap = undefined}, _CaseCount, _Script,
+             _P, _LenP, _Max,
+             _Result, _FullLineNo,
+             _Reason, _Details) ->
+    ok;
 tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings},
              CaseCount, _AbsScript,
              P, LenP, Max,
-             Result, FullLineNo, Reason, Details)
-  when TAP =/= undefined ->
+             Result, FullLineNo, Reason, Details) ->
     CaseCountStr = ?i2l(CaseCount),
     PrefixLen = lists:min([4, 5-length(CaseCountStr)]),
     Indent = lists:duplicate(PrefixLen, " "),
@@ -1320,28 +1323,21 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings},
             success               -> {ok,     ""}
         end,
     lux_tap:test(TAP, Outcome, Descr, Directive, Max-LenP),
-    Format = fun({warning, _File, LineNo, W}) ->
-                     ok = lux_tap:diag(TAP, "WARNING at line " ++ LineNo),
-                     ok = lux_tap:diag(TAP,  ?b2l(W))
-             end,
-    lists:foreach(Format, Warnings),
+    lists:foreach(fun(W) -> tap_comment(TAP, W) end, Warnings),
     case Details of
-        <<>> ->
-            ok;
-        _ ->
-            Prefix = string:to_upper(atom_to_list(Result)),
-            Lines = [
-                     ?l2b([Prefix, " at line ", FullLineNo]) |
-                     binary:split(Details, <<"\n">>, [global])
-                    ],
-            [ok = lux_tap:diag(TAP, ?b2l(F)) ||
-                F <- Lines, F =/= <<>>]
-    end;
-tap_case_end(#rstate{}, _CaseCount, _Script,
-             _P, _LenP, _Max,
-             _Result, _FullLineNo,
-             _Reason, _Details) ->
-    ok.
+        <<>> -> ignore;
+        _    -> tap_comment(TAP, {Result, dummy, FullLineNo, Details})
+    end.
+
+tap_comment(TAP, {Outcome, _File, FullLineNo, Details}) ->
+    W = ?b2l(?l2b([string:to_upper(?a2l(Outcome)), " at line ", FullLineNo])),
+    case binary:split(Details, <<"\n">>, [global]) of
+        [Single] ->
+            ok = lux_tap:diag(TAP, W ++ " - " ++ ?b2l(Single));
+        Multiline ->
+            ok = lux_tap:diag(TAP, W),
+            [lux_tap:diag(TAP, ?b2l(D)) || D <- Multiline]
+    end.
 
 throw_error(File, Reason) ->
     throw({error, File, Reason}).

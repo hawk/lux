@@ -525,7 +525,7 @@ print_results(Progress, Fd, Summary, Results, Warnings) ->
     print_error(Progress, Fd, Results),
     result_format(Progress, Fd, "~s~s\n",
                   [?TAG("summary"),
-                   [string:to_upper(Char) || Char <- atom_to_list(Summary)]]).
+                   [string:to_upper(Char) || Char <- ?a2l(Summary)]]).
 
 print_success(Progress, Fd, Results) ->
     SuccessScripts = pick_result(Results, success),
@@ -636,11 +636,11 @@ close_event_log(EventFd) ->
     file:close(EventFd).
 
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, "", []}) ->
-    OpStr = atom_to_list(Op),
+    OpStr = ?a2l(Op),
     Data = ?FF("~s(~p): ~s\n", [Shell, LineNo, OpStr]),
     safe_write(Progress, LogFun, Fd, Data);
 write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
-    OpStr = atom_to_list(Op),
+    OpStr = ?a2l(Op),
     Data = ?FF(Fmt, Args),
 %% ??   Data2 = lux_utils:normalize_match_regexp(Data),
     Data2 = Data,
@@ -837,7 +837,7 @@ extract_timers([], Send, _Calls, _Nums, Acc) ->
     {Send, Acc}.
 
 format_calls([<<>>], Acc) ->
-    iolist_to_binary(join("->", Acc));
+    ?l2b(join("->", Acc));
 format_calls([H|T], Acc) ->
     format_calls(T, [H | Acc]).
 
@@ -910,7 +910,7 @@ timer_to_elems(#timer{match_lineno = MatchStack,
          infinity -> q("infinity");
          _        -> ?i2l(MaxTime)
      end,
-     q(atom_to_list(Status)),
+     q(?a2l(Status)),
      if
          Elapsed =:= undefined,
          Status =:= started ->
@@ -1055,7 +1055,7 @@ parse_result(RawResult) ->
     {result, R}.
 
 %% split_quoted_lines(Bin) when byte_size(Bin) > 1000000 ->
-%%     Sz = list_to_binary(integer_to_list(byte_size(Bin))),
+%%     Sz = ?i2b(?i2l(byte_size(Bin))),
 %%     [<<"...<WARNING> This is an insane amount of output. ", Sz/binary,
 %%        " bytes ignored. See textual lux logs for details...">>];
 split_quoted_lines(Bin) when is_binary(Bin) ->
@@ -1186,7 +1186,7 @@ format_val_choice(Tag, Val, []) ->
     [lists:flatten(?FF("~s~w\n", [?TAG(Tag), Val]))].
 
 try_format_val(_Tag, Val = undefined, _Type) ->
-    [atom_to_list(Val)];
+    [?a2l(Val)];
 try_format_val(Tag, Val, Type) ->
     case Type of
         string when is_list(Val) ->
@@ -1194,11 +1194,11 @@ try_format_val(Tag, Val, Type) ->
         binary when is_binary(Val) ->
             [?b2l(Val)];
         {atom, _Atoms} when is_atom(Val) ->
-            [atom_to_list(Val)];
+            [?a2l(Val)];
         {integer, _Min, _Max} when is_integer(Val) ->
             [?i2l(Val)];
         {integer, _Min, _Max} when Val =:= infinity ->
-            [atom_to_list(Val)];
+            [?a2l(Val)];
         {std_list, SubTypes} ->
             [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];
         {reset_list, SubTypes} when is_list(SubTypes) ->

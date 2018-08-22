@@ -210,7 +210,7 @@ html_table_td(Text, skip, Align) ->
 html_table_td(Text, Res, Align) ->
     [
      "      ",
-     "<td class=\"", atom_to_list(Res), "\" align=\"", Align,
+     "<td class=\"", ?a2l(Res), "\" align=\"", Align,
      "\" rowspan=\"3\">",
      "<strong>", Text, "</strong>",
      "</td>\n"
@@ -221,7 +221,7 @@ html_td(Text, skip, Align, Title) ->
 html_td(Text, Res, Align, Title) ->
     [
      "    ",
-     "<td class=\"", atom_to_list(Res),
+     "<td class=\"", ?a2l(Res),
      "\" align=\"", Align, "\"",
      case Title of
          "" -> [];

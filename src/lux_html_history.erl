@@ -780,7 +780,7 @@ html_suffix_href_td(HtmlFile, Text, skip, Suffix) ->
 html_suffix_href_td(HtmlFile, Text, Res, Suffix) ->
     [
      "    ",
-     "<td class=\"", atom_to_list(Res), "\"> ",
+     "<td class=\"", ?a2l(Res), "\"> ",
      html_suffix_href(HtmlFile,"", "#" ++ Text, Text, Suffix),
      "</td>\n"
     ].

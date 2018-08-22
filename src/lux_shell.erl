@@ -65,7 +65,7 @@
          wakeup                  :: undefined | reference(),
          debug_level = 0         :: non_neg_integer(),
          events = []             :: [tuple()],
-         warnings = []           :: [{warning,string(),string(),string()}]}).
+         warnings = []           :: [{warning,string(),string(),binary()}]}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Client
@@ -136,7 +136,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
     {Exec, Args} = choose_exec(C2),
     FlatExec = lists:flatten([Exec, [[" ", A] || A <- Args]]),
     Events = save_event(C2, start, FlatExec),
-    StartReason = atom_to_list(C#cstate.start_reason),
+    StartReason = ?a2l(C#cstate.start_reason),
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason},
                {"LUX_EXTRA_LOGS", ExtraLogs}],
@@ -457,7 +457,7 @@ opt_show_debug(C) ->
 show_debug(#cstate{debug={connect,Mode}} = C, Prefix, Data) ->
     Data2 =
         if
-            is_atom(Data) -> atom_to_list(Data);
+            is_atom(Data) -> ?a2l(Data);
             true          -> Data
         end,
     case Mode of
@@ -1251,17 +1251,17 @@ cancel_timer(#cstate{orig_file = File, match_timeout = MaxTimeout,
         fun(Reason) ->
                 clog(C, warning, "\"" ++ Reason ++ "\"", []),
                 FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
-                [{warning, File, FullLineNo, Reason} | OldWarnings]
+                [{warning, File, FullLineNo, ?l2b(Reason)} | OldWarnings]
         end,
     Threshold = erlang:trunc(multiply(C, MaxTimeout*1000) * ?TIMER_THRESHOLD),
     NewWarnings =
         if
             Timer =:= infinity ->
-                Warn("infinite timer");
+                Warn("Infinite timer");
             ElapsedTime > Threshold ->
                 flush_timer(Timer),
-                Percent = integer_to_list(trunc(?TIMER_THRESHOLD * 100)),
-                Warn("sensitive timer > " ++ Percent ++ "%");
+                Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
+                Warn("Risky timer > " ++ Percent ++ "% of max");
             true ->
                 flush_timer(Timer),
                 OldWarnings

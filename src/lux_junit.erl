@@ -45,7 +45,7 @@ testsuite({test_group, _, Cases}, RunDir, Indent) ->
     TestcaseFun = fun(Testcase) ->
                           testcase(Testcase, RunDir, [Indent, ?INDENT])
                   end,
-    Tests = erlang:integer_to_binary(erlang:length(Cases)),
+    Tests = ?i2b(length(Cases)),
     [
      Indent, "<testsuite tests=\"", Tests, "\">\n",
      lists:flatmap(TestcaseFun, Cases),
@@ -95,7 +95,7 @@ body({result, {_, LineNo, _ExpectedTag, Expected, Actual, Details}}, _Indent) ->
      "]]>", "</failure>\n"
     ];
 body({result, Res}, Indent) ->
-    [Indent, "<!-- ", atom_to_list(Res), " -->\n"];
+    [Indent, "<!-- ", ?a2l(Res), " -->\n"];
 body({error, Reason}, _Indent) ->
     [
      "<error message=\"error\" type=\"general_error\">\n",
