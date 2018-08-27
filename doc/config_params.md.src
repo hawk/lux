@@ -115,6 +115,17 @@ system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
 equivalent slaves.
 
+**--require Var**  
+**--require Var=Value**  
+Require the given variable to be set. The script will fail if
+the variable not is set. This option can be used multiple times,
+which means that all given Vars are required to be set.
+Typically require is used to test on presence of environment
+variables. `--require` is intended to be used as `[config require=Var]`
+or `[config require=Var=Value]` statements within scripts. The
+construction **Var=Value** is little more restrictive as it
+requires the variable to be set to a certain value.
+
 **--skip Var**  
 **--skip Var=Value**  
 Skip execution of the script if the given variable is set. This
@@ -137,21 +148,6 @@ environment variables. `--skip_unless` is intended to be used as
 statements within scripts. The construction **Var=Val** is little more
 restrictive as it requires that the variable is set to a certain
 value.
-
-**--skip\_skip**  
-**--skip\_skip=true**  
-Forces Lux to not care about `--skip` and `--skip_unless` settings.
-
-**--require Var**  
-**--require Var=Value**  
-Require the given variable to be set. The script will fail if
-the variable not is set. This option can be used multiple times,
-which means that all given Vars are required to be set.
-Typically require is used to test on presence of environment
-variables. `--require` is intended to be used as `[config require=Var]`
-or `[config require=Var=Value]` statements within scripts. The
-construction **Var=Value** is little more restrictive as it
-requires the variable to be set to a certain value.
 
 **--unstable Var**  
 **--unstable Var=Value**  
@@ -177,6 +173,15 @@ environment variables. `--unstable_unless` is intended to be used as
 statements within scripts. The construction **Var=Val** is little more
 restrictive as it requires that the variable is set to a certain
 value.
+
+**--skip\_unstable**  
+**--skip\_unstable=true**  
+Skip unstable test cases. See `--unstable` and `--unstable_unless`.
+
+**--skip\_skip**  
+**--skip\_skip=true**  
+Forces Lux to not care about `--skip` and `--skip_unless` settings.
+Overrides `--skip_unstable`.
 
 Log control
 -----------

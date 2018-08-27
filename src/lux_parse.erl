@@ -7,20 +7,21 @@
 
 -module(lux_parse).
 
--export([parse_file/5]).
+-export([parse_file/6]).
 
 -include("lux.hrl").
 
 -record(pstate,
-        {file       :: string(),
-         orig_file  :: string(),
-         pos_stack  :: [#cmd_pos{}],
-         mode       :: lux:run_mode(),
-         skip_skip  :: boolean(),
-         multi_vars :: [[string()]], % ["name=val"]
-         warnings   :: [binary()],
-         top_doc    :: undefined | non_neg_integer(),
-         newshell   :: boolean()
+        {file           :: string(),
+         orig_file      :: string(),
+         pos_stack      :: [#cmd_pos{}],
+         mode           :: lux:run_mode(),
+         skip_unstable  :: boolean(),
+         skip_skip      :: boolean(),
+         multi_vars     :: [[string()]], % ["name=val"]
+         warnings       :: [binary()],
+         top_doc        :: undefined | non_neg_integer(),
+         newshell       :: boolean()
         }).
 
 -define(TAB_LEN, 8).
@@ -28,7 +29,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse
 
-parse_file(RelFile, RunMode, SkipSkip, CheckDoc, Opts) ->
+parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
     try
         File = lux_utils:normalize_filename(RelFile),
         RevFile = lux_utils:filename_split(File),
@@ -43,6 +44,7 @@ parse_file(RelFile, RunMode, SkipSkip, CheckDoc, Opts) ->
                             orig_file = File,
                             pos_stack = [],
                             mode = RunMode,
+                            skip_unstable = SkipUnstable,
                             skip_skip = SkipSkip,
                             multi_vars = MultiVars,
                             warnings = [],
@@ -744,11 +746,24 @@ test_user_config(P, I) ->
         end,
     lists:foreach(fun(Val) -> T("skip", Val) end, I#istate.skip),
     lists:foreach(fun(Val) -> T("skip_unless", Val) end, I#istate.skip_unless),
+    lists:foreach(fun(Val) -> T("unstable", Val) end, I#istate.unstable),
+    lists:foreach(fun(Val) -> T("unstable_unless", Val) end, I#istate.unstable_unless),
     lists:foreach(fun(Val) -> T("require", Val) end, I#istate.require).
 
-test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
+test_skip(#pstate{mode = RunMode,
+                  skip_unstable = SkipUnstable,
+                  skip_skip = SkipSkip} = P, Fd,
           #cmd{lineno = LineNo, arg = {config, Var, NameVal}} = Cmd) ->
     case Var of
+        "require" when RunMode =:= execute ->
+            {IsSet, Name, Val} = test_var(P, NameVal),
+            case IsSet of
+                true ->
+                    {P, Cmd};
+                false ->
+                    Format = "FAIL as required variable ~s is not set",
+                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+            end;
         "skip" when not SkipSkip ->
             {IsSet, Name, Val} = test_var(P, NameVal),
             case IsSet of
@@ -767,13 +782,22 @@ test_skip(#pstate{mode = RunMode, skip_skip = SkipSkip} = P, Fd,
                     Format = "SKIP as variable ~s is not set",
                     parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
             end;
-        "require" when RunMode =:= execute ->
+        "unstable" when not SkipSkip, SkipUnstable ->
+            {IsSet, Name, Val} = test_var(P, NameVal),
+            case IsSet of
+                false ->
+                    {P, Cmd};
+                true ->
+                    Format = "SKIP UNSTABLE as variable ~s is set",
+                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+            end;
+        "unstable_unless" when not SkipSkip, SkipUnstable ->
             {IsSet, Name, Val} = test_var(P, NameVal),
             case IsSet of
                 true ->
                     {P, Cmd};
                 false ->
-                    Format = "FAIL as required variable ~s is not set",
+                    Format = "SKIP UNSTABLE as variable ~s is not set",
                     parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
             end;
         _ ->

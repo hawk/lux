@@ -18,6 +18,7 @@
          orig_args                  :: [string()],
          prev_log_dir               :: undefined | string(),
          mode = execute             :: lux:run_mode(),
+         skip_unstable = false      :: boolean(),
          skip_skip = false          :: boolean(),
          progress = brief           :: silent | summary | brief |
                                        doc | compact | verbose,
@@ -467,6 +468,8 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{revision = Val});
         hostname when is_list(Val) ->
             parse_ropts(T, R#rstate{hostname = Val});
+        skip_unstable when Val =:= true; Val =:= false ->
+            parse_ropts(T, R#rstate{skip_unstable = Val});
         skip_skip when Val =:= true; Val =:= false ->
             parse_ropts(T, R#rstate{skip_skip = Val});
         mode when Val =:= list; Val =:= list_dir; Val =:= doc;
@@ -833,6 +836,7 @@ parse_script(R, _SuiteFile, Script) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
     case lux:parse_file(Script,
                         R#rstate.mode,
+                        R#rstate.skip_unstable,
                         R#rstate.skip_skip,
                         true,
                         Opts0) of
@@ -938,8 +942,11 @@ config_name() ->
 
 parse_config_file(R, AbsConfigFile) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
+    SkipUnstable = false,
     SkipSkip = true,
-    case lux:parse_file(AbsConfigFile, R#rstate.mode, SkipSkip, false, Opts0) of
+    CheckDoc = false,
+    case lux:parse_file(AbsConfigFile, R#rstate.mode,
+                        SkipUnstable, SkipSkip, CheckDoc, Opts0) of
         {ok, _File, _Cmds, UpdatedOpts, NewWarnings} ->
             Key = config_dir,
             Opts2 =
@@ -1220,6 +1227,8 @@ suite_config_type(Name) ->
             {ok, [{atom, Prio}]};
         html ->
             {ok, [{atom, Prio}]};
+        skip_unstable ->
+            {ok, [{atom, [true, false]}]};
         skip_skip ->
             {ok, [{atom, [true, false]}]};
         mode ->
