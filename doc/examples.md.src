@@ -104,7 +104,7 @@ and another `.../lux_config/SunOS-sun4u.luxcfg`
 >     [config var=USE_VALGRIND=false]
 >     [config multiplier=3000]
 
-#include <examples/error.lux>
+#include <examples/require.lux>
 
 #include <examples/warning.lux>
 
