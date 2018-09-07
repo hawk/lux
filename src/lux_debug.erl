@@ -1156,9 +1156,9 @@ all_logs(#istate{orig_file=Script,
     Base = filename:basename(Script),
     EventLog = filename:join([CaseLogDir, Base ++ ".event.log"]),
     ConfigLog = filename:join([CaseLogDir, Base ++ ".config.log"]),
-    SuiteConfigLog = filename:join([SuiteLogDir, "lux_config.log"]),
-    SummaryLog = filename:join([SuiteLogDir, "lux_summary.log.tmp"]),
-    ResultLog = filename:join([SuiteLogDir, "lux_result.log"]),
+    SuiteConfigLog = filename:join([SuiteLogDir, ?CONFIG_LOG ++ ".log"]),
+    SummaryLog = filename:join([SuiteLogDir, ?SUMMARY_LOG ++ ".tmp"]),
+    ResultLog = filename:join([SuiteLogDir, ?RESULT_LOG]),
     {I2, [SuiteConfigLog, SummaryLog, ResultLog, ConfigLog, EventLog | Logs]}.
 
 tail(#istate{suite_log_dir=SuiteLogDir} = I,

@@ -23,6 +23,11 @@
 -define(fail_pattern_matched, "fail pattern matched ").
 -define(success_pattern_matched, "success pattern matched ").
 -define(TIMER_THRESHOLD, 0.85).
+-define(SUMMARY_LOG, "lux_summary.log").
+-define(CONFIG_LOG, "lux_config.log").
+-define(RESULT_LOG, "lux_result.log").
+-define(CASE_EVENT_LOG, ".event.log").
+-define(CASE_CONFIG_LOG, ".config.log").
 
 -define(DEFAULT_LOG, <<"unknown">>).
 -define(DEFAULT_HOSTNAME, <<"no_host">>).

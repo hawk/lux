@@ -156,8 +156,8 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
   when is_list(SummaryLog) ->
     Dir = filename:basename(filename:dirname(SummaryLog)),
     RelSummaryLog = drop_new_log_prefix(A, SummaryLog),
-    RelResultLog = "lux_result.log",
-    RelConfigLog = "lux_config.log",
+    RelResultLog = ?RESULT_LOG,
+    RelConfigLog = ?CONFIG_LOG,
     RelTapLog = "lux.tap",
     IsTmp = lux_log:is_temporary(SummaryLog),
     LogFun =
@@ -198,8 +198,10 @@ html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
                 Base = filename:basename(NextScript),
                 SuiteLogDir = A#astate.suite_log_dir,
                 CaseLogDir = lux_case:case_log_dir(SuiteLogDir, NextScript),
-                EventLog = lux_utils:join(CaseLogDir, Base ++ ".event.log"),
-                ConfigLog = lux_utils:join(CaseLogDir, Base ++ ".config.log"),
+                EventLog = lux_utils:join(CaseLogDir,
+                                          Base ++ ?CASE_EVENT_LOG),
+                ConfigLog = lux_utils:join(CaseLogDir,
+                                           Base ++ ?CASE_CONFIG_LOG),
                 LogFun =
                     fun(L, S) ->
                             ["    <td><strong>",
@@ -597,7 +599,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
                 ["<h3>Elapsed time: ", DiffStr, "</h3>\n"]
         end,
     RelEventLogDir = filename:split(drop_run_log_prefix(A, EventLogDir)),
-    RelSummaryLog = dotdot(RelEventLogDir, "lux_summary.log.html"),
+    RelSummaryLog = dotdot(RelEventLogDir, ?SUMMARY_LOG ++ ".log.html"),
     [
      lux_html_utils:html_header(["Lux event log (", Dir, ")"]),
      "\n", lux_html_utils:html_href("h2", "", "", "#annotate", PrefixScript),

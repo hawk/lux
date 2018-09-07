@@ -82,10 +82,8 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
           when R#rstate.mode =:= list;
                R#rstate.mode =:= list_dir;
                R#rstate.mode =:= doc ->
-            LogDir = R#rstate.log_dir,
-            LogBase = "lux_summary.log",
             try
-                R2 = compute_files(R, LogDir, LogBase),
+                R2 = compute_files(R, ?SUMMARY_LOG),
                 doc_run(R2)
             catch
                 ?CATCH_STACKTRACE(throw, {error, FileErr, Reason}, _EST)
@@ -99,11 +97,10 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
         {ok, R} ->
             TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
-            LogBase = "lux_summary.log",
-            SummaryLog = filename:join([LogDir, LogBase]),
+            SummaryLog = filename:join([LogDir, ?SUMMARY_LOG]),
             try
                 {ConfigData, R2} = parse_config(R), % May throw error
-                R3 = compute_files(R2, LogDir, LogBase),
+                R3 = compute_files(R2, ?SUMMARY_LOG),
                 R4 = adjust_files(R3),
                 full_run(R4, ConfigData, SummaryLog)
             catch
@@ -258,7 +255,7 @@ initial_res(R, Exists, ConfigData, SummaryLog, Summary)
 
 write_config_log(SummaryLog, ConfigData) ->
     LogDir = filename:dirname(SummaryLog),
-    ConfigLog = filename:join([LogDir, "lux_config.log"]),
+    ConfigLog = filename:join([LogDir, ?CONFIG_LOG]),
     ok = lux_log:write_config_log(ConfigLog, ConfigData).
 
 -spec(annotate_log(boolean(), filename(), opts()) ->
@@ -350,21 +347,21 @@ annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
             {ok, Summary, SummaryLog, Results}
     end.
 
-compute_files(R, _LogDir, _LogBase) when R#rstate.files =:= [],
-                                         R#rstate.orig_files =:= [],
-                                         R#rstate.rerun =:= disable ->
-    throw_error(undefined, no_input_files);
-compute_files(R, _LogDir, _LogBase) when R#rstate.rerun =:= disable ->
-    R;
-compute_files(R, _LogDir, LogBase) when R#rstate.files =/= [] ->
-    OldLogDirs = R#rstate.files,
-    compute_rerun_files(R, OldLogDirs, LogBase, []);
-compute_files(R, _LogDir, LogBase) ->
-    case R#rstate.prev_log_dir of
-        undefined ->
+compute_files(R, LogBase) ->
+    if
+        R#rstate.files =:= [],
+        R#rstate.orig_files =:= [],
+        R#rstate.rerun =:= disable ->
             throw_error(undefined, no_input_files);
-        PrevLogDir ->
-            compute_rerun_files(R, [PrevLogDir], LogBase, [])
+        R#rstate.rerun =:= disable ->
+            R;
+        R#rstate.files =/= [] ->
+            OldLogDirs = R#rstate.files,
+            compute_rerun_files(R, OldLogDirs, LogBase, []);
+        R#rstate.prev_log_dir =:= undefined ->
+            throw_error(undefined, no_input_files);
+        true ->
+            compute_rerun_files(R, [R#rstate.prev_log_dir], LogBase, [])
     end.
 
 compute_rerun_files(R, LogDirs, LogBase, Acc) ->

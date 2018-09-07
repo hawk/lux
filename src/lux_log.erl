@@ -116,7 +116,7 @@ do_parse_summary_log(#source{file=SummaryLog}, WWW) ->
             {ok, ?SUMMARY_LOG_VERSION, Sections} ->
                 %% Latest version
                 LogDir = filename:dirname(SummaryLog),
-                ConfigLog = lux_utils:join(LogDir, "lux_config.log"),
+                ConfigLog = lux_utils:join(LogDir, ?CONFIG_LOG),
                 {{ok, RawConfig}, NewWWW} = scan_config(ConfigLog, NewWWW),
                 SummaryConfig = parse_config(RawConfig),
                 {{ok, Result}, NewWWW} = parse_summary_result(LogDir, NewWWW),
@@ -475,7 +475,7 @@ write_config_log(ConfigLog, ConfigData) when is_list(ConfigLog) ->
 %% Results
 
 parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
-    ResultLog = lux_utils:join(LogDir, "lux_result.log"),
+    ResultLog = lux_utils:join(LogDir, ?RESULT_LOG),
     {ReadRes, NewWWW} = read_log(ResultLog, ?RESULT_TAG, WWW),
     Res =
         case ReadRes of
@@ -493,7 +493,7 @@ parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
 write_results(Progress, SummaryLog, Summary, Results, Warnings)
   when is_list(SummaryLog) ->
     LogDir = filename:dirname(SummaryLog),
-    ResultFile = lux_utils:join(LogDir, "lux_result.log"),
+    ResultFile = lux_utils:join(LogDir, ?RESULT_LOG),
     TmpResultFile = ResultFile++".tmp",
     case file:open(TmpResultFile, [write]) of
         {ok, Fd} ->
@@ -620,7 +620,7 @@ result_format(Progress, {IsTmp, Fd}, Format, Args) ->
 open_event_log(LogDir, Script, Progress, LogFun, Verbose)
   when is_list(LogDir), is_list(Script) ->
     Base = filename:basename(Script),
-    EventLog = lux_utils:join(LogDir, Base ++ ".event.log"),
+    EventLog = lux_utils:join(LogDir, Base ++ ?CASE_EVENT_LOG),
     case file:open(EventLog, [write]) of
         {ok, EventFd} ->
             safe_format(Progress, LogFun, {Verbose, EventFd},
@@ -669,8 +669,8 @@ do_scan_events(EventLog, EventSections, WWW) ->
     end,
     Script = ?b2l(ScriptBin),
     Dir = filename:dirname(EventLog),
-    Base = filename:basename(EventLog, ".event.log"),
-    ConfigLog = lux_utils:join(Dir, Base ++ ".config.log"),
+    Base = filename:basename(EventLog, ?CASE_EVENT_LOG),
+    ConfigLog = lux_utils:join(Dir, Base ++ ?CASE_CONFIG_LOG),
     {ScanRes, NewWWW} = scan_config(ConfigLog, WWW),
     Res =
         case ScanRes of
@@ -1103,7 +1103,7 @@ dequote1([]) ->
 
 open_config_log(LogDir, Script, ConfigData) ->
     Base = filename:basename(Script),
-    ConfigFile = lux_utils:join(LogDir, Base ++ ".config.log"),
+    ConfigFile = lux_utils:join(LogDir, Base ++ ?CASE_CONFIG_LOG),
     case filelib:ensure_dir(ConfigFile) of
         ok ->
             case write_config_log(ConfigFile, ConfigData) of
