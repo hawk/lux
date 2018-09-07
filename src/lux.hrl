@@ -34,6 +34,24 @@
 -define(DEFAULT_TIME,     <<"yyyy-mm-dd hh:mm:ss">>).
 -define(DEFAULT_TIME_STR,   "yyyy-mm-dd hh:mm:ss").
 
+-ifdef(OTP_RELEASE).
+    -define(stacktrace(),
+            fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason:Stacktrace ->
+           ).
+-else.
+    -define(stacktrace(),
+            try throw(1) catch _:_ -> erlang:get_stacktrace() end).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+           ).
+-endif.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Records
+
 -record(cmd,
         {lineno :: non_neg_integer(),
          type   :: atom(),
@@ -215,17 +233,19 @@
          status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
 
--ifdef(OTP_RELEASE).
-    -define(stacktrace(),
-            fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
-    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
-            Class:Reason:Stacktrace ->
-           ).
--else.
-    -define(stacktrace(),
-            try throw(1) catch _:_ -> erlang:get_stacktrace() end).
-    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
-            Class:Reason ->
-                Stacktrace = erlang:get_stacktrace(),
-           ).
--endif.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Types
+
+-type filename() :: string().
+-type dirname()  :: string().
+-type opts()     :: [{atom(), term()}].
+-type cmds()     :: [#cmd{}].
+-type warnings() :: [{warning,string(),string(),string()}].
+-type summary()  :: success | skip | warning | fail | error.
+-type lineno()   :: string().
+-type warning()  :: {warning, filename(), lineno(), string()}.
+-type skip()     :: {skip, filename(), string()}.
+-type error()    :: {error, filename(), string()}.
+-type no_input() :: {error, undefined, no_input_files}.
+-type result()   :: {ok, filename(), summary(), lineno(), [warning()]}.
+-type run_mode() :: list | list_dir | doc | validate | execute.

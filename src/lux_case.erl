@@ -21,6 +21,19 @@
 
 -include("lux.hrl").
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Interpret parsed script
+
+-spec(interpret_commands(filename(),
+                         cmds(),
+                         warnings(),
+                         {non_neg_integer(),
+                          non_neg_integer(),
+                          non_neg_integer()},
+                         opts(),
+                         [{atom(), term()}]) ->
+             [{ok, summary(), filename(), [result()]} | error()]).
+
 interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     %% io:format("\nCmds ~p\n", [Cmds]),
     I = default_istate(Script),

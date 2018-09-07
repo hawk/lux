@@ -66,6 +66,12 @@ adjust_files(R) ->
     AbsFiles = [lux_utils:normalize_filename(F) || F <- RelFiles],
     R#rstate{files = AbsFiles}.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Run a test suite
+
+-spec(run(filename(), opts(), string(), [string()]) ->
+             {ok, summary(), filename(), [result()]} | error() | no_input()).
+
 run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
     R0 = #rstate{files = Files,
                  orig_files = Files,
@@ -254,6 +260,9 @@ write_config_log(SummaryLog, ConfigData) ->
     LogDir = filename:dirname(SummaryLog),
     ConfigLog = filename:join([LogDir, "lux_config.log"]),
     ok = lux_log:write_config_log(ConfigLog, ConfigData).
+
+-spec(annotate_log(boolean(), filename(), opts()) ->
+             ok | error()).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
     SuiteLogDir = filename:dirname(LogFile),
@@ -640,10 +649,10 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     lux:trace_me(70, suite, 'case', P, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, P, Script),
-                    Res = lux:interpret_commands(Script2, Cmds,
-                                                 ParseWarnings,
-                                                 CaseStartTime,
-                                                 Opts, Opaque),
+                    Res = lux_case:interpret_commands(Script2, Cmds,
+                                                      ParseWarnings,
+                                                      CaseStartTime,
+                                                      Opts, Opaque),
                     SkipReason = "",
                     case Res of
                         {ok, Summary, _, FullLineNo, CaseLogDir, RunWarnings,
@@ -834,12 +843,12 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
 
 parse_script(R, _SuiteFile, Script) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
-    case lux:parse_file(Script,
-                        R#rstate.mode,
-                        R#rstate.skip_unstable,
-                        R#rstate.skip_skip,
-                        true,
-                        Opts0) of
+    case lux_parse:parse_file(Script,
+                              R#rstate.mode,
+                              R#rstate.skip_unstable,
+                              R#rstate.skip_skip,
+                              true,
+                              Opts0) of
         {ok, Script2, Cmds, FileOpts, NewWarnings} ->
             FileArgs = opts_to_args(FileOpts, R#rstate.file_args),
             R2 = R#rstate{internal_args = [],
@@ -945,8 +954,8 @@ parse_config_file(R, AbsConfigFile) ->
     SkipUnstable = false,
     SkipSkip = true,
     CheckDoc = false,
-    case lux:parse_file(AbsConfigFile, R#rstate.mode,
-                        SkipUnstable, SkipSkip, CheckDoc, Opts0) of
+    case lux_parse:parse_file(AbsConfigFile, R#rstate.mode,
+                              SkipUnstable, SkipSkip, CheckDoc, Opts0) of
         {ok, _File, _Cmds, UpdatedOpts, NewWarnings} ->
             Key = config_dir,
             Opts2 =

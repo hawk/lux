@@ -1162,7 +1162,7 @@ annotate(LogFile0, Opts) ->
     {_Files, Opts2} = translate_opts(Opts),
     LogFile = filename:absname(LogFile0),
     io:format("Annotating logs ~s...", [LogFile]),
-    case lux:annotate_log(LogFile, Opts2) of
+    case lux_suite:annotate_log(true, LogFile, Opts2) of
         ok ->
             io:format("...ok\n", []),
             io:format("\nfile://~s\n", [LogFile ++ ".html"]),
@@ -1180,7 +1180,7 @@ history(RelLogDir, Opts) ->
     end,
     AbsLogDir = filename:absname(RelLogDir),
     HtmlFile = filename:join([AbsLogDir, "lux_history.html"]),
-    case lux:history(Files, HtmlFile, Opts2) of
+    case safe_history(Files, HtmlFile, Opts2) of
         ok ->
             io:format("...ok\n", []),
             io:format("\nfile://~s\n", [HtmlFile]),
@@ -1188,6 +1188,14 @@ history(RelLogDir, Opts) ->
         {error, File, ReasonStr} ->
             io:format("...ERROR\n\t~s: ~s\n", [File, ReasonStr]),
             1
+    end.
+
+safe_history(LogDirs, HtmlFile, Opts) ->
+    case lux_html_history:generate(LogDirs, HtmlFile, Opts) of
+        {ok, HtmlFile} ->
+            lux_html_parse:validate_html(HtmlFile, Opts);
+        {error, File, Reason} ->
+            {error, File, Reason}
     end.
 
 run(Opts, Files, PrevLogDir, OrigArgs) ->
@@ -1211,7 +1219,7 @@ do_run(Files, Opts, PrevLogDir, OrigArgs) ->
             lux_html_parse:validate_html(hd(Files), Opts);
         false ->
             ThisEscript = escript:script_name(),
-            lux:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
+            lux_suite:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
     end.
 
 is_html(Files) ->

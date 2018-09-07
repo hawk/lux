@@ -27,7 +27,12 @@
 -define(TAB_LEN, 8).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Parse
+%% Parse a script file
+
+-spec(parse_file(filename(), run_mode(),
+                 boolean(), boolean(), boolean(),
+                 opts()) ->
+             {ok, filename(), cmds(), opts()} | skip() | error()).
 
 parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
     try
