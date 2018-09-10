@@ -352,9 +352,10 @@ adjust_stacks(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
             Loop = hd(LoopStack),
             LoopCmd = Loop#loop.mode,
             {_, RegExp} = extract_regexp(LoopCmd#cmd.arg),
-            {C2, RegExp2} = prepare_stop(C, RegExp, [],
-                                         <<"Loop ended without match of ">>),
-            stop(C2, fail, RegExp2);
+            {C2, ActualStop} =
+                do_prepare_stop(C, RegExp,
+                                <<?loop_break_pattern_mismatch>>),
+            stop(C2, fail, ActualStop);
         _ ->
             C#cstate{latest_cmd = NewCmd,
                      cmd_stack = CmdStack}
@@ -1109,10 +1110,13 @@ match_break_patterns(C, _Actual, AltRest, [], Acc, LogFuns) ->
 prepare_stop(C, Actual, Matches, Context) ->
     {C2, Match} = post_match(C, Actual, Matches, Context),
     Match2 = ?l2b(lux_utils:to_string(?b2l(Match))),
-    Actual2 = <<Context/binary, "\"", Match2/binary, "\"">>,
-    C3 = clear_expected(C2, " (prepare stop)", suspend),
-    C4 = opt_late_sync_reply(C3),
-    {C4, Actual2}.
+    do_prepare_stop(C2, Match2, Context).
+
+do_prepare_stop(C, Match, Context) ->
+    Actual = <<Context/binary, "\"", Match/binary, "\"">>,
+    C2 = clear_expected(C, " (prepare stop)", suspend),
+    C3 = opt_late_sync_reply(C2),
+    {C3, Actual}.
 
 clear_expected(C, Context, Mode) ->
     case C#cstate.wakeup of
@@ -1385,9 +1389,14 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
 prepare_outcome(C, Outcome, Actual) ->
     Context =
         case Actual of
-            <<?fail_pattern_matched,    _/binary>> -> fail_pattern_matched;
-            <<?success_pattern_matched, _/binary>> -> success_pattern_matched;
-            _                                      -> Actual
+            <<?fail_pattern_matched,    _/binary>> ->
+                fail_pattern_matched;
+            <<?success_pattern_matched, _/binary>> ->
+                success_pattern_matched;
+            <<?loop_break_pattern_mismatch, _/binary>> ->
+                loop_break_pattern_mismatch;
+            _ ->
+                Actual
         end,
     if
         Outcome =:= fail, Context =:= fail_pattern_matched ->
@@ -1404,6 +1413,13 @@ prepare_outcome(C, Outcome, Actual) ->
             {_, SuccessRegExp} = extract_regexp(SuccessCmd#cmd.arg),
             Extra = SuccessRegExp,
             clog(C, pattern, "~p", [lux_utils:to_string(SuccessRegExp)]);
+        Outcome =:= fail, Context =:= loop_break_pattern_mismatch ->
+            NewOutcome = Outcome,
+            Loop = hd(C#cstate.loop_stack),
+            LoopCmd = Loop#loop.mode,
+            {_, BreakRegExp} = extract_regexp(LoopCmd#cmd.arg),
+            Extra = BreakRegExp,
+            clog(C, pattern, "~p", [lux_utils:to_string(BreakRegExp)]);
         Outcome =:= error ->
             NewOutcome = fail,
             Extra = Actual;

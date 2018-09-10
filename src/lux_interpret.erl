@@ -971,6 +971,9 @@ prepare_result(#istate{mode = Mode,
             #result{actual = <<?success_pattern_matched, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             cmd_stack = CmdStack};
+            #result{actual = <<?loop_break_pattern_mismatch, _/binary>>} ->
+                Res2#result{latest_cmd = LatestCmd,
+                            cmd_stack = CmdStack};
             _ ->
                 Res2
         end,
@@ -984,6 +987,8 @@ goto_cleanup(I, CleanupReason) ->
             [#result{actual= <<?fail_pattern_matched, _/binary>>}|_] ->
                 "-" ++ LineNo;
             [#result{actual= <<?success_pattern_matched, _/binary>>}|_] ->
+                "+" ++ LineNo;
+            [#result{actual= <<?loop_break_pattern_mismatch, _/binary>>}|_] ->
                 "+" ++ LineNo;
             [#result{outcome = success}|_] ->
                 "";

@@ -22,6 +22,7 @@
 -define(RE_RUN_OPTS,     [{newline,anycrlf}, notempty]).
 -define(fail_pattern_matched, "fail pattern matched ").
 -define(success_pattern_matched, "success pattern matched ").
+-define(loop_break_pattern_mismatch, "loop break pattern mismatch ").
 -define(TIMER_THRESHOLD, 0.85).
 -define(SUMMARY_LOG, "lux_summary.log").
 -define(CONFIG_LOG, "lux_config.log").
