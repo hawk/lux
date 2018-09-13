@@ -332,6 +332,7 @@ do_parse_run_summary(Source, File, Res, Opts) ->
             ConfigName =
                 if
                     ConfigName0 =/= CN0,
+                    ConfigName0 =/= <<"undefined">>, % Backwards compat
                     ConfigName0 =/= ?DEFAULT_CONFIG_NAME ->
                         ConfigName0;
                     true ->
@@ -383,6 +384,7 @@ default_run(Source, File) ->
     Log = filename:basename(File),
     NewLogDir = lux_utils:normalize_filename(filename:dirname(File)),
     #run{log = Log,
+         config_name = ?DEFAULT_CONFIG_NAME,
          run_dir = Cwd,
          run_log_dir = Source#source.dir,
          new_log_dir = NewLogDir}.
