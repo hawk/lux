@@ -1255,6 +1255,8 @@ cancel_timer(#cstate{orig_file = File, match_timeout = MaxTimeout,
         fun(Reason) ->
                 clog(C, warning, "\"" ++ Reason ++ "\"", []),
                 FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+                Progress = debug_progress(C),
+                lux_utils:progress_write(Progress, "W"),
                 [{warning, File, FullLineNo, ?l2b(Reason)} | OldWarnings]
         end,
     Threshold = erlang:trunc(multiply(C, MaxTimeout*1000) * ?TIMER_THRESHOLD),

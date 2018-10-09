@@ -332,6 +332,7 @@ printed. The `brief` characters have the following meanings:
        c - the normal cleanup marker
        C - the cleanup marker during premature termination
        z - is printed out each second while sleeping
+       W - is printed out when a dynamic warning is issued
        ( - beginning of a macro, loop or an include file
        ) - end of a macro, loop or an include file
        ? - waiting for shell output. Preceded with lineno.
