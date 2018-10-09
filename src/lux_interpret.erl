@@ -998,16 +998,21 @@ goto_cleanup(I, CleanupReason) ->
     lux_utils:progress_write(I#istate.progress, NewLineNo),
 
     %% Ensure that the cleanup does not take too long time
-    CaseRef = I#istate.case_timer_ref,
     I2 =
-        case erlang:read_timer(CaseRef) of
-            TimeLeft when is_integer(TimeLeft) ->
+        case I#istate.case_timer_ref of
+            infinity ->
                 I;
-            _NoTimer ->
-                CaseRef2 =
-                    safe_send_after(I, I#istate.case_timeout, self(),
-                                    {case_timeout, I#istate.case_timeout}),
-                I#istate{case_timer_ref = CaseRef2}
+            CaseRef ->
+                case erlang:read_timer(CaseRef) of
+                    TimeLeft when is_integer(TimeLeft) ->
+                        I;
+                    _NoTimer ->
+                        CaseRef2 =
+                            safe_send_after(I, I#istate.case_timeout, self(),
+                                            {case_timeout,
+                                             I#istate.case_timeout}),
+                        I#istate{case_timer_ref = CaseRef2}
+                end
         end,
     dlog(I2, ?dmore, "want_more=true (goto_cleanup)", []),
     do_goto_cleanup(I2, CleanupReason, LineNo).

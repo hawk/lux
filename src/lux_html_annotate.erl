@@ -726,19 +726,34 @@ html_timer_row(Label, Sum, List, Total) ->
        "    <td></td>\n",
        "    <td></td>\n",
        "    <td></td>\n",
-       "    <td align=\"right\">", ?i2l(T#timer.elapsed_time), "</td>\n",
-       case T#timer.max_time of
-           infinity ->
-               html_td("N/A", warning, "right", "");
-           Max when T#timer.status =/= matched ->
-               html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
-                       fail, "right", "");
-           Max when T#timer.elapsed_time > trunc(Max * ?TIMER_THRESHOLD) ->
-               html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
-                       warning, "right", "");
-           Max ->
-               html_td([?i2l((T#timer.elapsed_time*100) div Max), "%"],
-                       no_data, "right", "")
+       begin
+           Max = T#timer.max_time,
+           Elapsed = T#timer.elapsed_time,
+           ElapsedTd =
+               if
+                   Elapsed =:= undefined ->
+                       html_td("N/A", warning, "right", "");
+                   true ->
+                       html_td(?i2l(Elapsed), no_data, "right", "")
+               end,
+           [
+            ElapsedTd,
+            if
+                Max =:= infinity ->
+                    html_td("N/A", warning, "right", "");
+                Elapsed =:= undefined ->
+                    html_td("N/A", no_data, "right", "");
+                T#timer.status =/= matched ->
+                    html_td([?i2l((Elapsed*100) div Max), "%"],
+                            fail, "right", "");
+                Elapsed > trunc(Max * ?TIMER_THRESHOLD) ->
+                    html_td([?i2l((Elapsed*100) div Max), "%"],
+                            warning, "right", "");
+                true ->
+                    html_td([?i2l((Elapsed*100) div Max), "%"],
+                            no_data, "right", "")
+            end
+           ]
        end,
        "    <td>", html_timer_data(T#timer.match_lineno,
                                    T#timer.match_data), "</td>\n",
