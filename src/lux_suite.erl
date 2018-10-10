@@ -43,7 +43,7 @@
          html = enable              :: validate |
                                        enable | success | skip | warning |
                                        fail | error | disable,
-         warnings = []              :: [{warning,string(),string(),string()}],
+         warnings = []              :: [#warning{}],
          internal_args = []         :: [{atom(), term()}], % Internal opts
          user_args = []             :: [{atom(), term()}], % Command line opts
          file_args = []             :: [{atom(), term()}], % Script opts
@@ -1344,7 +1344,13 @@ tap_case_end(#rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings},
         _    -> tap_comment(TAP, {Result, dummy, FullLineNo, Details})
     end.
 
+tap_comment(TAP, #warning{file=File, lineno=FullLineNo, details=Details}) ->
+    Outcome = warning,
+    tap_comment(TAP, Outcome, File, FullLineNo, Details);
 tap_comment(TAP, {Outcome, _File, FullLineNo, Details}) ->
+    tap_comment(TAP, Outcome, _File, FullLineNo, Details).
+
+tap_comment(TAP, Outcome, _File, FullLineNo, Details) ->
     W = ?b2l(?l2b([string:to_upper(?a2l(Outcome)), " at line ", FullLineNo])),
     case binary:split(Details, <<"\n">>, [global]) of
         [Single] ->

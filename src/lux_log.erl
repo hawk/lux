@@ -591,7 +591,9 @@ pick_result(Results, Outcome) when Outcome =:= error ->
         {error, Script, FullLineNo, Reason} <- Results];
 pick_result(Warnings, Outcome) when Outcome =:= warning ->
     [{Script, FullLineNo, Reason} ||
-        {warning, Script, FullLineNo, Reason} <- Warnings];
+        #warning{file = Script,
+                 lineno = FullLineNo,
+                 details = Reason} <- Warnings];
 pick_result(Results, Outcome) ->
     Pick = fun(fail, <<"FAIL", _/binary>> = FailBin, _Events) ->
                    FailBin;

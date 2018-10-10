@@ -26,7 +26,7 @@
 
 -spec(interpret_commands(filename(),
                          cmds(),
-                         warnings(),
+                         [#warning{}],
                          {non_neg_integer(),
                           non_neg_integer(),
                           non_neg_integer()},
@@ -544,10 +544,10 @@ print_fail(OldI0, NewI, File, Results,
      NewWarnings, NewResults, FailBin, Opaque}.
 
 new_actual(Actual, Expected, Rest) when is_atom(Expected) ->
-    NewExpected = ?l2b(?a2l(Expected)),
+    NewExpected = ?a2b(Expected),
     new_actual(Actual, NewExpected, Rest);
 new_actual(Actual, Expected, Rest) when is_atom(Rest) ->
-    NewRest = ?l2b(?a2l(Rest)),
+    NewRest = ?a2b(Rest),
     new_actual(Actual, Expected, NewRest);
 new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
     case Actual of
@@ -558,13 +558,13 @@ new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
         << ?loop_break_pattern_mismatch, _/binary>> ->
             {Actual, Actual, Expected, Rest};
         {fail, OldActual} when is_atom(OldActual) ->
-            NewActual = ?a2l(OldActual),
+            NewActual = ?a2b(OldActual),
             {OldActual, NewActual, Expected, Rest};
         _ when is_atom(Actual) ->
-            NewActual = ?a2l(Actual),
+            NewActual = ?a2b(Actual),
             {Actual, NewActual, Expected, Rest};
         _ when is_atom(Actual) ->
-            NewActual = ?a2l(Actual),
+            NewActual = ?a2b(Actual),
             {Actual, NewActual, Expected, Rest};
         _ when is_binary(Actual) ->
             NewActual = <<"error">>,
@@ -585,13 +585,16 @@ hidden_warning(File,
                        mode         = _Mode,
                        latest_cmd   = LatestCmd,
                        cmd_stack    = CmdStack,
+                       shell_name   = ShellName,
                        expected_tag = _ExpectedTag,
                        expected     = _Expected,
                        extra        = _Extra,
-                       actual       = Actual,
+                       actual       = _Actual,
                        rest         = _Rest}) ->
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
-    {warning, File, FullLineNo, Actual}.
+    FailBin = ?l2b(lists:concat(["FAIL at ", FullLineNo,
+                                 " in shell ", ShellName])),
+    #warning{file = File, lineno = FullLineNo, details = FailBin}.
 
 unstable_warnings(#istate{unstable=U, unstable_unless=UU} = I, FullLineNo) ->
     F = fun(Var, NameVal) -> filter_unstable(I, FullLineNo, Var, NameVal) end,
@@ -609,7 +612,9 @@ filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
                 true ->
                     Format = "Fail but UNSTABLE as variable ~s is set",
                     Reason = ?l2b(format_val(Format, [Name], Val)),
-                    {true, {warning, File, FullLineNo, Reason}}
+                    {true, #warning{file = File,
+                                    lineno = FullLineNo,
+                                    details = Reason}}
             end;
         "unstable_unless" ->
             {IsSet, Name, Val} = test_var(I, NameVal),
@@ -619,7 +624,9 @@ filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
                 false ->
                     Format = "Fail but UNSTABLE as variable ~s is not set",
                     Reason = ?l2b(format_val(Format, [Name], Val)),
-                    {true, {warning, File, FullLineNo, Reason}}
+                    {true, #warning{file = File,
+                                    lineno = FullLineNo,
+                                    details = Reason}}
             end
     end.
 

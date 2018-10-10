@@ -14,6 +14,7 @@
 -define(i2b(I), integer_to_binary(I)).
 -define(i2l(I), integer_to_list(I)).
 -define(a2l(A), atom_to_list(A)).
+-define(a2b(A), ?l2b(?a2l(A))).
 -define(APPLICATION, lux).
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
@@ -79,6 +80,11 @@
          lineno     :: non_neg_integer(),
          type       :: atom()}).
 
+-record(warning,
+        {file    :: filename(),
+         lineno  :: lineno(),
+         details :: binary()}).
+
 -record(result,
         {outcome       :: fail | success | shutdown,
          mode          :: running | cleanup | stopping,
@@ -93,7 +99,7 @@
          events        :: [{non_neg_integer(),
                             atom(),
                             binary() | atom() | string()}],
-         warnings      :: [{warning,string(),string(),binary()}]}).
+         warnings      :: [#warning{}]}).
 
 -record(break,
         {pos            :: {string(), non_neg_integer()} | [non_neg_integer()],
@@ -119,7 +125,7 @@
          file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
-         warnings                   :: [{warning,string(),string(),binary()}],
+         warnings                   :: [#warning{}],
          loop_stack = []            :: [#loop{}],
          cleanup_reason = normal    :: fail | success | normal,
          debug = false              :: boolean(),
@@ -246,12 +252,10 @@
 -type dirname()  :: string().
 -type opts()     :: [{atom(), term()}].
 -type cmds()     :: [#cmd{}].
--type warnings() :: [{warning,string(),string(),string()}].
 -type summary()  :: success | skip | warning | fail | error.
 -type lineno()   :: string().
--type warning()  :: {warning, filename(), lineno(), string()}.
 -type skip()     :: {skip, filename(), string()}.
 -type error()    :: {error, filename(), string()}.
 -type no_input() :: {error, undefined, no_input_files}.
--type result()   :: {ok, filename(), summary(), lineno(), [warning()]}.
+-type result()   :: {ok, filename(), summary(), lineno(), [#warning{}]}.
 -type run_mode() :: list | list_dir | doc | validate | execute.
