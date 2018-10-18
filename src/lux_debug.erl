@@ -577,7 +577,11 @@ cmds() ->
                 params = [#debug_param{name = "action",
                                        type = {enum, ["START", "STOP"]},
                                        presence = optional,
-                                       help = "Trace action"}],
+                                       help = "Trace action"},
+                          #debug_param{name = "mode",
+                                       type = {enum, ["CASE","SUITE","EVENT"]},
+                                       presence = optional,
+                                       help = "Trace mode"}],
                 help = "start or stop internal tracing\n"
                 "Default is to display the trace mode (none|case|suite).",
                 callback = fun cmd_trace/3}
@@ -1514,25 +1518,31 @@ cmd_trace(I, Args, _CmdState) ->
     CmdState =  undefined,
     TraceMode = I#istate.trace_mode,
     case Args of
+        [] ->
+            format("Internal trace mode: ~p\n", [TraceMode]),
+            {CmdState, I};
         [{"action", Action}] ->
+            cmd_trace(I, [{"action", Action}, {"mode", "CASE"}], _CmdState);
+        [{"action", Action}, {"mode", TraceModeUpper}] ->
+            TraceModeLower = string:to_lower(TraceModeUpper),
+            TraceMode2 = list_to_atom(TraceModeLower),
             case list_to_atom(Action) of
                 'START' when TraceMode =:= none ->
-                    TraceFlags = [c, p, sos],
-                    FirstTracePid = self(),
                     LogDir = I#istate.case_log_dir,
                     Base = filename:basename(I#istate.orig_file) ++
-                        ".case",
+                        "." ++ TraceModeLower,
                     TraceLog0 = lux_utils:join(LogDir, Base),
-                    TraceMode2 = 'case',
+                    FirstTracePid = self(),
                     {ok, TraceLog} =
-                        lux_main:start_trace(TraceMode2, TraceLog0,
-                                             FirstTracePid, TraceFlags),
+                        lux_main:start_trace(TraceMode2,
+                                             {file, TraceLog0},
+                                             FirstTracePid),
                     Base2 = filename:basename(TraceLog),
                     format("\nInternal tracing of test ~s started.\n",
                            [?a2l(TraceMode2)]),
                     elog(I, "trace start (~s)", [Base2]),
                     {CmdState, I#istate{trace_mode = TraceMode2}};
-                'STOP' when TraceMode =:= 'case' ->
+                'STOP' when TraceMode =:= TraceMode2 ->
                     format("\nInternal tracing of test ~s stopped.\n",
                            [?a2l(TraceMode)]),
                     elog(I, "trace stop", []),
@@ -1544,10 +1554,7 @@ cmd_trace(I, Args, _CmdState) ->
                            [Action, ?a2l(TraceMode)]),
                     elog(I, "trace failed (~s)", [?a2l(TraceMode)]),
                     {CmdState, I}
-            end;
-        [] ->
-            format("Internal trace mode: ~p\n", [TraceMode]),
-            {CmdState, I}
+            end
     end.
 
 elog(I, Format, Args) ->

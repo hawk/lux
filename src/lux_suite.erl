@@ -12,52 +12,6 @@
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
 
--record(rstate,
-        {files                      :: [string()],
-         orig_files                 :: [string()],
-         orig_args                  :: [string()],
-         prev_log_dir               :: undefined | string(),
-         mode = execute             :: lux:run_mode(),
-         skip_unstable = false      :: boolean(),
-         skip_skip = false          :: boolean(),
-         progress = brief           :: silent | summary | brief |
-                                       doc | compact | verbose,
-         config_dir                 :: string(),
-         file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
-         case_prefix = ""           :: string(),
-         log_fd                     :: file:io_device(),
-         log_dir                    :: file:filename(),
-         summary_log                :: string(),
-         config_name                :: string(),
-         config_file                :: string(),
-         suite = ?b2l(?DEFAULT_SUITE) :: string(),
-         start_time                 :: {non_neg_integer(),
-                                        non_neg_integer(),
-                                        non_neg_integer()},
-         run                        :: string(),
-         extend_run = false         :: boolean(),
-         revision = ""              :: string(),
-         hostname = real_hostname() :: string(),
-         rerun = disable            :: enable | success | skip | warning |
-                                       fail | error | disable,
-         html = enable              :: validate |
-                                       enable | success | skip | warning |
-                                       fail | error | disable,
-         warnings = []              :: [#warning{}],
-         internal_args = []         :: [{atom(), term()}], % Internal opts
-         user_args = []             :: [{atom(), term()}], % Command line opts
-         file_args = []             :: [{atom(), term()}], % Script opts
-         config_args = []           :: [{atom(), term()}], % Arch spec opts
-         default_args = []          :: [{atom(), term()}], % Default opts
-         builtin_vars = lux_utils:builtin_vars()
-                                    :: [string()], % ["name=val"]
-         system_vars = lux_utils:system_vars()
-                                    :: [string()], % ["name=val"]
-         tap_opts = []              :: [string()],
-         tap                        :: term(), % #tap{}
-         junit = false              :: boolean()
-        }).
-
 adjust_files(R) ->
     RelFiles = R#rstate.files,
     TagFiles = [{config_dir, R#rstate.config_dir} |
@@ -1035,12 +989,6 @@ sys_info() ->
     {[Line], "0"} = lux_utils:cmd("uname -a"),
     Line.
 
-real_hostname() ->
-    case inet:gethostname() of
-        {ok, Host} -> Host;
-        _          -> "localhost"
-    end.
-
 user_prefix() ->
     case os:getenv("USER") of
         false -> "";
@@ -1278,7 +1226,7 @@ tap_suite_begin(R, Scripts, Directive)
             ok = lux_tap:diag(TAP, "\n"),
             %% ok = lux_tap:diag(TAP, "LUX - LUcid eXpect scripting"),
             OptUser = user_prefix(),
-            Host = real_hostname(),
+            Host = lux_utils:real_hostname(),
             ok = lux_tap:diag(TAP, "ssh " ++ OptUser ++ Host),
             {ok, Cwd} = file:get_cwd(),
             ok = lux_tap:diag(TAP, "cd " ++ Cwd),

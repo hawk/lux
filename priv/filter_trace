@@ -1,0 +1,9 @@
+%% This is an -*- erlang -*- file.
+
+{call, {lux_main, '_', '_'}, shallow, record}.
+{call, {lux_utils, '_', '_'}, skip, record}.
+{call, {lux_debug, '_', '_'}, skip, record}.
+{call, {'_', '_', '_'}, deep, record}.
+{record, istate, [{latest_cmd, annotate}], skip}.
+{record, cstate, [{latest_cmd, annotate}], skip}.
+%% {record, '_', [{'_', annotate}], record}.

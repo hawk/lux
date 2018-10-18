@@ -11,7 +11,7 @@
 -module(lux_main).
 -mode(compile).
 -export([
-         start_trace/4,
+         start_trace/3,
          stop_trace/0,
          normalize_filename/1,
          split/2,
@@ -78,7 +78,7 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs) ->
                                                    OpModes, Specs, OrigArgs);
         {"--suite_trace", [_]}      -> suite_trace(Op, LuxAppDir, Opts,
                                                    OpModes, Specs, OrigArgs);
-        {"--display_trace", [File]} -> display_trace(File);
+        {"--display_trace", [File]} -> display_trace(LuxAppDir, File, Opts);
         {"--install", [InstallDir]} -> install(Op, LuxAppDir, InstallDir, Opts);
         {"--reltool", [_]}          -> reltool(Op, LuxAppDir, Opts);
         {"--xref", [_]}             -> xref(Op, LuxAppDir, Opts);
@@ -137,6 +137,7 @@ specs() ->
      {"--event_trace",        false,       boolean,                none},
      {"--suite_trace",        false,       boolean,                none},
      {"--display_trace",      undefined,   string,                 mandatory},
+     {"--filter_trace",       undefined,   string,                 mandatory},
      {"--install",            "",          string,                 optional},
      {"--install_app",        undefined,   string,                 mandatory},
      {"--install_profile",    standalone,  {enum, profile},        mandatory},
@@ -645,91 +646,19 @@ suite_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
             1
     end.
 
-display_trace(TraceFile) ->
-    case filelib:is_regular(TraceFile) of
-        true ->
-            ReplyTo = self(),
-            Indent = 0,
-            HandlerSpec = {fun trace_client/2, {ReplyTo, Indent}},
-            ClientPid = dbg:trace_client(file, TraceFile, HandlerSpec),
-            link(ClientPid),
-            receive
-                end_of_trace ->
-                    0;
-                {'EXIT', Reason} ->
-                    io:format("ERROR: ~s: ~p\n", [TraceFile, Reason]),
-                    1
-                end;
-        false ->
-            io:format("ERROR: ~s: no such file\n", [TraceFile]),
-            1
-    end.
-
-trace_client(end_of_trace, {ReplyTo, _Indent}) ->
-    ReplyTo ! end_of_trace,
-    ReplyTo;
-trace_client(Data, {ReplyTo, Indent}) ->
-    NewData = map_trace(Data, true, [istate]),
-    Stripped = strip_time(NewData),
-    io:format("~s~p.\n", [lists:duplicate(Indent, " "), Stripped]),
-    NewIndent =
-        case element(3, Data) of
-            call ->
-                Indent+1;
-            return_from when Indent > 0->
-                Indent-1;
-            _ ->
-                Indent
-        end,
-    {ReplyTo, NewIndent}.
-
-map_trace(List, Default, Filter) when is_list(List) ->
-    [map_trace(Elem, Default, Filter) || Elem <- List];
-map_trace(Tuple, Default, Filter) when is_tuple(Tuple) ->
-    DeepMap =
-        fun(T) ->
-                list_to_tuple(map_trace(tuple_to_list(T),
-                                        Default,
-                                        Filter))
-        end,
-    Tag = element(1, Tuple),
-    if
-        is_atom(Tag), Tag =/= trace, Tag =/= trace_ts ->
-            Match = lists:member(Tag, Filter),
-            State = lists:suffix("state", atom_to_list(Tag));
-        true ->
-            Match = undefined,
-            State = false
-    end,
-    case {Default, Match} of
-        _ when not State -> DeepMap(Tuple);
-        {true, true}     -> {Tag};
-        {true, false}    -> DeepMap(Tuple);
-        {false, true}    -> DeepMap(Tuple);
-        {false, false}   -> {Tag}
-    end;
-map_trace(Data, _Default, _Filter) ->
-    Data.
-
-strip_time(Data) ->
-    [Tag, _Pid | Rest] = tuple_to_list(Data),
-    Rev = lists:reverse(Rest),
-    NewRev =
-        case Tag of
-            trace_ts -> tl(Rev);
-            trace    -> Rev
-        end,
-    list_to_tuple(lists:reverse(NewRev)).
-
 start_suite_trace(TraceFile) ->
-    start_trace(suite, TraceFile, self(), [c, p]).
+    start_trace(suite, {file, TraceFile}, self()).
 
-start_trace(TraceMode, TraceFile, FirstTracePid, TraceFlags) ->
+start_trace(TraceMode, TraceTarget, FirstTracePid) ->
+    TracePids = trace_pids(TraceMode, FirstTracePid),
+    TraceFlags = trace_flags(TraceMode),
+    TraceMFAs = trace_mfas(TraceMode),
+    start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs).
+
+start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs) ->
     case dbg:get_tracer() of
         {error, _Reason} ->
-            TraceFile2 = uniq_file(TraceFile, "", 2),
-            TracePids = trace_pids(TraceMode, FirstTracePid),
-            do_start_trace(TraceFile2, TracePids, TraceFlags);
+            do_start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs);
         {ok, _Tracer} ->
             {error, already_started}
     end.
@@ -744,25 +673,57 @@ uniq_file(Base, Suffix, Count) ->
     end.
 
 trace_pids(TraceMode, TracePid) ->
+    AllNewPids = [P || P <- processes(),
+                       P >= TracePid],
     case TraceMode of
-        suite  ->
-            [TracePid];
-        'case' ->
-            [P || P <- processes(),
-                  P >= TracePid]
+        suite  -> [TracePid];
+        event  -> AllNewPids;
+        'case' -> AllNewPids
     end.
 
-do_start_trace(TraceFile, TracePids, TraceFlags0) ->
-    TraceFlags = [timestamp | TraceFlags0],
+trace_flags(TraceMode) ->
+    case TraceMode of
+        suite  ->  [c, p];
+        event  ->  [c, p, sos];
+        'case' ->  [c, p, sos]
+    end.
+
+trace_mfas(TraceMode) ->
     LuxAppDir = code:lib_dir(?APPLICATION),
     Mods = modules(LuxAppDir, ?APPLICATION),
-    WrapFilesSpec = {TraceFile ++ ".", wrap, ".etrace", 16*1024*1024, 8},
-    TracePort = dbg:trace_port(file, WrapFilesSpec),
-    {ok, _} = dbg:tracer(port, TracePort),
+    MFAs = [{M, '_', '_'} || M <- Mods],
+    case TraceMode of
+        suite  -> MFAs;
+        event  -> [{lux, trace_me, '_'}];
+        'case' -> MFAs
+    end.
+
+do_start_trace(TraceTarget, TracePids, TraceFlags0, TraceMFAs) ->
+    start_tracer(TraceTarget),
+    TraceFlags = [timestamp | TraceFlags0],
     [{ok, _} = dbg:p(P, TraceFlags) || P <- TracePids],
-    MatchSpec = [{'_', [], [{return_trace}]}],
-    [{ok, _} = dbg:tpl({M, '_', '_'}, MatchSpec) || M <- Mods],
+    MatchSpec = [{'_', [], [{exception_trace}]}],
+    [{ok, _} = dbg:tpl(MFA, MatchSpec) || MFA <- TraceMFAs],
     {ok, TraceFile}.
+
+start_tracer(TraceTarget) ->
+    case TraceTarget of
+        {file, TraceFile} ->
+            TraceFile2 = uniq_file(TraceFile, "", 2),
+            WrapFilesSpec =
+                {TraceFile2 ++ ".", wrap, ".etrace", 16*1024*1024, 8},
+            TracePort = dbg:trace_port(file, WrapFilesSpec),
+            {ok, _} = dbg:tracer(port, TracePort),
+            {ok, TraceFile};
+        log ->
+            HandlerFun =
+                fun(Trace, Acc) ->
+                        io:format("TRACE ~p\n", [Trace]),
+                        Acc
+                end,
+            HandlerSpec = {HandlerFun, undefined},
+            {ok, _} = dbg:tracer(process, HandlerSpec)
+    end.
 
 stop_trace() ->
     dbg:flush_trace_port(),
@@ -782,6 +743,18 @@ modules(AppDir, App) ->
             io:format("WARNING: ~s: ~s\n",
                       [AppFile, file:format_error(Reason)]),
             ['_']
+    end.
+
+display_trace(LuxAppDir, TraceFile, Opts) ->
+    FilterFile = filter_trace_file(LuxAppDir, Opts),
+    lux_trace:display(TraceFile, FilterFile).
+
+filter_trace_file(LuxAppDir, Opts) ->
+    case lists:keyfind("--filter_trace", 1, Opts) of
+        {_, []} ->
+            filename:join([LuxAppDir, "priv", "filter_trace"]);
+        {_, FilterFile} ->
+            lists:last(FilterFile)
     end.
 
 event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs) ->
@@ -1244,6 +1217,7 @@ translate_opts([
      {"--event_trace",        _EventTrace},
      {"--suite_trace",        _SuiteTrace},
      {"--display_trace",      _DisplayTrace},
+     {"--filter_trace",       _FilterTrace},
      {"--install",            _InstallDir},
      {"--install_app",        _InstallApp},
      {"--install_profile",    _InstallProfile},

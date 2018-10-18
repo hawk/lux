@@ -247,6 +247,118 @@
          status       :: expected | started | matched | failed,
          elapsed_time :: undefined | non_neg_integer()}). % Micros
 
+-record(pattern,
+        {cmd       :: #cmd{},
+         cmd_stack :: [{string(), non_neg_integer(), atom()}]}).
+
+-record(cstate,
+        {orig_file               :: string(),
+         parent                  :: pid(),
+         name                    :: string(),
+         debug = disconnect      :: connect | disconnect,
+         latest_cmd              :: #cmd{},
+         cmd_stack = []          :: [{string(), non_neg_integer(), atom()}],
+         wait_for_expect         :: undefined | pid(),
+         mode = resume           :: resume | suspend,
+         start_reason            :: fail | success | normal,
+         progress                :: silent | summary | brief |
+                                    doc | compact | verbose,
+         log_fun                 :: function(),
+         log_prefix              :: string(),
+         event_log_fd            :: {true, file:io_device()},
+         stdin_log_fd            :: {false, file:io_device()},
+         stdout_log_fd           :: {false, file:io_device()},
+         multiplier              :: non_neg_integer(),
+         poll_timeout            :: non_neg_integer(),
+         flush_timeout           :: non_neg_integer(),
+         match_timeout           :: non_neg_integer() | infinity,
+         shell_wrapper           :: undefined | string(),
+         shell_cmd               :: string(),
+         shell_args              :: [string()],
+         shell_prompt_cmd        :: string(),
+         shell_prompt_regexp     :: string(),
+         port                    :: port(),
+         waiting = false         :: boolean(),
+         fail                    :: undefined | #pattern{},
+         success                 :: undefined | #pattern{},
+         loop_stack = []         :: [#loop{}],
+         expected                :: undefined | #cmd{},
+         pre_expected = []       :: [#cmd{}],
+         actual = <<>>           :: binary(),
+         state_changed = false   :: boolean(),
+         timed_out = false       :: boolean(),
+         idle_count = 0          :: non_neg_integer(),
+         no_more_input = false   :: boolean(),
+         no_more_output = false  :: boolean(),
+         exit_status             :: integer(),
+         timer                   :: undefined | infinity | reference(),
+         timer_started_at        :: undefined | {non_neg_integer(),
+                                                 non_neg_integer(),
+                                                 non_neg_integer()},
+         wakeup                  :: undefined | reference(),
+         debug_level = 0         :: non_neg_integer(),
+         events = []             :: [tuple()],
+         warnings = []           :: [#warning{}]}).
+
+-record(rstate,
+        {files                      :: [string()],
+         orig_files                 :: [string()],
+         orig_args                  :: [string()],
+         prev_log_dir               :: undefined | string(),
+         mode = execute             :: lux:run_mode(),
+         skip_unstable = false      :: boolean(),
+         skip_skip = false          :: boolean(),
+         progress = brief           :: silent | summary | brief |
+                                       doc | compact | verbose,
+         config_dir                 :: string(),
+         file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
+         case_prefix = ""           :: string(),
+         log_fd                     :: file:io_device(),
+         log_dir                    :: file:filename(),
+         summary_log                :: string(),
+         config_name                :: string(),
+         config_file                :: string(),
+         suite = ?b2l(?DEFAULT_SUITE) :: string(),
+         start_time                 :: {non_neg_integer(),
+                                        non_neg_integer(),
+                                        non_neg_integer()},
+         run                        :: string(),
+         extend_run = false         :: boolean(),
+         revision = ""              :: string(),
+         hostname = lux_utils:real_hostname() :: string(),
+         rerun = disable            :: enable | success | skip | warning |
+                                       fail | error | disable,
+         html = enable              :: validate |
+                                       enable | success | skip | warning |
+                                       fail | error | disable,
+         warnings = []              :: [#warning{}],
+         internal_args = []         :: [{atom(), term()}], % Internal opts
+         user_args = []             :: [{atom(), term()}], % Command line opts
+         file_args = []             :: [{atom(), term()}], % Script opts
+         config_args = []           :: [{atom(), term()}], % Arch spec opts
+         default_args = []          :: [{atom(), term()}], % Default opts
+         builtin_vars = lux_utils:builtin_vars()
+                                    :: [string()], % ["name=val"]
+         system_vars = lux_utils:system_vars()
+                                    :: [string()], % ["name=val"]
+         tap_opts = []              :: [string()],
+         tap                        :: term(), % #tap{}
+         junit = false              :: boolean()
+        }).
+
+-record(pstate,
+        {file           :: string(),
+         orig_file      :: string(),
+         pos_stack      :: [#cmd_pos{}],
+         mode           :: lux:run_mode(),
+         skip_unstable  :: boolean(),
+         skip_skip      :: boolean(),
+         multi_vars     :: [[string()]], % ["name=val"]
+         warnings       :: [binary()],
+         top_doc        :: undefined | non_neg_integer(),
+         newshell       :: boolean()
+        }).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Types
 
