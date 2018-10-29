@@ -974,9 +974,10 @@ parse_config_file(R, AbsConfigFile) ->
                 ErrorBin =:= Enoent ->
                     {[], []};
                 true ->
-                    #cmd_pos{rev_file = MainFile,
+                    #cmd_pos{rev_file = RevMainFile,
                              type = ErrorBin2} =
                         stack_error(ErrorStack, ErrorBin),
+                    MainFile = lux_utils:pretty_filename(RevMainFile),
                     throw_error(MainFile, ErrorBin2)
             end
     end.

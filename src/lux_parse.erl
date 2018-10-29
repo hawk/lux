@@ -409,8 +409,8 @@ parse_var(P, Fd, Cmd, Scope, String) ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", ?i2l(LineNo),
-                         ": illegal ", ?a2l(Scope),
-                         " variable "," '", String, "'"])
+                         ": Illegal ", ?a2l(Scope),
+                         " variable '", String, "'"])
     end.
 
 parse_meta(P, Fd, NextIncr, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->

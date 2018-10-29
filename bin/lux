@@ -411,11 +411,11 @@ do_usage(_Specs, LuxAppDir, app_dir) ->
     io:format("~s\n", [LuxAppDir]).
 
 info_doc(LuxAppDir) ->
-    DefaultDir = filename:join([code:lib_dir(?APPLICATION), "luxcfg"]),
+    DefaultDir = filename:join([LuxAppDir, "priv", "luxcfg"]),
     io:format("\nThe site default configuration file is located here:"
               "\n\n\t ~s\n",
               [DefaultDir]),
-    ExampDir = filename:join([code:lib_dir(?APPLICATION), "examples"]),
+    ExampDir = filename:join([LuxAppDir, "examples"]),
     case filelib:is_dir(ExampDir) of
         true ->
             io:format("\nThe examples are installed here:"
