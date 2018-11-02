@@ -343,7 +343,9 @@ progress_write(Progress, String) ->
         brief   -> io:format("~s", [String]);
         doc     -> io:format("~s", [String]);
         compact -> ok;
-        verbose -> ok
+        verbose -> ok;
+        etrace  -> ok;
+        ctrace  -> ok
     end.
 
 tag_prefix(Tag, Width) when is_atom(Tag) ->

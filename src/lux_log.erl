@@ -1278,6 +1278,24 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
                     exit({safe_write, verbose, Bin, VReason})
             end;
         verbose ->
+            ok;
+        etrace when Verbose ->
+            try
+                io:format("~s", [dequote(?b2l(Bin))])
+            catch
+                _:VReason ->
+                    exit({safe_write, etrace, Bin, VReason})
+            end;
+        etrace ->
+            ok;
+        ctrace when Verbose ->
+            try
+                io:format("~s", [dequote(?b2l(Bin))])
+            catch
+                _:VReason ->
+                    exit({safe_write, ctrace, Bin, VReason})
+            end;
+        ctrace ->
             ok
     end,
     case Fd of

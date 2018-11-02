@@ -19,10 +19,11 @@
 
 -define(call_level(I), I#istate.call_level).
 
-init(I, StartTime) ->
-    ilog(I,
+init(I0, StartTime) ->
+    ilog(I0,
          "lux(0): start_time \"~s\"\n",
          [lux_utils:now_to_string(StartTime)]),
+    I = opt_start_etrace(I0),
     CaseRef = safe_send_after(I, I#istate.case_timeout, self(),
                               {case_timeout, I#istate.case_timeout}),
     OrigCmds = I#istate.commands,
@@ -61,11 +62,76 @@ init(I, StartTime) ->
             {error, ErrBin, I}
     after
         safe_cancel_timer(CaseRef),
+        IA = opt_stop_etrace(I),
         EndTime = lux_utils:timestamp(),
-        ilog(I,
+        ilog(IA,
              "lux(0): end_time \"~s\"\n",
              [lux_utils:now_to_string(EndTime)])
     end.
+
+opt_start_etrace(#istate{progress = Progress, trace_mode = none} = I)
+  when Progress =:= etrace; Progress =:= ctrace ->
+    FirstTracePid = self(),
+    Str = fun(X) -> lux_utils:to_string(X) end,
+    Fun = fun(Trace, Acc) ->
+                  display_trace(I#istate.progress, Trace, Str),
+                  Acc
+          end,
+    TraceTarget = {log, Fun, undefined},
+    {ok, log} = lux_main:start_trace(event, TraceTarget, FirstTracePid),
+    I#istate{trace_mode = progress};
+opt_start_etrace(I) ->
+    I.
+
+display_trace(Progress, _Trace, _Str)
+  when Progress =/= etrace, Progress =/= ctrace ->
+    ignore;
+display_trace(Progress, Trace, Str)
+  when element(1, Trace) =:= trace_ts ->
+    [trace_ts | Rest] = tuple_to_list(Trace),
+    Rest2 = lists:reverse(tl(lists:reverse(Rest))),
+    display_trace(Progress, list_to_tuple([trace | Rest2]), Str);
+display_trace(_Progress, {trace, _Pid, call, {lux, trace_me, A}}, _Str)
+  when length(A) =:= 4 ->
+    ignore;
+display_trace(_Progress, Trace, _Str)
+  when element(3, Trace) =:= return_from;
+       element(3, Trace) =:= exception_from;
+       element(3, Trace) =:= spawn;
+       element(3, Trace) =:= spawned;
+       element(3, Trace) =:= exit;
+       element(3, Trace) =:= link;
+       element(3, Trace) =:= unlink ->
+    ignore;
+display_trace(Progress, {trace, _Pid, call,
+               {lux, trace_me, [_DL, FromTo, FromTo, Label, C]}}, Str) ->
+    io:format("~s(0): etrace \"call ~s\"\n",
+              [Str(FromTo), Str(Label)]),
+    case Progress of
+        etrace -> ignore;
+        ctrace when C =/= [] -> io:format("\t~p\n", [C]);
+        ctrace -> ignore
+    end;
+display_trace(Progress, {trace, _Pid, call,
+               {lux, trace_me, [_DL, From, To, Label, C]}}, Str) ->
+    io:format("~s(0): etrace \"send ~s to ~s\"\n",
+              [Str(From), Str(Label), Str(To)]),
+    case Progress of
+        etrace -> ignore;
+        ctrace -> io:format("\t~p\n", [C])
+    end;
+display_trace(Progress, Trace, _Str) ->
+    case Progress of
+        etrace -> ignore;
+        ctrace -> io:format("TRACE: ~p\n", [Trace])
+    end.
+
+opt_stop_etrace(#istate{progress = Progress, trace_mode = TraceMode} = I)
+  when Progress =:= detail, TraceMode =:= progress ->
+    lux_main:stop_trace(),
+    I#istate{trace_mode = none};
+opt_stop_etrace(I) ->
+    I.
 
 collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
     Collect =

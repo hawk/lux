@@ -133,7 +133,7 @@
          debug = false              :: boolean(),
          debug_file                 :: string(),
          debug_pid                  :: pid(),
-         trace_mode                 :: none | suite | 'case',
+         trace_mode                 :: none | suite | 'case' | event | progress,
          skip = []                  :: [string()],
          skip_unless = []           :: [string()],
          unstable = []              :: [string()],
@@ -142,7 +142,8 @@
          case_prefix = ""           :: string(),
          config_dir = undefined     :: undefined | string(),
          progress = brief           :: silent | summary | brief |
-                                       doc | compact | verbose,
+                                       doc | compact | verbose |
+                                       etrace | ctrace,
          suite_log_dir = "lux_logs" :: string(),
          case_log_dir               :: string(),
          log_fun                    :: function(),
@@ -262,7 +263,8 @@
          mode = resume           :: resume | suspend,
          start_reason            :: fail | success | normal,
          progress                :: silent | summary | brief |
-                                    doc | compact | verbose,
+                                    doc | compact | verbose |
+                                    etrace | ctrace,
          log_fun                 :: function(),
          log_prefix              :: string(),
          event_log_fd            :: {true, file:io_device()},
@@ -309,7 +311,8 @@
          skip_unstable = false      :: boolean(),
          skip_skip = false          :: boolean(),
          progress = brief           :: silent | summary | brief |
-                                       doc | compact | verbose,
+                                       doc | compact | verbose |
+                                       etrace | ctrace,
          config_dir                 :: string(),
          file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
          case_prefix = ""           :: string(),

@@ -488,7 +488,8 @@ cmds() ->
                                        type = {enum, ["silent",
                                                       "summary", "brief",
                                                       "doc",
-                                                      "compact", "verbose"]},
+                                                      "compact", "verbose",
+                                                      "etrace", "ctrace"]},
                                        presence = optional,
                                        help = "verbosity level. "
                                        "Toggle between brief and "
@@ -583,7 +584,7 @@ cmds() ->
                                        presence = optional,
                                        help = "Trace mode"}],
                 help = "start or stop internal tracing\n"
-                "Default is to display the trace mode (none|case|suite).",
+                "Default is to display the trace mode (none|case|suite|event).",
                 callback = fun cmd_trace/3}
     ].
 
@@ -1360,6 +1361,8 @@ cmd_progress(I, Args, CmdState) ->
         [] ->
             Level =
                 case I#istate.progress of
+                    etrace  -> brief;
+                    ctrace  -> brief;
                     verbose -> brief;
                     compact -> brief;
                     doc     -> verbose;

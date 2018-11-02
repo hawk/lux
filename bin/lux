@@ -123,6 +123,8 @@ specs() ->
      {"-r",                   ["--rerun=fail"]},
      {"-c",                   ["--progress=compact"]},
      {"-v",                   ["--progress=verbose"]},
+     {"-V",                   ["--progress=etrace"]},
+     {"-VV",                  ["--progress=ctrace"]},
      {"-t",                   ["--progress=silent", "--tap=stdout"]},
      {"-d",                   ["--debug"]},
      {"-D",                   ["--internal_debug"]},
@@ -197,7 +199,7 @@ enum(prio) ->
 enum(html) ->
     [validate | enum(prio)];
 enum(progress) ->
-    [silent, summary, brief, doc, compact, verbose];
+    [silent, summary, brief, doc, compact, verbose, etrace, ctrace];
 enum(help) ->
     [usage, info, app_dir].
 
@@ -699,12 +701,12 @@ trace_mfas(TraceMode) ->
     end.
 
 do_start_trace(TraceTarget, TracePids, TraceFlags0, TraceMFAs) ->
-    start_tracer(TraceTarget),
+    Res = start_tracer(TraceTarget),
     TraceFlags = [timestamp | TraceFlags0],
     [{ok, _} = dbg:p(P, TraceFlags) || P <- TracePids],
     MatchSpec = [{'_', [], [{exception_trace}]}],
     [{ok, _} = dbg:tpl(MFA, MatchSpec) || MFA <- TraceMFAs],
-    {ok, TraceFile}.
+    Res.
 
 start_tracer(TraceTarget) ->
     case TraceTarget of
@@ -714,15 +716,11 @@ start_tracer(TraceTarget) ->
                 {TraceFile2 ++ ".", wrap, ".etrace", 16*1024*1024, 8},
             TracePort = dbg:trace_port(file, WrapFilesSpec),
             {ok, _} = dbg:tracer(port, TracePort),
-            {ok, TraceFile};
-        log ->
-            HandlerFun =
-                fun(Trace, Acc) ->
-                        io:format("TRACE ~p\n", [Trace]),
-                        Acc
-                end,
-            HandlerSpec = {HandlerFun, undefined},
-            {ok, _} = dbg:tracer(process, HandlerSpec)
+            {ok, TraceFile2};
+        {log, HandlerFun, HandlerInit} ->
+            HandlerSpec = {HandlerFun, HandlerInit},
+            {ok, _} = dbg:tracer(process, HandlerSpec),
+            {ok, log}
     end.
 
 stop_trace() ->

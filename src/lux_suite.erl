@@ -405,7 +405,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
         progress when Val =:= silent;
                       Val =:= summary; Val =:= brief;
                       Val =:= doc;
-                      Val =:= compact; Val =:= verbose ->
+                      Val =:= compact; Val =:= verbose; Val =:= debug ->
             UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{progress = Val,
                                     user_args = UserArgs});
