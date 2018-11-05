@@ -157,6 +157,7 @@ progress_token(#cstate{idle_count = IdleCount} = C) ->
     end.
 
 shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
+    lux:trace_me(40, C#cstate.name, wait_for_event, []),
     Timeout = timeout(C),
     receive
         {block, From} ->
@@ -604,36 +605,41 @@ shell_eval(#cstate{name = Name} = C0,
                          [Millis div ?ONE_SEC])
             end,
             C#cstate{match_timeout = Millis};
+        no_cleanup ->
+            cleanup(C);
         cleanup ->
-            C1 = clear_expected(C, "(cleanup)", suspend),
-            Data = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
-            C2 = match_patterns(C1#cstate{actual = Data}),
-            case C2#cstate.fail of
-                undefined -> ok;
-                _         -> clog(C2, fail, "pattern reset", [])
-            end,
-            case C2#cstate.success of
-                undefined  -> ok;
-                _          -> clog(C2, success, "pattern reset", [])
-            end,
-            LoopStack = C2#cstate.loop_stack,
-            LoopStack2  = [L#loop{mode = break} || L <- LoopStack],
-            case lists:keymember(pattern, 1, C2#cstate.loop_stack) of
-                false -> ok;
-                true  -> clog(C2, break, "pattern reset", [])
-            end,
-            C3 = C2#cstate{expected = undefined,
-                           fail = undefined,
-                           success = undefined,
-                           loop_stack = LoopStack2},
-            dlog(C3, ?dmore, "expected=undefined (cleanup)", []),
-            opt_late_sync_reply(C3);
+            cleanup(C);
         Unexpected ->
             clog(C, shell_got_msg, "~p\n", [element(1, Unexpected)]),
             Err = ?FF("[shell ~s] got cmd with type ~p ~p\n",
                       [Name, Unexpected, Arg]),
             stop(C, error, ?l2b(Err))
     end.
+
+cleanup(C) ->
+    C1 = clear_expected(C, "(cleanup)", suspend),
+    Data = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
+    C2 = match_patterns(C1#cstate{actual = Data}),
+    case C2#cstate.fail of
+        undefined -> ok;
+        _         -> clog(C2, fail, "pattern reset", [])
+    end,
+    case C2#cstate.success of
+        undefined  -> ok;
+        _          -> clog(C2, success, "pattern reset", [])
+    end,
+    LoopStack = C2#cstate.loop_stack,
+    LoopStack2  = [L#loop{mode = break} || L <- LoopStack],
+    case lists:keymember(pattern, 1, C2#cstate.loop_stack) of
+        false -> ok;
+        true  -> clog(C2, break, "pattern reset", [])
+    end,
+    C3 = C2#cstate{expected = undefined,
+                   fail = undefined,
+                   success = undefined,
+                   loop_stack = LoopStack2},
+    dlog(C3, ?dmore, "expected=undefined (cleanup)", []),
+    opt_late_sync_reply(C3).
 
 reset_output_buffer(C, Context) ->
     Data = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),

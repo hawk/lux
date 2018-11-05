@@ -168,7 +168,7 @@ to create a new shell named `Name`. See the configuration parameter
 
 **\[cleanup\]**  
 is the cleanup marker. If the script is prematurely aborted due to
-failure (or due to a matching success pattern) the remaining
+a failure (or due to a matching success pattern) the remaining
 statements in the file are normally skipped. But if the there is a
 cleanup marker after the failing line (and this is the only
 cleanup marker), the lines after the cleanup marker will also be
@@ -181,13 +181,6 @@ during the cleanup is not matched against failure or success
 patterns. A brand new shell (called something beginning with
 `cleanup`) will also be started. If the cleanup code causes a failure
 the remaining statements (on that level) will be skipped.
-
-Cleanup code in included files will always be run, even if the failure
-occurred in the included file. This means that each file can take care
-of its own failures. This does also apply on nested include files. On
-the topmost level the automatically started shell will be called
-`cleanup`, on the next level it is called `cleanup2`, on next level
-`cleanup3` etc.
 
 The **environment variable** `LUX_START_REASON` is set to `normal`
 in most shells, but if the cleanup is run due to premature failure or
@@ -205,10 +198,9 @@ the directory, it will turn up as a link in the annotated event log.
 **\[include FileName\]**  
 Includes and runs the specified script at this point. The `FileName`
 is relative to the currently executing script, unless given as an
-absolute path. `.luxinc` is preferred as file extension. If the included
-file contains a `[cleanup]` marker, the statements after that will be
-evaluated in order to clean up unwanted side effects. Variables in
-`FileName` are expanded.
+absolute path. `.luxinc` is preferred as file extension. Variables in
+`FileName` are expanded during parsing of the script, before execution
+of the script.
 
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
   ...  
@@ -224,7 +216,7 @@ name of the active shell from the **environment variable**
 `LUX_SHELLNAME` with `[my old=$LUX_SHELLNAME]` and later switch back
 to the shell with `[shell $old]`. If the macro file contains a
 `[cleanup]` marker, the statements after that will be evaluated in
-order to clean up unwanted side effects.
+order to cleanup unwanted side effects.
 
 **\[invoke MacroName ArgVal1 ArgVal ...\]**  
 Invoke a macro. The arguments are separated with spaces. Arguments

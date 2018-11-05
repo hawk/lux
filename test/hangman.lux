@@ -1,0 +1,13 @@
+[shell logger]
+    !echo "bad luck\n" > the.log
+    ?SH-PROMPT:
+#   -bad luck
+#   !cat the.log
+
+[shell test]
+    [timeout 1]
+    ?MISMATCH
+
+[cleanup]
+    !echo hello
+    ?^hello

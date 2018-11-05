@@ -43,7 +43,9 @@ parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
                             top_doc = undefined,
                             newshell = I#istate.newshell},
                 test_user_config(P, I),
-                {P2, _FirstLineNo, _LastLineNo, Cmds} = parse_file2(P),
+                {P2, _FirstLineNo, _LastLineNo, RevCmds} = parse_file2(P),
+                RevCmds2 = ensure_cleanup(P2, RevCmds),
+                Cmds = lists:reverse(RevCmds2),
                 Config = lux_utils:foldl_cmds(fun extract_config/4,
                                               [], File, [], Cmds),
                 I2 = I#istate{newshell = P2#pstate.newshell},
@@ -77,6 +79,14 @@ parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
         throw:{skip, ErrorStack, ErrorBin} ->
             {skip, ErrorStack, ErrorBin}
     end.
+
+ensure_cleanup(P, RevCmds) when P#pstate.has_cleanup ->
+    RevCmds;
+ensure_cleanup(_P, [] = RevCmds) ->
+    RevCmds;
+ensure_cleanup(_P, [LastCmd | _] = RevCmds) ->
+    NoCleanup = LastCmd#cmd{type = no_cleanup},
+    [NoCleanup | RevCmds].
 
 extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
     case Cmd of
@@ -135,17 +145,16 @@ parse_file2(P) ->
         {ok, Fd} ->
             FirstLineNo = 1,
             {P2, eof, RevCmds} = parse(P, Fd, FirstLineNo, []),
-            Cmds = lists:reverse(RevCmds),
-            %% io:format("Cmds: ~p\n", [Cmds]),
-            case Cmds of
-                [#cmd{lineno = LastLineNo} | _] -> ok;
-                []                              -> LastLineNo = 1
-            end,
-            {P2, FirstLineNo, LastLineNo, Cmds};
+            LastLineNo =
+                case RevCmds of
+                    []            -> FirstLineNo;
+                    [LastCmd | _] -> LastCmd#cmd.lineno
+                end,
+            {P2, FirstLineNo, LastLineNo, RevCmds};
         {error, FileReason} ->
             NewFd = eof,
             Reason = ?l2b([lux_utils:drop_prefix(P#pstate.file),
-                                       ": ", file:format_error(FileReason)]),
+                           ": ", file:format_error(FileReason)]),
             parse_error(P, NewFd, 0, Reason)
     end.
 
@@ -528,8 +537,8 @@ parse_body(#pstate{mode = RunMode} = P,
             BodyLen = length(BodyLines)+BodyIncr,
             FdBody = file_open(BodyLines),
             {P2, eof, RevBodyCmds} = parse(P, FdBody, LineNo+Incr+1, []),
-            BodyCmds = lists:reverse(RevBodyCmds),
             LastLineNo = LineNo+NextIncr+Incr+BodyLen+1,
+            BodyCmds = lists:reverse(RevBodyCmds),
             {body, Tag, Name, Items} = Arg,
             Arg2 = {Tag, Name, Items, LineNo, LastLineNo, BodyCmds},
             {P2, NewFd, LastLineNo, Cmd#cmd{arg = Arg2}}
@@ -553,8 +562,19 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
     case ?b2l(Meta) of
         "doc" ++ Text ->
             parse_meta_doc(P, Fd, Cmd, LineNo, Text);
+        "cleanup" ++ _Name when P#pstate.has_cleanup ->
+            parse_error(P, Fd, LineNo,
+                        ["Syntax error at line ",
+                         ?i2l(LineNo),
+                         ": only one cleanup allowed"]);
+        "cleanup" ++ _Name when P#pstate.pos_stack =/= [] ->
+            parse_error(P, Fd, LineNo,
+                        ["Syntax error at line ",
+                         ?i2l(LineNo),
+                         ": cleanup only allowed in main script"]);
         "cleanup" ++ Name ->
-            {P, Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
+            {P#pstate{has_cleanup = true},
+             Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
         "shell" ++ Name ->
             parse_shell(P, Fd, Cmd, LineNo, Name, shell);
         "newshell" ++ Name when Name =/= "" ->
@@ -597,9 +617,10 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             AbsFile2 = lux_utils:normalize_filename(AbsFile),
             try
                 NewPosStack = cmd_pos_stack(P, LineNo),
-                {P2, FirstLineNo, LastLineNo, InclCmds} =
+                {P2, FirstLineNo, LastLineNo, RevInclCmds} =
                     parse_file2(P#pstate{file = AbsFile2,
                                          pos_stack = NewPosStack}),
+                InclCmds = lists:reverse(RevInclCmds),
                 Cmd2 = Cmd#cmd{type = include,
                                arg = {include,AbsFile2,FirstLineNo,
                                       LastLineNo,InclCmds}},

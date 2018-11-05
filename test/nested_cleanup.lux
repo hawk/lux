@@ -1,0 +1,22 @@
+[config timeout=1000]
+
+[shell test]
+    [invoke outer]
+    !echo main
+    ?^main
+
+[cleanup]
+    !echo cleanup
+    ?^cleanup
+
+[macro inner]
+    ?MISMATCH
+    !echo inner
+    ?inner
+[endmacro]
+
+[macro outer]
+    [invoke inner]
+    !echo outer
+    ?outer
+[endmacro]

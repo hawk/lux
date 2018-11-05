@@ -358,6 +358,7 @@
          skip_skip      :: boolean(),
          multi_vars     :: [[string()]], % ["name=val"]
          warnings       :: [binary()],
+         has_cleanup = false :: boolean(),
          top_doc        :: undefined | non_neg_integer(),
          newshell       :: boolean()
         }).
