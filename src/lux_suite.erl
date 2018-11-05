@@ -1092,7 +1092,7 @@ prefixed_rel_script(R, AbsScript) ->
 start_suite_timer(R) ->
     SuiteTimeout = pick_val(suite_timeout, R, infinity),
     Msg = {suite_timeout, SuiteTimeout},
-    Multiplier = pick_val(multiplier, R, 1000),
+    Multiplier = pick_val(multiplier, R, ?ONE_SEC),
     case lux_utils:multiply(SuiteTimeout, Multiplier) of
         infinity   -> {infinity, Msg};
         NewTimeout -> {erlang:send_after(NewTimeout, self(), Msg), Msg}

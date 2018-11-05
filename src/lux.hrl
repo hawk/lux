@@ -40,6 +40,8 @@
 -define(DEFAULT_REV, <<"">>).
 -define(DEFAULT_TIME,     <<"yyyy-mm-dd hh:mm:ss">>).
 -define(DEFAULT_TIME_STR,   "yyyy-mm-dd hh:mm:ss").
+-define(ONE_SEC, 1000).
+-define(ONE_MIN, 60*?ONE_SEC).
 
 -ifdef(OTP_RELEASE).
     -define(stacktrace(),
@@ -149,14 +151,14 @@
          summary_log_fd             :: file:io_device(),
          logs = []                  :: [{string(), string(), string()}],
          tail_status = []           :: [{string(), string()}],
-         multiplier = 1000          :: non_neg_integer(),
+         multiplier = ?ONE_SEC          :: non_neg_integer(),
          suite_timeout = infinity   :: non_neg_integer() | infinity,
-         case_timeout = 5*60*1000   :: non_neg_integer() | infinity,
+         case_timeout = 5*?ONE_MIN  :: non_neg_integer() | infinity,
          case_timer_ref             :: reference(),
          flush_timeout = 0          :: non_neg_integer(),
          poll_timeout = 0           :: non_neg_integer(), % 100
-         default_timeout = 10*1000  :: non_neg_integer() | infinity,
-         cleanup_timeout = 100*1000 :: non_neg_integer() | infinity,
+         default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
+         cleanup_timeout = 100*?ONE_SEC :: non_neg_integer() | infinity,
          newshell = false           :: boolean(),
          shell_wrapper              :: undefined | string(),
          shell_cmd = "/bin/sh"      :: string(),

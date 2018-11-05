@@ -231,8 +231,8 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis)
     I;
 opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
     lux:trace_me(70, 'case', TimeoutType, [{premature, TimeoutMillis}]),
-    Seconds = TimeoutMillis div timer:seconds(1),
-    Multiplier = I#istate.multiplier / 1000,
+    Seconds = TimeoutMillis div ?ONE_SEC,
+    Multiplier = I#istate.multiplier / ?ONE_SEC,
     ilog(I, "~s(~p): ~p (~p seconds * ~.3f multiplier)\n",
          [I#istate.active_name,
           (I#istate.latest_cmd)#cmd.lineno,
@@ -419,23 +419,18 @@ dispatch_cmd(I,
             case Arg of
                 "" ->
                     Millis = I#istate.default_timeout,
-                    Secs =
-                        case Millis of
-                            infinity -> Millis;
-                            _        -> Millis / 1000
-                        end,
                     Cmd2 = Cmd#cmd{arg = Millis},
-                    change_shell_var(I, ShellPos, Secs, Cmd2);
+                    change_shell_var(I, ShellPos, Millis, Cmd2);
                 "infinity" ->
-                    Timeout = infinity,
-                    Cmd2 = Cmd#cmd{arg = Timeout},
-                    change_shell_var(I, ShellPos, Timeout, Cmd2);
+                    Infinity = infinity,
+                    Cmd2 = Cmd#cmd{arg = Infinity},
+                    change_shell_var(I, ShellPos, Infinity, Cmd2);
                 SecsStr ->
                     case parse_int(I, SecsStr, Cmd) of
                         {ok, Secs} ->
-                            Millis = timer:seconds(Secs),
+                            Millis = Secs*?ONE_SEC,
                             Cmd2 = Cmd#cmd{arg = Millis},
-                            change_shell_var(I, ShellPos, Secs, Cmd2);
+                            change_shell_var(I, ShellPos, Millis, Cmd2);
                         {bad_int, I2} ->
                             I2
                     end
@@ -1334,13 +1329,14 @@ expand_vars(#istate{active_shell  = Shell,
             MissingVar) ->
     case Shell of
         #shell{vars = LocalVars,
-               match_timeout = MatchTimeout,
+               match_timeout = Millis,
                fail_pattern = FailPattern,
                success_pattern = SuccessPattern} ->
+            Secs = Millis div ?ONE_SEC,
             BuiltinLocalVars =
                 [
                  lists:flatten("LUX_TIMEOUT=",
-                               ?FF("~p", [MatchTimeout])),
+                               ?FF("~p", [Secs])),
                  lists:flatten("LUX_FAIL_PATTERN=",
                                ?FF("~s", [opt_binary(FailPattern)])),
                  lists:flatten("LUX_SUCCESS_PATTERN=",

@@ -654,7 +654,7 @@ shell_eval(#cstate{name = Name} = C0,
                     clog(C, change, "expect timeout to infinity", []);
                 is_integer(Millis) ->
                     clog(C, change, "expect timeout to ~p seconds",
-                         [Millis div timer:seconds(1)])
+                         [Millis div ?ONE_SEC])
             end,
             C#cstate{match_timeout = Millis};
         cleanup ->
@@ -759,7 +759,7 @@ sleep_walker(Progress, ReplyTo, WakeUp) ->
         WakeUp ->
             ReplyTo ! WakeUp,
             unlink(ReplyTo)
-    after 1000 ->
+    after ?ONE_SEC ->
             sleep_walker(Progress, ReplyTo, WakeUp)
     end.
 
@@ -1233,10 +1233,10 @@ start_timer(#cstate{timer = undefined, match_timeout = infinity} = C) ->
     clog(C, timer, "started (infinity)", []),
     C#cstate{timer = infinity, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{timer = undefined} = C) ->
-    Seconds = C#cstate.match_timeout div timer:seconds(1),
-    Multiplier = C#cstate.multiplier / 1000,
+    Secs = C#cstate.match_timeout div ?ONE_SEC,
+    Multiplier = C#cstate.multiplier / ?ONE_SEC,
     clog(C, timer, "started (~p seconds * ~.3f multiplier)",
-         [Seconds, Multiplier]),
+         [Secs, Multiplier]),
     Timer = safe_send_after(C, C#cstate.match_timeout, self(), ?match_fail),
     C#cstate{timer = Timer, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{} = C) ->
@@ -1261,7 +1261,8 @@ cancel_timer(#cstate{orig_file = File, match_timeout = MaxTimeout,
                           lineno = FullLineNo,
                           details = ?l2b(Reason)} | OldWarnings]
         end,
-    Threshold = erlang:trunc(multiply(C, MaxTimeout*1000) * ?TIMER_THRESHOLD),
+    Threshold = erlang:trunc(multiply(C,
+                                      MaxTimeout*?ONE_SEC) * ?TIMER_THRESHOLD),
     NewWarnings =
         if
             Timer =:= infinity ->

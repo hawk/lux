@@ -858,23 +858,24 @@ format_calls([H|T], Acc) ->
 %% canceled (after 0 seconds)
 %% failed (after 10 seconds)
 parse_timer(Data) ->
+    OneSec = 1000000,
     case string:tokens(?b2l(Data), "() ") of
         ["started", "infinity"] ->
             {started, infinity};
         ["started", Secs, "seconds", "*", Multiplier] ->
             CeiledSecs = trunc((list_to_integer(Secs) *
                                     list_to_float(Multiplier)) + 0.5),
-            {started, CeiledSecs * 1000000};
+            {started, CeiledSecs * OneSec};
         ["started", Secs, "seconds", "*", Multiplier, "multiplier"] ->
             CeiledSecs = trunc((list_to_integer(Secs) *
                                     list_to_float(Multiplier)) + 0.5),
-            {started, CeiledSecs * 1000000};
+            {started, CeiledSecs * OneSec};
         ["canceled", "after", Secs, "seconds"] ->
-            {canceled, list_to_integer(Secs) * 1000000};
+            {canceled, list_to_integer(Secs) * OneSec};
         ["canceled", "after", MicroSecs, "micro", "seconds"] ->
             {canceled, list_to_integer(MicroSecs)};
         ["failed", "after", Secs, "seconds"] ->
-            {failed, list_to_integer(Secs) * 1000000};
+            {failed, list_to_integer(Secs) * OneSec};
         ["failed", "after", MicroSecs, "micro", "seconds"] ->
             {failed, list_to_integer(MicroSecs)}
     end.

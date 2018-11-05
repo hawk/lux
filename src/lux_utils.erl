@@ -235,7 +235,7 @@ multiply(_Timeout, infinity) ->
 multiply(infinity, _Factor) ->
     infinity;
 multiply(Timeout, Factor) ->
-    (Timeout * Factor) div 1000.
+    (Timeout * Factor) div ?ONE_SEC.
 
 drop_prefix(File) ->
     {ok, Cwd} = file:get_cwd(),
