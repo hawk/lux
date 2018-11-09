@@ -829,7 +829,9 @@ html_result(Tag, {result, Result}, HtmlLog) ->
     end.
 
 html_diff(ExpectedTag, Expected, Details) ->
-    lux_utils:diff_iter(ExpectedTag, Expected, Details, deep, fun emit/4).
+%%    Mode = flat, % 'deep' gives insanely bad performance for big diffs
+    Mode = deep,
+    lux_utils:diff_iter(ExpectedTag, Expected, Details, Mode, fun emit/4).
 
 emit(Op, Mode, Context, Acc) when Mode =:= flat;
                                   Mode =:= deep ->

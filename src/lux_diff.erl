@@ -14,7 +14,7 @@
 -include("lux.hrl").
 
 -export([
-         compare/2, compare2/3,
+         compare/3, compare2/3, default_match/0,
          split_diff/1,
          apply_verbose_diff/2, apply_compact_diff/2,
          test/0, test2/2
@@ -32,13 +32,13 @@
 %% both lists. The other elements can be merged in afterwards. This
 %% greatly speeds up the case when only a few elements are the same.
 
--spec(compare(A::elem_list(), B::elem_list()) -> compact_diff()).
-compare(A, A) ->
+-spec(compare(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
+             compact_diff()).
+compare(A, A, _Fun) ->
     [A];
-compare(A, B) ->
+compare(A, B, Fun) ->
     ASame = A -- (A -- B),
     BSame = B -- (B -- A),
-    Fun = default_match(),
     CompactDiff = compare2(ASame, BSame, Fun),
     merge_unique(A, B, CompactDiff, []).
 
@@ -80,6 +80,7 @@ grab_until([X|Xs], Y, Acc, Add) ->
 
 -spec(compare2(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
              compact_diff()).
+
 compare2(A, B, Fun) ->
     DataA = list_to_tuple(A),
     DataB = list_to_tuple(B),
@@ -556,7 +557,7 @@ test(N, Max, Var) ->
 test2(A, B) ->
     Fun = default_match(),
     erlang:garbage_collect(),
-    {Time2,CompactDiff1} = timer:tc(fun() -> compare(A ,B) end),
+    {Time2,CompactDiff1} = timer:tc(fun() -> compare(A ,B, Fun) end),
     erlang:garbage_collect(),
     {Time1,CompactDiff2} = timer:tc(fun() -> compare2(A, B, Fun) end),
     try

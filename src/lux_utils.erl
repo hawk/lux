@@ -694,7 +694,7 @@ diff(ExpectedTag, Old, New) ->
                     nomatch -> false
                 end
         end,
-    lux_diff:compare2(Old, New, Equal).
+    lux_diff:compare(Old, New, Equal).
 
 equal(ExpectedTag, Expected, Expected)
   when ExpectedTag =:= 'expected=';
@@ -779,13 +779,20 @@ diff_iter_loop(ExpectedTag, [H|T], Mode, Fun, Acc) ->
         {'+', Add} ->
             NewAcc = Fun({add,Add}, Mode, Context, Acc),
             diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc);
-        {'!', Del, Add} when Mode =:= deep ->
+        {'!', Del, Add} when Mode =:= deep,
+                             length(Del) < 1000,
+                             length(Add) < 1000 ->
             DelChars = ?b2l(?l2b(expand_lines(Del))),
             AddChars = ?b2l(?l2b(expand_lines(Add))),
-            NestedDiff = lux_diff:compare(DelChars, AddChars),
+            DefaultMatch = lux_diff:default_match(),
+            NestedDiff = lux_diff:compare(DelChars, AddChars, DefaultMatch),
             NestedAcc = diff_iter('expected=', NestedDiff, nested, Fun),
             DeepAcc = Fun({nested,Del,Add,NestedAcc}, Mode, Context, Acc),
             diff_iter_loop(ExpectedTag, T, Mode, Fun, DeepAcc);
+        {'!', Del, Add} when Mode =:= deep ->
+            NewMode = flat,
+            NewAcc = Fun({replace,Del,Add}, NewMode, Context, Acc),
+            diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc);
         {'!', Del, Add} when Mode =:= flat;
                              Mode =:= nested ->
             NewAcc = Fun({replace,Del,Add}, Mode, Context, Acc),
