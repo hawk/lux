@@ -691,8 +691,8 @@ do_scan_events(EventLog, EventSections, WWW) ->
             {ok, Version, _Sections} ->
                 {error, ConfigLog,
                  "Illegal config log version: " ++ ?b2l(Version)};
-            {error, FileReason} ->
-                {error, ConfigLog, file:format_error(FileReason)}
+            {error, _, _} = Error ->
+                Error
         end,
     {Res, NewWWW}.
 
