@@ -62,12 +62,13 @@ split_source(OrigSource) ->
 source_dir(File) ->
     case filename:basename(File) of
         "lux_history.html" -> filename:dirname(File);
-        ?SUMMARY_LOG       -> filename:dirname(File);
+        ?SUITE_SUMMARY_LOG -> filename:dirname(File);
         _                  -> File % Assume file is dir
     end.
 
 collect([{undefined, Sources} | SplitSources], Opts, Runs, Errors, WWW) ->
-    collect([{<<"no_branch">>, Sources} | SplitSources], Opts, Runs, Errors, WWW);
+    collect([{<<"no_branch">>, Sources} | SplitSources],
+            Opts, Runs, Errors, WWW);
 collect([{Branch, Sources} | SplitSources], Opts, Runs, Errors, WWW) ->
     {OptRuns, OptErrors, NewWWW} =
         collect_branch(Sources, Opts, [], Errors, WWW),
@@ -807,7 +808,7 @@ parse_summary_logs(Source, Acc, Err, WWW, Opts) ->
                 lux_html_parse:parse_files(shallow, RelFile, WWW),
             case ParseRes of
                 [{ok, _, Links, html}] ->
-                    SL = ?SUMMARY_LOG,
+                    SL = ?SUITE_SUMMARY_LOG,
                     HL = SL ++ ".html",
                     Extract =
                         fun({link, Link, _Label}) ->
@@ -836,7 +837,7 @@ parse_summary_logs(Source, Acc, Err, WWW, Opts) ->
                              end,
                     {{Acc, lists:map(Format, Strings)}, NewWWW}
             end;
-        Base =:= ?SUMMARY_LOG ->
+        Base =:= ?SUITE_SUMMARY_LOG ->
             parse_summary_files(Source, RelDir, [Base],
                                 Acc, Err, WWW, Opts);
         true ->
@@ -889,8 +890,8 @@ search_summary_dirs(Source, RelDir, Acc, Err, WWW, Opts) ->
 candidate_files() ->
     [
      "lux.skip",
-     ?SUMMARY_LOG,
-     ?SUMMARY_LOG ++ ".tmp",
+     ?SUITE_SUMMARY_LOG,
+     ?SUITE_SUMMARY_LOG ++ ".tmp",
      "qmscript.skip",
      "qmscript_summary.log",
      "qmscript_summary.log.tmp",
@@ -920,7 +921,7 @@ parse_summary_files(_Source, _RelDir, [], Acc, Err, WWW, _Opts) ->
 source_file(Source, RelDir, Base) ->
     RelFile = Source#source.file,
     case filename:basename(RelFile) of
-        ?SUMMARY_LOG ->
+        ?SUITE_SUMMARY_LOG ->
             RelFile;
         _ ->
             Tmp = lux_utils:join(RelFile, RelDir),

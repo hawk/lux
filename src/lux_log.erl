@@ -116,7 +116,7 @@ do_parse_summary_log(#source{file=SummaryLog}, WWW) ->
             {ok, ?SUMMARY_LOG_VERSION, Sections} ->
                 %% Latest version
                 LogDir = filename:dirname(SummaryLog),
-                ConfigLog = lux_utils:join(LogDir, ?CONFIG_LOG),
+                ConfigLog = lux_utils:join(LogDir, ?SUITE_CONFIG_LOG),
                 {{ok, RawConfig}, NewWWW} = scan_config(ConfigLog, NewWWW),
                 SummaryConfig = parse_config(RawConfig),
                 {{ok, Result}, NewWWW} = parse_summary_result(LogDir, NewWWW),
@@ -477,7 +477,7 @@ write_config_log(ConfigLog, ConfigData) when is_list(ConfigLog) ->
 %% Results
 
 parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
-    ResultLog = lux_utils:join(LogDir, ?RESULT_LOG),
+    ResultLog = lux_utils:join(LogDir, ?SUITE_RESULT_LOG),
     {ReadRes, NewWWW} = read_log(ResultLog, ?RESULT_TAG, WWW),
     Res =
         case ReadRes of
@@ -495,7 +495,7 @@ parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
 write_results(Progress, SummaryLog, Summary, Results, Warnings)
   when is_list(SummaryLog) ->
     LogDir = filename:dirname(SummaryLog),
-    ResultFile = lux_utils:join(LogDir, ?RESULT_LOG),
+    ResultFile = lux_utils:join(LogDir, ?SUITE_RESULT_LOG),
     TmpResultFile = ResultFile++".tmp",
     case file:open(TmpResultFile, [write]) of
         {ok, Fd} ->

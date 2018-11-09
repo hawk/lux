@@ -37,7 +37,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                R#rstate.mode =:= list_dir;
                R#rstate.mode =:= doc ->
             try
-                R2 = compute_files(R, ?SUMMARY_LOG),
+                R2 = compute_files(R, ?SUITE_SUMMARY_LOG),
                 doc_run(R2)
             catch
                 ?CATCH_STACKTRACE(throw, {error, FileErr, Reason}, _EST)
@@ -51,10 +51,10 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
         {ok, R} ->
             TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
-            SummaryLog = filename:join([LogDir, ?SUMMARY_LOG]),
+            SummaryLog = filename:join([LogDir, ?SUITE_SUMMARY_LOG]),
             try
                 {ConfigData, R2} = parse_config(R), % May throw error
-                R3 = compute_files(R2, ?SUMMARY_LOG),
+                R3 = compute_files(R2, ?SUITE_SUMMARY_LOG),
                 R4 = adjust_files(R3),
                 full_run(R4, ConfigData, SummaryLog)
             catch
@@ -209,15 +209,30 @@ initial_res(R, Exists, ConfigData, SummaryLog, Summary)
 
 write_config_log(SummaryLog, ConfigData) ->
     LogDir = filename:dirname(SummaryLog),
-    ConfigLog = filename:join([LogDir, ?CONFIG_LOG]),
+    ConfigLog = filename:join([LogDir, ?SUITE_CONFIG_LOG]),
     ok = lux_log:write_config_log(ConfigLog, ConfigData).
 
 -spec(annotate_log(boolean(), filename(), opts()) ->
              ok | error()).
 
 annotate_log(IsRecursive, LogFile, Opts) ->
-    SuiteLogDir = filename:dirname(LogFile),
+    DefaultDir = filename:dirname(LogFile),
+    SuiteLogDir = find_suite_log_dir(DefaultDir, DefaultDir),
     annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts).
+
+find_suite_log_dir(Dir, DefaultDir) ->
+    ConfigLog = filename:join([Dir, ?SUITE_CONFIG_LOG]),
+    case filelib:is_regular(ConfigLog) of
+        true ->
+            Dir;
+        false ->
+            case filename:dirname(Dir) of
+                ParentDir when ParentDir =/= Dir ->
+                    find_suite_log_dir(ParentDir, DefaultDir);
+                _ ->
+                    DefaultDir
+            end
+    end.
 
 annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
     case lux_html_annotate:generate(IsRecursive, LogFile, SuiteLogDir, Opts) of
@@ -234,7 +249,7 @@ annotate_event_log(R, Script, NewSummary, CaseLogDir, Opts) ->
         SummaryPrio >= HtmlPrio ->
             Base = filename:basename(Script),
             EventLog = filename:join([CaseLogDir,
-                                      Base ++ ".event.log"]),
+                                      Base ++ ?CASE_EVENT_LOG]),
             SuiteLogDir = R#rstate.log_dir,
             NoHtmlOpts = lists:keydelete(html, 1, Opts),
             case annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts) of
@@ -1218,7 +1233,7 @@ tap_suite_begin(R, Scripts, Directive)
   when R#rstate.mode =/= list,
        R#rstate.mode =/= list_dir,
        R#rstate.mode =/= doc ->
-    TapLog = filename:join([R#rstate.log_dir, "lux.tap"]),
+    TapLog = filename:join([R#rstate.log_dir, ?CASE_TAP_LOG]),
     TapOpts = [TapLog | R#rstate.tap_opts],
     case lux_tap:open(TapOpts) of
         {ok, TAP} ->

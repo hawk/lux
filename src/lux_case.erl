@@ -53,7 +53,7 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
                 case copy_orig(I4, Script) of
                     {ok, Base} ->
                         ExtraLogs = filename:join([CaseLogDir,
-                                                   Base ++ ".extra.logs"]),
+                                                   Base ++ ?CASE_EXTRA_LOGS]),
                         ExtraVars = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
                         GlobalVars = [ExtraVars | I4#istate.global_vars],
                         I5 = I4#istate{global_vars = GlobalVars},

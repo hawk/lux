@@ -64,7 +64,7 @@ do_generate(IsRecursive, LogFile, SuiteLogDir, WWW, Opts)
   when is_list(LogFile), is_list(SuiteLogDir) ->
     A = init_astate(LogFile, SuiteLogDir, Opts),
     AbsLogFile = A#astate.log_file,
-    IsEventLog = lists:suffix("event.log", AbsLogFile),
+    IsEventLog = lists:suffix(?CASE_EVENT_LOG, AbsLogFile),
     {Res, NewWWW} =
         case IsEventLog of
             true  -> annotate_event_log(A, WWW);
@@ -156,9 +156,9 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
   when is_list(SummaryLog) ->
     Dir = filename:basename(filename:dirname(SummaryLog)),
     RelSummaryLog = drop_new_log_prefix(A, SummaryLog),
-    RelResultLog = ?RESULT_LOG,
-    RelConfigLog = ?CONFIG_LOG,
-    RelTapLog = "lux.tap",
+    RelResultLog = ?SUITE_RESULT_LOG,
+    RelConfigLog = ?SUITE_CONFIG_LOG,
+    RelTapLog = ?CASE_TAP_LOG,
     IsTmp = lux_log:is_temporary(SummaryLog),
     LogFun =
         fun(L, S) ->
@@ -580,7 +580,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
   when is_list(EventLog), is_list(ConfigLog), is_list(Script) ->
     EventLogDir = A#astate.new_log_dir,
     EventLogBase = lux_utils:join(EventLogDir, filename:basename(Script)),
-    ExtraLogs = EventLogBase ++ ".extra.logs",
+    ExtraLogs = EventLogBase ++ ?CASE_EXTRA_LOGS,
     Dir = filename:basename(EventLogDir),
     LogFun =
         fun(L, S, Type) ->
@@ -599,7 +599,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
                 ["<h3>Elapsed time: ", DiffStr, "</h3>\n"]
         end,
     RelEventLogDir = filename:split(drop_run_log_prefix(A, EventLogDir)),
-    RelSummaryLog = dotdot(RelEventLogDir, ?SUMMARY_LOG ++ ".log.html"),
+    RelSummaryLog = dotdot(RelEventLogDir, ?SUITE_SUMMARY_LOG ++ ".html"),
     [
      lux_html_utils:html_header(["Lux event log (", Dir, ")"]),
      "\n", lux_html_utils:html_href("h2", "", "", "#annotate", PrefixScript),
