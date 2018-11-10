@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.18.2 - 2018-03-01
+Version 1.19 - 2018-11-19
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -375,12 +375,8 @@ ehell, such as `[endshell ^0$]`.
 Indicates the beginning of a meta statement. Meta statements are ended
 on the same line with a `]`.
 
-**\[shell\]**  
-**\[shell Name\]**  
-Switches to the named shell, to make it active. In case there is no
-such shell started yet, a new shell named `Name` is created.  If
-`Name` is missing, the active shell is deactivated. This implies
-no shell to be activated.
+**\[newshell Name\]**  
+Creates a new shell named `Name`.
 
 By default a `/bin/sh` shell (Bourne shell) is started. See
 the `--shell_wrapper`, `--shell_cmd` and `--shell_arg` configuration
@@ -394,9 +390,18 @@ names beginning with `lux` and `cleanup` are reserved for internal
 purposes. The **environment variable** `LUX_START_REASON` is
 initially set to `normal`. See also `[cleanup]`.
 
+**\[shell\]**  
+**\[shell Name\]**  
+Switches to the named shell, to make it active. If `Name` is omitted,
+the active shell is deactivated. This implies no shell to be activated.
+
+If `--newshell` mode is not activated, the command may also be used
+to create a new shell named `Name`. See the configuration parameter
+`--newshell`.
+
 **\[cleanup\]**  
 is the cleanup marker. If the script is prematurely aborted due to
-failure (or due to a matching success pattern) the remaining
+a failure (or due to a matching success pattern) the remaining
 statements in the file are normally skipped. But if the there is a
 cleanup marker after the failing line (and this is the only
 cleanup marker), the lines after the cleanup marker will also be
@@ -404,16 +409,11 @@ run in order to enable a controlled cleanup of leftovers. Such as
 killing processes, removing files etc. When the cleanup marker is
 evaluated, the running shells will be set into a non accessible mode
 (**zombie mode**) and their failure and success patterns will be
-reset (cleared). A brand new shell (called something beginning with
+reset (cleared). This means that output received by zombie shells
+during the cleanup is not matched against failure or success
+patterns. A brand new shell (called something beginning with
 `cleanup`) will also be started. If the cleanup code causes a failure
 the remaining statements (on that level) will be skipped.
-
-Cleanup code in included files will always be run, even if the failure
-occurred in the included file. This means that each file can take care
-of its own failures. This does also apply on nested include files. On
-the topmost level the automatically started shell will be called
-`cleanup`, on the next level it is called `cleanup2`, on next level
-`cleanup3` etc.
 
 The **environment variable** `LUX_START_REASON` is set to `normal`
 in most shells, but if the cleanup is run due to premature failure or
@@ -431,10 +431,9 @@ the directory, it will turn up as a link in the annotated event log.
 **\[include FileName\]**  
 Includes and runs the specified script at this point. The `FileName`
 is relative to the currently executing script, unless given as an
-absolute path. `.luxinc` is preferred as file extension. If the included
-file contains a `[cleanup]` marker, the statements after that will be
-evaluated in order to clean up unwanted side effects. Variables in
-`FileName` are expanded.
+absolute path. `.luxinc` is preferred as file extension. Variables in
+`FileName` are expanded during parsing of the script, before execution
+of the script.
 
 **\[macro MacroName ArgName1 ArgName2 ...\]**  
   ...  
@@ -450,7 +449,7 @@ name of the active shell from the **environment variable**
 `LUX_SHELLNAME` with `[my old=$LUX_SHELLNAME]` and later switch back
 to the shell with `[shell $old]`. If the macro file contains a
 `[cleanup]` marker, the statements after that will be evaluated in
-order to clean up unwanted side effects.
+order to cleanup unwanted side effects.
 
 **\[invoke MacroName ArgVal1 ArgVal ...\]**  
 Invoke a macro. The arguments are separated with spaces. Arguments
@@ -850,6 +849,17 @@ system. It may be useful when testing config settings of other
 machines or faking the hostname in a test environment with multiple
 equivalent slaves.
 
+**--require Var**  
+**--require Var=Value**  
+Require the given variable to be set. The script will fail if
+the variable not is set. This option can be used multiple times,
+which means that all given Vars are required to be set.
+Typically require is used to test on presence of environment
+variables. `--require` is intended to be used as `[config require=Var]`
+or `[config require=Var=Value]` statements within scripts. The
+construction **Var=Value** is little more restrictive as it
+requires the variable to be set to a certain value.
+
 **--skip Var**  
 **--skip Var=Value**  
 Skip execution of the script if the given variable is set. This
@@ -872,21 +882,6 @@ environment variables. `--skip_unless` is intended to be used as
 statements within scripts. The construction **Var=Val** is little more
 restrictive as it requires that the variable is set to a certain
 value.
-
-**--skip\_skip**  
-**--skip\_skip=true**  
-Forces Lux to not care about `--skip` and `--skip_unless` settings.
-
-**--require Var**  
-**--require Var=Value**  
-Require the given variable to be set. The script will fail if
-the variable not is set. This option can be used multiple times,
-which means that all given Vars are required to be set.
-Typically require is used to test on presence of environment
-variables. `--require` is intended to be used as `[config require=Var]`
-or `[config require=Var=Value]` statements within scripts. The
-construction **Var=Value** is little more restrictive as it
-requires the variable to be set to a certain value.
 
 **--unstable Var**  
 **--unstable Var=Value**  
@@ -912,6 +907,15 @@ environment variables. `--unstable_unless` is intended to be used as
 statements within scripts. The construction **Var=Val** is little more
 restrictive as it requires that the variable is set to a certain
 value.
+
+**--skip\_unstable**  
+**--skip\_unstable=true**  
+Skip unstable test cases. See `--unstable` and `--unstable_unless`.
+
+**--skip\_skip**  
+**--skip\_skip=true**  
+Forces Lux to not care about `--skip` and `--skip_unless` settings.
+Overrides `--skip_unstable`.
 
 Log control
 -----------
@@ -1062,6 +1066,7 @@ printed. The `brief` characters have the following meanings:
        c - the normal cleanup marker
        C - the cleanup marker during premature termination
        z - is printed out each second while sleeping
+       W - is printed out when a dynamic warning is issued
        ( - beginning of a macro, loop or an include file
        ) - end of a macro, loop or an include file
        ? - waiting for shell output. Preceded with lineno.
@@ -1101,6 +1106,11 @@ commands to add to such a file.
 
 Miscellaneous
 -------------
+
+**--newshell**  
+In `--newshell` mode shells are created with the `[newshell Name]` command
+and making another shell active is done with `[shell Name]`. That is the
+`[shell Name]` command cannot be used to create new shells in newhell mode.
 
 **--shell\_cmd Cmd**  
 **--shell\_args Arg**  
@@ -1228,6 +1238,10 @@ Available commands:
 * tail     - display log files
 * TRACE    - start or stop internal tracing
 
+Available parameters:
+---------------------
+* lineno - lineno in source file
+
 
 lineno parameter
 ----------------
@@ -1257,15 +1271,16 @@ Here are a few examples of how lineno can be used:
 
 
 
-TRACE \[action\]
-----------------
+TRACE \[action\] \[mode\]
+-------------------------
 
 Start or stop internal tracing
-Default is to display the trace mode (none|case|suite).
+Default is to display the trace mode (none|case|suite|event).
 
 **Parameters:**  
 
 * action - Trace action; enum(START|STOP)  
+* mode   - Trace mode; enum(CASE|SUITE|EVENT)  
 
 attach
 ------
@@ -1356,7 +1371,7 @@ Set verbosity level of progress
 
 **Parameters:**  
 
-* level - verbosity level. Toggle between brief and verbose by default.; enum(silent|summary|brief|doc|compact|verbose)  
+* level - verbosity level. Toggle between brief and verbose by default.; enum(silent|summary|brief|doc|compact|verbose|etrace|ctrace)  
 
 quit \[scope\]
 --------------
@@ -1649,9 +1664,18 @@ and another `.../lux_config/SunOS-sun4u.luxcfg`
 >     [config var=USE_VALGRIND=false]
 >     [config multiplier=3000]
 
-Snippet from the enclosed `.../lux/examples/error.lux` file:
+Snippet from the enclosed `.../lux/examples/require.lux` file:
 
->     [
+>     [doc Demonstrate an error]
+>     
+>     [config require=MAKE]
+>     
+>     [shell setup]
+>         !$MAKE start
+>     
+>     
+>     [cleanup]
+>         !$MAKE stop
 >     
 
 Snippet from the enclosed `.../lux/examples/warning.lux` file:
@@ -1691,15 +1715,13 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2018_02_28_13_00_38_253484/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2018_11_19_18_45_19_648788/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:..:.:...:..:.:.:.:....:..:..:.:..(....:..:.:.:.:...)(.:..:..)...:..:..:.:..(.:..:..)..(.:..:..)(....:.:.:....)(.:..:..)..(.:.:..:..)......:..:...
+>     progress          : ..:..:..:...:..:.:.:....:..:.:..:..(....:..:.:.:...)(.:.:..:..)...:..:.:..:..(.:.:..:..)..(.:..:..)(....:.:..:...)(.:.:..:..)..(.:.:..:..)......:..:.........
 >     result            : SUCCESS
->     test case         : examples/error.lux
->     result            : ERROR as Syntax error at line 1: ']' is expected to be at end of line
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:.:...:.:..:.:.:...:.:.:....:..:..32C..:...:.:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
->     result            : FAIL at 32
+>     progress          : ..:..:.:..:...:..:.:.:..:..:.:.....:.:..32C..:..:..:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.
+>     result            : FAIL at 32 in shell calculator
 >     expected*
 >     	19
 >     actual match_timeout
@@ -1715,29 +1737,28 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:..:....:..:..:..:..:.:..:.:..:.:.:..:.:..:.:.....:..:.:.:....c......:.:.:..:..:..:..:.:..:..:.
+>     progress          : ..:..:..:..:.:.:.....:..:.:..:..:.:..:..:.:..:.:..:.:..:.....:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:...:.:.((.:..:.:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.))...:...:.:.:...:.:.:..:.:..:.:...:..:..:.:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:..:...:.:.
+>     progress          : ..:..:.:..:.((.:.:..:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:.:..)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:..:.))...:..:..:..:..:.:..:.:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:.))c........:..:..:.:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))5
->     result            : FAIL at 5:5
+>     progress          : ..:..:.:..:.((.i=1..:..:..z)(z..i=2...:.:..z)(z..i=3..:.:..:..z))+5
+>     result            : FAIL at 5 in shell break
 >     expected*
 >     	
->     actual error
->     	Loop ended without match of "THIS WILL NEVER MATCH"
+>     actual Loop ended without match of break pattern "THIS WILL NEVER MATCH"
+>     	
 >     diff
->     	- 
->     	+ Loop ended without match of "THIS WILL NEVER MATCH"
+>     	  
 >     	
 >     test case         : examples/require.lux
 >     result            : FAIL as required variable MAKE is not set
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:..:..:....7
->     result            : WARNING at 7
+>     progress          : ..:..:..:.:....7
+>     result            : WARNING at 7 in shell foo
 >     expected*
 >     	bar
 >     actual match_timeout
@@ -1757,12 +1778,10 @@ Evaluate `lux examples`
 >     	examples/warning.lux:3 - Trailing whitespaces
 >     failed            : 3
 >     	examples/fail.lux:32 - match_timeout
->     	examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"
+>     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require.lux:3 - FAIL as required variable MAKE is not set
->     errors            : 1
->     	examples/error.lux:1 - Syntax error at line 1: ']' is expected to be at end of line
->     summary           : ERROR
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2018_02_28_13_00_38_253484/lux_summary.log.html
+>     summary           : FAIL
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2018_11_19_18_45_19_648788/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -1783,6 +1802,8 @@ The following software is required:
 
   Once `Lux` has been installed, it will be self-contained and does
   not need a separate `Erlang/OTP` runtime system any more.
+
+* On BSD based systems, GNU Make is required.
 
 * The documentation is pre-built. Re-generation of the documentation
   requires **[Markdown][]**.
