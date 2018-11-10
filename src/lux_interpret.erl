@@ -1106,6 +1106,10 @@ cleanup_strings(cleanup, normal) ->
     {"", "c"};
 cleanup_strings(cleanup, _CleanupReason) ->
     {"", "C"};
+%%cleanup_strings(no_cleanup, normal) ->
+%%    {" no", "n"};
+%%cleanup_strings(no_cleanup, _CleanupReason) ->
+%%    {" no", "N"}.
 cleanup_strings(no_cleanup, normal) ->
     {" no", ""};
 cleanup_strings(no_cleanup, _CleanupReason) ->

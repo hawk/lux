@@ -13,12 +13,8 @@ test case         : .*examples/calc.lux
 result            : SUCCESS
 """
 """?
-test case         : .*examples/error.lux
-result            : ERROR Syntax error at line 1: '\]' is expected to be at end of line
-"""
-"""?
 test case         : .*examples/fail.lux
-result            : FAIL at 32
+result            : FAIL at 32 in shell calculator
 expected\*
 	19
 actual match_timeout
@@ -43,14 +39,14 @@ result            : SUCCESS
 """
 """?
 test case         : .*examples/loop_fail.lux
-result            : FAIL at 5:5
+result            : FAIL at 5 in shell break
 expected\*
 	
-actual error
-	Loop ended without match of "THIS WILL NEVER MATCH"
+actual Loop ended without match of break pattern "THIS WILL NEVER MATCH"
+	
 diff
-	- 
-	\+ Loop ended without match of "THIS WILL NEVER MATCH"
+	  
+	
 """
 """?
 test case         : .*examples/require.lux
@@ -62,7 +58,7 @@ result            : SKIP as variable TEST_SUNOS is not set
 """
 """?
 test case         : .*examples/unstable.lux
-result            : WARNING at 7
+result            : WARNING at 7 in shell foo
 expected\*
 	bar
 actual match_timeout
@@ -84,11 +80,9 @@ warnings          : 2
 	.*examples/warning.lux:3 - Trailing whitespaces
 failed            : 3
 	.*examples/fail.lux:32 - match_timeout
-	.*examples/loop_fail.lux:5:5 - Loop ended without match of "THIS WILL NEVER MATCH"
+	.*examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 	.*examples/require.lux:3 - FAIL as required variable MAKE is not set
-errors            : 1
-	.*examples/error.lux:1 - Syntax error at line 1: '\]' is expected to be at end of line
-summary           : ERROR
+summary           : FAIL
 """
 
     [invoke check_status 1]
