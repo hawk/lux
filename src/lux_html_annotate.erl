@@ -485,7 +485,7 @@ interleave_loop(A, [#event{lineno =  LineNo,
                 Acc, CmdStack,
                 F, Files, Cache) ->
     TmpFlush = false,
-    {CodeLines2, CodeLineNo2, Code, Cache2} =
+    {CodeLines2, CodeLineNo2, CH, Cache2} =
         pick_code(F, CodeLines,
                   CodeLineNo, LineNo,
                   TmpFlush, CmdStack,
@@ -508,9 +508,9 @@ interleave_loop(A, [#event{lineno =  LineNo,
                      shell = Shell,
                      data = DataLines},
     Acc2 =
-        case Code#code_html.lines of
+        case CH#code_html.lines of
             [] -> [EH | Acc];
-            _  -> [EH, Code | Acc]
+            _  -> [EH, CH | Acc]
         end,
     interleave_loop(A, Events,
                     Flush, CodeLines2,
@@ -549,20 +549,20 @@ interleave_loop(_A, [],
                 CodeLineNo, MaxLineNo,
                 Acc, CmdStack,
                 F, Files, Cache) ->
-    {_Skipped, _CodeLineNo, Code, Cache2} =
+    {_Skipped, _CodeLineNo, CH, Cache2} =
         pick_code(F, CodeLines,
                   CodeLineNo, MaxLineNo,
                   Flush, CmdStack, Cache),
-    {lists:reverse([Code | Acc]), Files, Cache2}.
+    {lists:reverse([CH | Acc]), Files, Cache2}.
 
 pick_code(F, Lines, CodeLineNo, MaxLineNo, Flush, CmdStack, Cache) ->
-    {Lines2, CodeLineNo2, Acc} =
+    {Lines2, CodeLineNo2, Code} =
         do_pick_code(F, Lines, CodeLineNo, MaxLineNo, Flush, []),
     ScriptComps = F#file.script_comps,
     CH = #code_html{script_comps = ScriptComps,
                     lineno = CodeLineNo,
                     cmd_stack = CmdStack,
-                    lines = Acc},
+                    lines = Code},
     Cache2 = dict:store({F#file.orig_script, CodeLineNo, MaxLineNo}, CH, Cache),
     {Lines2, CodeLineNo2, CH, Cache2}.
 
@@ -570,7 +570,7 @@ do_pick_code(F, [Line | Lines], CodeLineNo, LineNo, Flush, Acc)
   when Flush orelse LineNo >= CodeLineNo ->
     do_pick_code(F, Lines, CodeLineNo+1, LineNo, Flush, [Line | Acc]);
 do_pick_code(_F, Lines, CodeLineNo, _LineNo, _Flush, Acc) ->
-    {Lines, CodeLineNo, Acc}.
+    {Lines, CodeLineNo, lists:reverse(Acc)}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Return event log as HTML
