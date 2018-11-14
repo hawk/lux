@@ -1059,10 +1059,10 @@ parse_result(RawResult) ->
     %% io:format("Result: ~p\n", [R]),
     {result, R}.
 
-%% split_quoted_lines(Bin) when byte_size(Bin) > 1000000 ->
-%%     Sz = ?i2b(?i2l(byte_size(Bin))),
-%%     [<<"...<WARNING> This is an insane amount of output. ", Sz/binary,
-%%        " bytes ignored. See textual lux logs for details...">>];
+split_quoted_lines(Bin) when byte_size(Bin) > 10000 ->
+    Sz = ?i2b(byte_size(Bin)),
+    [<<"...<LUX WARNING> This is an insane amount of output. ", Sz/binary,
+       " bytes ignored. See textual LUX event log for details...">>];
 split_quoted_lines(Bin) when is_binary(Bin) ->
     Normalized = lux_utils:replace(Bin, [{quoted_crlf, <<"\n">>}]),
     lux_utils:split_lines(Normalized).
