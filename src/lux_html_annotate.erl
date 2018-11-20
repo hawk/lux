@@ -1189,7 +1189,7 @@ elapsed_time(StartStr, EndStr) ->
                     {Hours, Mins, Secs} = Time,
                     Hours2 = Hours + (Days * 24),
                     Secs2 = calendar:time_to_seconds({Hours2, Mins, Secs}),
-                    (Secs2 * 1000000) + MicrosDiff
+                    (Secs2 * ?ONE_SEC_MICROS) + MicrosDiff
             end
     end.
 
@@ -1206,8 +1206,8 @@ parse_time(DateTime) ->
      list_to_integer(Millis)}.
 
 elapsed_time_to_str(MicrosDiff) ->
-    TotalSecs = MicrosDiff div 1000000,
-    Micros = MicrosDiff - (TotalSecs * 1000000),
+    TotalSecs = (MicrosDiff div ?ONE_SEC_MICROS),
+    Micros = MicrosDiff - (TotalSecs * ?ONE_SEC_MICROS),
     {Hours, Mins, Secs} = calendar:seconds_to_time(TotalSecs),
     lists:concat([Hours, ":", Mins, ":", Secs, ".",
                   string:right(?i2l(Micros), 6, $0), " (h:m:s.us)"]).

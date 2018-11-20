@@ -44,7 +44,8 @@
 -define(DEFAULT_TIME,     <<"yyyy-mm-dd hh:mm:ss">>).
 -define(DEFAULT_TIME_STR,   "yyyy-mm-dd hh:mm:ss").
 -define(ONE_SEC, 1000).
--define(ONE_MIN, 60*?ONE_SEC).
+-define(ONE_MIN, (?ONE_SEC*60)).
+-define(ONE_SEC_MICROS, (?ONE_SEC*1000)).
 
 -ifdef(OTP_RELEASE).
     -define(stacktrace(),

@@ -858,24 +858,23 @@ format_calls([H|T], Acc) ->
 %% canceled (after 0 seconds)
 %% failed (after 10 seconds)
 parse_timer(Data) ->
-    OneSec = 1000000,
     case string:tokens(?b2l(Data), "() ") of
         ["started", "infinity"] ->
             {started, infinity};
         ["started", Secs, "seconds", "*", Multiplier] ->
             CeiledSecs = trunc((list_to_integer(Secs) *
                                     list_to_float(Multiplier)) + 0.5),
-            {started, CeiledSecs * OneSec};
+            {started, CeiledSecs * ?ONE_SEC_MICROS};
         ["started", Secs, "seconds", "*", Multiplier, "multiplier"] ->
             CeiledSecs = trunc((list_to_integer(Secs) *
                                     list_to_float(Multiplier)) + 0.5),
-            {started, CeiledSecs * OneSec};
+            {started, CeiledSecs * ?ONE_SEC_MICROS};
         ["canceled", "after", Secs, "seconds"] ->
-            {canceled, list_to_integer(Secs) * OneSec};
+            {canceled, list_to_integer(Secs) * ?ONE_SEC_MICROS};
         ["canceled", "after", MicroSecs, "micro", "seconds"] ->
             {canceled, list_to_integer(MicroSecs)};
         ["failed", "after", Secs, "seconds"] ->
-            {failed, list_to_integer(Secs) * OneSec};
+            {failed, list_to_integer(Secs) * ?ONE_SEC_MICROS};
         ["failed", "after", MicroSecs, "micro", "seconds"] ->
             {failed, list_to_integer(MicroSecs)}
     end.
@@ -1059,9 +1058,10 @@ parse_result(RawResult) ->
     %% io:format("Result: ~p\n", [R]),
     {result, R}.
 
-split_quoted_lines(Bin) when byte_size(Bin) > 10000 ->
-    Sz = ?i2b(byte_size(Bin)),
-    [<<"...<LUX WARNING> This is an insane amount of output. ", Sz/binary,
+split_quoted_lines(<<Chop:10000/binary, Rest/binary>>) ->
+    Sz = ?i2b(byte_size(Rest)),
+    [<<Chop/binary,
+       "\n\n...<LUX WARNING> This is an insane amount of output. ", Sz/binary,
        " bytes ignored. See textual LUX event log for details...">>];
 split_quoted_lines(Bin) when is_binary(Bin) ->
     Normalized = lux_utils:replace(Bin, [{quoted_crlf, <<"\n">>}]),

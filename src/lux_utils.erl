@@ -759,6 +759,7 @@ diff_iter(ExpectedTag, Diff, Mode, Fun) ->
     InitialAcc = [],
     diff_iter_loop(ExpectedTag, Diff, Mode, Fun, InitialAcc).
 
+-define(MAX_DIFF, 10000).
 diff_iter_loop(ExpectedTag, [H|T], Mode, Fun, Acc) ->
     Context = context(Acc, T),
     case H of
@@ -780,8 +781,8 @@ diff_iter_loop(ExpectedTag, [H|T], Mode, Fun, Acc) ->
             NewAcc = Fun({add,Add}, Mode, Context, Acc),
             diff_iter_loop(ExpectedTag, T, Mode, Fun, NewAcc);
         {'!', Del, Add} when Mode =:= deep,
-                             length(Del) < 1000,
-                             length(Add) < 1000 ->
+                             length(Del) < ?MAX_DIFF,
+                             length(Add) < ?MAX_DIFF ->
             DelChars = ?b2l(?l2b(expand_lines(Del))),
             AddChars = ?b2l(?l2b(expand_lines(Add))),
             DefaultMatch = lux_diff:default_match(),
