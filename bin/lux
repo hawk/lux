@@ -10,6 +10,8 @@
 
 -module(lux_main).
 -mode(compile).
+-compile(warnings_as_errors).
+
 -export([
          start_trace/3,
          stop_trace/0,
