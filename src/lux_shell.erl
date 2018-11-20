@@ -103,19 +103,20 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
         try
             shell_loop(C3, C3)
         catch
-            ?CATCH_STACKTRACE(error, ShellReason, LoopEST)
-                ErrBin = ?l2b(?FF("~p", [ShellReason])),
-                io:format("\nINTERNAL LUX ERROR: Shell crashed: ~s\n~p\n",
-                          [ErrBin, LoopEST]),
-                stop(C2, error, ErrBin)
+            ?CATCH_STACKTRACE(error, LoopReason, LoopEST)
+                LoopErrBin = ?l2b(?FF("INTERNAL LUX ERROR: ~999999p ~999999p",
+                                      [LoopReason, LoopEST])),
+                io:format("\n~s\n", [LoopErrBin]),
+                stop(C2, error, LoopErrBin)
         end
     catch
         ?CATCH_STACKTRACE(error, InitReason, InitEST)
-            FileErr = file:format_error(InitReason),
-            InitBinErr = ?l2b([FlatExec, ": ", FileErr]),
-            clog(C2, error, "\"~s\"", [FileErr]),
-            io:format("\nINTERNAL LUX ERROR: ~s\n~p\n", [InitBinErr, InitEST]),
-            stop(C2, error, InitBinErr)
+            FileErrStr = file:format_error(InitReason),
+            InitErrBin = ?l2b([FlatExec, ": ", FileErrStr]),
+            io:format("\n~s\n", [InitErrBin]),
+            clog(C2, error, "INTERNAL LUX ERROR: \"~999999s\" ~999999p",
+                 [FileErrStr, InitEST]),
+            stop(C2, error, InitErrBin)
     end.
 
 open_logfile(C, Slogan) ->
@@ -234,6 +235,10 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
 
+safe_flush_port(C, _Data, _ExtraPoll) when C#cstate.stdout_log_fd =:= closed ->
+    Progress = debug_progress(C),
+    lux_utils:progress_write(Progress, "^"),
+    C;
 safe_flush_port(C, Data, ExtraPoll) ->
     Progress = debug_progress(C),
     lux_utils:progress_write(Progress, ":"),

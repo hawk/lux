@@ -154,13 +154,17 @@ wait_for_reply(Dstate, Ipid, Timeout) ->
                 is_integer(Timeout) ->
                     %% Display process info for interpreter and its children
                     Dpid = self(),
-                    format("\nDebugger: ~p\n", [Dpid]),
-                    format("Interpreter: ~p\n", [Ipid]),
+                    format("\n<LUX WARNING>"
+                           " Debugger timed out after ~p milli seconds.\n",
+                           [Timeout]),
+                    format("Debugger pid: ~p\n", [Dpid]),
+                    format("Interpreter pid: ~p\n", [Ipid]),
                     Item = [current_stacktrace, messages],
-                    Show = fun(Pid) ->
-                                   Info = process_info(Pid, Item),
-                                   format("Info for ~p:\n\t~p\n", [Pid, Info])
-                           end,
+                    Show =
+                        fun(Pid) ->
+                                Info = process_info(Pid, Item),
+                                format("Proc info for ~p:\n\t~p\n", [Pid, Info])
+                        end,
                     Pids = [P || P <- processes(), P > Ipid],
                     AllPids = [Ipid | Pids],
                     lists:foreach(Show, AllPids),

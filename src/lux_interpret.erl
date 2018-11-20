@@ -94,15 +94,6 @@ display_trace(Progress, Trace, Str)
 display_trace(_Progress, {trace, _Pid, call, {lux, trace_me, A}}, _Str)
   when length(A) =:= 4 ->
     ignore;
-display_trace(_Progress, Trace, _Str)
-  when element(3, Trace) =:= return_from;
-       element(3, Trace) =:= exception_from;
-       element(3, Trace) =:= spawn;
-       element(3, Trace) =:= spawned;
-       element(3, Trace) =:= exit;
-       element(3, Trace) =:= link;
-       element(3, Trace) =:= unlink ->
-    ignore;
 display_trace(Progress, {trace, _Pid, call,
                {lux, trace_me, [_DL, FromTo, FromTo, Label, C]}}, Str) ->
     io:format("~s(0): etrace \"call ~s\"\n",
@@ -121,9 +112,21 @@ display_trace(Progress, {trace, _Pid, call,
         ctrace -> io:format("\t~p\n", [C])
     end;
 display_trace(Progress, Trace, _Str) ->
+    Type = element(3, Trace),
     case Progress of
-        etrace -> ignore;
-        ctrace -> io:format("TRACE: ~p\n", [Trace])
+        etrace ->
+            ignore;
+        ctrace when Type =:= return_from;
+                    Type =:= exception_from;
+                    Type =:= spawn;
+                    Type =:= spawned;
+                    Type =:= exit;
+                    Type =:= link;
+                    Type =:= unlink;
+                    Type =:= getting_unlinked ->
+            ignore;
+        ctrace ->
+            io:format("TRACE: ~p\n", [Trace])
     end.
 
 opt_stop_etrace(#istate{progress = Progress, trace_mode = TraceMode} = I)
@@ -170,8 +173,8 @@ loop(#istate{mode = stopping,
              active_shell = undefined} = I) ->
     %% Stop main
     I;
-loop(#istate{commands = Cmds, cleanup_reason = Reason} = I)
-  when ?call_level(I) > 1 andalso (Cmds =:= [] orelse Reason =/= normal) ->
+loop(I)
+  when ?call_level(I) > 1 andalso I#istate.commands =:= [] ->
     %% Stop include
     I2 = multisync(I, wait_for_expect),
     %% Check for stop and down before popping the cmd_stack
@@ -311,7 +314,8 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
 
 premature_stop(I, CleanupReason, StopRes) ->
     I2 = break_all_loops(I),
-    case I2#istate.mode of
+    OldMode = I2#istate.mode,
+    case OldMode of
         running ->
             %% An error has occurred, maybe the test case (or suite)
             %% has timed out.
@@ -320,7 +324,8 @@ premature_stop(I, CleanupReason, StopRes) ->
             %% Error (or timeout) during cleanup,
             %% initiate stop by sending shutdown to all shells.
             multicast(I2, {shutdown, self()}),
-            I#istate{mode = mode(stopping), cleanup_reason = CleanupReason};
+            I#istate{mode = mode(OldMode, stopping),
+                     cleanup_reason = CleanupReason};
         stopping ->
             %% Shutdown has already been sent to the normal shells,
             %% continue to collect their states as well as cleanup shells.
@@ -360,16 +365,17 @@ opt_dispatch_cmd(#istate{commands = Cmds, want_more = WantMore} = I) ->
         [] ->
             %% End of script
             CallLevel = ?call_level(I),
+            OldMode = I#istate.mode,
             if
                 CallLevel > 1 ->
                     I;
-                I#istate.mode =:= stopping ->
+                OldMode =:= stopping ->
                     %% Already stopping
                     I;
                 true ->
                     %% Initiate stop by sending end_of_script to all shells.
                     multicast(I, {end_of_script, self()}),
-                    I#istate{mode = mode(stopping)}
+                    I#istate{mode = mode(OldMode, stopping)}
             end
     end.
 
@@ -536,14 +542,15 @@ dispatch_cmd(I,
                     false -> shell
                 end,
             ShellCmd = Cmd#cmd{type = ShellType, arg = "cleanup" ++ Suffix},
+            OldMode = I3#istate.mode,
             NewMode =
                 if
-                    I3#istate.mode =:= stopping ->
-                        I3#istate.mode;
+                    OldMode =:= stopping ->
+                        OldMode;
                     I3#istate.cleanup_reason =:= normal ->
-                        I3#istate.mode;
+                        OldMode;
                     true ->
-                        mode(cleanup)
+                        mode(OldMode, cleanup)
                 end,
             I4 = I3#istate{mode = NewMode,
                            default_timeout = I3#istate.cleanup_timeout,
@@ -948,23 +955,26 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
                   debug_level = NewLevel, % Activate debug after first error
                   cleanup_reason = CleanupReason},
     {ShellName, I3} = delete_shell(I2, Pid),
+    OldMode = I3#istate.mode,
     lux:trace_me(50, 'case', prepare_stop,
-                 [{mode, I3#istate.mode},
+                 [{mode, OldMode},
                   {stop, ShellName, Res#result.outcome, Res#result.actual},
                   {active_shell, I3#istate.active_shell},
                   {shells, I3#istate.shells},
                   Res]),
-    case I3#istate.mode of
-        running ->
+    case {OldMode, Res#result.outcome} of
+        {_Mode, relax} ->
+            I3;
+        {_Mode, shutdown} ->
+            I3;
+        {running, _Outcome} ->
             multicast(I3, {relax, self()}),
             goto_cleanup(I3);
-        cleanup when Res#result.outcome =:= relax -> % Orig outcome
-            I3; % Continue with cleanup
-        cleanup ->
-           %% Initiate stop by sending shutdown to the remaining shells.
+        {cleanup, _Outcome} ->
+            %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I3, {shutdown, self()}),
-            I3#istate{mode = mode(stopping)};
-        stopping ->
+            I3#istate{mode = mode(OldMode, stopping)};
+        {stopping, _Outcome} ->
             %% Shutdown has already been sent to the other shells.
             %% Continue to collect their states if needed.
             I3
@@ -1074,8 +1084,8 @@ refresh_case_timer(I) ->
 prepare_cleanup(I, Cmd) ->
     cleanup_progress(I, Cmd),
     I2 = break_all_loops(I),
-    NewMode = cleanup_mode(I2),
-    I3 = cleanup_shells(I2, Cmd),
+    I3 = zombify_shells(I2, Cmd),
+    NewMode = cleanup_mode(I3),
     I3#istate{mode = NewMode, want_more = true}.
 
 cleanup_mode(I) ->
@@ -1083,15 +1093,16 @@ cleanup_mode(I) ->
         [] -> Context = main;
         [#cmd_pos{type = Context} | _] -> ok
     end,
+    OldMode = I#istate.mode,
     if
-        I#istate.mode =/= stopping ->
-            mode(cleanup);
+        OldMode =/= stopping ->
+            mode(OldMode, cleanup);
         Context =:= main ->
             %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I, {shutdown, self()}),
-            mode(stopping);
+            mode(OldMode, stopping);
         true ->
-            mode(stopping)
+            mode(OldMode, stopping)
     end.
 
 cleanup_progress(#istate{active_name = ShellName,
@@ -1115,7 +1126,8 @@ cleanup_strings(no_cleanup, normal) ->
 cleanup_strings(no_cleanup, _CleanupReason) ->
     {" no", ""}.
 
-cleanup_shells(I, Cmd) ->
+zombify_shells(I, Cmd) ->
+    lux:trace_me(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),
     multicast(I, {eval, self(), Cmd}),
     I2 = multisync(I, immediate, false),
     I3 = inactivate_shell(I2),
@@ -1129,6 +1141,7 @@ cleanup_shells(I, Cmd) ->
     end,
     multicast(I3, {debug_shell, self(), disconnect}),
     Zombies = [S#shell{health = zombie} || S <- I3#istate.shells],
+    lux:trace_me(50, 'case', zombify_done, [Cmd, {shells, Zombies}]),
     I3#istate{shells = Zombies}.
 
 delete_shell(I, Pid) ->
@@ -1502,6 +1515,9 @@ handle_error(#istate{active_shell = ActiveShell,
           (I#istate.latest_cmd)#cmd.lineno, Reason]),
     premature_stop(I, error, {'EXIT', {error, Reason}}).
 
-mode(Mode) ->
-    lux:trace_me(50, 'case', change_mode, [{mode, Mode}]),
-    Mode.
+mode(Mode, Mode) ->
+    Mode;
+mode(OldMode, NewMode) ->
+    lux:trace_me(50, 'case', change_run_mode,
+                 [{old_mode, OldMode}, {new_mode, NewMode}]),
+    NewMode.
