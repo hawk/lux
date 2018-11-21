@@ -8,6 +8,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Defines
 
+-define(TRACE_ME(DetailLevel, From, To, Label, Contents),
+        lux:trace_me(DetailLevel, From, To, Label,
+                     [{efile,?FILE,?LINE} | Contents])).
+-define(TRACE_ME2(DetailLevel, FromTo, Label, Contents),
+        ?TRACE_ME(DetailLevel, FromTo, FromTo, Label, Contents)).
+
 -define(FF(Format, Args), io_lib:format(Format, Args)).
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), iolist_to_binary(L)).

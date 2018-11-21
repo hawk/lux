@@ -232,8 +232,8 @@ loop(I) ->
             I2 = opt_timeout_stop(I, TimeoutType, TimeoutMillis),
             loop(I2);
         Unexpected ->
-            lux:trace_me(70, 'case', ignore_msg,
-                         [{interpreter_got, Unexpected}]),
+            ?TRACE_ME2(70, 'case', ignore_msg,
+                       [{interpreter_got, Unexpected}]),
             ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
                  [I#istate.active_name,
                   (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
@@ -293,7 +293,7 @@ timeout(I) ->
 
 opt_timeout_stop(I, TimeoutType, TimeoutMillis)
   when I#istate.has_been_blocked ->
-    lux:trace_me(70, 'case', TimeoutType, [{ignored, TimeoutMillis}]),
+    ?TRACE_ME2(70, 'case', TimeoutType, [{ignored, TimeoutMillis}]),
     ilog(I, "~s(~p): ~p (ignored)\n",
          [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno, TimeoutType]),
     io:format("WARNING: Ignoring ~p"
@@ -301,7 +301,7 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis)
               [TimeoutType]),
     I;
 opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
-    lux:trace_me(70, 'case', TimeoutType, [{premature, TimeoutMillis}]),
+    ?TRACE_ME2(70, 'case', TimeoutType, [{premature, TimeoutMillis}]),
     Seconds = TimeoutMillis div ?ONE_SEC,
     Multiplier = I#istate.multiplier / ?ONE_SEC,
     ilog(I, "~s(~p): ~p (~p seconds * ~.3f multiplier)\n",
@@ -384,7 +384,7 @@ dispatch_cmd(I,
                   type = Type,
                   arg = Arg} = Cmd) ->
     %% io:format("~p\n", [Cmd]),
-    lux:trace_me(60, 'case', Type, [Cmd]),
+    ?TRACE_ME2(60, 'case', Type, [Cmd]),
     case Type of
         comment ->
             I;
@@ -956,12 +956,12 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
                   cleanup_reason = CleanupReason},
     {ShellName, I3} = delete_shell(I2, Pid),
     OldMode = I3#istate.mode,
-    lux:trace_me(50, 'case', prepare_stop,
-                 [{mode, OldMode},
-                  {stop, ShellName, Res#result.outcome, Res#result.actual},
-                  {active_shell, I3#istate.active_shell},
-                  {shells, I3#istate.shells},
-                  Res]),
+    ?TRACE_ME2(50, 'case', prepare_stop,
+               [{mode, OldMode},
+                {stop, ShellName, Res#result.outcome, Res#result.actual},
+                {active_shell, I3#istate.active_shell},
+                {shells, I3#istate.shells},
+                Res]),
     case {OldMode, Res#result.outcome} of
         {_Mode, relax} ->
             I3;
@@ -1031,7 +1031,7 @@ fail_result(LatestCmd, CmdStack, ActiveName, FailReason) ->
 
 goto_cleanup(#istate{cleanup_reason = CleanupReason} = I)
   when CleanupReason =/= normal -> % Assert
-    lux:trace_me(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
+    ?TRACE_ME2(50, 'case', goto_cleanup, [{reason, CleanupReason}]),
     LineNoStr = ?i2l((I#istate.latest_cmd)#cmd.lineno),
     ilog(I, "~s(~s): goto cleanup\n", [I#istate.active_name, LineNoStr]),
     ResLineNoStr = result_lineno(I, LineNoStr),
@@ -1127,7 +1127,7 @@ cleanup_strings(no_cleanup, _CleanupReason) ->
     {" no", ""}.
 
 zombify_shells(I, Cmd) ->
-    lux:trace_me(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),
+    ?TRACE_ME2(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),
     multicast(I, {eval, self(), Cmd}),
     I2 = multisync(I, immediate, false),
     I3 = inactivate_shell(I2),
@@ -1141,7 +1141,7 @@ zombify_shells(I, Cmd) ->
     end,
     multicast(I3, {debug_shell, self(), disconnect}),
     Zombies = [S#shell{health = zombie} || S <- I3#istate.shells],
-    lux:trace_me(50, 'case', zombify_done, [Cmd, {shells, Zombies}]),
+    ?TRACE_ME2(50, 'case', zombify_done, [Cmd, {shells, Zombies}]),
     I3#istate{shells = Zombies}.
 
 delete_shell(I, Pid) ->
@@ -1167,7 +1167,7 @@ multicast(#istate{shells = OtherShells, active_shell = undefined}, Msg) ->
 multicast(#istate{shells = OtherShells, active_shell = ActiveShell}, Msg) ->
     multicast([ActiveShell | OtherShells], Msg);
 multicast(Shells, Msg) when is_list(Shells) ->
-    lux:trace_me(50, 'case', multicast, [{shells, Shells}, Msg]),
+    ?TRACE_ME2(50, 'case', multicast, [{shells, Shells}, Msg]),
     Send = fun(#shell{pid = Pid} = S) -> trace_msg(S, Msg), Pid ! Msg, Pid end,
     lists:map(Send, Shells).
 
@@ -1180,7 +1180,7 @@ cast(#istate{active_shell = #shell{pid =Pid}, active_name = Name}, Msg) ->
     {ok, Pid}.
 
 trace_msg(#shell{name = Name}, Msg) ->
-    lux:trace_me(50, 'case', Name, element(1, Msg), [Msg]).
+    ?TRACE_ME(50, 'case', Name, element(1, Msg), [Msg]).
 
 multisync(I, When) ->
     multisync(I, When, true).
@@ -1190,12 +1190,12 @@ multisync(I, When, HandleStop)
        When =:= immediate;
        When =:= wait_for_expect ->
     Pids = multicast(I, {sync, self(), When}),
-    lux:trace_me(50, 'case', waiting,
-                 [{active_shell, I#istate.active_shell},
-                  {shells, I#istate.shells},
-                  When]),
+    ?TRACE_ME2(50, 'case', waiting,
+               [{active_shell, I#istate.active_shell},
+                {shells, I#istate.shells},
+                When]),
     I2 = wait_for_reply(I, Pids, sync_ack, undefined, infinity, HandleStop),
-    lux:trace_me(50, 'case', collected, []),
+    ?TRACE_ME2(50, 'case', collected, []),
     I2.
 
 wait_for_reply(I, Pids, Expect, Fun, FlushTimeout) ->
@@ -1221,8 +1221,8 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout, HandleStop) ->
             I2 = opt_timeout_stop(I, TimeoutType, TimeoutMillis),
             wait_for_reply(I2, [Pid|Pids], Expect, Fun, 500, HandleStop);
         Unexpected when FlushTimeout =/= infinity ->
-            lux:trace_me(70, 'case', ignore_msg,
-                         [{interpreter_got,Unexpected}]),
+            ?TRACE_ME2(70, 'case', ignore_msg,
+                       [{interpreter_got,Unexpected}]),
             ilog(I, "~s(~p): internal \"int_got_msg ~p\"\n",
                  [I#istate.active_name,
                   (I#istate.latest_cmd)#cmd.lineno, element(1, Unexpected)]),
@@ -1505,11 +1505,11 @@ handle_error(#istate{active_shell = ActiveShell,
                      shells = Shells,
                      latest_cmd = Cmd} = I, Reason)
   when is_binary(Reason) ->
-    lux:trace_me(50, 'case', error,
-                 [{active_shell, ActiveShell},
-                  {shells, Shells},
-                  {cmd, Cmd},
-                  {reason, Reason}]),
+    ?TRACE_ME2(50, 'case', error,
+               [{active_shell, ActiveShell},
+                {shells, Shells},
+                {cmd, Cmd},
+                {reason, Reason}]),
     ilog(I, "~s(~p): error \"~s\"\n",
          [I#istate.active_name,
           (I#istate.latest_cmd)#cmd.lineno, Reason]),
@@ -1518,6 +1518,6 @@ handle_error(#istate{active_shell = ActiveShell,
 mode(Mode, Mode) ->
     Mode;
 mode(OldMode, NewMode) ->
-    lux:trace_me(50, 'case', change_run_mode,
-                 [{old_mode, OldMode}, {new_mode, NewMode}]),
+    ?TRACE_ME2(50, 'case', change_run_mode,
+               [{old_mode, OldMode}, {new_mode, NewMode}]),
     NewMode.

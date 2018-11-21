@@ -69,13 +69,13 @@ send_reply(C, To, Msg) ->
             To =:= C#cstate.parent -> 'case';
             true                   -> To
         end,
-    lux:trace_me(50, TraceFrom, TraceTo, element(1, Msg), [Msg]),
+    ?TRACE_ME(50, TraceFrom, TraceTo, element(1, Msg), [Msg]),
     To ! Msg.
 
 init(C, ExtraLogs) when is_record(C, cstate) ->
     process_flag(trap_exit, true),
     Name = C#cstate.name,
-    lux:trace_me(50, 'case', Name, 'spawn', []),
+    ?TRACE_ME(50, 'case', Name, 'spawn', []),
     {InFile, InFd} = open_logfile(C, "stdin"),
     {OutFile, OutFd} = open_logfile(C, "stdout"),
     C2 = C#cstate{stdin_log_fd = {false, InFd},
@@ -158,7 +158,7 @@ progress_token(#cstate{idle_count = IdleCount} = C) ->
     end.
 
 shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
-    lux:trace_me(40, C#cstate.name, wait_for_event, []),
+    ?TRACE_ME2(40, C#cstate.name, wait_for_event, []),
     Timeout = timeout(C),
     receive
         {block, From} ->
@@ -223,8 +223,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
                     C
             end;
         Unexpected ->
-            lux:trace_me(70, C#cstate.name, internal_error,
-                         [{shell_got, Unexpected}]),
+            ?TRACE_ME2(70, C#cstate.name, internal_error,
+                       [{shell_got, Unexpected}]),
             clog(C, internal, "\"shell_got_msg ~p\"", [element(1, Unexpected)]),
             io:format("\nINTERNAL LUX ERROR: Shell got: ~p\n",
                       [Unexpected]),
@@ -256,7 +256,7 @@ safe_flush_port(C, Data, ExtraPoll) ->
 interpreter_down(C, Reason) ->
     TraceFrom = 'case',
     TraceTo = C#cstate.name,
-    lux:trace_me(50, TraceFrom, TraceTo, 'DOWN', [{reason, Reason}]).
+    ?TRACE_ME(50, TraceFrom, TraceTo, 'DOWN', [{reason, Reason}]).
 
 interpreter_died(C, Reason) ->
     interpreter_down(C, Reason),
@@ -341,10 +341,10 @@ change_mode(C, From, Mode, Cmd, CmdStack) ->
     end.
 
 block(C, From, OrigC) ->
-    lux:trace_me(40, C#cstate.name, block, []),
+    ?TRACE_ME2(40, C#cstate.name, block, []),
     receive
         {unblock, From} ->
-            lux:trace_me(40, C#cstate.name, unblock, []),
+            ?TRACE_ME2(40, C#cstate.name, unblock, []),
             %% io:format("\nUNBLOCK ~s\n", [C#cstate.name]),
             shell_wait_for_event(C, OrigC);
         {debug_shell, From, What} ->
@@ -1333,7 +1333,7 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
                   events = lists:reverse(C#cstate.events),
                   warnings = C#cstate.warnings},
     %% io:format("\nRES ~p\n", [Res]),
-    lux:trace_me(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
+    ?TRACE_ME2(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
 %%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
     C2 = C#cstate{expected = undefined, actual = <<>>},
     C3 = close_logs(C2),
@@ -1398,11 +1398,12 @@ prepare_outcome(C, Outcome, Actual) ->
     end,
     {NewOutcome, Extra}.
 
-close_and_exit(C, Reason, #result{}) ->
-    lux:trace_me(40, C#cstate.name, close_and_exit, []),
+close_and_exit(C, Reason, #result{} = Res) ->
+    ?TRACE_ME2(40, C#cstate.name, close_and_exit, [Res]),
     catch port_close(C#cstate.port),
     exit(Reason);
 close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
+    ?TRACE_ME2(40, C#cstate.name, close_and_exit, [Error]),
     Cmd = element(3, Error),
     Why = element(2, Error),
     Res = #result{outcome = error,
@@ -1430,6 +1431,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
     close_and_exit(C3, Reason, Res).
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
+    ?TRACE_ME2(40, C#cstate.name, close_logs, []),
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
     clog_skip(C, Waste),
     catch file:close(element(2, InFd)),
@@ -1452,7 +1454,7 @@ flush_logs(#cstate{event_log_fd = closed,
     ok.
 
 wait_for_down(C, Res) ->
-    lux:trace_me(40, C#cstate.name, wait_for_down, []),
+    ?TRACE_ME2(40, C#cstate.name, wait_for_down, []),
     receive
         {debug_shell, From, What} ->
             debug_shell(C, From, What);

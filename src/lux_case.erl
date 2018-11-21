@@ -158,7 +158,7 @@ eval(OldI, StartTime, Progress, Verbose,
                     DbgI = NewI#istate{debug_pid = Dpid},
                     ReplyTo ! {debug_pid, DbgI},
                     Res = lux_interpret:init(DbgI, StartTime),
-                    lux:trace_me(70, 'case', shutdown, []),
+                    ?TRACE_ME2(70, 'case', shutdown, []),
                     unlink(ReplyTo),
                     ReplyTo ! {done, self(), Res},
                     exit(shutdown)
