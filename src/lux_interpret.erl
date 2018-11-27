@@ -170,7 +170,7 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
 
 loop(#istate{mode = stopping,
              shells = [],
-             active_shell = undefined} = I) ->
+             active_shell = no_shell} = I) ->
     %% Stop main
     I;
 loop(I)
@@ -400,7 +400,7 @@ dispatch_cmd(I,
                         my ->
                             Vars = [VarVal | I#istate.macro_vars],
                             I#istate{macro_vars = Vars};
-                        local when I#istate.active_shell =:= undefined ->
+                        local when I#istate.active_shell =:= no_shell ->
                             Reason = <<"The command must be executed"
                                        " in context of a shell">>,
                             handle_error(I, Reason);
@@ -621,8 +621,8 @@ shell_eval(I, Cmd) ->
 change_shell_var(#istate{active_shell = Shell} = I, Pos, Val, Cmd) ->
     Shell2 =
         case Shell of
-            undefined -> Shell;
-            #shell{}  -> setelement(Pos, Shell, Val)
+            no_shell -> Shell;
+            #shell{} -> setelement(Pos, Shell, Val)
         end,
     I2 = I#istate{latest_cmd = Cmd, active_shell = Shell2},
     shell_eval(I2, Cmd).
@@ -1039,8 +1039,9 @@ goto_cleanup(#istate{cleanup_reason = CleanupReason} = I)
     do_goto_cleanup(I).
 
 do_goto_cleanup(I) ->
-    CleanupCmds = find_cleanup(I),
-    I#istate{want_more = true, commands = CleanupCmds}.
+    I2 = break_all_loops(I),
+    CleanupCmds = find_cleanup(I2),
+    I2#istate{want_more = true, commands = CleanupCmds}.
 
 find_cleanup(I) ->
     Cmds = I#istate.commands,
@@ -1130,7 +1131,7 @@ zombify_shells(I, Cmd) ->
     ?TRACE_ME2(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),
     multicast(I, {eval, self(), Cmd}),
     I2 = multisync(I, immediate, false),
-    I3 = inactivate_shell(I2),
+    I3 = inactivate_shell(I2, zombify),
     if
         I3#istate.debug_shell =:= undefined ->
             ok;
@@ -1144,9 +1145,7 @@ zombify_shells(I, Cmd) ->
     ?TRACE_ME2(50, 'case', zombify_done, [Cmd, {shells, Zombies}]),
     I3#istate{shells = Zombies}.
 
-delete_shell(I, Pid) ->
-    ActiveShell = I#istate.active_shell,
-    OldShells = I#istate.shells,
+delete_shell(#istate{active_shell=ActiveShell, shells=OldShells} = I, Pid) ->
     case lists:keyfind(Pid, #shell.pid, [ActiveShell | OldShells]) of
         false ->
             {Pid, I};
@@ -1154,7 +1153,7 @@ delete_shell(I, Pid) ->
             erlang:demonitor(Ref, [flush]),
             if
                 Pid =:= ActiveShell#shell.pid ->
-                    I2 = inactivate_shell(I),
+                    I2 = inactivate_shell(I, delete),
                     {Name, I2#istate{shells = OldShells}};
                 true ->
                     NewShells = lists:keydelete(Pid, #shell.pid, OldShells),
@@ -1162,7 +1161,7 @@ delete_shell(I, Pid) ->
             end
     end.
 
-multicast(#istate{shells = OtherShells, active_shell = undefined}, Msg) ->
+multicast(#istate{shells = OtherShells, active_shell = no_shell}, Msg) ->
     multicast(OtherShells, Msg);
 multicast(#istate{shells = OtherShells, active_shell = ActiveShell}, Msg) ->
     multicast([ActiveShell | OtherShells], Msg);
@@ -1171,7 +1170,7 @@ multicast(Shells, Msg) when is_list(Shells) ->
     Send = fun(#shell{pid = Pid} = S) -> trace_msg(S, Msg), Pid ! Msg, Pid end,
     lists:map(Send, Shells).
 
-cast(#istate{active_shell = undefined} = I, _Msg) ->
+cast(#istate{active_shell = no_shell} = I, _Msg) ->
     Reason = <<"The command must be executed in context of a shell">>,
     {bad_shell, handle_error(I, Reason)};
 cast(#istate{active_shell = #shell{pid =Pid}, active_name = Name}, Msg) ->
@@ -1259,7 +1258,7 @@ flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
 
 ensure_shell(I, #cmd{arg = "", type = shell}) ->
     %% No name. Inactivate the shell
-    inactivate_shell(I);
+    inactivate_shell(I, no_name);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
   when Name =/= "" ->
     case safe_expand_vars(I, Name) of
@@ -1295,7 +1294,7 @@ shell_start(I, #cmd{arg = Name, type = Type})
 shell_start(I, #cmd{arg = Name} = Cmd) ->
     case change_active_mode(I, Cmd, suspend) of
         {ok, I2} ->
-            I3 = inactivate_shell(I2),
+            I3 = inactivate_shell(I2, suspend),
             case safe_expand_vars(I3, "$LUX_EXTRA_LOGS") of
                 {ok, ExtraLogs} ->
                     case lux_shell:start_monitor(I3, Cmd, Name, ExtraLogs) of
@@ -1336,7 +1335,7 @@ shell_switch(OldI, Cmd, #shell{health = alive, name = NewName} = NewShell) ->
     %% Activate shell
     case change_active_mode(OldI, Cmd, suspend) of
         {ok, I2} ->
-            I3 = inactivate_shell(I2),
+            I3 = inactivate_shell(I2, suspend),
             NewShells = lists:keydelete(NewName, #shell.name, I3#istate.shells),
             NewI = I3#istate{active_shell = NewShell,
                              active_name = NewName,
@@ -1355,10 +1354,13 @@ shell_switch(OldI, _Cmd, #shell{name = Name, health = zombie}) ->
          [Name, (OldI#istate.latest_cmd)#cmd.lineno]),
     handle_error(OldI, ?l2b(Name ++ " is a zombie shell")).
 
-inactivate_shell(#istate{active_shell = undefined} = I) ->
+inactivate_shell(#istate{active_shell = no_shell} = I, _Reason) ->
     I;
-inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I) ->
-    I#istate{active_shell = undefined,
+inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I,
+                 Reason) ->
+    ilog(I, "~s(~p): inactivate ~p\n",
+         [I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno, Reason]),
+    I#istate{active_shell = no_shell,
              active_name = "lux",
              shells = [ActiveShell | Shells]}.
 
@@ -1375,7 +1377,7 @@ change_active_mode(I, _Cmd, _NewMode) ->
     %% No active shell
     {ok, I}.
 
-adjust_stacks(When, #istate{active_shell = undefined} = I,
+adjust_stacks(When, #istate{active_shell = no_shell} = I,
               NewCmd, CmdStack, Fun, IsRootLoop) ->
     Fun(),
     adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, []);
@@ -1393,12 +1395,12 @@ adjust_stacks(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
 adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, ActivePids) ->
     Fun = fun() -> ignore end,
     Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
-    OtherPids = multicast(I#istate{active_shell = undefined}, Msg),
+    OtherPids = multicast(I#istate{active_shell = no_shell}, Msg),
     Pids = ActivePids ++ OtherPids,
     wait_for_reply(I, Pids, adjust_stacks_ack, Fun, infinity).
 
 shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
-    I2 = inactivate_shell(I),
+    I2 = inactivate_shell(I, crashed),
     shell_crashed(I2, Pid, Reason);
 shell_crashed(I, Pid, Reason) ->
     What =
@@ -1449,7 +1451,7 @@ expand_vars(#istate{active_shell  = Shell,
                  lists:flatten("LUX_SUCCESS_PATTERN=",
                                ?FF("~s", [opt_binary(SuccessPattern)]))
                 ];
-        undefined ->
+        no_shell ->
             LocalVars = OptGlobalVars,
             BuiltinLocalVars = []
     end,
@@ -1470,7 +1472,7 @@ opt_regexp(OptRegExp) ->
         RegExp when is_binary(RegExp) -> RegExp
     end.
 
-add_active_var(#istate{active_shell = undefined} = I, _VarVal) ->
+add_active_var(#istate{active_shell = no_shell} = I, _VarVal) ->
     I;
 add_active_var(#istate{active_shell = Shell} = I, VarVal) ->
     LocalVars = [VarVal | Shell#shell.vars],

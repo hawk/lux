@@ -178,7 +178,7 @@
          shell_prompt_regexp = "^SH-PROMPT:" :: string(),
          call_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
-         active_shell               :: undefined | #shell{},
+         active_shell = no_shell    :: no_shell | #shell{},
          active_name = "lux"        :: undefined | string(),
          shells = []                :: [#shell{}],
          debug_shell                :: undefined | #debug_shell{},
