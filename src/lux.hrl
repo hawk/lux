@@ -284,6 +284,8 @@
          poll_timeout            :: non_neg_integer(),
          flush_timeout           :: non_neg_integer(),
          match_timeout           :: non_neg_integer() | infinity,
+         suite_timeout           :: non_neg_integer() | infinity,
+         case_timeout            :: non_neg_integer() | infinity,
          shell_wrapper           :: undefined | string(),
          shell_cmd               :: string(),
          shell_args              :: [string()],

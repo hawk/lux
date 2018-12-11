@@ -48,41 +48,61 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
-                CaseLogDir = case_log_dir(I3, Script),
-                I4 = I3#istate{case_log_dir = CaseLogDir},
-                case copy_orig(I4, Script) of
-                    {ok, Base} ->
-                        ExtraLogs = filename:join([CaseLogDir,
-                                                   Base ++ ?CASE_EXTRA_LOGS]),
-                        ExtraVars = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
-                        GlobalVars = [ExtraVars | I4#istate.global_vars],
-                        I5 = I4#istate{global_vars = GlobalVars},
-                        Config = config_data(I5),
-                        ConfigFd =
-                            lux_log:open_config_log(CaseLogDir, Script, Config),
-                        Progress = I5#istate.progress,
-                        LogFun = I5#istate.log_fun,
-                        Verbose = true,
-                        case lux_log:open_event_log(CaseLogDir, Script,
-                                                    Progress,
-                                                    LogFun, Verbose) of
-                            {ok, EventLog, EventFd} ->
-                                Docs = docs(I5#istate.orig_file, Cmds),
-                                eval(I5, StartTime, Progress, Verbose, LogFun,
-                                     EventLog, EventFd, ConfigFd, Docs);
-                            {error, FileReason} ->
-                                internal_error(I5,
-                                               file:format_error(FileReason))
-                        end;
-                    {error, FileReason} ->
-                        internal_error(I4, file:format_error(FileReason))
-                end;
+                I4 = check_timeout(I3),
+                open_logs_and_eval(I4, StartTime);
             {error, ParseReason} ->
                 internal_error(I2, ParseReason)
         end
     catch
         ?CATCH_STACKTRACE(Class, Reason, EST)
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason, EST}})
+    end.
+
+check_timeout(#istate{suite_timeout = SuiteTimeout,
+                      case_timeout = CaseTimeout,
+                      orig_file = File,
+                      latest_cmd = LatestCmd,
+                      cmd_stack = CmdStack} = I)
+  when is_integer(SuiteTimeout),
+       is_integer(CaseTimeout),
+       CaseTimeout > SuiteTimeout ->
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    W = #warning{file = File,
+                 lineno = FullLineNo,
+                 details = <<"case_timeout > suite_timeout">>},
+    I#istate{warnings = [W | I#istate.warnings]};
+check_timeout(I) ->
+    I.
+
+open_logs_and_eval(I, StartTime) ->
+    Script = I#istate.file,
+    Cmds = I#istate.commands,
+    CaseLogDir = case_log_dir(I, Script),
+    I2 = I#istate{case_log_dir = CaseLogDir},
+    case copy_orig(I2, Script) of
+        {ok, Base} ->
+            ExtraLogs = filename:join([CaseLogDir,
+                                       Base ++ ?CASE_EXTRA_LOGS]),
+            ExtraVars = "LUX_EXTRA_LOGS=" ++ ExtraLogs,
+            GlobalVars = [ExtraVars | I2#istate.global_vars],
+            I3 = I2#istate{global_vars = GlobalVars},
+            Config = config_data(I3),
+            ConfigFd = lux_log:open_config_log(CaseLogDir, Script, Config),
+            Progress = I3#istate.progress,
+            LogFun = I3#istate.log_fun,
+            Verbose = true,
+            case lux_log:open_event_log(CaseLogDir, Script,
+                                        Progress,
+                                        LogFun, Verbose) of
+                {ok, EventLog, EventFd} ->
+                    Docs = docs(I3#istate.orig_file, Cmds),
+                    eval(I3, StartTime, Progress, Verbose, LogFun,
+                         EventLog, EventFd, ConfigFd, Docs);
+                {error, FileReason} ->
+                    internal_error(I3, file:format_error(FileReason))
+            end;
+        {error, FileReason} ->
+            internal_error(I2, file:format_error(FileReason))
     end.
 
 default_istate(File) ->

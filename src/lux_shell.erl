@@ -36,6 +36,8 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 poll_timeout = I#istate.poll_timeout,
                 flush_timeout = I#istate.flush_timeout,
                 match_timeout = I#istate.default_timeout,
+                case_timeout = I#istate.case_timeout,
+                suite_timeout = I#istate.suite_timeout,
                 shell_wrapper = I#istate.shell_wrapper,
                 shell_cmd = I#istate.shell_cmd,
                 shell_args = I#istate.shell_args,
@@ -602,14 +604,34 @@ shell_eval(#cstate{name = Name} = C0,
             C#cstate{events = save_event(C, progress, String)};
         change_timeout ->
             Millis = Arg,
-            if
-                Millis =:= infinity ->
-                    clog(C, change, "expect timeout to infinity", []);
-                is_integer(Millis) ->
-                    clog(C, change, "expect timeout to ~p seconds",
-                         [Millis div ?ONE_SEC])
-            end,
-            C#cstate{match_timeout = Millis};
+            OldWarnings = C#cstate.warnings,
+            NewWarnings =
+                if
+                    Millis =:= infinity ->
+                        clog(C, change, "expect timeout to infinity", []),
+                        OldWarnings;
+                    is_integer(Millis) ->
+                        clog(C, change, "expect timeout to ~p seconds",
+                             [Millis div ?ONE_SEC]),
+                        CaseTimeout = C#cstate.case_timeout,
+                        SuiteTimeout = C#cstate.suite_timeout,
+                        if
+                            is_integer(CaseTimeout),
+                            Millis > CaseTimeout ->
+                                W = make_warning(C, "Match timeout > "
+                                                 "test case_timeout"),
+                                [W | OldWarnings];
+                            is_integer(SuiteTimeout),
+                            Millis > SuiteTimeout ->
+                                W = make_warning(C, "Match timeout > "
+                                                 "test suite_timeout"),
+                                [W | OldWarnings];
+                            true ->
+                                OldWarnings
+                        end
+                end,
+            C#cstate{match_timeout = Millis,
+                     warnings = NewWarnings};
         no_cleanup ->
             cleanup(C);
         cleanup ->
@@ -1203,32 +1225,24 @@ start_timer(#cstate{} = C) ->
 
 cancel_timer(#cstate{timer = undefined} = C) ->
     C;
-cancel_timer(#cstate{orig_file = File, match_timeout = MaxTimeout,
-                     timer = Timer, timer_started_at = Earlier,
-                     latest_cmd = LatestCmd, cmd_stack = CmdStack,
+cancel_timer(#cstate{match_timeout = MaxTimeout,
+                     timer = Timer,
+                     timer_started_at = Earlier,
                      warnings = OldWarnings} = C) ->
     ElapsedTime = timer:now_diff(lux_utils:timestamp(), Earlier),
     clog(C, timer, "canceled (after ~p micro seconds)", [ElapsedTime]),
-    Warn =
-        fun(Reason) ->
-                clog(C, warning, "\"" ++ Reason ++ "\"", []),
-                FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
-                Progress = debug_progress(C),
-                lux_utils:progress_write(Progress, "W"),
-                [#warning{file = File,
-                          lineno = FullLineNo,
-                          details = ?l2b(Reason)} | OldWarnings]
-        end,
     Threshold = erlang:trunc(multiply(C,
                                       MaxTimeout*?ONE_SEC) * ?TIMER_THRESHOLD),
     NewWarnings =
         if
             Timer =:= infinity ->
-                Warn("Infinite timer");
+                W = make_warning(C, "Infinite timer"),
+                [W | OldWarnings];
             ElapsedTime > Threshold ->
                 flush_timer(Timer),
                 Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
-                Warn("Risky timer > " ++ Percent ++ "% of max");
+                W = make_warning(C, "Risky timer > " ++ Percent ++ "% of max"),
+                [W | OldWarnings];
             true ->
                 flush_timer(Timer),
                 OldWarnings
@@ -1237,6 +1251,18 @@ cancel_timer(#cstate{orig_file = File, match_timeout = MaxTimeout,
              timer = undefined,
              timer_started_at = undefined,
              warnings = NewWarnings}.
+
+make_warning(#cstate{orig_file = File,
+                    latest_cmd = LatestCmd,
+                    cmd_stack = CmdStack} = C,
+            Reason) ->
+    clog(C, warning, "\"" ++ Reason ++ "\"", []),
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    Progress = debug_progress(C),
+    lux_utils:progress_write(Progress, "W"),
+    #warning{file = File,
+             lineno = FullLineNo,
+             details = ?l2b(Reason)}.
 
 flush_timer(Timer) ->
     erlang:cancel_timer(Timer),
