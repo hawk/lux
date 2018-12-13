@@ -550,65 +550,28 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     DocCmds = extract_doc(Script2, Cmds),
                     Script3 = lux_utils:drop_prefix(Script2),
                     io:format("~s:\n", [Script3]),
-                    DisplayDoc =
-                        fun({Level, Doc}, MaxLevel) ->
-                                Print =
-                                    fun() ->
-                                        Indent = lists:duplicate(Level, $\t),
-                                        io:format("~s~s\n", [Indent, Doc])
-                                    end,
-                                if
-                                    MaxLevel =:= once_only ->
-                                        MaxLevel;
-                                    MaxLevel =:= 0,
-                                    Level =:= 1 ->
-                                        Print(),
-                                        once_only;
-                                    MaxLevel =:= infinity;
-                                    Level =< MaxLevel ->
-                                        Print(),
-                                        MaxLevel;
-                                    true ->
-                                        MaxLevel
-                                end
-                        end,
-                    Docs =  [Doc || #cmd{arg = MultiDoc} <- DocCmds,
-                                    Doc <- MultiDoc],
+                    Docs = [Doc || #cmd{arg = MultiDoc} <- DocCmds,
+                                   Doc <- MultiDoc],
                     MaxLevel = pick_val(doc, NewR, infinity),
-                    lists:foldl(DisplayDoc, MaxLevel, Docs),
-                    case ParseWarnings of
-                        [] ->
-                            NewSummary = OldSummary,
-                            Results2 = Results;
-                        _ ->
-                            Summary = warning,
-                            NewSummary = lux_utils:summary(OldSummary, Summary),
-                            Results2 = [{Summary, Script2, ParseWarnings} |
-                                        Results]
-                    end,
+                    lists:foldl(fun display_doc/2, MaxLevel, Docs),
+                    {_Summary, NewSummary, NewResults} =
+                        adjust_warnings(Script2, OldSummary,
+                                        ParseWarnings, Results),
                     AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
                     run_cases(NewR#rstate{warnings = AllWarnings},
-                              Scripts, NewSummary, Results2,
+                              Scripts, NewSummary, NewResults,
                               Max, CC+1, List, Opaque);
                 validate ->
                     init_case_rlog(NewR, P, Script),
-                    case ParseWarnings of
-                        [] ->
-                            Summary = success,
-                            NewSummary = OldSummary,
-                            Results2 = Results;
-                        _ ->
-                            Summary = warning,
-                            NewSummary = lux_utils:summary(OldSummary, Summary),
-                            Results2 = [{NewSummary, Script2, ParseWarnings} |
-                                        Results]
-                    end,
+                    {Summary, NewSummary, NewResults} =
+                        adjust_warnings(Script, success,
+                                        ParseWarnings, Results),
                     double_rlog(NewR, "~s~s\n",
                                 [?TAG("result"),
                                  string:to_upper(?a2l(Summary))]),
                     AllWarnings = OrigR#rstate.warnings ++ ParseWarnings,
                     run_cases(NewR#rstate{warnings = AllWarnings},
-                              Scripts, NewSummary, Results2,
+                              Scripts, NewSummary, NewResults,
                               Max, CC+1, List, Opaque);
                 execute ->
                     annotate_tmp_summary_log(NewR, OldSummary, Script),
@@ -622,50 +585,31 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     SkipReason = "",
                     case Res of
                         {ok, Summary, _, FullLineNo, CaseLogDir, RunWarnings,
-                         Events, FailBin, NewOpaque} ->
-                            AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
-                            NewR2 = NewR#rstate{warnings = AllWarnings},
-                            ?TRACE_ME(70, 'case', suite, Summary, []),
-                            tap_case_end(OrigR, NewR2, CC, Script,
-                                         P, LenP, Max, Summary,
-                                         FullLineNo, SkipReason, FailBin),
-                            NewSummary = lux_utils:summary(OldSummary, Summary),
-                            Res2 = {ok, Summary, Script, FullLineNo,
-                                    CaseLogDir, Events, FailBin, Opaque},
-                            NewResults = [Res2 | Results],
+                         Events, Details, NewOpaque} ->
+                            NewRes = {ok, Summary, Script, FullLineNo,
+                                      CaseLogDir, Events, Details, Opaque},
                             NewScripts = Scripts;
                         {error, MainFile, FullLineNo, CaseLogDir,
-                         RunWarnings, ErrorMsg}
-                          when ErrorMsg =:= <<"suite_timeout" >> ->
+                         RunWarnings, Details} ->
                             Summary = error,
-                            Res2 = {error, MainFile, FullLineNo, ErrorMsg},
-                            AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
-                            NewR2 = NewR#rstate{warnings = AllWarnings},
-                            ?TRACE_ME(70, 'case', suite, Summary, [FullLineNo]),
-                            tap_case_end(OrigR, NewR2, CC, Script,
-                                         P, LenP, Max, Summary,
-                                         FullLineNo, SkipReason, ErrorMsg),
-                            NewSummary = lux_utils:summary(OldSummary, Summary),
-                            NewResults = [Res2 | Results],
-                            NewScripts = [],
-                            NewOpaque  = Opaque;
-                        {error, MainFile, FullLineNo, CaseLogDir,
-                         RunWarnings, ErrorMsg} ->
-                            Summary = error,
-                            Res2 = {error, MainFile, FullLineNo, ErrorMsg},
-                            AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
-                            NewR2 = NewR#rstate{warnings = AllWarnings},
-                            ?TRACE_ME(70, 'case', suite, Summary, [FullLineNo]),
-                            tap_case_end(OrigR, NewR2, CC, Script,
-                                         P, LenP, Max, Summary,
-                                         FullLineNo, SkipReason, ErrorMsg),
-                            NewSummary = lux_utils:summary(OldSummary, Summary),
-                            NewResults = [Res2 | Results],
-                            NewScripts = Scripts,
-                            NewOpaque  = Opaque
+                            NewOpaque = Opaque,
+                            NewRes = {error, MainFile, FullLineNo, Details},
+                            NewScripts =
+                                case Details of
+                                    <<"suite_timeout" >> -> [];
+                                    _                    -> Scripts
+                                end
                     end,
+                    ?TRACE_ME(70, 'case', suite, Summary, [{result, NewRes}]),
+                    AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
+                    NewR2 = NewR#rstate{warnings = AllWarnings},
+                    tap_case_end(OrigR, NewR2, CC, Script,
+                                 P, LenP, Max, Summary,
+                                 FullLineNo, SkipReason, Details),
+                    NewSummary = lux_utils:summary(OldSummary, Summary),
                     annotate_event_log(NewR2, Script, NewSummary,
                                        CaseLogDir, Opts),
+                    NewResults = [NewRes | Results],
                     _ = write_results(NewR2, NewSummary, NewResults),
                     run_cases(NewR2, NewScripts, NewSummary, NewResults,
                               Max, CC+1, List, NewOpaque)
@@ -778,6 +722,19 @@ run_cases(R, [], Summary, Results, _Max, _CC, List, _Opaque) ->
     end,
     {R, Summary, lists:reverse(Results)}.
 
+adjust_warnings(Script, OldSummary, ParseWarnings, Results) ->
+    case ParseWarnings of
+        [] ->
+            Summary = OldSummary,
+            NewSummary = OldSummary,
+            NewResults = Results;
+        _ ->
+            Summary = warning,
+            NewSummary = lux_utils:summary(OldSummary, Summary),
+            NewResults = [{Summary, Script, ParseWarnings} | Results]
+    end,
+    {Summary, NewSummary, NewResults}.
+
 extract_doc(File, Cmds) ->
     Fun = fun(Cmd, _RevFile, _CmdStack, Acc) ->
                   case Cmd of
@@ -788,6 +745,27 @@ extract_doc(File, Cmds) ->
                   end
           end,
     lists:reverse(lux_utils:foldl_cmds(Fun, [], File, [], Cmds)).
+
+display_doc({Level, Doc}, MaxLevel) ->
+    Print =
+        fun() ->
+                Indent = lists:duplicate(Level, $\t),
+                io:format("~s~s\n", [Indent, Doc])
+        end,
+    if
+        MaxLevel =:= once_only ->
+            MaxLevel;
+        MaxLevel =:= 0,
+        Level =:= 1 ->
+            Print(),
+            once_only;
+        MaxLevel =:= infinity;
+        Level =< MaxLevel ->
+            Print(),
+            MaxLevel;
+        true ->
+            MaxLevel
+    end.
 
 write_results(#rstate{mode=Mode, summary_log=SummaryLog},
               Summary, Results)

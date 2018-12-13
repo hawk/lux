@@ -584,9 +584,6 @@ new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
         _ when is_atom(Actual) ->
             NewActual = ?a2b(Actual),
             {Actual, NewActual, Expected, Rest};
-        _ when is_atom(Actual) ->
-            NewActual = ?a2b(Actual),
-            {Actual, NewActual, Expected, Rest};
         _ when is_binary(Actual) ->
             NewActual = <<"error">>,
             {Actual, NewActual, Expected, Actual}
