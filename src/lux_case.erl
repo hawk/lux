@@ -210,8 +210,9 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
                                        I#istate.latest_cmd,
                                        I#istate.cmd_stack),
     double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
+    UnstableWarnings = unstable_warnings(I),
     {error, I#istate.file, FullLineNo, I#istate.case_log_dir,
-     I#istate.warnings, ReasonBin}.
+     I#istate.warnings, UnstableWarnings, ReasonBin}.
 
 parse_iopts(I, Opts) ->
     {Res, _U} = do_parse_iopts(I, Opts, []),
@@ -436,13 +437,14 @@ handle_done(OldI, NewI0, Docs) ->
     ExtraWarnings = [R#result.warnings || R <- Results],
     NewWarnings = lists:flatten([OldWarnings, ExtraWarnings]),
     NewI = post_ilog(NewI0#istate{warnings = NewWarnings}, Docs),
+    UnstableWarnings = unstable_warnings(NewI),
     case lists:keyfind('EXIT', 1, Results) of
         false ->
             case pick_fail(NewI, Results) of
                 false ->
-                    print_success(NewI, File);
+                    print_success(NewI, File, UnstableWarnings);
                 R ->
-                    print_fail(OldI, NewI, File, Results, R)
+                    print_fail(OldI, NewI, File, Results, R, UnstableWarnings)
             end;
         {'EXIT', Reason} ->
             internal_error(NewI, {'EXIT', Reason})
@@ -493,7 +495,7 @@ cleanup_fail(I, Reason) ->
             rest         = fail,
             warnings     = []}.
 
-print_success(I, File) ->
+print_success(I, File, UnstableWarnings) ->
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = ?i2l(LatestCmd#cmd.lineno),
     Warnings = I#istate.warnings,
@@ -507,8 +509,9 @@ print_success(I, File) ->
                 success
         end,
     Results = [],
-    {ok, Outcome, File, FullLineNo, I#istate.case_log_dir, Warnings,
-     Results, <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
+    {ok, Outcome, File, FullLineNo, I#istate.case_log_dir,
+     Warnings, UnstableWarnings, Results,
+     <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
 print_fail(OldI0, NewI, File, Results,
            #result{outcome      = fail,
@@ -520,7 +523,8 @@ print_fail(OldI0, NewI, File, Results,
                    expected     = Expected,
                    extra        = _Extra,
                    actual       = Actual,
-                   rest         = Rest} = Fail) ->
+                   rest         = Rest} = Fail,
+           UnstableWarnings) ->
     OldI = OldI0#istate{progress = silent},
     OldWarnings = NewI#istate.warnings,
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
@@ -528,7 +532,6 @@ print_fail(OldI0, NewI, File, Results,
                          R <- Results,
                          R#result.outcome =:= fail,
                          R =/= Fail],
-    UnstableWarnings = unstable_warnings(OldI, FullLineNo),
     {Outcome, NewWarnings, ResStr} =
         if
             UnstableWarnings =/= [] ->
@@ -562,7 +565,8 @@ print_fail(OldI0, NewI, File, Results,
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
     NewResults = [Fail],
     {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir,
-     NewWarnings, NewResults, FailBin, Opaque}.
+     NewWarnings, UnstableWarnings, NewResults,
+     FailBin, Opaque}.
 
 new_actual(Actual, Expected, Rest) when is_atom(Expected) ->
     NewExpected = ?a2b(Expected),
@@ -614,7 +618,10 @@ hidden_warning(File,
                                  " in shell ", ShellName])),
     #warning{file = File, lineno = FullLineNo, details = FailBin}.
 
-unstable_warnings(#istate{unstable=U, unstable_unless=UU} = I, FullLineNo) ->
+unstable_warnings(#istate{unstable=U,
+                          unstable_unless=UU,
+                          latest_cmd = LatestCmd} = I) ->
+    FullLineNo = ?i2l(LatestCmd#cmd.lineno),
     F = fun(Var, NameVal) -> filter_unstable(I, FullLineNo, Var, NameVal) end,
     Unstable = lists:zf(fun(Val) -> F("unstable", Val) end, U),
     UnstableUnless = lists:zf(fun(Val) -> F("unstable_unless", Val) end, UU),

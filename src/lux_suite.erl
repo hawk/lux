@@ -584,13 +584,14 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                                                       Opts, Opaque),
                     SkipReason = "",
                     case Res of
-                        {ok, Summary, _, FullLineNo, CaseLogDir, RunWarnings,
-                         Events, Details, NewOpaque} ->
+                        {ok, Summary, _, FullLineNo, CaseLogDir,
+                         RunWarnings, _UnstableWarnings, Events,
+                         Details, NewOpaque} ->
                             NewRes = {ok, Summary, Script, FullLineNo,
                                       CaseLogDir, Events, Details, Opaque},
                             NewScripts = Scripts;
                         {error, MainFile, FullLineNo, CaseLogDir,
-                         RunWarnings, Details} ->
+                         RunWarnings, _UnstableWarnings, Details} ->
                             Summary = error,
                             NewOpaque = Opaque,
                             NewRes = {error, MainFile, FullLineNo, Details},
