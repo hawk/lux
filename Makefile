@@ -10,6 +10,8 @@ LUX_EXTRAS += test
 endif
 
 SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
+DIALYZER_PLT = .dialyzer_plt
+DIALYZER_LOG = dialyzer.log
 
 LUXCFG=$(DESTDIR)$(TARGETDIR)/priv/luxcfg
 
@@ -28,6 +30,18 @@ xref:
 
 doc:
 	cd doc && $(MAKE) all
+
+dialyzer: $(DIALYZER_PLT)
+	dialyzer --src src --src bin --plt $(DIALYZER_PLT) \
+		 -Wunderspecs -Woverspecs \
+		| tee $(DIALYZER_LOG)
+
+$(DIALYZER_PLT):
+	dialyzer --build_plt --output_plt $(DIALYZER_PLT) \
+		--apps erts kernel stdlib runtime_tools xmerl inets
+
+dialyzer_clean:
+	rm -f $(DIALYZER_PLT) $(DIALYZER_LOG)
 
 test:
 	cd test && $(MAKE) all
