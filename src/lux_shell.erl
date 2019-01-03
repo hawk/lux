@@ -603,18 +603,24 @@ shell_eval(#cstate{name = Name} = C0,
             lux_utils:progress_write(C#cstate.progress, dequote(String)),
             C#cstate{events = save_event(C, progress, String)};
         change_timeout ->
+            CaseTimeout = C#cstate.case_timeout,
+            SuiteTimeout = C#cstate.suite_timeout,
             Millis = Arg,
             OldWarnings = C#cstate.warnings,
             NewWarnings =
                 if
+                    Millis =:= infinity,
+                    CaseTimeout =:= infinity,
+                    SuiteTimeout =:= infinity ->
+                        clog(C, change, "expect timeout to infinity", []),
+                        W = make_warning(C, "Infinite timer"),
+                        [W | OldWarnings];
                     Millis =:= infinity ->
                         clog(C, change, "expect timeout to infinity", []),
                         OldWarnings;
                     is_integer(Millis) ->
                         clog(C, change, "expect timeout to ~p seconds",
                              [Millis div ?ONE_SEC]),
-                        CaseTimeout = C#cstate.case_timeout,
-                        SuiteTimeout = C#cstate.suite_timeout,
                         if
                             is_integer(CaseTimeout),
                             Millis > CaseTimeout ->
@@ -1231,21 +1237,24 @@ cancel_timer(#cstate{match_timeout = MaxTimeout,
                      warnings = OldWarnings} = C) ->
     ElapsedTime = timer:now_diff(lux_utils:timestamp(), Earlier),
     clog(C, timer, "canceled (after ~p micro seconds)", [ElapsedTime]),
-    Threshold = erlang:trunc(multiply(C,
-                                      MaxTimeout*?ONE_SEC) * ?TIMER_THRESHOLD),
     NewWarnings =
         if
             Timer =:= infinity ->
-                W = make_warning(C, "Infinite timer"),
-                [W | OldWarnings];
-            ElapsedTime > Threshold ->
-                flush_timer(Timer),
-                Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
-                W = make_warning(C, "Risky timer > " ++ Percent ++ "% of max"),
-                [W | OldWarnings];
-            true ->
-                flush_timer(Timer),
-                OldWarnings
+                OldWarnings;
+            is_reference(Timer) ->
+                M = MaxTimeout*?ONE_SEC,
+                Threshold = erlang:trunc(multiply(C, M) * ?TIMER_THRESHOLD),
+                if
+                    ElapsedTime > Threshold ->
+                        flush_timer(Timer),
+                        Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
+                        W = make_warning(C, "Risky timer > " ++
+                                             Percent ++ "% of max"),
+                        [W | OldWarnings];
+                    true ->
+                        flush_timer(Timer),
+                        OldWarnings
+                end
         end,
     C#cstate{idle_count = 0,
              timer = undefined,

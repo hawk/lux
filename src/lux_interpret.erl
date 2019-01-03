@@ -1441,7 +1441,11 @@ expand_vars(#istate{active_shell  = Shell,
                match_timeout = Millis,
                fail_pattern = FailPattern,
                success_pattern = SuccessPattern} ->
-            Secs = Millis div ?ONE_SEC,
+            Secs =
+                case Millis of
+                    infinity -> infinity;
+                    _        ->  Millis div ?ONE_SEC
+                end,
             BuiltinLocalVars =
                 [
                  lists:flatten("LUX_TIMEOUT=",
