@@ -635,7 +635,7 @@ shrink_lines(Lines) ->
                 [T1, T2, T3, _T4, _T5, _T6 | TT] ->
                     Len = ?l2b(?i2l(length(TT)+3)),
                     [H1, H2, H3,
-                     <<"... ", Len/binary," lines not shown...">>,
+                     <<"... ", Len/binary," common lines not shown...">>,
                      T3, T2, T1];
                 _ ->
                     Lines
