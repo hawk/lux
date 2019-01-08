@@ -954,27 +954,30 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
     I2 = I#istate{results = [Res | Acc],
                   debug_level = NewLevel, % Activate debug after first error
                   cleanup_reason = CleanupReason},
-    {ShellName, I3} = delete_shell(I2, Pid),
+    {Health, ShellName, I3} = delete_shell(I2, Pid),
     OldMode = I3#istate.mode,
     ?TRACE_ME2(50, 'case', prepare_stop,
                [{mode, OldMode},
-                {stop, ShellName, Res#result.outcome, Res#result.actual},
+                {stop, Res#result.outcome, Res#result.actual},
+                {shell, ShellName, Health},
                 {active_shell, I3#istate.active_shell},
                 {shells, I3#istate.shells},
                 Res]),
-    case {OldMode, Res#result.outcome} of
-        {_Mode, relax} ->
+    case {OldMode, Res#result.outcome, Health} of
+        {_Mode, _Outcome, zombie} ->
             I3;
-        {_Mode, shutdown} ->
+        {_Mode, relax, _} ->
             I3;
-        {running, _Outcome} ->
+        {_Mode, shutdown, _} ->
+            I3;
+        {running, _Outcome, _} ->
             multicast(I3, {relax, self()}),
             goto_cleanup(I3);
-        {cleanup, _Outcome} ->
+        {cleanup, _Outcome, _} ->
             %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I3, {shutdown, self()}),
             I3#istate{mode = mode(OldMode, stopping)};
-        {stopping, _Outcome} ->
+        {stopping, _Outcome, _} ->
             %% Shutdown has already been sent to the other shells.
             %% Continue to collect their states if needed.
             I3
@@ -1148,17 +1151,17 @@ zombify_shells(I, Cmd) ->
 delete_shell(#istate{active_shell=ActiveShell, shells=OldShells} = I, Pid) ->
     case lists:keyfind(Pid, #shell.pid, [ActiveShell | OldShells]) of
         false ->
-            {Pid, I};
-        #shell{ref = Ref, name = Name} ->
+            {dead, Pid, I};
+        #shell{ref = Ref, name = Name, health = Health} ->
             erlang:demonitor(Ref, [flush]),
-            if
-                Pid =:= ActiveShell#shell.pid ->
-                    I2 = inactivate_shell(I, delete),
-                    {Name, I2#istate{shells = OldShells}};
-                true ->
-                    NewShells = lists:keydelete(Pid, #shell.pid, OldShells),
-                    {Name, I#istate{shells = NewShells}}
-            end
+            {I2, NewShells} =
+                if
+                    Pid =:= ActiveShell#shell.pid ->
+                        {inactivate_shell(I, delete), OldShells};
+                    true ->
+                        {I, lists:keydelete(Pid, #shell.pid, OldShells)}
+                end,
+            {Health, Name, I2#istate{shells = NewShells}}
     end.
 
 multicast(#istate{shells = OtherShells, active_shell = no_shell}, Msg) ->
