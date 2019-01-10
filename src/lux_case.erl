@@ -261,6 +261,8 @@ config_type(Name) ->
             {ok, #istate.unstable, [{std_list, [string]}]};
         unstable_unless ->
             {ok, #istate.unstable_unless, [{std_list, [string]}]};
+        skip_skip ->
+            {ok, #istate.skip_skip, [{atom, [true, false]}]};
         require ->
             {ok, #istate.require, [{std_list, [string]}]};
         case_prefix ->
@@ -627,7 +629,10 @@ unstable_warnings(#istate{unstable=U,
     UnstableUnless = lists:zf(fun(Val) -> F("unstable_unless", Val) end, UU),
     Unstable ++ UnstableUnless.
 
-filter_unstable(#istate{orig_file = File} = I, FullLineNo, Var, NameVal) ->
+filter_unstable(#istate{skip_skip = true}, _FullLineNo, _Var, _NameVal) ->
+    false;
+filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
+                FullLineNo, Var, NameVal) ->
     case Var of
         "unstable" ->
             {IsSet, Name, Val} = test_var(I, NameVal),
@@ -744,6 +749,7 @@ user_config_keys() ->
      skip_unless,
      unstable_unless,
      unstable,
+     skip_skip,
      require,
      case_prefix,
      progress,

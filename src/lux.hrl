@@ -148,6 +148,7 @@
          skip_unless = []           :: [string()],
          unstable = []              :: [string()],
          unstable_unless = []       :: [string()],
+         skip_skip = false          :: boolean(),
          require = []               :: [string()],
          case_prefix = ""           :: string(),
          config_dir = undefined     :: undefined | string(),

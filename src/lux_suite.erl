@@ -801,7 +801,8 @@ parse_script(R, _SuiteFile, Script) ->
             LogFun = fun(Bin) -> lux_log:safe_write(LogFd, Bin) end,
             InternalArgs = [{log_dir, LogDir},
                             {log_fun, LogFun},
-                            {log_fd,  LogFd}],
+                            {log_fd,  LogFd},
+                            {skip_skip, R#rstate.skip_skip}],
             R3 = R2#rstate{internal_args = InternalArgs},
             MergeArgs = fun(A, Acc) ->
                                 O = args_to_opts(A, case_style, []),
