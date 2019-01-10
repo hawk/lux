@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.19.1 - 2018-11-20</p>
+<p>Version 1.19.2 - 2019-01-10</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -361,13 +361,21 @@ there are no more commands to evaluate.</p>
 <p><strong>@</strong> <br />
 <strong>@Regexp</strong> <br />
 Sets a loop break pattern for a shell to a regular expression (see
-<a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>). This statement is only valid in loops. Even
-in nested loops. It is typically used to match output from a poll like
-command. When the given <code>Regexp</code> matches, the loop is immediately
-exited. The execution continues with the first statement after the
-loop. The test case fails if the loop is exited before the break
-pattern is matched. If no <code>Regexp</code> is given, the loop break pattern is
-reset (cleared).</p>
+<a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>). This statement is only valid in loops. It
+is typically used to match output from a poll like command which is
+executed over and over again and after a while the command causes some
+output that will match the break pattern.  When the given <code>Regexp</code>
+matches, the loop (and all nested loops) is immediately exited and the
+execution continues with the first statement after the loop.</p>
+
+<p>The break pattern is only searched for when the script explicitly is
+expecting some output. That is when a command like <code>?</code>, <code>??</code> or <code>???</code>
+is evaluated. It may be a prompt or whatever, indicating that the poll
+like command has produced all output that may match the break pattern.</p>
+
+<p>A loop with a break pattern can only exit by a successful match of the
+break pattern. If the loop exits anyway it will cause the test case to
+fail. Unless the loop break pattern is reset (cleared).</p>
 
 <p><strong>[endshell]</strong> <br />
 <strong>[endshell Regexp]</strong>
@@ -470,18 +478,23 @@ Declare a loop. The body of the loop consists of all lines up to the
 next <code>[endloop]</code> line. The commands within the loop are repeated for
 each item. For each iteration the loop variable <code>Var</code> is set to the
 value of the current <code>Item</code>. The scope of the loop variable is the
-same as a macro variable (defined with <code>my</code>). The <code>Item</code> list may
-contain variables and these are expanded before the first iteration.
-Items in the expanded list are separated with spaces. For example
-<code>[loop colors blue red green]</code>. When iterating over a set of
-consecutive integers, such as <code>[loop iter 4 5 6 7 8 9]</code>, this can be
-written as a range expression, like <code>[loop iter 4..9]</code>. In the logs
-the iteration counter is represented as a negative line number. For
-example "8:-2:10" would mean line 10 in the second loop iteration
-where the loop starts at line 8. By default the increment is 1. A
-custom increment can also be set with the construct <code>from..to..incr</code>,
-such as <code>[loop iter 4..9..2]</code>. This would be the same as <code>[loop iter 4
-6 8]</code>. <code>[loop iter 9..4..2]</code> would be the same as <code>[loop iter 9 7 5]</code>.</p>
+same as a macro variable (defined with <code>my</code>).</p>
+
+<p>The <code>Item</code> list may contain variables and these are expanded before
+the first iteration.  Items in the expanded list are separated with
+spaces. For example <code>[loop color blue red green]</code> or
+<code>[loop color blue $more]</code> where <code>more</code> is set to <code>"red green"</code>.</p>
+
+<p>When iterating over a set of consecutive integers, such as
+<code>[loop iter 4 5 6 7 8 9]</code>, this can be written as a range expression,
+like <code>[loop iter 4..9]</code>. By default the increment is 1. A custom
+increment can also be set with the construct <code>from..to..incr</code>, such as
+<code>[loop iter 4..9..2]</code>. This would be the same as <code>[loop iter 4 6
+8]</code>. <code>[loop iter 9..4..2]</code> would be the same as <code>[loop iter 9 7 5]</code>.</p>
+
+<p>In the logs the iteration counter is represented as a negative line
+number. For example "8:-2:10" would mean line 10 in the second loop
+iteration where the loop starts at line 8.</p>
 
 <h3>Variables</h3>
 

@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.19.1 - 2018-11-20
+Version 1.19.2 - 2019-01-10
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -354,13 +354,21 @@ there are no more commands to evaluate.
 **@**  
 **@Regexp**  
 Sets a loop break pattern for a shell to a regular expression (see
-[regular expression][]). This statement is only valid in loops. Even
-in nested loops. It is typically used to match output from a poll like
-command. When the given `Regexp` matches, the loop is immediately
-exited. The execution continues with the first statement after the
-loop. The test case fails if the loop is exited before the break
-pattern is matched. If no `Regexp` is given, the loop break pattern is
-reset (cleared).
+[regular expression][]). This statement is only valid in loops. It
+is typically used to match output from a poll like command which is
+executed over and over again and after a while the command causes some
+output that will match the break pattern.  When the given `Regexp`
+matches, the loop (and all nested loops) is immediately exited and the
+execution continues with the first statement after the loop.
+
+The break pattern is only searched for when the script explicitly is
+expecting some output. That is when a command like `?`, `??` or `???`
+is evaluated. It may be a prompt or whatever, indicating that the poll
+like command has produced all output that may match the break pattern.
+
+A loop with a break pattern can only exit by a successful match of the
+break pattern. If the loop exits anyway it will cause the test case to
+fail. Unless the loop break pattern is reset (cleared).
 
 **\[endshell\]**  
 **\[endshell Regexp\]**
@@ -463,18 +471,23 @@ Declare a loop. The body of the loop consists of all lines up to the
 next `[endloop]` line. The commands within the loop are repeated for
 each item. For each iteration the loop variable `Var` is set to the
 value of the current `Item`. The scope of the loop variable is the
-same as a macro variable (defined with `my`). The `Item` list may
-contain variables and these are expanded before the first iteration.
-Items in the expanded list are separated with spaces. For example
-`[loop colors blue red green]`. When iterating over a set of
-consecutive integers, such as `[loop iter 4 5 6 7 8 9]`, this can be
-written as a range expression, like `[loop iter 4..9]`. In the logs
-the iteration counter is represented as a negative line number. For
-example "8:-2:10" would mean line 10 in the second loop iteration
-where the loop starts at line 8. By default the increment is 1. A
-custom increment can also be set with the construct `from..to..incr`,
-such as `[loop iter 4..9..2]`. This would be the same as `[loop iter 4
-6 8]`. `[loop iter 9..4..2]` would be the same as `[loop iter 9 7 5]`.
+same as a macro variable (defined with `my`).
+
+The `Item` list may contain variables and these are expanded before
+the first iteration.  Items in the expanded list are separated with
+spaces. For example `[loop color blue red green]` or
+`[loop color blue $more]` where `more` is set to `"red green"`.
+
+When iterating over a set of consecutive integers, such as
+`[loop iter 4 5 6 7 8 9]`, this can be written as a range expression,
+like `[loop iter 4..9]`. By default the increment is 1. A custom
+increment can also be set with the construct `from..to..incr`, such as
+`[loop iter 4..9..2]`. This would be the same as `[loop iter 4 6
+8]`. `[loop iter 9..4..2]` would be the same as `[loop iter 9 7 5]`.
+
+In the logs the iteration counter is represented as a negative line
+number. For example "8:-2:10" would mean line 10 in the second loop
+iteration where the loop starts at line 8.
 
 ###Variables###
 
