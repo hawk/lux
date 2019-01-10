@@ -1715,7 +1715,7 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2018_11_19_18_45_19_648788/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summary.log
 >     test case         : examples/calc.lux
 >     progress          : ..:..:..:...:..:.:.:....:..:.:..:..(....:..:.:.:...)(.:.:..:..)...:..:.:..:..(.:.:..:..)..(.:..:..)(....:.:..:...)(.:.:..:..)..(.:.:..:..)......:..:.........
 >     result            : SUCCESS
@@ -1781,7 +1781,7 @@ Evaluate `lux examples`
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require.lux:3 - FAIL as required variable MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2018_11_19_18_45_19_648788/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
