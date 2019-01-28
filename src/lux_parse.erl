@@ -360,21 +360,23 @@ parse_oper(P, Fd, LineNo, OrigLine) ->
 
 parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
     case Type of
-        send when SubType =:= lf   -> Cmd#cmd{arg = <<Data/binary, "\n">>};
-        send when SubType =:= nolf -> Cmd#cmd{arg = Data};
-        expect when Data =:= <<>>  -> parse_regexp(Cmd, SubType, reset, single);
-        expect                     -> parse_regexp(Cmd, SubType, Data,  multi);
-        expect_add                 -> parse_regexp(Cmd, SubType, Data,  multi);
-        expect_add_strict          -> parse_regexp(Cmd, SubType, Data,  multi);
-        fail when Data =:= <<>>    -> parse_regexp(Cmd, SubType, reset, single);
-        fail                       -> parse_regexp(Cmd, SubType, Data,  single);
-        success when Data =:= <<>> -> parse_regexp(Cmd, SubType, reset, single);
-        success                    -> parse_regexp(Cmd, SubType, Data,  single);
-        break when Data =:= <<>>   -> parse_regexp(Cmd, SubType, reset, single);
-        break                      -> parse_regexp(Cmd, SubType, Data,  single);
-%%      meta                       -> Cmd;
-%%      multi                      -> Cmd;
-        comment                    -> Cmd
+        send when SubType =:= lf         -> Cmd#cmd{arg = <<Data/binary, "\n">>};
+        send when SubType =:= nolf       -> Cmd#cmd{arg = Data};
+        expect when Data =:= <<>>        -> regexp(Cmd, SubType, reset, single);
+        expect when SubType =:= verbatim -> regexp(Cmd, SubType, Data,  single);
+        expect when SubType =:= template -> regexp(Cmd, SubType, Data,  single);
+        expect when SubType =:= regexp   -> regexp(Cmd, SubType, Data,  multi);
+        expect_add                       -> regexp(Cmd, SubType, Data,  multi);
+        expect_add_strict                -> regexp(Cmd, SubType, Data,  multi);
+        fail when Data =:= <<>>          -> regexp(Cmd, SubType, reset, single);
+        fail                             -> regexp(Cmd, SubType, Data,  single);
+        success when Data =:= <<>>       -> regexp(Cmd, SubType, reset, single);
+        success                          -> regexp(Cmd, SubType, Data,  single);
+        break when Data =:= <<>>         -> regexp(Cmd, SubType, reset, single);
+        break                            -> regexp(Cmd, SubType, Data,  single);
+%%      meta                             -> Cmd;
+%%      multi                            -> Cmd;
+        comment                          -> Cmd
     end.
 
 %% Arg :: reset                               |
@@ -387,11 +389,13 @@ parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
 %% regexp()      :: binary()
 %% multi()       :: [{Name::binary(), regexp(), AlternateCmd::#cmd{}}]
 
-parse_regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
+regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
     if
-        RegExp =:= reset, RegExpOper =:= single ->
+        RegExp =:= reset ->
+            RegExpOper = single, % Assert
             Cmd#cmd{arg = reset};
-        Type =:= expect_add_strict; Type =:= expect_add ->
+        Type =:= expect_add_strict orelse Type =:= expect_add ->
+            RegExpOper = multi, % Assert
             Cmd#cmd{type = expect, arg = {RegExpType, Type, RegExp}};
         true ->
             Cmd#cmd{arg = {RegExpType, RegExpOper, RegExp}}

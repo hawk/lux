@@ -510,21 +510,39 @@ shell_eval(#cstate{name = Name} = C0,
             dlog(C, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
             C2 = start_timer(C),
             C2#cstate{state_changed = true, expected = Cmd};
-        expect when element(2, Arg) =:= expect_add;
+        expect when element(2, Arg) =:= expect_add orelse
                     element(2, Arg) =:= expect_add_strict ->
             %% Add alternate regexp
             Tag = element(2, Arg),
             {_, RegExp} = extract_regexp(Arg),
             clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             dlog(C, ?dmore, "expected=regexp (~p)", [Tag]),
-            if
-                element(2, (hd(C#cstate.pre_expected))#cmd.arg) =/= Tag ->
+            PreExpected = C#cstate.pre_expected,
+            case PreExpected of
+                [H|_T] when element(2, H#cmd.arg) =/= Tag ->
                     Err = ?FF("Illegal syntax: "
                               "?+ cannot be mixed with ?++\n", []),
                     stop(C, error, ?l2b(Err));
-                true ->
-                    C#cstate{pre_expected = [Cmd | C#cstate.pre_expected]}
+                _ ->
+                    C#cstate{pre_expected = [Cmd | PreExpected]}
             end;
+        expect when element(2, Arg) =:= multi andalso
+                    C#cstate.pre_expected =/= [] ->
+            %% Multiple regexps
+            Prev = hd(C#cstate.pre_expected),
+            PrevTag = element(2, Prev#cmd.arg),
+            {_, RegExp} = extract_regexp(Arg),
+            clog(C, PrevTag, "\"~s\"", [lux_utils:to_string(RegExp)]),
+            PreExpected = C#cstate.pre_expected,
+            {ok, NewCmd, NewRegExp} =
+                rebuild_multi_regexps(C, [Cmd | PreExpected]),
+            clog(C, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
+            dlog(C, ?dmore, "expected=regexp (expect)", []),
+            C2 = start_timer(C),
+            C2#cstate{latest_cmd = NewCmd,
+                      state_changed = true,
+                      expected = NewCmd,
+                      pre_expected = []};
         expect when C#cstate.expected =:= undefined andalso
                     C#cstate.pre_expected =:= [] ->
             %% Single regexp
@@ -534,21 +552,12 @@ shell_eval(#cstate{name = Name} = C0,
             dlog(C, ?dmore, "expected=regexp (expect)", []),
             C2 = start_timer(C),
             C2#cstate{state_changed = true, expected = Cmd};
-        expect when element(2, Arg) =:= multi,
+        expect when element(2, Arg) =:= single andalso
                     C#cstate.pre_expected =/= [] ->
-            %% Multiple regexps
-            Tag = element(2, (hd(C#cstate.pre_expected))#cmd.arg),
-            {_, RegExp} = extract_regexp(Arg),
-            clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
-            PreExpected = [Cmd | C#cstate.pre_expected],
-            {ok, NewCmd, NewRegExp} = rebuild_multi_regexps(C, PreExpected),
-            clog(C, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
-            dlog(C, ?dmore, "expected=regexp (expect)", []),
-            C2 = start_timer(C),
-            C2#cstate{latest_cmd = NewCmd,
-                      state_changed = true,
-                      expected = NewCmd,
-                      pre_expected = []};
+            %% Single regexp
+            Err = ?FF("Illegal syntax: Pending ?+."
+                      " Must be ended with ?.\n", []),
+            stop(C, error, ?l2b(Err));
         fail ->
             PatCmd =
                 if
@@ -643,9 +652,9 @@ shell_eval(#cstate{name = Name} = C0,
         cleanup ->
             cleanup(C);
         Unexpected ->
-            clog(C, shell_got_msg, "~p\n", [element(1, Unexpected)]),
-            Err = ?FF("[shell ~s] got cmd with type ~p ~p\n",
-                      [Name, Unexpected, Arg]),
+            clog(C, shell_got_msg, "~p", [Unexpected]),
+            Err = ?FF("[shell ~s] got cmd with type ~p\n\t~p\n",
+                      [Name, Unexpected, Cmd]),
             stop(C, error, ?l2b(Err))
     end.
 

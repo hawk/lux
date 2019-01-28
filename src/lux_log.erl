@@ -665,8 +665,9 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
     end.
 
 do_scan_events(EventLog, EventSections, WWW) ->
-    EventSections2 = [binary:split(S, <<"\n">>, [global]) ||
-                         S <- EventSections],
+    EventSections2 =
+        [binary:split(S, <<"\n">>, [global]) ||
+            S <- EventSections],
     case EventSections2 of
         [[ScriptBin], EventBins, ResultBins] -> ok;
         [[ScriptBin], ResultBins]            -> EventBins = []
