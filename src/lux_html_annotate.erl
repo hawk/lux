@@ -187,7 +187,7 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
      lux_html_utils:html_footer()
     ].
 
-html_summary_result(A, {result, Summary, Sections}, Groups, IsTmp) ->
+html_summary_result(A, {result_summary, Summary, Sections}, Groups, IsTmp) ->
     %% io:format("Sections: ~p\n", [Sections]),
     ResultString = choose_tmp(IsTmp, "Preliminary ", "Final "),
     PrelScriptSection =
@@ -773,7 +773,18 @@ html_timer_data(L, Data) ->
      "\">", Pretty, "</a>"
     ].
 
-html_result(Tag, {result, Result}, HtmlLog) ->
+html_result(Tag, {warnings_and_result, Warnings, Result}, HtmlLog) ->
+    PrettyWarnings =
+        [["\n<", Tag,
+          "><strong>Warning at line ", W, "</strong></",
+          Tag, ">\n"] ||
+            W <- Warnings],
+    [
+     PrettyWarnings,
+     html_result2(Tag, Result, HtmlLog)
+    ].
+
+html_result2(Tag, Result, HtmlLog) ->
     case Result of
         success ->
             ["\n<", Tag, ">Result: <strong>SUCCESS</strong></", Tag, ">\n"];
@@ -798,7 +809,7 @@ html_result(Tag, {result, Result}, HtmlLog) ->
              html_div(<<"event">>, lux_utils:expand_lines(Reason))
             ];
         {How, RawLineNo, ShellName, ExpectedTag, Expected, Actual, Details}
-          when How =:= fail; How =:= warning ->
+          when How =:= fail orelse How =:= warning ->
             HtmlDiff = html_diff(ExpectedTag, Expected, Details),
             Anchor = RawLineNo,
             [

@@ -23,8 +23,8 @@
 -include_lib("kernel/include/file.hrl").
 -include("lux.hrl").
 
--define(SUMMARY_LOG_VERSION, <<"0.2">>).
--define(EVENT_LOG_VERSION,   <<"0.1">>).
+-define(SUMMARY_LOG_VERSION, <<"0.3">>).
+-define(EVENT_LOG_VERSION,   <<"0.3">>).
 -define(CONFIG_LOG_VERSION,  <<"0.1">>).
 -define(RESULT_LOG_VERSION,  <<"0.1">>).
 
@@ -98,7 +98,7 @@ parse_summary_log(SummaryLog, WWW) when is_list(SummaryLog) ->
     parse_summary_log(Source, WWW);
 parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
     try
-        do_parse_summary_log(Source, WWW)
+        try_parse_summary_log(Source, WWW)
     catch
         ?CATCH_STACKTRACE(error, Reason, EST)
             ReasonStr =
@@ -109,30 +109,16 @@ parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
             {{error, SummaryLog, ReasonStr}, WWW}
     end.
 
-do_parse_summary_log(#source{file=SummaryLog}, WWW) ->
+try_parse_summary_log(#source{file=SummaryLog}, WWW) ->
     {ReadRes, NewWWW} = read_log(SummaryLog, ?SUMMARY_TAG, WWW),
     Res =
         case ReadRes of
             {ok, ?SUMMARY_LOG_VERSION, Sections} ->
                 %% Latest version
-                LogDir = filename:dirname(SummaryLog),
-                ConfigLog = lux_utils:join(LogDir, ?SUITE_CONFIG_LOG),
-                {{ok, RawConfig}, NewWWW} = scan_config(ConfigLog, NewWWW),
-                SummaryConfig = parse_config(RawConfig),
-                {{ok, Result}, NewWWW} = parse_summary_result(LogDir, NewWWW),
-                {Cases, EventLogs} = split_cases(Sections, [], []),
-                Ctime =
-                    case lux_utils:is_url(SummaryLog) of
-                        true ->
-                            <<"remote">>;
-                        false ->
-                            {ok, FI} = file:read_file_info(SummaryLog),
-                            Ctime0 = FI#file_info.ctime,
-                            ?l2b(lux_utils:datetime_to_string(Ctime0))
-                    end,
-                {ok,
-                 Result,
-                 [{test_group, "", Cases}], SummaryConfig, Ctime, EventLogs};
+                do_parse_summary_log(SummaryLog, Sections, NewWWW);
+            {ok, <<"0.2">>, Sections} ->
+                %% Prev version without warnings
+                do_parse_summary_log(SummaryLog, Sections, NewWWW);
             {ok, Version, _Sections} ->
                 {error, SummaryLog,
                  "Illegal summary log version: " ++ ?b2l(Version)};
@@ -140,6 +126,26 @@ do_parse_summary_log(#source{file=SummaryLog}, WWW) ->
                 {error, SummaryLog, FileReason}
         end,
     {Res, NewWWW}.
+
+do_parse_summary_log(SummaryLog, Sections, NewWWW) ->
+    LogDir = filename:dirname(SummaryLog),
+    ConfigLog = lux_utils:join(LogDir, ?SUITE_CONFIG_LOG),
+    {{ok, RawConfig}, NewWWW} = scan_config(ConfigLog, NewWWW),
+    SummaryConfig = parse_config(RawConfig),
+    {{ok, Result}, NewWWW} = parse_summary_result(LogDir, NewWWW),
+    {Cases, EventLogs} = split_cases(Sections, [], []),
+    Ctime =
+        case lux_utils:is_url(SummaryLog) of
+            true ->
+                <<"remote">>;
+            false ->
+                {ok, FI} = file:read_file_info(SummaryLog),
+                Ctime0 = FI#file_info.ctime,
+                ?l2b(lux_utils:datetime_to_string(Ctime0))
+        end,
+    {ok,
+     Result,
+     [{test_group, "", Cases}], SummaryConfig, Ctime, EventLogs}.
 
 read_log(Log, ExpectedTag, WWW) when is_list(Log) ->
     {FetchRes, NewWWW} = fetch_log(Log, WWW),
@@ -223,7 +229,7 @@ split_result([Result]) ->
     [_, Summary2] = binary:split(Summary, <<": ">>),
     Lines2 = lists:reverse(Rest),
     Sections = split_result2(Lines2, []),
-    {result, Summary2, Sections}.
+    {result_summary, Summary2, Sections}.
 
 split_result2([Heading | Lines], Acc) ->
     [Slogan, Count] = binary:split(Heading, <<": ">>),
@@ -364,9 +370,11 @@ do_parse_run_summary(Source, File, Res, Opts) ->
                                     Suite, RunId, ReposRev, Case) ||
                         {test_group, _Group, Cases} <- Groups,
                         Case <- Cases],
+            {RunWarnings, RunResult} = run_result(Result),
             R#run{test        = Suite,
                   id          = RunId,
-                  result      = run_result(Result),
+                  result      = RunResult,
+                  warnings    = RunWarnings,
                   start_time  = StartTime,
                   branch      = Branch,
                   hostname    = HostName,
@@ -411,9 +419,11 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
        is_list(AbsName), is_list(AbsEventLog) ->
     RelEventLog = lux_utils:drop_prefix(RunLogDir, AbsEventLog),
     RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
+    {RunWarnings, RunResult} = run_result(CaseRes),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
-         result = run_result(CaseRes),
+         result = RunResult,
+         warnings = RunWarnings,
          log = RelEventLog,
          start_time = StartTime,
          branch = Branch,
@@ -431,9 +441,11 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
   when is_list(RunDir), is_list(RunLogDir),
        is_list(AbsName) ->
     RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
-   #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
+    {RunWarnings, RunResult} = run_result(Res),
+    #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
-         result = run_result(Res),
+         result = RunResult,
+         warnings = RunWarnings,
          start_time = StartTime,
          branch = Branch,
          hostname = Host,
@@ -444,11 +456,14 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          repos_rev = ReposRev,
          details = []}.
 
-run_result({result, Res, _}) ->
-    run_result(Res);
-run_result({result, Res}) ->
-    run_result(Res);
-run_result(Res) ->
+run_result({result_summary, Res, _Sections}) ->
+    {[], run_result2(Res)};
+run_result(Res) when is_binary(Res) ->
+    {[], run_result2(Res)};
+run_result({warnings_and_result, Warnings, Res}) ->
+    {Warnings, run_result2(Res)}.
+
+run_result2(Res) ->
     case Res of
         success                               -> success;
         warning                               -> warning;
@@ -655,6 +670,10 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
     {ReadRes, NewWWW} = read_log(EventLog, ?EVENT_TAG, WWW),
     case ReadRes of
         {ok, ?EVENT_LOG_VERSION, Sections} ->
+            %% Latest version
+            do_scan_events(EventLog, Sections, NewWWW);
+        {ok, <<"0.2">>, Sections} ->
+            %% Prev version without warnings
             do_scan_events(EventLog, Sections, NewWWW);
         {ok, Version, _Sections} ->
             {{error, EventLog,
@@ -664,11 +683,9 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
             {{error, EventLog, FileReason}, NewWWW}
     end.
 
-do_scan_events(EventLog, EventSections, WWW) ->
-    EventSections2 =
-        [binary:split(S, <<"\n">>, [global]) ||
-            S <- EventSections],
-    case EventSections2 of
+do_scan_events(EventLog, ES, WWW) ->
+    EventSections = [binary:split(S, <<"\n">>, [global]) || S <- ES],
+    case EventSections of
         [[ScriptBin], EventBins, ResultBins] -> ok;
         [[ScriptBin], ResultBins]            -> EventBins = []
     end,
@@ -984,12 +1001,24 @@ parse_io_logs([<<>>], Acc) ->
 parse_io_logs([], Acc) ->
     lists:reverse(Acc).
 
+parse_result([<<>> |  RawResult]) ->
+    parse_result(RawResult);
 parse_result(RawResult) ->
-    case RawResult of
-        [<<>>, LongResult | Rest] -> ok;
-        [LongResult | Rest]       -> ok
-    end,
-    [_, Result] = binary:split(LongResult, <<": ">>),
+    Pred =
+        fun(R) ->
+                case R of
+                    <<"warning", _/binary>> -> true;
+                       _                       -> false
+                end
+        end,
+    {LongWarnings, [LongResult|Rest]} = lists:splitwith(Pred, RawResult),
+    Split =
+        fun(R) ->
+                [_Tag, Val] = binary:split(R, <<": ">>),
+                Val
+        end,
+    Warnings = lists:map(Split, LongWarnings),
+    Result = Split(LongResult),
     R =
         case Result of
             <<"SUCCESS">> ->
@@ -1057,7 +1086,7 @@ parse_result(RawResult) ->
                 {error, [Fail]}
         end,
     %% io:format("Result: ~p\n", [R]),
-    {result, R}.
+    {warnings_and_result, Warnings, R}.
 
 split_quoted_lines(<<Chop:10000/binary, Rest/binary>>) ->
     Sz = ?i2b(byte_size(Rest)),

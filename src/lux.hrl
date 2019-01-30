@@ -206,8 +206,8 @@
 -record(run,
         {test = ?DEFAULT_SUITE
                       :: binary(),              % [prefix "::"] suite [":" case]
-         result = fail
-                      :: success | warning | skip | fail,
+         result = fail :: success | warning | skip | fail,
+         warnings = undefined :: undefined | [binary()],
          id = ?DEFAULT_RUN
                       :: binary(),              % --run
          log = ?DEFAULT_LOG

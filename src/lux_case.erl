@@ -209,10 +209,20 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     FullLineNo = lux_utils:full_lineno(I#istate.file,
                                        I#istate.latest_cmd,
                                        I#istate.cmd_stack),
-    double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
+    RunWarnings = I#istate.warnings,
     UnstableWarnings = unstable_warnings(I),
+    print_warnings(I, RunWarnings, UnstableWarnings),
+    double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
     {error, I#istate.file, FullLineNo, I#istate.case_log_dir,
-     I#istate.warnings, UnstableWarnings, ReasonBin}.
+     RunWarnings, UnstableWarnings, ReasonBin}.
+
+print_warnings(I, RunWarnings, UnstableWarnings) ->
+    P = fun(#warning{lineno=FullLineNo, details=Details}) ->
+                double_ilog(I, "~s~s: ~s\n",
+                            [?TAG("warning"), FullLineNo, Details])
+        end,
+    lists:foreach(P, RunWarnings),
+    lists:foreach(P, UnstableWarnings).
 
 parse_iopts(I, Opts) ->
     {Res, _U} = do_parse_iopts(I, Opts, []),
@@ -500,10 +510,11 @@ cleanup_fail(I, Reason) ->
 print_success(I, File, UnstableWarnings) ->
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = ?i2l(LatestCmd#cmd.lineno),
-    Warnings = I#istate.warnings,
+    RunWarnings = I#istate.warnings,
+    print_warnings(I, RunWarnings, UnstableWarnings),
     Outcome =
         if
-            Warnings =/= [] ->
+            RunWarnings =/= [] ->
                 double_ilog(I, "~sWARNING\n", [?TAG("result")]),
                 warning;
             true ->
@@ -512,7 +523,7 @@ print_success(I, File, UnstableWarnings) ->
         end,
     Results = [],
     {ok, Outcome, File, FullLineNo, I#istate.case_log_dir,
-     Warnings, UnstableWarnings, Results,
+     RunWarnings, UnstableWarnings, Results,
      <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
 print_fail(OldI0, NewI, File, Results,
@@ -534,17 +545,17 @@ print_fail(OldI0, NewI, File, Results,
                          R <- Results,
                          R#result.outcome =:= fail,
                          R =/= Fail],
-    {Outcome, NewWarnings, ResStr} =
+    RunWarnings = OldWarnings ++ HiddenWarnings,
+    print_warnings(NewI, RunWarnings, UnstableWarnings),
+    {Outcome, ResStr} =
         if
             UnstableWarnings =/= [] ->
                 {warning,
-                 OldWarnings ++ HiddenWarnings ++ UnstableWarnings,
                  double_ilog(OldI, "~sWARNING at ~s in shell ~s\n",
                              [?TAG("result"), FullLineNo, ShellName])
                 };
             true ->
                 {fail,
-                 OldWarnings ++ HiddenWarnings,
                  double_ilog(OldI, "~sFAIL at ~s in shell ~s\n",
                              [?TAG("result"), FullLineNo, ShellName])
                 }
@@ -567,7 +578,7 @@ print_fail(OldI0, NewI, File, Results,
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
     NewResults = [Fail],
     {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir,
-     NewWarnings, UnstableWarnings, NewResults,
+     RunWarnings, UnstableWarnings, NewResults,
      FailBin, Opaque}.
 
 new_actual(Actual, Expected, Rest) when is_atom(Expected) ->

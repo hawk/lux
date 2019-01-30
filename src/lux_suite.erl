@@ -585,13 +585,13 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     SkipReason = "",
                     case Res of
                         {ok, Summary, _, FullLineNo, CaseLogDir,
-                         RunWarnings, _UnstableWarnings, Events,
+                         RunWarnings, UnstableWarnings, Events,
                          Details, NewOpaque} ->
                             NewRes = {ok, Summary, Script, FullLineNo,
                                       CaseLogDir, Events, Details, Opaque},
                             NewScripts = Scripts;
                         {error, MainFile, FullLineNo, CaseLogDir,
-                         RunWarnings, _UnstableWarnings, Details} ->
+                         RunWarnings, UnstableWarnings, Details} ->
                             Summary = error,
                             NewOpaque = Opaque,
                             NewRes = {error, MainFile, FullLineNo, Details},
@@ -602,7 +602,8 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                                 end
                     end,
                     ?TRACE_ME(70, 'case', suite, Summary, [{result, NewRes}]),
-                    AllWarnings = OrigR#rstate.warnings ++ RunWarnings,
+                    AllWarnings = OrigR#rstate.warnings ++
+                        RunWarnings ++ UnstableWarnings,
                     NewR2 = NewR#rstate{warnings = AllWarnings},
                     tap_case_end(OrigR, NewR2, CC, Script,
                                  P, LenP, Max, Summary,

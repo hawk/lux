@@ -58,6 +58,7 @@ result            : SKIP as variable TEST_SUNOS is not set
 """
 """?
 test case         : .*examples/unstable.lux
+warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
 result            : WARNING at 7 in shell foo
 expected\*
 	bar
@@ -69,6 +70,7 @@ diff
 """
 """?
 test case         : .*examples/warning.lux
+warning           : 3: Trailing whitespaces
 result            : WARNING
 """
 """?
