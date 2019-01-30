@@ -70,6 +70,7 @@ check_timeout(#istate{suite_timeout = SuiteTimeout,
     W = #warning{file = File,
                  lineno = FullLineNo,
                  details = <<"case_timeout > suite_timeout">>},
+    progress_warnings(I, [W]),
     I#istate{warnings = [W | I#istate.warnings]};
 check_timeout(I) ->
     I.
@@ -171,6 +172,7 @@ eval(OldI, StartTime, Progress, Verbose,
                             "~s~s\n",
                             [?TAG("event log"), EventLog]),
         lux_utils:progress_write(Progress, ?TAG("progress")),
+        progress_warnings(OldI, OldI#istate.warnings),
         ReplyTo = self(),
         Interpret =
             fun() ->
@@ -223,6 +225,9 @@ print_warnings(I, RunWarnings, UnstableWarnings) ->
         end,
     lists:foreach(P, RunWarnings),
     lists:foreach(P, UnstableWarnings).
+
+progress_warnings(I, Warnings) ->
+    [lux_utils:progress_write(I#istate.progress, "W") || _W <- Warnings].
 
 parse_iopts(I, Opts) ->
     {Res, _U} = do_parse_iopts(I, Opts, []),
@@ -541,7 +546,7 @@ print_fail(OldI0, NewI, File, Results,
     OldI = OldI0#istate{progress = silent},
     OldWarnings = NewI#istate.warnings,
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
-    HiddenWarnings = [hidden_warning(File, R) ||
+    HiddenWarnings = [hidden_warning(OldI, File, R) ||
                          R <- Results,
                          R#result.outcome =:= fail,
                          R =/= Fail],
@@ -615,7 +620,8 @@ fail_bin(ExpectedTag, Expected, NewActual, NewRest) ->
         ?FF("diff\n\t~s", [simple_to_string(Diff)])
        ]).
 
-hidden_warning(File,
+hidden_warning(I,
+               File,
                #result{outcome      = fail,
                        mode         = _Mode,
                        latest_cmd   = LatestCmd,
@@ -629,7 +635,9 @@ hidden_warning(File,
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
     FailBin = ?l2b(lists:concat(["FAIL at ", FullLineNo,
                                  " in shell ", ShellName])),
-    #warning{file = File, lineno = FullLineNo, details = FailBin}.
+    W = #warning{file = File, lineno = FullLineNo, details = FailBin},
+    progress_warnings(I, [W]),
+    W.
 
 unstable_warnings(#istate{unstable=U,
                           unstable_unless=UU,
@@ -653,9 +661,11 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                 true ->
                     Format = "Fail but UNSTABLE as variable ~s is set",
                     Reason = ?l2b(format_val(Format, [Name], Val)),
-                    {true, #warning{file = File,
-                                    lineno = FullLineNo,
-                                    details = Reason}}
+                    W = #warning{file = File,
+                                 lineno = FullLineNo,
+                                 details = Reason},
+                    progress_warnings(I, [W]),
+                    {true, W}
             end;
         "unstable_unless" ->
             {IsSet, Name, Val} = test_var(I, NameVal),
@@ -665,9 +675,11 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                 false ->
                     Format = "Fail but UNSTABLE as variable ~s is not set",
                     Reason = ?l2b(format_val(Format, [Name], Val)),
-                    {true, #warning{file = File,
-                                    lineno = FullLineNo,
-                                    details = Reason}}
+                    W = #warning{file = File,
+                                 lineno = FullLineNo,
+                                 details = Reason},
+                    progress_warnings(I, [W]),
+                    {true, W}
             end
     end.
 
