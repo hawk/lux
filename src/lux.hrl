@@ -366,6 +366,7 @@
         {file           :: string(),
          orig_file      :: string(),
          pos_stack      :: [#cmd_pos{}],
+         body_level     :: non_neg_integer(),
          mode           :: lux:run_mode(),
          skip_unstable  :: boolean(),
          skip_skip      :: boolean(),

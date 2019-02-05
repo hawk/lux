@@ -35,6 +35,7 @@ parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
                 P = #pstate{file = File,
                             orig_file = File,
                             pos_stack = [],
+                            body_level = 1,
                             mode = RunMode,
                             skip_unstable = SkipUnstable,
                             skip_skip = SkipSkip,
@@ -492,7 +493,13 @@ parse_multi_doc(Level, UnStripped) ->
              [{Level, Oneliner}]}
     end.
 
-parse_body(#pstate{mode = RunMode} = P,
+parse_body(#pstate{body_level = Level} = P, Fd, NextIncr, Cmd, EndKeyword) ->
+    TmpP = P#pstate{body_level = Level+1},
+    {NewP, NewFd, LastLineNo, NewCmd} =
+        do_parse_body(TmpP, Fd, NextIncr, Cmd, EndKeyword),
+    {NewP#pstate{body_level = Level}, NewFd, LastLineNo, NewCmd}.
+
+do_parse_body(#pstate{mode = RunMode} = P,
            Fd,
            NextIncr,
            #cmd{type = Type, arg = Arg, lineno = LineNo} = Cmd,
@@ -571,11 +578,11 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                         ["Syntax error at line ",
                          ?i2l(LineNo),
                          ": only one cleanup allowed"]);
-        "cleanup" ++ _Name when P#pstate.pos_stack =/= [] ->
+        "cleanup" ++ _Name when P#pstate.body_level > 1 ->
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ",
                          ?i2l(LineNo),
-                         ": cleanup only allowed in main script"]);
+                         ": cleanup only allowed at top level in main script"]);
         "cleanup" ++ Name ->
             {P#pstate{has_cleanup = true},
              Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
