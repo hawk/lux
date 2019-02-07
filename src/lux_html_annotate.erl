@@ -739,6 +739,8 @@ html_timer_row(Label, Sum, List, Total) ->
            [
             ElapsedTd,
             if
+                Max =:= 0 ->
+                    html_td("N/A", warning, "right", "");
                 Max =:= infinity ->
                     html_td("N/A", warning, "right", "");
                 Elapsed =:= undefined ->
