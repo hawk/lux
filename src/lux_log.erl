@@ -696,6 +696,11 @@ do_scan_events(EventLog, ES, WWW) ->
     {ScanRes, NewWWW} = scan_config(ConfigLog, WWW),
     Res =
         case ScanRes of
+            {ok, []} ->
+                LogBins = [],
+                ConfigBins = [],
+                {ok, EventLog, ConfigLog,
+                 Script, EventBins, ConfigBins, LogBins, ResultBins};
             {ok, [ConfigSection]} ->
                 LogBins = [],
                 ConfigBins = binary:split(ConfigSection, <<"\n">>, [global]),
@@ -981,7 +986,12 @@ scan_config(ConfigLog, WWW) when is_list(ConfigLog) ->
                 {error, ConfigLog,
                  "Illegal config log version: " ++ ?b2l(Version)};
             {error, FileReason, _} ->
-                {error, ConfigLog, FileReason}
+                case file:format_error(enoent) of
+                    FR when FR =:= FileReason ->
+                        {ok, []};
+                    _ ->
+                        {error, ConfigLog, FileReason}
+                end
         end,
     {Res, NewWWW}.
 

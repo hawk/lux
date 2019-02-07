@@ -1135,16 +1135,22 @@ drop_prefix(Dir, File) when is_list(Dir), is_list(File) ->
     lux_utils:drop_prefix(Dir, File).
 
 pick_run_dir(ConfigProps) ->
-    pick_prop(<<"run_dir">>, ConfigProps).
+    pick_dir_prop(<<"run_dir">>, ConfigProps).
 
 pick_log_dir(ConfigProps) ->
-    pick_prop(<<"log_dir">>, ConfigProps).
+    pick_dir_prop(<<"log_dir">>, ConfigProps).
 
 pick_time_prop(Tag, ConfigProps) ->
     ?b2l(lux_log:find_config(Tag, ConfigProps, ?DEFAULT_TIME)).
 
-pick_prop(Tag, ConfigProps) ->
-    ?b2l(lux_log:find_config(Tag, ConfigProps, undefined)).
+pick_dir_prop(Tag, ConfigProps) ->
+    case lux_log:find_config(Tag, ConfigProps, undefined) of
+        undefined ->
+            {ok, Cwd} = file:get_cwd(),
+            Cwd;
+        Bin ->
+            ?b2l(Bin)
+    end.
 
 orig_script(A, AbsScript) when is_list(AbsScript) ->
     case rel_script(A, AbsScript) of
