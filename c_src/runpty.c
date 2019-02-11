@@ -189,14 +189,20 @@ int main(int argc, char *argv[])
     int outcnt = 0;
 
 #ifdef DEBUG
+    char* logdir = getenv("LUX_EXTRA_LOGS");
     char* shellname = getenv("LUX_SHELLNAME");
     char* dbgfile;
-    if (shellname) {
-        asprintf(&dbgfile, "runpty.dbg.%s", shellname);
+    if (logdir) {
+        mkdir(logdir, 0700);
     } else {
-        asprintf(&dbgfile, "runpty.dbg");
+        logdir = getcwd(NULL, 0);
     }
-    dbgfd = open(dbgfile, O_WRONLY |O_CREAT | O_TRUNC);
+    if (shellname) {
+        asprintf(&dbgfile, "%s/runpty.dbg.%s", logdir, shellname);
+    } else {
+        asprintf(&dbgfile, "%s/runpty.dbg", logdir);
+    }
+    dbgfd = open(dbgfile, O_WRONLY | O_CREAT | O_TRUNC);
     if (dbgfd < 0 ) {
         perror("open runpty.dbg failed");
         exit(1);
