@@ -178,9 +178,8 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
          HtmlErrors,
          lux_html_utils:html_footer()
         ],
-    HostHtmlFile =
-        lux_utils:join(HtmlDir,
-                       insert_html_suffix(RelHtmlFile, "", ?HOST_SUFFIX)),
+    HostSuffix = insert_html_suffix(RelHtmlFile, "", ?HOST_SUFFIX),
+    HostHtmlFile = lux_utils:join(HtmlDir, HostSuffix),
     lux_html_utils:safe_write_file(HostHtmlFile, HostIoList),
 
     %% Config
@@ -193,9 +192,8 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
          HtmlErrors,
          lux_html_utils:html_footer()
         ],
-    ConfigHtmlFile =
-        lux_utils:join(HtmlDir,
-                       insert_html_suffix(RelHtmlFile, "", ?CONFIG_SUFFIX)),
+    ConfigSuffix = insert_html_suffix(RelHtmlFile, "", ?CONFIG_SUFFIX),
+    ConfigHtmlFile = lux_utils:join(HtmlDir, ConfigSuffix),
     lux_html_utils:safe_write_file(ConfigHtmlFile, ConfigIoList),
     erlang:garbage_collect(),
 
@@ -209,9 +207,8 @@ do_generate(RelHtmlFile, AllRuns, Errors, LatestOnly=false, Opts) ->
          HtmlErrors,
          lux_html_utils:html_footer()
         ],
-    CurrentHtmlFile =
-        lux_utils:join(HtmlDir,
-                       insert_html_suffix(RelHtmlFile, "", ?CURRENT_SUFFIX)),
+    CurrentSuffix = insert_html_suffix(RelHtmlFile, "", ?CURRENT_SUFFIX),
+    CurrentHtmlFile = lux_utils:join(HtmlDir, CurrentSuffix),
     lux_html_utils:safe_write_file(CurrentHtmlFile, CurrentIoList),
 
     %% Overview
@@ -335,19 +332,27 @@ header(Section, AllRuns, ConfigTables, HostTables,
                                "#content"],
                               "Overview"),
      "</h3>\n\n",
-
-     [
-      "<h3>",
-      case LatestOnly of
-          true ->
-              "Multiple branches. No failed test cases page generated.";
-          false ->
-              html_suffix_href(HtmlFile,"","#content",
-                               "Still failing test cases",
-                               ?CURRENT_SUFFIX)
-      end,
-      "</h3>\n\n"
-     ],
+     case LatestOnly of
+         true ->
+             [
+              "<h3>",
+              "Multiple branches. No failed test cases page generated.",
+              "</h3>\n\n"
+             ];
+         false ->
+             [
+               "<h3>",
+               html_suffix_href(HtmlFile,"","#failing_suites",
+                                "Still failing test suites",
+                                ?CURRENT_SUFFIX),
+               "</h3>\n\n",
+               "<h3>",
+               html_suffix_href(HtmlFile,"","#failing_cases",
+                                "Still failing test cases",
+                                ?CURRENT_SUFFIX),
+               "</h3>\n\n"
+              ]
+     end,
      if
          ConfigTables =:= [] ->
              "<h3>Only one config. No config page generated.</h3>\n";
@@ -433,6 +438,9 @@ table_all(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
     ].
 
 table_current(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
+    TS = table(HistoryLogDir, "All", "Still failing test suites",
+               AllRuns, HtmlFile, latest_success, latest,
+               HasHosts, HasConfigs),
     Rebase =
         fun(#run{log=SL}, #run{log=EL})
               when SL =/= ?DEFAULT_LOG,
@@ -450,14 +458,43 @@ table_current(HistoryLogDir, AllRuns, HtmlFile, HasHosts, HasConfigs) ->
     Details = [D#run{details=[D],
                      log = Rebase(R, D)} || R <- AllRuns,
                                             D <- R#run.details],
-    T = table(HistoryLogDir, "All", "Still failing test cases",
-              Details, HtmlFile, latest_success, latest,
-              HasHosts, HasConfigs),
+    TC = table(HistoryLogDir, "All", "Still failing test cases",
+               Details, HtmlFile, latest_success, latest,
+               HasHosts, HasConfigs),
     [
-     lux_html_utils:html_anchor("h3", "", "content",
-                                "Still failing test cases"),
-     "\n",
-     T#table.iolist
+     "<a name=\"content\"/>\n",
+     case TS#table.res of
+         no_data ->
+             [
+              lux_html_utils:html_anchor("h3", "", "failing_suites",
+                                         "No still failing test suites"),
+              "\n"
+             ];
+         _ ->
+             [
+              lux_html_utils:html_anchor("h3", "", "failing_suites",
+                                         "Still failing test suites"),
+              "\n",
+              TS#table.iolist,
+              "\n"
+             ]
+     end,
+     case TC#table.res of
+         no_data ->
+             [
+              lux_html_utils:html_anchor("h3", "", "failing_cases",
+                                         "No still failing test cases"),
+              "\n"
+             ];
+         _ ->
+             [
+              lux_html_utils:html_anchor("h3", "", "failing_cases",
+                                         "Still failing test cases"),
+              "\n",
+              TC#table.iolist,
+              "\n"
+             ]
+     end
     ].
 
 table_configs(_NewLogDir, _SplitConfigs, _HtmlFile, _HasHosts, false) ->
