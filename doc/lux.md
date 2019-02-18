@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.19.2 - 2019-01-10
+Version 1.19.3 - 2019-02-18
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -318,9 +318,10 @@ specified with `?).
     ?+B
     ?C
 
-will render matching of all permutatations of A, B and C. Note
-the usage of `?`. `?+` is always used together with `?`. It is
-`?` which triggers the evaluation.
+will render matching of all permutatations of A, B and C. Note the
+usage of `?`. `?+` is always used in conjunction with `?`. Never `??`
+nor `???`. It is the `?` command which triggers the actual regexp
+match.
 
 **-**  
 **-Regexp**  

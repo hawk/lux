@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.19.2 - 2019-01-10</p>
+<p>Version 1.19.3 - 2019-02-18</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -325,9 +325,10 @@ specified with `?).</p>
 ?C
 </code></pre>
 
-<p>will render matching of all permutatations of A, B and C. Note
-the usage of <code>?</code>. <code>?+</code> is always used together with <code>?</code>. It is
-<code>?</code> which triggers the evaluation.</p>
+<p>will render matching of all permutatations of A, B and C. Note the
+usage of <code>?</code>. <code>?+</code> is always used in conjunction with <code>?</code>. Never <code>??</code>
+nor <code>???</code>. It is the <code>?</code> command which triggers the actual regexp
+match.</p>
 
 <p><strong>-</strong> <br />
 <strong>-Regexp</strong> <br />
