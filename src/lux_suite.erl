@@ -379,7 +379,7 @@ filter_rerun_files(R, InitialRes) ->
 
 flatten_results(Groups) ->
     Fun =
-        fun(Script, {result, Res}) ->
+        fun(Script, {warnings_and_result, _Warnings, Res}) ->
                 case Res of
                     success ->
                         {ok, Res, Script, "0", []};
@@ -601,7 +601,10 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                                     _                    -> Scripts
                                 end
                     end,
-                    ?TRACE_ME(70, 'case', suite, Summary, [{result, NewRes}]),
+                    ?TRACE_ME(70, 'case', suite, Summary,
+                              [{result, NewRes},
+                               {run_warnings, RunWarnings},
+                               {unstable_warnings, UnstableWarnings}]),
                     AllWarnings = OrigR#rstate.warnings ++
                         RunWarnings ++ UnstableWarnings,
                     NewR2 = NewR#rstate{warnings = AllWarnings},
