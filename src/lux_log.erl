@@ -1100,10 +1100,16 @@ parse_result(RawResult) ->
 
 split_quoted_lines(<<Chop:10000/binary, Rest/binary>>) ->
     Sz = ?i2b(byte_size(Rest)),
-    [<<Chop/binary,
-       "\n\n...<LUX WARNING> This is an insane amount of output. ", Sz/binary,
-       " bytes ignored. See textual LUX event log for details...">>];
+    Bin =
+        <<Chop/binary,
+          "\n\n...\n\n<LUX WARNING> This is an insane amount of output. ",
+          Sz/binary,
+          " bytes are ignored. See the textual event log for details...">>,
+    do_split_quoted_lines(Bin);
 split_quoted_lines(Bin) when is_binary(Bin) ->
+    do_split_quoted_lines(Bin).
+
+do_split_quoted_lines(Bin) ->
     Normalized = lux_utils:replace(Bin, [{quoted_crlf, <<"\n">>}]),
     lux_utils:split_lines(Normalized).
 
