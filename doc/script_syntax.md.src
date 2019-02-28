@@ -39,32 +39,37 @@ character on the line.
 **!String**  
 
 A `send` operation. Sends a `String` to the `stdin` of the active
-shell. Adds a `LF` at the end of the string. `String` may contain
-references to variables using `$Var` or `${Var}`.
+shell. Adds a `LF` (line feed) at the end of the string. `String`
+may contain references to variables using `$Var` or `${Var}`.
 
 **~String**  
 Same as `!String`, but it does NOT add a `LF` at the end.
+
+**???Verbatim**  
+An `expect` operation which waits for a given sequence of characters
+to appear on the shell output (either `stdout` or `stderr`). All
+characters in the `Verbatim` string are matched literally. This means
+that even characters like `\` (backslash), `$` (dollar) etc. are
+matched explicitly.
+
+If no matching output does appear within the timeout period, the test
+case is considered as failed. See the `--timeout` option. See also the
+`--flush_timeout` and `--poll_timeout` configuration parameters about
+customizing the `?` behavior.
+
+**??Template**  
+Like `?Verbatim`, but variables are also substituted.
+
+**?Regexp**  
+Like `??Template`, but matches a [regular expression][] after the
+variable substitution. If the shell output is expected to contain a
+regexp keyword, such as `^$.?+*()[]{}|`, the keyword must be escaped
+with a backslash.
 
 **?**  
 Flush the output streams (`stdout`, `stderr`). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
 useful than it is. It often causes unexpected race patterns.
-
-**?Regexp**  
-An `expect` operation which waits for a string matching a [regular
-expression][] to appear on the shell output (either `stdout` or
-`stderr`). If no matching output does appear within the timeout
-period, the test case is considered as failed. See the `--timeout`
-option. See also the `--flush_timeout` and `--poll_timeout`
-configuration parameters about customizing the `?` behavior.
-
-**??Template**  
-Like `?Regexp`, but is more restricted as all regular expression
-keywords are ignored. Variables are still substituted.
-
-**???Verbatim**  
-Like `??Template`, but is more restricted as no variables are substituted.
-That is the string is matched as is.
 
 **?+Regexp**  
 Like `?Regexp`, but has no immediate effect. It is used when the
