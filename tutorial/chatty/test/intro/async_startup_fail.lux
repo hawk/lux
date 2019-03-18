@@ -1,0 +1,25 @@
+[doc Demo too fast startup]
+
+# Assign a global variable which is accessible in all shells
+[global topic=mytopic]
+[global ebin=../../../chatty/ebin]
+
+[shell server]
+    !erl -pa $ebin -sname $topic -s chatty server
+    ?Starting server
+
+[shell hawk]
+    !export ERL_CRASH_DUMP_BYTES=0
+    ?SH-PROMPT:
+    !erl -pa $ebin -sname hawk -noshell -s chatty client $topic
+
+    [progress Will fail due to startup race cond]
+    # Multi line match. The first double quote char defines the first
+    # column of the regexp.
+    """?
+    Trying to join the $topic chat room...
+    Welcome to the chat room $topic!a!!
+    Enter text and press enter. Exit chat with \^d.
+
+    hawk>
+    """

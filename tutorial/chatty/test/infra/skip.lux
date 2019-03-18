@@ -1,0 +1,8 @@
+[doc Demonstrate an unstable test which is skipped]
+
+[config skip=SKIP_SUNOS]
+
+[shell date]
+    -[2-9]
+    !date +%S
+    ?SH-PROMPT

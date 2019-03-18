@@ -1,0 +1,17 @@
+# Macro definitions
+
+[macro eval cmd]
+    [invoke eval_any $cmd]
+    [invoke check_ok]
+[endmacro]
+
+[macro eval_any cmd]
+    !$cmd
+    ?SH-PROMPT:
+[endmacro]
+
+[macro check_ok]
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT:
+[endmacro]

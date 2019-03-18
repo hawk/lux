@@ -69,6 +69,9 @@ install:
 	@### EXAMPLES
 	$(call INSTALL_DIR_AND_DATA,examples)
 
+	@### TUTORIAL
+	$(call INSTALL_DIR_AND_DATA,tutorial)
+
 	@### SUMMARY
 	@echo
 	@echo "*** Lux doc, examples, Emacs mode etc. \

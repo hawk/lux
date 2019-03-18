@@ -1,0 +1,26 @@
+[doc Demo usage of the debugger]
+
+[shell debug]
+    !lux -d --log_dir=tmp_logs a_simple_server.lux
+    ?Debugger for lux. Try help or continue.
+    !c 15
+    ?15>
+    !shell server
+    ?Connect to shell "server" in background mode.
+    !!im().
+    ?Send data to shell "server".
+    ?recv.*im()
+    !?
+    ?Reset output buffer for shell "server".
+    !n
+    ?16>
+    !t
+    ?output reset
+    !help quit
+    ?scope of exit
+    !c
+    ?SUCCESS
+
+[cleanup]
+    !rm -f tmp_logs
+    ?SH-PROMPT:

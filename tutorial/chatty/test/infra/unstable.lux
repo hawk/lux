@@ -1,0 +1,8 @@
+[doc Demonstrate an unstable test which is run but do not clutter the results]
+
+[config unstable_unless=TEST_DEVELOP]
+
+[shell date]
+    -[2-4]
+    !date +%S
+    ?SH-PROMPT

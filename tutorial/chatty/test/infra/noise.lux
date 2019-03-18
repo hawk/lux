@@ -1,0 +1,6 @@
+[doc Demonstrate an unstable test which causes noise in the test results]
+
+[shell date]
+    -[1-3]
+    !date +%S
+    ?SH-PROMPT

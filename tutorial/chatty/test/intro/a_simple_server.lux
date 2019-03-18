@@ -1,0 +1,21 @@
+[doc Demo a simple single shell test case]
+
+# Start a shell
+[shell server]
+    # Send text to the active shell
+    !erl -sname server -pa ../../../chatty/ebin
+    # Match output from the active shell
+    ?Erlang/OTP
+    ?Eshell
+    ?> 
+
+    !chatty:server().
+    ?Starting server
+    ?> 
+
+    !halt(3).
+    ?SH-PROMPT:
+
+    !echo "===$?==="
+    ?===3===
+    ?SH-PROMPT:

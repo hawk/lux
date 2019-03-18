@@ -1,0 +1,52 @@
+[doc Demo start sync]
+
+[global topic=mytopic]
+[global ebin=../../../chatty/ebin]
+
+[shell server]
+    !erl -pa $ebin -sname $topic -s chatty server
+    ?Starting server
+
+    # Match sub-expressions
+    ?Trying to open log file (.*)\.\.\.ok.
+    [global logfile=$1]
+
+# Start another shell
+[shell server-log]
+    # Match in log file
+    !tail -F $logfile
+    ?Server started
+
+[shell hawk]
+    !erl -pa $ebin -sname hawk -noshell -s chatty client $topic
+    # Match with variable
+    """?
+    Trying to join the $topic chat room...
+    Welcome to the chat room $topic!!!
+    Enter text and press enter. Exit chat with \^d.
+
+    hawk>
+    """
+
+[shell cons]
+    !erl -pa $ebin -sname cons -noshell -s chatty client $topic
+    # Verbatim match
+    """??
+    Trying to join the $topic chat room...
+    Welcome to the chat room $topic!!!
+    Enter text and press enter. Exit chat with ^d.
+
+    cons>
+    """
+
+# Switch active shell
+[shell hawk]
+    ?cons: Client joined
+    !ping
+    ?hawk>
+
+[shell server-log]
+    ?Client hawk said ping
+
+[shell cons]
+    ?hawk: ping

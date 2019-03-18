@@ -1,9 +1,9 @@
 Introduction
 ============
 
-Lux (LUcid eXpect scripting) provides scripting with an
-`Expect`-style execution of commands in a powerful but simple
-fashion. See [Expect][] for more info about the origin.
+Lux (LUcid eXpect scripting) is a test automation framework with
+Expect style execution of commands. See [Expect][] for more info about
+the origin.
 
 With Lux it is possible to
 

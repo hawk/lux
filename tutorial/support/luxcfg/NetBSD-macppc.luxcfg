@@ -1,0 +1,4 @@
+[config var=MAKE=gmake]
+[config var=SKIP_JAVA=true]
+[config var=USE_VALGRIND=false]
+[config multiplier=2500]

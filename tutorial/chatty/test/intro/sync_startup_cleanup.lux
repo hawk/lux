@@ -1,0 +1,53 @@
+[doc Demo cleanup]
+
+[include ../../../support/luxinc/macros.luxinc]
+
+[global topic=mytopic]
+[global ebin=../../../chatty/ebin]
+
+[shell server]
+    # Set fail pattern for shell
+    -[Ee][Rr][Rr][Oo][Rr]]
+    !erl -pa $ebin -sname $topic -s chatty server
+    ?Starting server
+
+    ?Trying to open log file (.*)\.\.\.ok.
+    [global logfile=$1]
+
+[shell server-log]
+    !tail -F $logfile
+    ?Server started
+
+[shell hawk]
+    !erl -pa $ebin -sname hawk -noshell -s chatty client $topic
+    """??
+    Trying to join the $topic chat room...
+    Welcome to the chat room $topic!!!
+    Enter text and press enter. Exit chat with ^d.
+
+    hawk>
+    """
+
+[shell cons]
+    # Use interactive Erlang shell
+    !erl -pa $ebin -sname cons
+    ?Erlang/OTP
+    ?Eshell
+    ?cons@
+    !chatty:client(['${topic}']).
+    """??
+    Trying to join the $topic chat room...
+    Welcome to the chat room $topic!!!
+    Enter text and press enter. Exit chat with ^d.
+
+    cons>
+    """
+
+[cleanup]
+    # Kill lingering processes
+    [invoke eval_any "pkill -f beam.*chatty.*client"]
+    [invoke eval_any "pkill -f beam.*chatty.*server"]
+
+    # Save log file
+    [invoke eval "mkdir -p ${LUX_EXTRA_LOGS}"]
+    [invoke eval "cp $logfile ${LUX_EXTRA_LOGS}/"]

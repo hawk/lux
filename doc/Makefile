@@ -20,6 +20,7 @@ GEN_DBG_CMDS=debug_cmds
 CHAPTERS= \
 	../README \
 	main_concepts \
+	../tutorial/README \
 	script_syntax \
 	cmd_line_opts \
 	config_params \

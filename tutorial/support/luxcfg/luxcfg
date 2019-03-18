@@ -1,0 +1,4 @@
+# Default config file when no archtecture or host specific file is found
+# It may be included by other config files if desired
+
+[config var=MAKE=make]

@@ -1,0 +1,316 @@
+Tutorial
+========
+
+Installation
+------------
+
+Read the file **.../lux/tutorial/INSTALL.md** or view it online on
+[GitHub](https://github.com/hawk/lux/blob/euc/tutorial/INSTALL.md)
+about how to do a install LUX, build and test the chatty app.
+
+>     cd .../lux/tutorial/chatty
+>     make build
+
+How do we test a simple chat server?
+------------------------------------
+
+Imagine a scenario where we start a server and two clients. The
+clients cannot connect until the server is up and running. When text
+is entered in one client it must be verified that it is displayed in
+the other client(s). You can start the system with these commands,
+using three different shells:
+
+>     cd chatty/test/intro
+>     erl -pa ../../../chatty/ebin -noshell -sname mytopic -s chatty server
+>     erl -pa ../../../chatty/ebin -noshell -sname cons    -s chatty client mytopic
+>     erl -pa ../../../chatty/ebin -noshell -sname hawk    -s chatty client mytopic
+
+Walkthru the test cases and emphasize on their differences
+----------------------------------------------------------
+
+Now when you are familiar with the system, how would you write an
+automated test case for it? That is a stable test without race
+conditions.
+
+Walkthru these test cases below and emphasize on their differences.
+Hopefully the test code is self-explanatory.
+
+#eval-include cd tutorial/chatty/test/intro && lux .
+
+#include <tutorial/chatty/test/intro/a_simple_server.lux>
+
+#include <tutorial/chatty/test/intro/async_startup_fail.lux>
+
+#include <tutorial/chatty/test/intro/sync_startup.lux>
+
+#include <tutorial/chatty/test/intro/sync_startup_cleanup.lux>
+
+Post mortem analysis
+--------------------
+
+Walkthru the different logs from the latest test run. They are found
+at `lux_logs/latest_run`. With this command you get a list of all logs:
+
+#eval-include cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run
+
+#eval-include cd tutorial/chatty/test/intro && find -L lux_logs/latest_run
+
+Some logs are common for all test cases in a test suite:
+
+  - Summary log
+  - Config log
+  - Annotated summary log (HTML)
+
+while others are per test case:
+
+  - Event log
+  - Extra logs
+  - Config log
+  - Statistics
+  - TAP log
+  - JUnit log
+  - Annotated event log (HTML)
+
+and yet some are per shell in the test case:
+
+  - Shell stdin log(s)
+  - Shell stdout log(s)
+
+Debugging
+---------
+
+There are various ways of debugging test cases. The simplest way is to
+use the `--progress=verbose` flag or `-v` for short:
+
+>     lux -v a_simple_server.lux
+
+#eval-include cd tutorial/chatty/test/intro && lux -v a_simple_server.lux
+
+The shell stdin log is also quite useful when trying to reproduce a
+run of a test case.
+
+  - Start multiple terminalks and create shells manually
+  - Copy and paste from stdin logs to the shells
+
+#eval-include cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log
+
+#eval-include cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log
+
+Lux has a built-in debugger. It is always present, ready to read
+commands from stdin. For example the command `tail` or `t` for short
+can be used to interactively display the various logs while the test
+is running. By default it displays the last 10 lines of the event
+log. So when the test program is waiting for output you can use `tail`
+to see what is going on.
+
+>     lux --timeout=30000 async_startup.lux
+>     t
+
+Just pressing enter without any command will simply repeat the
+previous command. Some commands behaves slightly different when they
+are repeated. The `tail` command for example displays more and more
+for each time. It displays 10 lines, 20, lines, 30 lines, ...
+
+The test script may also be attached before line 1 with `--debug` or
+`-d` for short:
+
+>     lux -d a_simple_server.lux
+
+There you can explore the available commands using the built-in `help`
+command. Try these commands out and see what happens:
+
+#eval-silent cd tutorial/chatty/test/intro && lux a_simple_server.delux
+
+#include <tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdin.log>
+
+#include <tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdout.log>
+
+>     c 15
+>     shell server
+>     !im().
+>     n
+>     t
+>     help quit
+>     c
+
+Infra-structure support
+-----------------------
+
+In a hetrogenous test environment with various types of machines
+possibly with different architectures and hardware, it may be
+necessary to have machine dependent configuration settings. This can
+be achieved by using `.luxcfg` files. Look in the
+`lux_logs/latest_run/lux_config.log` file to figure out the
+architecture and name your `.luxcfg` file accordingly. It is also
+possible to have a host specific configuration file or rely on the
+default configuration in the file named `luxcfg`.
+
+Typical things that may vary from machine to machine is shell settings
+and test cases which only should be run on certain architectures. If
+some machine is very slow the `multiplier` can be set to something
+else than 1000 which is the default. The match timeout (in seconds) is
+multiplied with this setting to compute the actual timeout to get
+milli seconds which is used internally.
+
+Here you can find a couple of architecture specific examples:
+
+#eval-include cd tutorial && find support/luxcfg
+
+Here are some examples of how test cases can be skipped or marked as
+unstable when architecture or host specific variables are set (or not
+set).
+
+#include <tutorial/chatty/test/infra/skip.lux>
+
+#include <tutorial/chatty/test/infra/unstable.lux>
+
+For more complex test cases there may be a need to have a build step
+before running the test case(s). One way of solving this is to use
+`lux --mode=list_dir` to find the directories which contain `.lux`
+files, and simply run make on those directories. A simple example of
+this can be found in this makefile:
+
+#include <tutorial/chatty/test/Makefile>
+
+History of test run results
+
+#include <tutorial/chatty/test/infra/Makefile>
+
+#eval-silent rm -rf tutorial/chatty/test/infra/lux_logs
+
+#eval-silent cd tutorial/chatty/test/infra && make history_demo
+
+#eval-include cd tutorial/chatty/test/infra && lux --history history_logs lux_logs
+
+Walkthru history_logs/lux_history.html
+
+    - Overview
+    - Per architecture
+    - Per host
+    - Still failing test cases
+
+Jenkins
+
+  - Automated tests
+  - Display Jenkins test results as LUX history for non-LUX tests
+
+More concepts
+-------------
+
+  - Fail pattern
+  - Loops
+    - Foreach
+    - Break pattern
+  - Macros
+  - Variable scope
+    - Environment
+      - Initial values
+      - Require
+      - Local within one shell
+      - Global for all shells
+      - Statement block (my)
+      - Sub expression
+  - Regexp match vs verbatim match
+  - Match on permutations
+  - Shell config
+    - Pseudo terminal (PTY)
+    - Normalized prompt
+    - Using other types of shells
+  - Use the power of various interactive languages
+  - Using LUX as an all purpose scripting language
+
+Implementation
+--------------
+
+Why is Erlang a good fit? Primary due to its
+
+  - Concurrency
+  - Port programs
+  - Built-in regular expresssions (re)
+  - Timers
+
+Lux is written as an escript which can be installed as stand-alone
+(including the Erlang runtime). Reltool is used for this.
+
+The test cases in a suite are executed in sequence where a new
+interpreter process is started for each test script. The script is
+interpreted statement for statement.
+
+When a new Lux shell is to be started a new process is spawned. That
+process runs the Bourne shell as a port program and acts as a man in
+the middle between the interpreter and the port program.
+
+In fact it is not that simple. To make the Bourne shell believe it is
+executed in an interactive terminal there is actually one more man in
+the middle. The `runpty` is a small C program which manipulates the
+terminal settings for the pseudo TTY. When it has done that and setup
+sockets between the parent and child process it will fork the Bourne
+shell.
+
+Input data strings from the script is sent as is to the stdin of the
+port. The terminal is setup to echo the input to stdout.
+
+The stderr is redirected to stdout. The terminal will normalise the
+output from the Bourne shell (stdout and stderr) to make each end of
+line a carriage return followed by a line feed. The output from the
+port is buffered.
+
+When the script expects a regexp to match the buffer a timer is
+started. And the buffer is matched against the regexp when the buffer
+is updated. If the buffer does not match the regexp when the timer
+times out the script will fail.
+
+If the test script has a cleanup section, the cleanup is run as yet
+another Lux shell.
+
+Lessons learned
+---------------
+
+  - Expect like testing requires a different mindset (find sync points in streams of data)
+  - Testability is a vital property of products, observability
+  - Effective post mortem analysis of test runs is a big time saver
+  - Test cases (as well as test tools) does also needs to be debugged
+
+More info
+---------
+
+  - Download from https://github.com/hawk/lux (Apache license)
+
+  - See the file **../lux.html** for the full documentation or view it online
+    on [GitHub](https://github.com/hawk/lux/blob/euc/doc/lux.md).
+
+Maintenance of LUX itself
+-------------------------
+
+  - Run LUX in Erlang debugger
+  - Use Erlang trace
+    - Interactive display
+    - Display filtered Erlang trace
+  - Use Event Tracer
+  - Use xref
+  - Use reltool
+  - Install as stand-alone incl Erlang runtime
+  - Documentation
+    - Markdown
+    - Generated from example runs
+    - Generated from built-in debugger help
+    - Generated from .md.src files
+  - Test of LUX itself
+
+Tail-f/Cisco
+------------
+
+  - Widely used for testing of Tail-f products
+  - Automated test environment using Jenkins
+    - ~4500 Lux test cases per run
+    - distributed over ~150 Docker containers
+  - ConfD
+    - Device configuration
+    - Model driven configuration management framework for a network element
+    - Render northbound interfaces such as CLI, Netconf, SNMP, Rest, RestConf
+    - Tracable internal interfaces
+  - NSO
+    - Orchestrator for a massive number of (hetrogenous) network elements
+    - Same standardised northbound interfaces as Confd
+    - Standard interfaces southbound combined with
+    - 100+ adaptors for network elements lacking standard interfaces
