@@ -212,7 +212,7 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
                                        I#istate.latest_cmd,
                                        I#istate.cmd_stack),
     RunWarnings = I#istate.warnings,
-    UnstableWarnings = unstable_warnings(I),
+    UnstableWarnings = [],
     print_warnings(I, RunWarnings, UnstableWarnings),
     double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
     {error, I#istate.file, FullLineNo, I#istate.case_log_dir,
@@ -454,14 +454,13 @@ handle_done(OldI, NewI0, Docs) ->
     ExtraWarnings = [R#result.warnings || R <- Results],
     NewWarnings = lists:flatten([OldWarnings, ExtraWarnings]),
     NewI = post_ilog(NewI0#istate{warnings = NewWarnings}, Docs),
-    UnstableWarnings = unstable_warnings(NewI),
     case lists:keyfind('EXIT', 1, Results) of
         false ->
             case pick_fail(NewI, Results) of
                 false ->
-                    print_success(NewI, File, UnstableWarnings);
+                    print_success(NewI, File);
                 R ->
-                    print_fail(OldI, NewI, File, Results, R, UnstableWarnings)
+                    print_fail(OldI, NewI, File, Results, R)
             end;
         {'EXIT', Reason} ->
             internal_error(NewI, {'EXIT', Reason})
@@ -512,10 +511,11 @@ cleanup_fail(I, Reason) ->
             rest         = fail,
             warnings     = []}.
 
-print_success(I, File, UnstableWarnings) ->
+print_success(I, File) ->
     LatestCmd = I#istate.latest_cmd,
     FullLineNo = ?i2l(LatestCmd#cmd.lineno),
     RunWarnings = I#istate.warnings,
+    UnstableWarnings = [],
     print_warnings(I, RunWarnings, UnstableWarnings),
     Outcome =
         if
@@ -541,8 +541,7 @@ print_fail(OldI0, NewI, File, Results,
                    expected     = Expected,
                    extra        = _Extra,
                    actual       = Actual,
-                   rest         = Rest} = Fail,
-           UnstableWarnings) ->
+                   rest         = Rest} = Fail) ->
     OldI = OldI0#istate{progress = silent},
     OldWarnings = NewI#istate.warnings,
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
@@ -551,6 +550,7 @@ print_fail(OldI0, NewI, File, Results,
                          R#result.outcome =:= fail,
                          R =/= Fail],
     RunWarnings = OldWarnings ++ HiddenWarnings,
+    UnstableWarnings = unstable_warnings(NewI),
     print_warnings(NewI, RunWarnings, UnstableWarnings),
     {Outcome, ResStr} =
         if

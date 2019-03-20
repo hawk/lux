@@ -2,6 +2,7 @@
 
 [config unstable_unless=TEST_DEVELOP]
 
-[shell foo]
-    [timeout 1]
-    ?bar
+[shell date]
+    -5
+    !date +%S
+    ?SH-PROMPT
