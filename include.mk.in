@@ -21,6 +21,9 @@ endif
 APP_DIR=$(shell dirname $(PWD))
 LUX=$(APP_DIR)/bin/lux
 
+# Standalone/local installation
+INSTALL_TARGET=@INSTALL_TARGET@
+
 # Erlang
 ERL="@ERL@"
 ERLC="@ERLC@"

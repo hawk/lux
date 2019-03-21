@@ -11,7 +11,7 @@ endif
 
 SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
 
-all debug install clean:
+all debug install install_local install_standalone clean:
 	@for d in $(SUBDIRS); do         \
 	   if test ! -d $$d ; then        \
 	       echo "=== Skipping subdir $$d" ; \
@@ -22,6 +22,8 @@ all debug install clean:
 
 xref:
 	bin/lux --xref
+
+	cd test && $(MAKE) all
 
 .PHONY: test
 test:

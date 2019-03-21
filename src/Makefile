@@ -28,7 +28,6 @@ ERL_MODULES = \
 
 ERL_FILES=$(ERL_MODULES:%=%.erl)
 EBIN_FILES=$(ERL_MODULES:%=../ebin/%.$(EMULATOR)) ../ebin/lux.app
-LUXCFG=$(DESTDIR)/lib/lux-$(VSN)/priv/luxcfg
 APP_DIR=$(shell dirname $(PWD))
 
 all debug: $(EBIN_FILES)
@@ -38,10 +37,23 @@ $(EBIN_FILES): lux.hrl
 clean:
 	rm -f $(EBIN_FILES) erl_crash.dump core* *~
 
-install:
+# Standalone/local installation
+install: $(INSTALL_TARGET)
+
+install_standalone:
+	echo "Install standalone"
 	mkdir -p $(DESTDIR)
 	$(APP_DIR)/bin/lux --install $(DESTDIR)
 	if [ "$(ETCDIR)" != "$(DESTDIR)/priv" ]; then \
-	  echo "# Added by Lux installer" >> $(LUXCFG); \
-	  echo "[config config_dir=$(ETCDIR)]" >> $(LUXCFG); \
+	  echo "# Added by Lux installer"      >> $(DESTDIR)/lib/lux-$(VSN)/priv/luxcfg ; \
+	  echo "[config config_dir=$(ETCDIR)]" >> $(DESTDIR)/lib/lux-$(VSN)/priv/luxcfg ; \
+	fi
+
+install_local:
+	echo "Install local"
+	mkdir -p $(DESTDIR)
+	(cd .. && tar cf - *) | (cd $(DESTDIR) && tar xf -)
+	if [ "$(ETCDIR)" != "$(DESTDIR)/priv" ]; then \
+	  echo "# Added by Lux installer"      >> $(DESTDIR)/priv/luxcfg ; \
+	  echo "[config config_dir=$(ETCDIR)]" >> $(DESTDIR)/priv/luxcfg ; \
 	fi

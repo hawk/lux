@@ -9,22 +9,39 @@ AC_INIT(Makefile)
 # Default application installation dir. Override with --prefix
 AC_PREFIX_DEFAULT(/usr/local/lux)
 
-# Default config installation dir is $prefix/etc. Override with --sysconfdir
+if test "x$prefix" = "xNONE"; then
+  # $prefix is not set
+  prefix="/usr/local/lux"
+fi
+if test `basename $prefix` != "lux"; then
+  prefix="$prefix/lux"
+fi
 
+# Default config installation dir is $prefix/etc. Override with --sysconfdir
 use_default_sysconfdir=false
-if test "x$sysconfdir" = 'x${prefix}/etc'; then
+if test "x$sysconfdir" = 'x$prefix/etc'; then
   # $sysconfdir is not set
   use_default_sysconfdir=true
-  if test "x$prefix" = "xNONE"; then
-    # $prefix is not set
-    sysconfdir="/usr/local/lux/priv"
-  else
-    sysconfdir="$prefix/priv"
-  fi
+  sysconfdir="$prefix/priv"
 fi
 
 AC_SUBST(sysconfdir)
 AC_SUBST(use_default_sysconfdir)
+
+################################################################################
+# Standalone installation bundled with Erlang/OTP runtime
+
+AC_ARG_ENABLE(standalone,
+AS_HELP_STRING([--enable-standalone],  [enable standalone installation])
+AS_HELP_STRING([--disable-standalone], [disable standalone installation]))
+
+if test "x$enable_standalone" != "xno"; then
+  INSTALL_TARGET=install_standalone
+else
+  INSTALL_TARGET=install_local
+fi
+
+AC_SUBST(INSTALL_TARGET)
 
 ################################################################################
 # C
@@ -34,7 +51,6 @@ AS_HELP_STRING([--enable-runpty],  [enable use of runpty shell wrapper])
 AS_HELP_STRING([--disable-runpty], [disable use of runpty shell wrapper]))
 
 if test "x$enable_runpty" != "xno"; then
-
   # AC_CANONICAL_SYSTEM
   AC_CONFIG_SRCDIR([c_src/runpty.c])
   # AC_CONFIG_HEADERS([config.h])
@@ -63,9 +79,7 @@ if test "x$enable_runpty" != "xno"; then
 
   C_SRC_TARGET=c_src
 else
-
   C_SRC_TARGET=
-
 fi
 
 AC_SUBST(C_SRC_TARGET)
@@ -87,6 +101,7 @@ fi
 
 ################################################################################
 # Doc
+
 AC_PATH_PROG(MARKDOWN, markdown, no)
 if test "x$MARKDOWN" = "xno"; then
   # Enforce a runtime error when doc is built
