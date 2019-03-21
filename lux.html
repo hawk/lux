@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 1.19.3 - 2019-02-18</p>
+<p>Version 1.20 - 2019-03-21</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -278,32 +278,37 @@ character on the line.</p>
 <p><strong>!String</strong>  </p>
 
 <p>A <code>send</code> operation. Sends a <code>String</code> to the <code>stdin</code> of the active
-shell. Adds a <code>LF</code> at the end of the string. <code>String</code> may contain
-references to variables using <code>$Var</code> or <code>${Var}</code>.</p>
+shell. Adds a <code>LF</code> (line feed) at the end of the string. <code>String</code>
+may contain references to variables using <code>$Var</code> or <code>${Var}</code>.</p>
 
 <p><strong>~String</strong> <br />
 Same as <code>!String</code>, but it does NOT add a <code>LF</code> at the end.</p>
+
+<p><strong>???Verbatim</strong> <br />
+An <code>expect</code> operation which waits for a given sequence of characters
+to appear on the shell output (either <code>stdout</code> or <code>stderr</code>). All
+characters in the <code>Verbatim</code> string are matched literally. This means
+that even characters like <code>\</code> (backslash), <code>$</code> (dollar) etc. are
+matched explicitly.</p>
+
+<p>If no matching output does appear within the timeout period, the test
+case is considered as failed. See the <code>--timeout</code> option. See also the
+<code>--flush_timeout</code> and <code>--poll_timeout</code> configuration parameters about
+customizing the <code>?</code> behavior.</p>
+
+<p><strong>??Template</strong> <br />
+Like <code>?Verbatim</code>, but variables are also substituted.</p>
+
+<p><strong>?Regexp</strong> <br />
+Like <code>??Template</code>, but matches a <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a> after the
+variable substitution. If the shell output is expected to contain a
+regexp keyword, such as <code>^$.?+*()[]{}|</code>, the keyword must be escaped
+with a backslash.</p>
 
 <p><strong>?</strong> <br />
 Flush the output streams (<code>stdout</code>, <code>stderr</code>). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
 useful than it is. It often causes unexpected race patterns.</p>
-
-<p><strong>?Regexp</strong> <br />
-An <code>expect</code> operation which waits for a string matching a [regular
-expression][] to appear on the shell output (either <code>stdout</code> or
-<code>stderr</code>). If no matching output does appear within the timeout
-period, the test case is considered as failed. See the <code>--timeout</code>
-option. See also the <code>--flush_timeout</code> and <code>--poll_timeout</code>
-configuration parameters about customizing the <code>?</code> behavior.</p>
-
-<p><strong>??Template</strong> <br />
-Like <code>?Regexp</code>, but is more restricted as all regular expression
-keywords are ignored. Variables are still substituted.</p>
-
-<p><strong>???Verbatim</strong> <br />
-Like <code>??Template</code>, but is more restricted as no variables are substituted.
-That is the string is matched as is.</p>
 
 <p><strong>?+Regexp</strong> <br />
 Like <code>?Regexp</code>, but has no immediate effect. It is used when the
@@ -1765,9 +1770,10 @@ a hetrogenous lab environment:</p>
 
 [config unstable_unless=TEST_DEVELOP]
 
-[shell foo]
-  [timeout 1]
-  ?bar
+[shell date]
+  -5
+  !date +%S
+  ?SH-PROMPT
 </code></pre>
 </blockquote>
 
@@ -1778,12 +1784,12 @@ a hetrogenous lab environment:</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_03_21_15_11_42_125941/lux_summary.log
 test case         : examples/calc.lux
-progress          : ..:..:..:...:..:.:.:....:..:.:..:..(....:..:.:.:...)(.:.:..:..)...:..:.:..:..(.:.:..:..)..(.:..:..)(....:.:..:...)(.:.:..:..)..(.:.:..:..)......:..:.........
+progress          : ..:..:.:..:...:..:.:....:..:..:..(....:..:.:.:.:...)(.:..:..)...:..:.:..:..(.:..:..)..(.:..:..)(....:.:.:..:...)(.:..:.:..)..(.:.:..:..)......:..:.........
 result            : SUCCESS
 test case         : examples/fail.lux
-progress          : ..:..:.:..:...:..:.:.:..:..:.:.....:.:..32C..:..:..:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.
+progress          : ..:..:..:...:..:.:...:.:.:....:..:..32C..:..:.:..:..:.:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 result            : FAIL at 32 in shell calculator
 expected*
 19
@@ -1800,13 +1806,13 @@ diff
 + 4&gt; 
 
 test case         : examples/intro.lux
-progress          : ..:..:..:..:.:.:.....:..:.:..:..:.:..:..:.:..:.:..:.:..:.....:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..:.
+progress          : ..:..:.:..:..:.:..:....:..:..:..:.:..:.:..:.:..:.:.:..:.:..:.....:..:.:.:....c......:.:.:..:..:..:..:..:..:.
 result            : SUCCESS
 test case         : examples/loop.lux
-progress          : ..:..:.:..:.((.:.:..:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:.:..)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:..:.))...:..:..:..:..:.:..:.:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:.))c........:..:..:.:..:..:.:.
+progress          : ..:..:.:..:.((.:.:..:.)(.:.:..:.)(.:..:.:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:..:.:..:.:..:.:...:..:.:..:.((.i=1..:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:.:..:.:).)c........:..:..:..:.:..:.
 result            : SUCCESS
 test case         : examples/loop_fail.lux
-progress          : ..:..:.:..:.((.i=1..:..:..z)(z..i=2...:.:..z)(z..i=3..:.:..:..z))+5
+progress          : ..:..:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 result            : FAIL at 5 in shell break
 expected*
 
@@ -1820,31 +1826,35 @@ result            : FAIL as required variable MAKE is not set
 test case         : examples/skip.lux
 result            : SKIP as variable TEST_SUNOS is not set
 test case         : examples/unstable.lux
-progress          : ..:..:..:.:....7
-result            : WARNING at 7 in shell foo
+progress          : ..:..:..:...:.:..:.-8
+warning           : 9: Fail but UNSTABLE as variable TEST_DEVELOP is not set
+result            : WARNING at 8 in shell date
 expected*
-bar
-actual match_timeout
+SH-PROMPT
+actual fail pattern matched "5"
+0
 
 diff
-- bar
+- SH-PROMPT
++ 0
 + 
 
 test case         : examples/warning.lux
-progress          : 
+progress          : W
+warning           : 3: Trailing whitespaces
 result            : WARNING
 successful        : 3
 skipped           : 1
 examples/skip.lux:6
 warnings          : 2
-examples/unstable.lux:7 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
+examples/unstable.lux:9 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 examples/warning.lux:3 - Trailing whitespaces
 failed            : 3
 examples/fail.lux:32 - match_timeout
 examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 examples/require.lux:3 - FAIL as required variable MAKE is not set
 summary           : FAIL
-file:///Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summary.log.html
+file:///Users/hmattsso/dev/lux/lux_logs/run_2019_03_21_15_11_42_125941/lux_summary.log.html
 .../lux&gt; echo $?
 1
 </code></pre>
@@ -1854,22 +1864,34 @@ file:///Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summa
 
 <h1>Installation</h1>
 
+<p>On MacOS, Lux can be installed with <code>brew install hawk/homebrew-hawk/lux</code>.
+It will install Erlang and whatewer else Lux needs.</p>
+
+<p>TLDR;</p>
+
 <h2>Prerequisites</h2>
 
 <p>The following software is required:</p>
 
 <ul>
-<li><p>The tool <strong>Lux</strong> is implemented with <strong><a href="http://www.erlang.org/" title="Erlang programming language">Erlang/OTP</a></strong> and its
+<li>The tool <strong>Lux</strong> is implemented with <strong><a href="http://www.erlang.org/" title="Erlang programming language">Erlang/OTP</a></strong> and its
 runtime system must be installed in order to build the tool. Install
-<code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">pre-built packages</a>:</p>
+<code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">pre-built packages</a>:</li>
+</ul>
 
 <blockquote>
 <pre><code>sudo apt-get install erlang
 </code></pre>
 </blockquote>
 
-<p>Once <code>Lux</code> has been installed, it will be self-contained and does
-not need a separate <code>Erlang/OTP</code> runtime system any more.</p></li>
+<p>or</p>
+
+<blockquote>
+<pre><code>brew install erlang
+</code></pre>
+</blockquote>
+
+<ul>
 <li><p>On BSD based systems, GNU Make is required.</p></li>
 <li><p>The documentation is pre-built. Re-generation of the documentation
 requires <strong><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></strong>.</p></li>
@@ -1877,20 +1899,43 @@ requires <strong><a href="http://www.daringfireball.net/projects/markdown" title
 
 <h2>Instructions</h2>
 
-<p>If you have cloned the source from <code>github.com</code> and want to build the
-tool using <code>configure</code> and <code>make</code> there is no <code>configure</code> script. Then
-you need to create it with</p>
+<p>On systems lacking <code>brew</code>, Lux is <code>downloaded</code> from GitHub with</p>
+
+<blockquote>
+<pre><code>git clone git@github.com:hawk/lux.git
+cd lux
+</code></pre>
+</blockquote>
+
+<p>The `configure file is generated with</p>
 
 <blockquote>
 <pre><code>autoconf
 </code></pre>
 </blockquote>
 
-<p>Vanilla configure, build and install with</p>
+<p>By default lux is installed as <code>standalone</code> with a bundled <code>Erlang</code>
+runtime system meaning that it does not rely on a separately installed
+Erlang. The standalone installation is done with</p>
 
 <blockquote>
 <pre><code>./configure
-make
+</code></pre>
+</blockquote>
+
+<p>In most cases it does probably more sense to use the already installed
+erlang runtime system and <code>NOT bundle it with Lux</code>. This allows test
+programs to use Erlang applications which not is self-contained/standalone.</p>
+
+<blockquote>
+<pre><code>./configure --disable-standalone
+</code></pre>
+</blockquote>
+
+<p>Once the system is configures it needs to be built and (possibly) installed.</p>
+
+<blockquote>
+<pre><code>make
 make install
 </code></pre>
 </blockquote>
@@ -1902,7 +1947,7 @@ that custom architecture configuration will be read from
 <p>Install on specific directory <code>/foo/bar</code> with</p>
 
 <blockquote>
-<pre><code>./configure
+<pre><code>./configure --disable-standalone
 make
 DESTDIR=/foo/bar make install
 </code></pre>
@@ -1911,7 +1956,7 @@ DESTDIR=/foo/bar make install
 <p>alternatively</p>
 
 <blockquote>
-<pre><code>./configure --prefix=/foo/bar
+<pre><code>./configure --disable-standalone --prefix=/foo/bar
 make
 make install
 </code></pre>
@@ -1921,7 +1966,7 @@ make install
 configuration from <code>/etc/lux</code> with</p>
 
 <blockquote>
-<pre><code>./configure
+<pre><code>./configure --disable-standalone
 make
 DESTDIR=/foo/bar ETCDIR=/etc/lux make install
 </code></pre>
@@ -1930,7 +1975,7 @@ DESTDIR=/foo/bar ETCDIR=/etc/lux make install
 <p>alternatively</p>
 
 <blockquote>
-<pre><code>./configure --prefix=/foo/bar --sysconfdir=/etc/lux
+<pre><code>./configure --disable-standalone --prefix=/foo/bar --sysconfdir=/etc/lux
 make
 make install
 </code></pre>
@@ -1938,8 +1983,8 @@ make install
 
 <h2>Obscure platforms</h2>
 
-<p>On "obscure platforms" which have <code>Erlang/OTP</code> but lacks
-<code>autotools</code>, make etc. it is still possible to build with</p>
+<p>On "obscure platforms" which have <code>Erlang/OTP</code> but lacks <code>autotools</code>,
+make etc. it is still possible to build with</p>
 
 <blockquote>
 <pre><code>bin/lux --make

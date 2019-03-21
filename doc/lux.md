@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.19.3 - 2019-02-18
+Version 1.20 - 2019-03-21
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -272,32 +272,37 @@ character on the line.
 **!String**  
 
 A `send` operation. Sends a `String` to the `stdin` of the active
-shell. Adds a `LF` at the end of the string. `String` may contain
-references to variables using `$Var` or `${Var}`.
+shell. Adds a `LF` (line feed) at the end of the string. `String`
+may contain references to variables using `$Var` or `${Var}`.
 
 **~String**  
 Same as `!String`, but it does NOT add a `LF` at the end.
+
+**???Verbatim**  
+An `expect` operation which waits for a given sequence of characters
+to appear on the shell output (either `stdout` or `stderr`). All
+characters in the `Verbatim` string are matched literally. This means
+that even characters like `\` (backslash), `$` (dollar) etc. are
+matched explicitly.
+
+If no matching output does appear within the timeout period, the test
+case is considered as failed. See the `--timeout` option. See also the
+`--flush_timeout` and `--poll_timeout` configuration parameters about
+customizing the `?` behavior.
+
+**??Template**  
+Like `?Verbatim`, but variables are also substituted.
+
+**?Regexp**  
+Like `??Template`, but matches a [regular expression][] after the
+variable substitution. If the shell output is expected to contain a
+regexp keyword, such as `^$.?+*()[]{}|`, the keyword must be escaped
+with a backslash.
 
 **?**  
 Flush the output streams (`stdout`, `stderr`). Already received output
 is discarded. Avoid this (mis)feature. At a first look it seems more
 useful than it is. It often causes unexpected race patterns.
-
-**?Regexp**  
-An `expect` operation which waits for a string matching a [regular
-expression][] to appear on the shell output (either `stdout` or
-`stderr`). If no matching output does appear within the timeout
-period, the test case is considered as failed. See the `--timeout`
-option. See also the `--flush_timeout` and `--poll_timeout`
-configuration parameters about customizing the `?` behavior.
-
-**??Template**  
-Like `?Regexp`, but is more restricted as all regular expression
-keywords are ignored. Variables are still substituted.
-
-**???Verbatim**  
-Like `??Template`, but is more restricted as no variables are substituted.
-That is the string is matched as is.
 
 **?+Regexp**  
 Like `?Regexp`, but has no immediate effect. It is used when the
@@ -1718,9 +1723,10 @@ Snippet from the enclosed `.../lux/examples/unstable.lux` file:
 >     
 >     [config unstable_unless=TEST_DEVELOP]
 >     
->     [shell foo]
->         [timeout 1]
->         ?bar
+>     [shell date]
+>         -5
+>         !date +%S
+>         ?SH-PROMPT
 >     
 
 Here follow the output from the enclosed example test suite under
@@ -1729,12 +1735,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_03_21_15_11_42_125941/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:..:...:..:.:.:....:..:.:..:..(....:..:.:.:...)(.:.:..:..)...:..:.:..:..(.:.:..:..)..(.:..:..)(....:.:..:...)(.:.:..:..)..(.:.:..:..)......:..:.........
+>     progress          : ..:..:.:..:...:..:.:....:..:..:..(....:..:.:.:.:...)(.:..:..)...:..:.:..:..(.:..:..)..(.:..:..)(....:.:.:..:...)(.:..:.:..)..(.:.:..:..)......:..:.........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:.:..:...:..:.:.:..:..:.:.....:.:..32C..:..:..:.:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:...:..:.:...:.:.:....:..:..32C..:..:.:..:..:.:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32 in shell calculator
 >     expected*
 >     	19
@@ -1751,13 +1757,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:.:.:.....:..:.:..:..:.:..:..:.:..:.:..:.:..:.....:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..:.
+>     progress          : ..:..:.:..:..:.:..:....:..:..:..:.:..:.:..:.:..:.:.:..:.:..:.....:..:.:.:....c......:.:.:..:..:..:..:..:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:.:..:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:.:..)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:..:.))...:..:..:..:..:.:..:.:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:.))c........:..:..:.:..:..:.:.
+>     progress          : ..:..:.:..:.((.:.:..:.)(.:.:..:.)(.:..:.:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:..:.:..:.:..:.:...:..:.:..:.((.i=1..:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:.:..:.:).)c........:..:..:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..:.((.i=1..:..:..z)(z..i=2...:.:..z)(z..i=3..:.:..:..z))+5
+>     progress          : ..:..:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at 5 in shell break
 >     expected*
 >     	
@@ -1771,31 +1777,35 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:..:..:.:....7
->     result            : WARNING at 7 in shell foo
+>     progress          : ..:..:..:...:.:..:.-8
+>     warning           : 9: Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     result            : WARNING at 8 in shell date
 >     expected*
->     	bar
->     actual match_timeout
+>     	SH-PROMPT
+>     actual fail pattern matched "5"
+>     	0
 >     	
 >     diff
->     	- bar
+>     	- SH-PROMPT
+>     	+ 0
 >     	+ 
 >     	
 >     test case         : examples/warning.lux
->     progress          : 
+>     progress          : W
+>     warning           : 3: Trailing whitespaces
 >     result            : WARNING
 >     successful        : 3
 >     skipped           : 1
 >     	examples/skip.lux:6
 >     warnings          : 2
->     	examples/unstable.lux:7 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     	examples/unstable.lux:9 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 >     	examples/warning.lux:3 - Trailing whitespaces
 >     failed            : 3
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require.lux:3 - FAIL as required variable MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_11_19_18_45_19_648788/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_03_21_15_11_42_125941/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -1803,6 +1813,11 @@ Evaluate `lux examples`
 
 Installation
 ============
+
+On MacOS, Lux can be installed with `brew install hawk/homebrew-hawk/lux`.
+It will install Erlang and whatewer else Lux needs.
+
+TLDR;
 
 Prerequisites
 -------------
@@ -1812,10 +1827,12 @@ The following software is required:
 * The tool **Lux** is implemented with **[Erlang/OTP][]** and its
   runtime system must be installed in order to build the tool. Install
   `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
+
 >     sudo apt-get install erlang
 
-  Once `Lux` has been installed, it will be self-contained and does
-  not need a separate `Erlang/OTP` runtime system any more.
+or
+
+>     brew install erlang
 
 * On BSD based systems, GNU Make is required.
 
@@ -1825,15 +1842,29 @@ The following software is required:
 Instructions
 ------------
 
-If you have cloned the source from `github.com` and want to build the
-tool using `configure` and `make` there is no `configure` script. Then
-you need to create it with
+On systems lacking `brew`, Lux is `downloaded` from GitHub with
+
+>     git clone git@github.com:hawk/lux.git
+>     cd lux
+
+The `configure file is generated with
 
 >     autoconf
 
-Vanilla configure, build and install with
+By default lux is installed as `standalone` with a bundled `Erlang`
+runtime system meaning that it does not rely on a separately installed
+Erlang. The standalone installation is done with
 
 >     ./configure
+
+In most cases it does probably more sense to use the already installed
+erlang runtime system and `NOT bundle it with Lux`. This allows test
+programs to use Erlang applications which not is self-contained/standalone.
+
+>     ./configure --disable-standalone
+
+Once the system is configures it needs to be built and (possibly) installed.
+
 >     make
 >     make install
 
@@ -1843,34 +1874,34 @@ that custom architecture configuration will be read from
 
 Install on specific directory `/foo/bar` with
 
->     ./configure
+>     ./configure --disable-standalone
 >     make
 >     DESTDIR=/foo/bar make install
 
 alternatively
 
->     ./configure --prefix=/foo/bar
+>     ./configure --disable-standalone --prefix=/foo/bar
 >     make
 >     make install
 
 Install on directory `/foo/bar` and read custom architecture
 configuration from `/etc/lux` with
 
->     ./configure
+>     ./configure --disable-standalone
 >     make
 >     DESTDIR=/foo/bar ETCDIR=/etc/lux make install
 
 alternatively
 
->     ./configure --prefix=/foo/bar --sysconfdir=/etc/lux
+>     ./configure --disable-standalone --prefix=/foo/bar --sysconfdir=/etc/lux
 >     make
 >     make install
 
 Obscure platforms
 -----------------
 
-On "obscure platforms" which have `Erlang/OTP` but lacks
-`autotools`, make etc. it is still possible to build with
+On "obscure platforms" which have `Erlang/OTP` but lacks `autotools`,
+make etc. it is still possible to build with
 
 >     bin/lux --make
 
