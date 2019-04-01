@@ -167,9 +167,9 @@ variable** `LUX_SHELLNAME` is set to `Name`. The shell prompt variable
 `PS1` is set to `SH-PROMPT:` and the first printout of the prompt is
 automatically matched in an expect like manner in order to ensure that
 the shell is ready for input. The `Name` may contain variables. Shell
-names beginning with `lux` and `cleanup` are reserved for internal
-purposes. The **environment variable** `LUX_START_REASON` is
-initially set to `normal`. See also `[cleanup]`.
+names beginning with `lux`, `cleanup` and `post_cleanup` are reserved
+for internal purposes. The **environment variable** `LUX_START_REASON`
+is initially set to `normal`. See also `[cleanup]`.
 
 **\[shell\]**  
 **\[shell Name\]**  
@@ -228,9 +228,7 @@ to another shell it is good practice to switch back to the calling
 shell before the end of the macro. One way of doing this is to get the
 name of the active shell from the **environment variable**
 `LUX_SHELLNAME` with `[my old=$LUX_SHELLNAME]` and later switch back
-to the shell with `[shell $old]`. If the macro file contains a
-`[cleanup]` marker, the statements after that will be evaluated in
-order to cleanup unwanted side effects.
+to the shell with `[shell $old]`.
 
 **\[invoke MacroName ArgVal1 ArgVal ...\]**  
 Invoke a macro. The arguments are separated with spaces. Arguments

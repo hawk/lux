@@ -529,33 +529,12 @@ dispatch_cmd(I,
         no_cleanup ->
             prepare_cleanup(I, Cmd);
         cleanup ->
-            I2 = refresh_case_timer(I),
-            I3 = prepare_cleanup(I2, Cmd),
-            Suffix =
-                case ?call_level(I3) of
-                    1 -> "";
-                    N -> ?i2l(N)
-                end,
-            ShellType =
-                case I3#istate.newshell of
-                    true  -> newshell;
-                    false -> shell
-                end,
-            ShellCmd = Cmd#cmd{type = ShellType, arg = "cleanup" ++ Suffix},
-            OldMode = I3#istate.mode,
-            NewMode =
-                if
-                    OldMode =:= stopping ->
-                        OldMode;
-                    I3#istate.cleanup_reason =:= normal ->
-                        OldMode;
-                    true ->
-                        mode(OldMode, cleanup)
-                end,
-            I4 = I3#istate{mode = NewMode,
-                           default_timeout = I3#istate.cleanup_timeout,
-                           debug_shell = undefined},
-            ensure_shell(I4, ShellCmd);
+            I2 = prepare_cleanup(I, Cmd),
+            {I3, ShellCmd} = cleanup_cmd(I2, Cmd, "cleanup"),
+            ensure_shell(I3, ShellCmd);
+        post_cleanup ->
+            I2 = prepare_cleanup(I, Cmd),
+            ensure_shell(I2, Arg);
         shell ->
             ensure_shell(I, Cmd);
         newshell ->
@@ -608,6 +587,34 @@ dispatch_cmd(I,
             %% Send next command to active shell
             shell_eval(I, Cmd)
     end.
+
+cleanup_cmd(I, Cmd, Prefix) ->
+    I2 = refresh_case_timer(I),
+    Suffix =
+        case ?call_level(I2) of
+            1 -> "";
+            N -> ?i2l(N)
+        end,
+    ShellType =
+        case I2#istate.newshell of
+            true  -> newshell;
+            false -> shell
+        end,
+    ShellCmd = Cmd#cmd{type = ShellType, arg = Prefix ++ Suffix},
+    OldMode = I2#istate.mode,
+    NewMode =
+        if
+            OldMode =:= stopping ->
+                OldMode;
+            I2#istate.cleanup_reason =:= normal ->
+                OldMode;
+            true ->
+                mode(OldMode, cleanup)
+        end,
+    I3 = I2#istate{mode = NewMode,
+                   default_timeout = I2#istate.cleanup_timeout,
+                   debug_shell = undefined},
+    {I3, ShellCmd}.
 
 shell_eval(I, Cmd) ->
     dlog(I, ?dmore, "want_more=false (send ~p)", [Cmd#cmd.type]),
@@ -973,10 +980,14 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
         {running, _Outcome, _} ->
             multicast(I3, {relax, self()}),
             goto_cleanup(I3);
-        {cleanup, _Outcome, _} ->
+        {cleanup, _Outcome, _} when I3#istate.post_cleanup_cmd =:= undefined ->
             %% Initiate stop by sending shutdown to the remaining shells.
             multicast(I3, {shutdown, self()}),
             I3#istate{mode = mode(OldMode, stopping)};
+        {cleanup, _Outcome, _} when I3#istate.post_cleanup_cmd =/= undefined ->
+            %% Post cleanup
+            multicast(I3, {relax, self()}),
+            goto_post_cleanup(I3);
         {stopping, _Outcome, _} ->
             %% Shutdown has already been sent to the other shells.
             %% Continue to collect their states if needed.
@@ -1055,6 +1066,29 @@ find_cleanup(I) ->
         end,
     lists:dropwhile(CleanupFun, Cmds).
 
+goto_post_cleanup(I) ->
+    dlog(I, ?dmore, "want_more=false (post_cleanup)", []),
+
+    %% Shell cmd
+    LatestCmd = I#istate.latest_cmd,
+    {I2, ShellCmd} = cleanup_cmd(I, LatestCmd, "post_cleanup"),
+    PostCleanup = ShellCmd#cmd{type = post_cleanup,
+                               arg = ShellCmd},
+
+    %% Eval post cleanup
+    CmdStr = ?l2b([I#istate.post_cleanup_cmd, "\n"]),
+    EvalCmd = LatestCmd#cmd{type = send,
+                            arg = CmdStr},
+
+    %% Wait for the prompt
+    CmdRegExp = ?l2b(I#istate.shell_prompt_regexp),
+    SyncPrompt = LatestCmd#cmd{type = expect,
+                               arg = {regexp, single, CmdRegExp}},
+
+    I2#istate{want_more = true,
+              commands = [PostCleanup, EvalCmd, SyncPrompt],
+              post_cleanup_cmd = undefined}.
+
 result_lineno(I, LineNoStr) ->
     %% Ensure that the cleanup does not take too long time
     case I#istate.results of
@@ -1121,14 +1155,14 @@ cleanup_strings(cleanup, normal) ->
     {"", "c"};
 cleanup_strings(cleanup, _CleanupReason) ->
     {"", "C"};
-%%cleanup_strings(no_cleanup, normal) ->
-%%    {" no", "n"};
-%%cleanup_strings(no_cleanup, _CleanupReason) ->
-%%    {" no", "N"}.
 cleanup_strings(no_cleanup, normal) ->
     {" no", ""};
 cleanup_strings(no_cleanup, _CleanupReason) ->
-    {" no", ""}.
+    {" no", ""};
+cleanup_strings(post_cleanup, normal) ->
+    {" no", "p"};
+cleanup_strings(post_cleanup, _CleanupReason) ->
+    {" no", "P"}.
 
 zombify_shells(I, Cmd) ->
     ?TRACE_ME2(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),
@@ -1291,7 +1325,8 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
 
 shell_start(I, #cmd{arg = Name, type = Type})
   when I#istate.newshell andalso Type =:= shell ->
-    ilog(I, "~s(~p): In newshell mode the shell cmd may not start a shell\n",
+    ilog(I, "~s(~p): In newshell mode the shell cmd"
+         " may not be used to start a shell\n",
          [Name, (I#istate.latest_cmd)#cmd.lineno]),
     handle_error(I, ?l2b("shell " ++ Name ++ " must be started with newshell"));
 shell_start(I, #cmd{arg = Name} = Cmd) ->
@@ -1315,17 +1350,17 @@ shell_start(I, #cmd{arg = Name} = Cmd) ->
 
 prepare_shell_prompt(I, Cmd) ->
     %% Wait for some shell output
-    Wait = Cmd#cmd{type = expect,
-                   arg = {regexp, single, <<".+">>}},
+    WaitForOutput = Cmd#cmd{type = expect,
+                            arg = {regexp, single, <<".+">>}},
     %% Set the prompt (after the rc files has ben run)
     CmdStr = ?l2b([I#istate.shell_prompt_cmd, "\n"]),
-    Prompt = Cmd#cmd{type = send,
-                     arg = CmdStr},
+    SetPrompt = Cmd#cmd{type = send,
+                        arg = CmdStr},
     %% Wait for the prompt
     CmdRegExp = ?l2b(I#istate.shell_prompt_regexp),
-    Sync = Cmd#cmd{type = expect,
-                   arg = {regexp, single, CmdRegExp}},
-    Cmds = [Wait, Prompt, Sync | I#istate.commands],
+    SyncPrompt = Cmd#cmd{type = expect,
+                         arg = {regexp, single, CmdRegExp}},
+    Cmds = [WaitForOutput, SetPrompt, SyncPrompt | I#istate.commands],
     dlog(I, ?dmore, "want_more=false (shell_start)", []),
     I#istate{commands = Cmds}.
 

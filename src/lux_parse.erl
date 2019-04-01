@@ -750,6 +750,12 @@ parse_shell(P, Fd, Cmd, LineNo, Name, Type) ->
                             ": ~s is a reserved"
                             " shell name",
                             [LineNo, Name2]));
+        {"post_cleanup"++_, _} ->
+            parse_error(P, Fd, LineNo,
+                        ?FF("Syntax error at line ~p"
+                            ": ~s is a reserved"
+                            " shell name",
+                            [LineNo, Name2]));
         {_, match} ->
             parse_error(P, Fd, LineNo,
                         ?FF("Syntax error at line ~p"

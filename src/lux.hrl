@@ -177,6 +177,7 @@
          shell_args = ["-i"]        :: [string()],
          shell_prompt_cmd = "export PS1=SH-PROMPT:" :: string(),
          shell_prompt_regexp = "^SH-PROMPT:" :: string(),
+         post_cleanup_cmd           :: undefined | string(),
          call_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
          active_shell = no_shell    :: no_shell | #shell{},

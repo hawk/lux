@@ -481,7 +481,9 @@ assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
                                  Cmd#cmd.type =:= break;
                                  Cmd#cmd.type =:= progress;
                                  Cmd#cmd.type =:= change_timeout;
-                                 Cmd#cmd.type =:= cleanup ->
+                                 Cmd#cmd.type =:= no_cleanup;
+                                 Cmd#cmd.type =:= cleanup;
+                                 Cmd#cmd.type =:= post_cleanup ->
     ok;
 assert_eval(C, Cmd, _From) ->
     Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
@@ -650,6 +652,8 @@ shell_eval(#cstate{name = Name} = C0,
         no_cleanup ->
             cleanup(C);
         cleanup ->
+            cleanup(C);
+        post_cleanup ->
             cleanup(C);
         Unexpected ->
             clog(C, shell_got_msg, "~p", [Unexpected]),

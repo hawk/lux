@@ -23,6 +23,21 @@
 -define(APPLICATION, lux).
 -define(FILES, "--").
 
+-ifdef(OTP_RELEASE).
+    -define(stacktrace(),
+            fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason:Stacktrace ->
+           ).
+-else.
+    -define(stacktrace(),
+            try throw(1) catch _:_ -> erlang:get_stacktrace() end).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+           ).
+-endif.
+
 -spec(main([string()]) -> no_return()).
 main(OrigArgs) ->
     ExitCode =
@@ -46,8 +61,9 @@ main(OrigArgs) ->
                     dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs)
             end
         catch
-            Class:Reason ->
-                io:format("\n\nFATAL ERROR: ~p:~p\n", [Class, Reason]),
+            ?CATCH_STACKTRACE(Class, Reason, EST)
+                io:format("\n\nFATAL ERROR: ~p:~p\n\t~p\n",
+                          [Class, Reason, EST]),
                 2
         end,
     safe_halt(ExitCode).
@@ -185,6 +201,7 @@ specs() ->
                                            string,                 mandatory},
      {"--shell_prompt_regexp","^SH-PROMPT:",
                                            string,                 mandatory},
+     {"--post_cleanup_cmd",   undefined,   string,                 optional},
      {"--file_pattern", ".*\.lux" ++ [$$], string,                 mandatory},
      {"--root_dir",           undefined,   string,                 mandatory},
      {"--var",                undefined,   string,                 mandatory},
@@ -1259,6 +1276,7 @@ translate_opts([
      {"--shell_args",         ShellArgs},
      {"--shell_prompt_cmd",   ShellPromptCmd},
      {"--shell_prompt_regexp",ShellPromptRegexp},
+     {"--post_cleanup_cmd",   PostCleanupCmd},
      {"--file_pattern",       FilePattern},
      {"--root_dir",           _RootDir},
      {"--var",                Var},
@@ -1288,6 +1306,7 @@ translate_opts([
          {shell_args,         ShellArgs},
          {shell_prompt_cmd,   ShellPromptCmd},
          {shell_prompt_regexp,ShellPromptRegexp},
+         {post_cleanup_cmd,   PostCleanupCmd},
          {multiplier,         Multiplier},
          {suite_timeout,      SuiteTimeout},
          {log_dir,            LogDir},

@@ -246,12 +246,17 @@ do_parse_iopts(I, [], U) ->
         "" -> ShellWrapper = undefined;
         ShellWrapper -> ok
     end,
+    case I#istate.post_cleanup_cmd of
+        "" -> PostCleanup = undefined;
+        PostCleanup -> ok
+    end,
     SuiteLogDir = lux_utils:normalize_filename(I#istate.suite_log_dir),
     I2 = I#istate{file = File,
                   orig_file = File,
                   shell_wrapper = ShellWrapper,
                   suite_log_dir = SuiteLogDir,
-                  case_log_dir = SuiteLogDir},
+                  case_log_dir = SuiteLogDir,
+                  post_cleanup_cmd = PostCleanup},
     {{ok, I2}, U}.
 
 parse_iopt(I, Name, Val, U) when is_atom(Name) ->
@@ -325,6 +330,9 @@ config_type(Name) ->
             {ok, #istate.shell_prompt_cmd, [string]};
         shell_prompt_regexp ->
             {ok, #istate.shell_prompt_regexp, [string]};
+        post_cleanup_cmd ->
+            {ok, #istate.post_cleanup_cmd, [string,
+                                            {atom, [undefined]}]};
         var ->
             {ok, #istate.global_vars, [{std_list, [string]}]};
         system_env ->
@@ -789,6 +797,7 @@ user_config_keys() ->
      shell_args,
      shell_prompt_cmd,
      shell_prompt_regexp,
+     post_cleanup_cmd,
      var
     ].
 

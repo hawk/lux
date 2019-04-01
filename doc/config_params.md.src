@@ -413,6 +413,18 @@ shell wrapper (if it has been built properly).
 It is also possible to use no shell wrapper at all by omitting the
 `Executable` value (or simply set it to the empty string "").
 
+**--post\_commit\_cmd**  
+**--post\_commit\_cmd \[CleanupCmd\]**  
+Enable centrally defined cleanup code to be run after those test cases
+where the "normal" cleanup fails. The purpose of this is to make it
+possible to report and possibly undo unwanted side effects which the
+cleanup code have failed to handle. A workaround for sloppy written
+test cases which may make a test suite more stable.
+
+When a test case fails in its `cleanup`, a shell named `post_commit`
+will be started, the `CleanupCmd` string will be sent to the shell and
+the shell prompt will be waited for.
+
 **--line\_term Chars**  
 Specify the character sequence added to the end of lines sent to
 a shell. It defaults to `\n`.
