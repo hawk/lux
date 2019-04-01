@@ -23,8 +23,6 @@ all debug install install_local install_standalone clean:
 xref:
 	bin/lux --xref
 
-	cd test && $(MAKE) all
-
 .PHONY: test
 test:
 	cd test && $(MAKE) all
