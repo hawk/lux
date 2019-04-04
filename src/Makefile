@@ -5,6 +5,7 @@
 
 include ../include.mk
 include ../vsn.mk
+
 VSN=$(LUX_VSN)
 
 ERL_MODULES = \
@@ -37,23 +38,19 @@ $(EBIN_FILES): lux.hrl
 clean:
 	rm -f $(EBIN_FILES) erl_crash.dump core* *~
 
-# Standalone/local installation
-install: $(INSTALL_TARGET)
+install:
+	mkdir -p $(TARGETDIR)
+	(cd .. && tar cf - *) | (cd $(TARGETDIR) && tar xf -)
+	echo "# Added by Lux installer"      >> $(TARGETDIR)/priv/luxcfg
+	echo "[config config_dir=$(ETCDIR)]" >> $(TARGETDIR)/priv/luxcfg
+	mkdir -p $(BINDIR)
+	cd $(BINDIR) && ln -s $(TARGETDIR)/bin/lux
 
-install_standalone:
-	echo "Install standalone"
-	mkdir -p $(DESTDIR)
-	$(APP_DIR)/bin/lux --install $(DESTDIR)
-	if [ "$(ETCDIR)" != "$(DESTDIR)/priv" ]; then \
-	  echo "# Added by Lux installer"      >> $(DESTDIR)/lib/lux-$(VSN)/priv/luxcfg ; \
-	  echo "[config config_dir=$(ETCDIR)]" >> $(DESTDIR)/lib/lux-$(VSN)/priv/luxcfg ; \
-	fi
-
-install_local:
-	echo "Install local"
-	mkdir -p $(DESTDIR)
-	(cd .. && tar cf - *) | (cd $(DESTDIR) && tar xf -)
-	if [ "$(ETCDIR)" != "$(DESTDIR)/priv" ]; then \
-	  echo "# Added by Lux installer"      >> $(DESTDIR)/priv/luxcfg ; \
-	  echo "[config config_dir=$(ETCDIR)]" >> $(DESTDIR)/priv/luxcfg ; \
-	fi
+info:
+	@echo "VSN=$(VSN)"
+	@echo "ERL_MODULES=$(ERL_MODULES)"
+	@echo "ERL_FILES=$(ERL_FILES)"
+	@echo "EBIN_FILES=$(EBIN_FILES)"
+	@echo "APP_DIR=$(APP_DIR)"
+	@echo "BINDIR=$(BINDIR)"
+	@echo "TARGETDIR=$(TARGETDIR)"

@@ -11,17 +11,36 @@ Prerequisites
 
 The following software is required:
 
+* On BSD based systems, GNU Make is required.
+
 * The tool **Lux** is implemented with **[Erlang/OTP][]** and its
   runtime system must be installed in order to build the tool. Install
   `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
 
->     sudo apt-get install erlang
-
-or
-
 >     brew install erlang
 
-* On BSD based systems, GNU Make is required.
+           or
+
+>     sudo apt-get install erlang
+
+* By installing the `erlang` package most of the Erlang apps needed by
+  Lux will be installed automatically. But there are additional Erlang
+  packages which may be needed when using more exotic features, such
+  as debugging and developing Lux itself:
+
+  - `--internal_debug` requires `debugger`+`wx`
+  - `--suite_trace`    requires `runtime_tools`
+  - `--event_trace`    requires `runtime_tools`+`et`+`wx`
+  - `--reltool`        requires `reltool`
+
+* A standalone installation (using `--install`) requires `reltool`.
+
+* Building Lux using `--make` requires `tools`.
+
+* Testing of Lux itself requires `tools`.
+
+* `--history` require may `inets`. But only when the logs are referred
+  to by using URL's. Using local files does not require `inets`.
 
 * The documentation is pre-built. Re-generation of the documentation
   requires **[Markdown][]**.
@@ -29,81 +48,65 @@ or
 Instructions
 ------------
 
-On systems lacking `brew`, Lux is `downloaded` from GitHub with
+Lux can be `downloaded` from GitHub with
 
 >     git clone git@github.com:hawk/lux.git
 >     cd lux
 
-The `configure file is generated with
+Lux is built with
 
 >     autoconf
-
-By default lux is installed as `standalone` with a bundled `Erlang`
-runtime system meaning that it does not rely on a separately installed
-Erlang. The standalone installation is done with
-
 >     ./configure
-
-In most cases it does probably more sense to use the already installed
-erlang runtime system and `NOT bundle it with Lux`. This allows test
-programs to use Erlang applications which not is self-contained/standalone.
-
->     ./configure --disable-standalone
-
-Once the system is configures it needs to be built and (possibly) installed.
-
 >     make
+
+When this is done you have a system which can run Lux with
+
+>     bin/lux <SOME PARAMS>
+
+But you may also install Lux somewhere by using
+
 >     make install
 
-This will imply that **Lux** will be installed on `/usr/local/lux` and
-that custom architecture configuration will be read from
-`/usr/local/lux/lib/lux-$(VSN)/priv`.
+By default (that is when ./configure has been invoked without
+parameters), Lux will be installed under /usr/local. It is effectively
+the same as invoking
 
-Install on specific directory `/foo/bar` with
+>     ./configure --prefix=/usr/local --exec_prefix=/usr/local --bindir=/usr/local/bin --sysconfdir=/usr/local/etc
 
->     ./configure --disable-standalone
->     make
->     DESTDIR=/foo/bar make install
+`make install` does also accept various parameters which overrides the
+ones given to `./configure`. Such as
 
-alternatively
+>     make prefix=/usr/local exec_prefix=/usr/local bindir=/usr/local/bin sysconfdir=/usr/local/etc install
 
->     ./configure --disable-standalone --prefix=/foo/bar
->     make
->     make install
+and those parameters may be combined with
 
-Install on directory `/foo/bar` and read custom architecture
-configuration from `/etc/lux` with
+>     make DESTDIR=/my/staging/area install
 
->     ./configure --disable-standalone
->     make
->     DESTDIR=/foo/bar ETCDIR=/etc/lux make install
+Standalone installation
+-----------------------
 
-alternatively
+When building Lux an Erlang/OTP system must be available.
 
->     ./configure --disable-standalone --prefix=/foo/bar --sysconfdir=/etc/lux
->     make
->     make install
+By default that Erlang/OTP system is also used when running Lux.
+
+But it is possible to perform an `standalone installation` of Lux
+where the Lux installation is bundled with Erlang/OTP. This means that
+you may in fact uninstall the Erlang/OTP system used for building Lux
+and still be able to run Lux as it is self-contained with its own
+Erlang/OTP runtime system. A standalone installation is performed with
+
+>     mkdir -p <TARGETDIR>
+>     bin/lux --install <TARGETDIR>
+
+The installed standalone system may be re-located if needed.
 
 Obscure platforms
 -----------------
 
 On "obscure platforms" which have `Erlang/OTP` but lacks `autotools`,
-make etc. it is still possible to build with
+make etc. it may still possible to build with
 
 >     bin/lux --make
-
-and install with
-
->     bin/lux --install DestDir
-
-The given InstallDir will contain the lux tool as well as a stripped
-Erlang runtime system. It is possible to move the entire standalone
-system from InstallDir to another location without any
-re-installation.
-
-The standalone tool can be started with
-
->     DestDir/bin/lux
 
 Re-build the documentation
 --------------------------

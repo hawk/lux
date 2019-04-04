@@ -30,3 +30,9 @@ clean:
 	rm -rf $(PROG) ../priv/bin/runpty.dSYM core* *~
 
 install:
+
+info:
+	@echo "DEBUG=$(DEBUG)"
+	@echo "TRACE=$(TRACE)"
+	@echo "CFLAGS=$(CFLAGS)"
+	@echo "PROG=$(PROG)"

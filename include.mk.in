@@ -5,24 +5,38 @@
 # See the file "LICENSE" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-ifeq ($(DESTDIR),)
-  DESTDIR=@prefix@
+ifeq ($(prefix),)
+  PREFIX=@PREFIX@
+else
+  PREFIX=$(prefix)
 endif
 
-USE_DEFAULT_ETCDIR=@use_default_sysconfdir@
-ifeq ($(ETCDIR),)
-  ifeq ($(USE_DEFAULT_ETCDIR),true)
-    ETCDIR=$(DESTDIR)/priv
-  else
-    ETCDIR=@sysconfdir@
-  endif
+ifeq ($(exec_prefix),)
+  EXEC_PREFIX=@EXEC_PREFIX@
+else
+  EXEC_PREFIX=$(exec_prefix)
+endif
+
+ifeq ($(bindir),)
+  BINDIR=@BINDIR@
+else
+  BINDIR=$(bindir)
+endif
+
+ifeq ($(sysconfdir),)
+  SYSCONFDIR=@SYSCONFDIR@
+else
+  SYSCONFDIR=$(sysconfdir)
+endif
+
+ifeq ($(DESTDIR),)
+  TARGETDIR=$(PREFIX)/lux
+else
+  TARGETDIR=$(DESTDIR)$(PREFIX)/lux
 endif
 
 APP_DIR=$(shell dirname $(PWD))
 LUX=$(APP_DIR)/bin/lux
-
-# Standalone/local installation
-INSTALL_TARGET=@INSTALL_TARGET@
 
 # Erlang
 ERL="@ERL@"

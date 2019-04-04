@@ -4,44 +4,40 @@
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
 # Process this file with autoconf to produce a configure script.
+
 AC_INIT(Makefile)
 
-# Default application installation dir. Override with --prefix
-AC_PREFIX_DEFAULT(/usr/local/lux)
-
 if test "x$prefix" = "xNONE"; then
-  # $prefix is not set
-  prefix="/usr/local/lux"
-fi
-if test `basename $prefix` != "lux"; then
-  prefix="$prefix/lux"
-fi
-
-# Default config installation dir is $prefix/etc. Override with --sysconfdir
-use_default_sysconfdir=false
-if test "x$sysconfdir" = 'x$prefix/etc'; then
-  # $sysconfdir is not set
-  use_default_sysconfdir=true
-  sysconfdir="$prefix/priv"
-fi
-
-AC_SUBST(sysconfdir)
-AC_SUBST(use_default_sysconfdir)
-
-################################################################################
-# Standalone installation bundled with Erlang/OTP runtime
-
-AC_ARG_ENABLE(standalone,
-AS_HELP_STRING([--enable-standalone],  [enable standalone installation])
-AS_HELP_STRING([--disable-standalone], [disable standalone installation]))
-
-if test "x$enable_standalone" != "xno"; then
-  INSTALL_TARGET=install_standalone
+  PREFIX=/usr/local
 else
-  INSTALL_TARGET=install_local
+  PREFIX=$prefix
 fi
 
-AC_SUBST(INSTALL_TARGET)
+AC_SUBST(PREFIX)
+
+if test "x$exec_prefix" = "xNONE"; then
+  EXEC_PREFIX=$PREFIX
+else
+  EXEC_PREFIX=$exec_prefix
+fi
+
+AC_SUBST(EXEC_PREFIX)
+
+if test "x$bindir" = 'x${exec_prefix}/bin'; then
+  BINDIR=$EXEC_PREFIX/bin
+else
+  BINDIR=$bindir
+fi
+
+AC_SUBST(BINDIR)
+
+if test "x$sysconfdir" = 'x${prefix}/etc'; then
+  SYSCONFDIR=$PREFIX/etc
+else
+  SYSCONFDIR=$sysconfdir
+fi
+
+AC_SUBST(SYSCONFDIR)
 
 ################################################################################
 # C
@@ -107,6 +103,7 @@ if test "x$MARKDOWN" = "xno"; then
   # Enforce a runtime error when doc is built
   MARKDOWN=markdown
 fi
+
 AC_SUBST(MARKDOWN)
 
 ################################################################################
