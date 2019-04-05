@@ -6,34 +6,35 @@
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
 ifeq ($(prefix),)
-  PREFIX=@PREFIX@
-else
-  PREFIX=$(prefix)
+  prefix=@PREFIX@
 endif
 
 ifeq ($(exec_prefix),)
-  EXEC_PREFIX=@EXEC_PREFIX@
-else
-  EXEC_PREFIX=$(exec_prefix)
+  exec_prefix=@EXEC_PREFIX@
+  ifeq ($(exec_prefix),DEFAULT)
+    exec_prefix=$(prefix)
+  endif
 endif
 
 ifeq ($(bindir),)
-  BINDIR=@BINDIR@
-else
-  BINDIR=$(bindir)
+  bindir=@BINDIR@
+  ifeq ($(bindir),DEFAULT)
+    bindir=$(exec_prefix)/bin
+  endif
 endif
 
 ifeq ($(sysconfdir),)
-  SYSCONFDIR=@SYSCONFDIR@
-else
-  SYSCONFDIR=$(sysconfdir)
+  sysconfdir=@SYSCONFDIR@
+  ifeq ($(sysconfdir),DEFAULT)
+    sysconfdir=$(prefix)/etc
+  endif
 endif
 
-ifeq ($(DESTDIR),)
-  TARGETDIR=$(PREFIX)/lux
-else
-  TARGETDIR=$(DESTDIR)$(PREFIX)/lux
-endif
+PREFIX=$(prefix)
+EXEC_PREFIX=$(exec_prefix)
+BINDIR=$(DESTDIR)$(bindir)
+SYSCONFDIR=$(DESTDIR)$(sysconfdir)
+TARGETDIR=$(DESTDIR)$(PREFIX)/lux
 
 APP_DIR=$(shell dirname $(PWD))
 LUX=$(APP_DIR)/bin/lux

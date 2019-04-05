@@ -35,11 +35,11 @@ config_clean:
 	-rm -rf configure include.mk autom4te.cache config.status config.log *~
 
 info:
+	@echo "DESTDIR=$(DESTDIR)"
 	@echo "PREFIX=$(PREFIX)"
 	@echo "EXEC_PREFIX=$(EXEC_PREFIX)"
 	@echo "BINDIR=$(BINDIR)"
 	@echo "SYSCONFDIR=$(SYSCONFDIR)"
-	@echo "DESTDIR=$(DESTDIR)"
 	@echo "TARGETDIR=$(TARGETDIR)"
 	@echo
 	@echo "LUX_SELF_TEST=$(LUX_SELF_TEST)"

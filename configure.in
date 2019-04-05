@@ -16,7 +16,7 @@ fi
 AC_SUBST(PREFIX)
 
 if test "x$exec_prefix" = "xNONE"; then
-  EXEC_PREFIX=$PREFIX
+  EXEC_PREFIX=DEFAULT
 else
   EXEC_PREFIX=$exec_prefix
 fi
@@ -24,7 +24,7 @@ fi
 AC_SUBST(EXEC_PREFIX)
 
 if test "x$bindir" = 'x${exec_prefix}/bin'; then
-  BINDIR=$EXEC_PREFIX/bin
+  BINDIR=DEFAULT
 else
   BINDIR=$bindir
 fi
@@ -32,7 +32,7 @@ fi
 AC_SUBST(BINDIR)
 
 if test "x$sysconfdir" = 'x${prefix}/etc'; then
-  SYSCONFDIR=$PREFIX/etc
+  SYSCONFDIR=DEFAULT
 else
   SYSCONFDIR=$sysconfdir
 fi
