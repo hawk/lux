@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 1.20 - 2019-03-21
+Version 2.0 - 2019-04-05
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -400,9 +400,9 @@ variable** `LUX_SHELLNAME` is set to `Name`. The shell prompt variable
 `PS1` is set to `SH-PROMPT:` and the first printout of the prompt is
 automatically matched in an expect like manner in order to ensure that
 the shell is ready for input. The `Name` may contain variables. Shell
-names beginning with `lux` and `cleanup` are reserved for internal
-purposes. The **environment variable** `LUX_START_REASON` is
-initially set to `normal`. See also `[cleanup]`.
+names beginning with `lux`, `cleanup` and `post_cleanup` are reserved
+for internal purposes. The **environment variable** `LUX_START_REASON`
+is initially set to `normal`. See also `[cleanup]`.
 
 **\[shell\]**  
 **\[shell Name\]**  
@@ -461,9 +461,7 @@ to another shell it is good practice to switch back to the calling
 shell before the end of the macro. One way of doing this is to get the
 name of the active shell from the **environment variable**
 `LUX_SHELLNAME` with `[my old=$LUX_SHELLNAME]` and later switch back
-to the shell with `[shell $old]`. If the macro file contains a
-`[cleanup]` marker, the statements after that will be evaluated in
-order to cleanup unwanted side effects.
+to the shell with `[shell $old]`.
 
 **\[invoke MacroName ArgVal1 ArgVal ...\]**  
 Invoke a macro. The arguments are separated with spaces. Arguments
@@ -1166,6 +1164,18 @@ shell wrapper (if it has been built properly).
 It is also possible to use no shell wrapper at all by omitting the
 `Executable` value (or simply set it to the empty string "").
 
+**--post\_commit\_cmd**  
+**--post\_commit\_cmd \[CleanupCmd\]**  
+Enable centrally defined cleanup code to be run after those test cases
+where the "normal" cleanup fails. The purpose of this is to make it
+possible to report and possibly undo unwanted side effects which the
+cleanup code have failed to handle. A workaround for sloppy written
+test cases which may make a test suite more stable.
+
+When a test case fails in its `cleanup`, a shell named `post_commit`
+will be started, the `CleanupCmd` string will be sent to the shell and
+the shell prompt will be waited for.
+
 **--line\_term Chars**  
 Specify the character sequence added to the end of lines sent to
 a shell. It defaults to `\n`.
@@ -1723,10 +1733,9 @@ Snippet from the enclosed `.../lux/examples/unstable.lux` file:
 >     
 >     [config unstable_unless=TEST_DEVELOP]
 >     
->     [shell date]
->         -5
->         !date +%S
->         ?SH-PROMPT
+>     [shell foo]
+>         [timeout 1]
+>         ?bar
 >     
 
 Here follow the output from the enclosed example test suite under
@@ -1735,12 +1744,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_03_21_15_11_42_125941/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_04_05_12_53_19_703851/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:.:..:...:..:.:....:..:..:..(....:..:.:.:.:...)(.:..:..)...:..:.:..:..(.:..:..)..(.:..:..)(....:.:.:..:...)(.:..:.:..)..(.:.:..:..)......:..:.........
+>     progress          : ..:..:.:..:...:..:.:....:..:..:..(....:..:.:.:.:.:...)(.:..:..)...:..:..:..(.:..:.:..)..(.:..:..)(....:.:.:....)(.:..:.:..)..(.:..:.:..)......:..:.........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:...:..:.:...:.:.:....:..:..32C..:..:.:..:..:.:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:...:..:.:.:...:.:.:....:.:..:..32C..:..:..:..:.:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32 in shell calculator
 >     expected*
 >     	19
@@ -1757,13 +1766,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:.:..:..:.:..:....:..:..:..:.:..:.:..:.:..:.:.:..:.:..:.....:..:.:.:....c......:.:.:..:..:..:..:..:..:.
+>     progress          : ..:..:..:..:.:..:....:..:.:..:..:..:..:.:..:.:.:..:.:..:..:....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:.:..:.)(.:.:..:.)(.:..:.:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:..:.:..:.:..:.:...:..:.:..:.((.i=1..:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:.:..:.:).)c........:..:..:..:.:..:.
+>     progress          : ..:..:.:..:.((.:..:.)(.:..:.:.)(.:..:.:.))((.:.:..:.)(..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.:.)(.:..:.))...:..:..:..:.:..:.:..:..:.:.:...:..:..:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:.:..:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+>     progress          : ..:..:.:..:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at 5 in shell break
 >     expected*
 >     	
@@ -1777,17 +1786,15 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:..:..:...:.:..:.-8
->     warning           : 9: Fail but UNSTABLE as variable TEST_DEVELOP is not set
->     result            : WARNING at 8 in shell date
+>     progress          : ..:..:.:..:....7
+>     warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     result            : WARNING at 7 in shell foo
 >     expected*
->     	SH-PROMPT
->     actual fail pattern matched "5"
->     	0
+>     	bar
+>     actual match_timeout
 >     	
 >     diff
->     	- SH-PROMPT
->     	+ 0
+>     	- bar
 >     	+ 
 >     	
 >     test case         : examples/warning.lux
@@ -1798,14 +1805,14 @@ Evaluate `lux examples`
 >     skipped           : 1
 >     	examples/skip.lux:6
 >     warnings          : 2
->     	examples/unstable.lux:9 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     	examples/unstable.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 >     	examples/warning.lux:3 - Trailing whitespaces
 >     failed            : 3
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require.lux:3 - FAIL as required variable MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_03_21_15_11_42_125941/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_05_12_53_19_703851/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -1824,17 +1831,36 @@ Prerequisites
 
 The following software is required:
 
+* On BSD based systems, GNU Make is required.
+
 * The tool **Lux** is implemented with **[Erlang/OTP][]** and its
   runtime system must be installed in order to build the tool. Install
   `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
 
->     sudo apt-get install erlang
-
-or
-
 >     brew install erlang
 
-* On BSD based systems, GNU Make is required.
+           or
+
+>     sudo apt-get install erlang
+
+* By installing the `erlang` package most of the Erlang apps needed by
+  Lux will be installed automatically. But there are additional Erlang
+  packages which may be needed when using more exotic features, such
+  as debugging and developing Lux itself:
+
+  - `--internal_debug` requires `debugger`+`wx`
+  - `--suite_trace`    requires `runtime_tools`
+  - `--event_trace`    requires `runtime_tools`+`et`+`wx`
+  - `--reltool`        requires `reltool`
+
+* A standalone installation (using `--install`) requires `reltool`.
+
+* Building Lux using `--make` requires `tools`.
+
+* Testing of Lux itself requires `tools`.
+
+* `--history` require may `inets`. But only when the logs are referred
+  to by using URL's. Using local files does not require `inets`.
 
 * The documentation is pre-built. Re-generation of the documentation
   requires **[Markdown][]**.
@@ -1842,81 +1868,65 @@ or
 Instructions
 ------------
 
-On systems lacking `brew`, Lux is `downloaded` from GitHub with
+Lux can be `downloaded` from GitHub with
 
 >     git clone git@github.com:hawk/lux.git
 >     cd lux
 
-The `configure file is generated with
+Lux is built with
 
 >     autoconf
-
-By default lux is installed as `standalone` with a bundled `Erlang`
-runtime system meaning that it does not rely on a separately installed
-Erlang. The standalone installation is done with
-
 >     ./configure
-
-In most cases it does probably more sense to use the already installed
-erlang runtime system and `NOT bundle it with Lux`. This allows test
-programs to use Erlang applications which not is self-contained/standalone.
-
->     ./configure --disable-standalone
-
-Once the system is configures it needs to be built and (possibly) installed.
-
 >     make
+
+When this is done you have a system which can run Lux with
+
+>     bin/lux <SOME PARAMS>
+
+But you may also install Lux somewhere by using
+
 >     make install
 
-This will imply that **Lux** will be installed on `/usr/local/lux` and
-that custom architecture configuration will be read from
-`/usr/local/lux/lib/lux-$(VSN)/priv`.
+By default (that is when ./configure has been invoked without
+parameters), Lux will be installed under /usr/local. It is effectively
+the same as invoking
 
-Install on specific directory `/foo/bar` with
+>     ./configure --prefix=/usr/local --exec_prefix=/usr/local --bindir=/usr/local/bin --sysconfdir=/usr/local/etc
 
->     ./configure --disable-standalone
->     make
->     DESTDIR=/foo/bar make install
+`make install` does also accept various parameters which overrides the
+ones given to `./configure`. Such as
 
-alternatively
+>     make prefix=/usr/local exec_prefix=/usr/local bindir=/usr/local/bin sysconfdir=/usr/local/etc install
 
->     ./configure --disable-standalone --prefix=/foo/bar
->     make
->     make install
+and those parameters may be combined with
 
-Install on directory `/foo/bar` and read custom architecture
-configuration from `/etc/lux` with
+>     make DESTDIR=/my/staging/area install
 
->     ./configure --disable-standalone
->     make
->     DESTDIR=/foo/bar ETCDIR=/etc/lux make install
+Standalone installation
+-----------------------
 
-alternatively
+When building Lux an Erlang/OTP system must be available.
 
->     ./configure --disable-standalone --prefix=/foo/bar --sysconfdir=/etc/lux
->     make
->     make install
+By default that Erlang/OTP system is also used when running Lux.
+
+But it is possible to perform an `standalone installation` of Lux
+where the Lux installation is bundled with Erlang/OTP. This means that
+you may in fact uninstall the Erlang/OTP system used for building Lux
+and still be able to run Lux as it is self-contained with its own
+Erlang/OTP runtime system. A standalone installation is performed with
+
+>     mkdir -p <TARGETDIR>
+>     bin/lux --install <TARGETDIR>
+
+The installed standalone system may be re-located if needed.
 
 Obscure platforms
 -----------------
 
 On "obscure platforms" which have `Erlang/OTP` but lacks `autotools`,
-make etc. it is still possible to build with
+make etc. it may still possible to build with
 
 >     bin/lux --make
-
-and install with
-
->     bin/lux --install DestDir
-
-The given InstallDir will contain the lux tool as well as a stripped
-Erlang runtime system. It is possible to move the entire standalone
-system from InstallDir to another location without any
-re-installation.
-
-The standalone tool can be started with
-
->     DestDir/bin/lux
 
 Re-build the documentation
 --------------------------

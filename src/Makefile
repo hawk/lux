@@ -41,10 +41,9 @@ clean:
 install:
 	mkdir -p $(TARGETDIR)
 	(cd .. && tar cf - *) | (cd $(TARGETDIR) && tar xf -)
+	ln -s $(TARGETDIR)/bin/lux $(BINDIR)/lux
 	echo "# Added by Lux installer"      >> $(TARGETDIR)/priv/luxcfg
 	echo "[config config_dir=$(ETCDIR)]" >> $(TARGETDIR)/priv/luxcfg
-	mkdir -p $(BINDIR)
-	cd $(BINDIR) && ln -s $(TARGETDIR)/bin/lux
 
 info:
 	@echo "VSN=$(VSN)"
