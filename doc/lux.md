@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.0.1 - 2019-04-05
+Version 2.0.2 - 2019-04-07
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1744,12 +1744,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_04_05_12_53_19_703851/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_04_07_11_40_13_63485/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:.:..:...:..:.:....:..:..:..(....:..:.:.:.:.:...)(.:..:..)...:..:..:..(.:..:.:..)..(.:..:..)(....:.:.:....)(.:..:.:..)..(.:..:.:..)......:..:.........
+>     progress          : ..:..:..:.:...:..:.:.:....:..:..:..(....:..:.:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:.:..)(....:.:..:...)(.:..:.:..)..(.:..:.:..)......:..:.........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:...:..:.:.:...:.:.:....:.:..:..32C..:..:..:..:.:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:...:..:.:.:...:.:.:....:..:..32C..:..:.:..:..:..:.:..:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32 in shell calculator
 >     expected*
 >     	19
@@ -1766,13 +1766,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:.:..:....:..:.:..:..:..:..:.:..:.:.:..:.:..:..:....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:.:..:.
+>     progress          : ..:..:.:..:..:..:....:..:..:..:..:.:..:.:..:.:.:..:.:..:..:....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:..:.)(.:..:.:.)(.:..:.:.))((.:.:..:.)(..:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.:.)(.:..:.))...:..:..:..:.:..:.:..:..:.:.:...:..:..:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:.:..:..:..:.:.
+>     progress          : ..:..:..:.((.:..:.)(.:..:.:.)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.))((.:..:.)(.:..:.:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))...:..:..:..:..:.:..:.:..:...:..:.:..:.((.i=1..:..:.:.:..z)(..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:.:..:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+>     progress          : ..:..:..:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at 5 in shell break
 >     expected*
 >     	
@@ -1812,7 +1812,7 @@ Evaluate `lux examples`
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require.lux:3 - FAIL as required variable MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_05_12_53_19_703851/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_07_11_40_13_63485/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
