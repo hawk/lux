@@ -30,17 +30,11 @@ ifeq ($(sysconfdir),)
   endif
 endif
 
-ifeq ($(DESTDIR),)
-  REALDESTDIR=$(DESTDIR)
-else
-  REALDESTDIR=$(shell realpath $(DESTDIR))
-endif
-
 PREFIX=$(prefix)
 EXEC_PREFIX=$(exec_prefix)
-BINDIR=$(REALDESTDIR)$(bindir)
-SYSCONFDIR=$(REALDESTDIR)$(sysconfdir)
-TARGETDIR=$(REALDESTDIR)$(PREFIX)/lux
+BINDIR=$(bindir)
+SYSCONFDIR=$(sysconfdir)
+TARGETDIR=$(PREFIX)/lib/lux
 
 INSTALL=install
 INSTALL_DIR=$(INSTALL) -d -m755

@@ -11,13 +11,18 @@ endif
 
 SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
 
+ERL_FILES=$(shell ls src/*erl)
+EBIN_FILES=$(ERL_FILES:src/%.erl=ebin/%.$(EMULATOR)) ebin/lux.app
+
+EXAMPLES=$(shell ls examples/*lux)
+
 all debug clean:
-	@for d in $(SUBDIRS); do         \
-	   if test ! -d $$d ; then        \
+	@for d in $(SUBDIRS); do \
+	   if test ! -d $$d ; then \
 	       echo "=== Skipping subdir $$d" ; \
-	   else                   \
+	   else \
 	      (cd $$d && $(MAKE) $@) ; \
-	   fi ;                        \
+	   fi ; \
 	done
 
 xref:
@@ -36,52 +41,53 @@ config_clean:
 
 install:
 	@### TOP
-	$(INSTALL_DIR) $(TARGETDIR)
-	$(INSTALL_DATA) LICENSE AUTHORS.md README.md INSTALL.md lux.html $(TARGETDIR)
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)
+	$(INSTALL_DATA) LICENSE AUTHORS.md README.md INSTALL.md lux.html $(DESTDIR)$(TARGETDIR)
 
 	@### BIN
-	$(INSTALL_DIR) $(TARGETDIR)/bin
-	$(INSTALL_PGM) bin/lux $(TARGETDIR)/bin
-	$(INSTALL_DIR) $(BINDIR)
-	ln -s $(TARGETDIR)/bin/lux $(BINDIR)/lux
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/bin
+	$(INSTALL_PGM) bin/lux $(DESTDIR)$(TARGETDIR)/bin
+	$(INSTALL_DIR) $(DESTDIR)$(BINDIR)
+	ln -s $(TARGETDIR)/bin/lux $(DESTDIR)$(BINDIR)/lux
 
 	@### PRIV
-	$(INSTALL_DIR) $(TARGETDIR)/priv
-	$(INSTALL_DATA) priv/filter_trace  priv/luxcfg $(TARGETDIR)/priv
-	$(INSTALL_DIR) $(TARGETDIR)/priv/bin
-	$(INSTALL_PGM) priv/bin/runpty $(TARGETDIR)/priv/bin
-	echo "# Added by Lux installer"      >> $(TARGETDIR)/priv/luxcfg
-	echo "[config config_dir=$(SYSCONFDIR)]" >> $(TARGETDIR)/priv/luxcfg
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/priv
+	$(INSTALL_DATA) priv/filter_trace  priv/luxcfg $(DESTDIR)$(TARGETDIR)/priv
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/priv/bin
+	$(INSTALL_PGM) priv/bin/runpty $(DESTDIR)$(TARGETDIR)/priv/bin
+	echo "# Added by Lux installer"      >> $(DESTDIR)$(TARGETDIR)/priv/luxcfg
+	echo "[config config_dir=$(SYSCONFDIR)]" >> $(DESTDIR)$(TARGETDIR)/priv/luxcfg
+	$(INSTALL_DIR) $(DESTDIR)$(SYSCONFDIR)
 
 	@### EMACS
-	$(INSTALL_DIR) $(TARGETDIR)/emacs
-	$(INSTALL_DATA) emacs/lux-mode.el $(TARGETDIR)/emacs
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/emacs
+	$(INSTALL_DATA) emacs/lux-mode.el $(DESTDIR)$(TARGETDIR)/emacs
 
 	@### EBIN
-	(cd src && $(MAKE) $@)
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/ebin
+	$(INSTALL_DATA) $(EBIN_FILES) $(DESTDIR)$(TARGETDIR)/ebin
 
 	@### EXAMPLES
-	$(INSTALL_DIR) $(TARGETDIR)/examples
-	cd examples && $(INSTALL_DATA) \
-		calc.lux fail.lux intro.lux loop.lux loop_fail.lux \
-		require.lux skip.lux unstable.lux warning.lux \
-			$(TARGETDIR)/examples
+	$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/examples
+	$(INSTALL_DATA) $(EXAMPLES) $(DESTDIR)$(TARGETDIR)/examples
 
 	@### SUMMARY
 	@echo
-	@echo "*** Lux doc, examples, Emacs mode etc. is installed at $(TARGETDIR)"
-	@echo "*** Lux executable is $(BINDIR)/lux"
-	@echo "*** Lux default config_dir is $(SYSCONFDIR)"
+	@echo "*** Lux doc, examples, Emacs mode etc. is installed at $(DESTDIR)$(TARGETDIR)"
+	@echo "*** Lux executable is $(DESTDIR)$(BINDIR)/lux"
+	@echo "*** Lux default config_dir is $(DESTDIR)$(SYSCONFDIR)"
 
 info:
 	@echo "DESTDIR=$(DESTDIR)"
-	@echo "REALDESTDIR=$(REALDESTDIR)"
-	@echo "PREFIX=$(PREFIX)"
-	@echo "EXEC_PREFIX=$(EXEC_PREFIX)"
-	@echo "BINDIR=$(BINDIR)"
-	@echo "SYSCONFDIR=$(SYSCONFDIR)"
-	@echo "TARGETDIR=$(TARGETDIR)"
+	@echo "PREFIX=$(PREFIX) -> $(DESTDIR)$(PREFIX)"
+	@echo "EXEC_PREFIX=$(EXEC_PREFIX) -> $(DESTDIR)$(EXEC_PREFIX)"
+	@echo "BINDIR=$(BINDIR) -> $(DESTDIR)$(BINDIR)"
+	@echo "SYSCONFDIR=$(SYSCONFDIR) -> $(DESTDIR)$(SYSCONFDIR)"
+	@echo "TARGETDIR=$(TARGETDIR) -> $(DESTDIR)$(TARGETDIR)"
 	@echo
 	@echo "LUX_SELF_TEST=$(LUX_SELF_TEST)"
 	@echo "LUX_EXTRAS=$(LUX_EXTRAS)"
 	@echo "SUBDIRS=$(SUBDIRS)"
+	@echo "EXAMPLES=$(EXAMPLES)"
+	@echo "ERL_FILES=$(ERL_FILES)"
+	@echo "EBIN_FILES=$(EBIN_FILES)"

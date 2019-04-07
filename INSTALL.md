@@ -17,6 +17,7 @@ The following software is required:
   runtime system must be installed in order to build the tool. Install
   `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
 
+>     brew tap hawk/homebrew-hawk
 >     brew install erlang
 
            or
