@@ -29,8 +29,6 @@ $(PROG): runpty.c
 clean:
 	rm -rf $(PROG) ../priv/bin/runpty.dSYM core* *~
 
-install:
-
 info:
 	@echo "DEBUG=$(DEBUG)"
 	@echo "TRACE=$(TRACE)"

@@ -11,7 +11,7 @@ endif
 
 SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
 
-all debug install clean:
+all debug clean:
 	@for d in $(SUBDIRS); do         \
 	   if test ! -d $$d ; then        \
 	       echo "=== Skipping subdir $$d" ; \
@@ -34,8 +34,48 @@ config_clean:
 	$(MAKE) clean
 	-rm -rf configure include.mk autom4te.cache config.status config.log *~
 
+install:
+	@### TOP
+	$(INSTALL_DIR) $(TARGETDIR)
+	$(INSTALL_DATA) LICENSE AUTHORS.md README.md INSTALL.md lux.html $(TARGETDIR)
+
+	@### BIN
+	$(INSTALL_DIR) $(TARGETDIR)/bin
+	$(INSTALL_PGM) bin/lux $(TARGETDIR)/bin
+	$(INSTALL_DIR) $(BINDIR)
+	ln -s $(TARGETDIR)/bin/lux $(BINDIR)/lux
+
+	@### PRIV
+	$(INSTALL_DIR) $(TARGETDIR)/priv
+	$(INSTALL_DATA) priv/filter_trace  priv/luxcfg $(TARGETDIR)/priv
+	$(INSTALL_DIR) $(TARGETDIR)/priv/bin
+	$(INSTALL_PGM) priv/bin/runpty $(TARGETDIR)/priv/bin
+	echo "# Added by Lux installer"      >> $(TARGETDIR)/priv/luxcfg
+	echo "[config config_dir=$(SYSCONFDIR)]" >> $(TARGETDIR)/priv/luxcfg
+
+	@### EMACS
+	$(INSTALL_DIR) $(TARGETDIR)/emacs
+	$(INSTALL_DATA) emacs/lux-mode.el $(TARGETDIR)/emacs
+
+	@### EBIN
+	(cd src && $(MAKE) $@)
+
+	@### EXAMPLES
+	$(INSTALL_DIR) $(TARGETDIR)/examples
+	cd examples && $(INSTALL_DATA) \
+		calc.lux fail.lux intro.lux loop.lux loop_fail.lux \
+		require.lux skip.lux unstable.lux warning.lux \
+			$(TARGETDIR)/examples
+
+	@### SUMMARY
+	@echo
+	@echo "*** Lux doc, examples, Emacs mode etc. is installed at $(TARGETDIR)"
+	@echo "*** Lux executable is $(BINDIR)/lux"
+	@echo "*** Lux default config_dir is $(SYSCONFDIR)"
+
 info:
 	@echo "DESTDIR=$(DESTDIR)"
+	@echo "REALDESTDIR=$(REALDESTDIR)"
 	@echo "PREFIX=$(PREFIX)"
 	@echo "EXEC_PREFIX=$(EXEC_PREFIX)"
 	@echo "BINDIR=$(BINDIR)"

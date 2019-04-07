@@ -38,13 +38,10 @@ $(EBIN_FILES): lux.hrl
 clean:
 	rm -f $(EBIN_FILES) erl_crash.dump core* *~
 
+
 install:
-	mkdir -p $(TARGETDIR)
-	(cd .. && tar cf - *) | (cd $(TARGETDIR) && tar xf -)
-	echo "# Added by Lux installer"      >> $(TARGETDIR)/priv/luxcfg
-	echo "[config config_dir=$(ETCDIR)]" >> $(TARGETDIR)/priv/luxcfg
-	mkdir -p $(BINDIR)
-	cd $(BINDIR) && ln -s $(TARGETDIR)/bin/lux
+	$(INSTALL_DIR) $(TARGETDIR)/ebin
+	$(INSTALL_DATA) $(EBIN_FILES) $(TARGETDIR)/ebin
 
 info:
 	@echo "VSN=$(VSN)"
@@ -52,5 +49,4 @@ info:
 	@echo "ERL_FILES=$(ERL_FILES)"
 	@echo "EBIN_FILES=$(EBIN_FILES)"
 	@echo "APP_DIR=$(APP_DIR)"
-	@echo "BINDIR=$(BINDIR)"
 	@echo "TARGETDIR=$(TARGETDIR)"

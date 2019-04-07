@@ -4,6 +4,4 @@ all debug:
 clean:
 	rm -rf delux_logs lux_logs *~
 
-install:
-
 info:
