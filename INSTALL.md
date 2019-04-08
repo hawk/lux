@@ -1,7 +1,11 @@
 Installation
 ============
 
-On MacOS, Lux can be installed with `brew install hawk/homebrew-hawk/lux`.
+On MacOS, Lux can be installed with
+
+>     brew tap hawk/homebrew-hawk
+>     brew install lux
+
 It will install Erlang and whatewer else Lux needs.
 
 TLDR;
@@ -17,31 +21,30 @@ The following software is required:
   runtime system must be installed in order to build the tool. Install
   `Erlang/OTP` from [source][Erlang/OTP] or use [pre-built packages][]:
 
->     brew tap hawk/homebrew-hawk
 >     brew install erlang
 
-           or
+* or
 
 >     sudo apt-get install erlang
 
 * By installing the `erlang` package most of the Erlang apps needed by
-  Lux will be installed automatically. But there are additional Erlang
-  packages which may be needed when using more exotic features, such
-  as debugging and developing Lux itself:
+  Lux will be installed automatically. But on some systems there are
+  additional Erlang packages which may be needed when using more
+  exotic features, such as debugging and developing Lux itself:
 
   - `--internal_debug` requires `debugger`+`wx`
   - `--suite_trace`    requires `runtime_tools`
   - `--event_trace`    requires `runtime_tools`+`et`+`wx`
   - `--reltool`        requires `reltool`
 
-* A standalone installation (using `--install`) requires `reltool`.
+* Building Lux using `--make` requires `tools`. (Avoid this kind of build.)
 
-* Building Lux using `--make` requires `tools`.
+* Installation of Lux as standalone (using `--install`) requires `reltool`.
 
 * Testing of Lux itself requires `tools`.
 
 * `--history` require may `inets`. But only when the logs are referred
-  to by using URL's. Using local files does not require `inets`.
+  to by using URL's. Using local log files does not require `inets`.
 
 * The documentation is pre-built. Re-generation of the documentation
   requires **[Markdown][]**.
@@ -105,7 +108,7 @@ Obscure platforms
 -----------------
 
 On "obscure platforms" which have `Erlang/OTP` but lacks `autotools`,
-make etc. it may still possible to build with
+`make` etc. it may still possible to build Lux with
 
 >     bin/lux --make
 
