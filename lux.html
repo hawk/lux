@@ -7,11 +7,12 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.0.2 - 2019-04-07</p>
+<p>Version 2.1 - 2019-05-14</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
 <li><a href="#main_concepts">Concepts</a></li>
+<li><a href="#../tutorial/README">Tutorial</a></li>
 <li><a href="#script_syntax">Script syntax</a></li>
 <li><a href="#cmd_line_opts">Command line options</a></li>
 <li><a href="#config_params">Configuration parameters</a></li>
@@ -27,9 +28,9 @@
 
 <h1>Introduction</h1>
 
-<p>Lux (LUcid eXpect scripting) provides scripting with an
-<code>Expect</code>-style execution of commands in a powerful but simple
-fashion. See <a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect</a> for more info about the origin.</p>
+<p>Lux (LUcid eXpect scripting) is a test automation framework with
+Expect style execution of commands. See <a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect</a> for more info about
+the origin.</p>
 
 <p>With Lux it is possible to</p>
 
@@ -126,13 +127,13 @@ output with <code>?</code>.</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples/intro.lux
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_14_493987/lux_summary.log
+summary log       : /Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_30_44_568831/lux_summary.log
 test case         : examples/intro.lux
-progress          : ..:...:.:..:.:..:....:...:.:.:..:..:.:..:..:..:.:...:..:..:.:.:..:..:.:.:....c....:.:...:..:..:..:..:.:..:..:.
+progress          : ..:..:..:.:..:.:.:.....:..:..:..:..:.:..:.:..:.:.:..:.:..:.....:..:.:.:....c......:.:.:..:.:..:..:.:..:..:..:.
 result            : SUCCESS
 successful        : 1
 summary           : SUCCESS
-file:///Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_14_493987/lux_summary.log.html
+file:///Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_30_44_568831/lux_summary.log.html
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -162,9 +163,25 @@ identities if provided with <code>--revision</code>).</p>
 <blockquote>
 <pre><code>.../lux&gt; lux --history .
 Assembling history of logs from...
-.....s...............
-Analyzed 19 test runs (0 errors)...ok
-file:///Users/hmattsso/dev/lux/lux_history.html
+........................ss...................
+INTERNAL LUX ERROR in ./tutorial/chatty/test/intro/lux_logs/run_2019_05_14_17_35_39_52759/lux_summary.log
+function_clause
+[{lux_log,split_result,
+        [[&lt;&lt;"successful        : 0\nerrors            : 1\n\ta_simple_server.lux:0 - INTERNAL LUX ERROR: {'EXIT',\n                        {{case_clause,no_shell},\n                         [{lux_debug,wait_for_reply,3,\n                              [{file,\"lux_debug.erl\"},{line,134}]},\n                          {lux_debug,init,2,\n                              [{file,\"lux_debug.erl\"},{line,71}]}]}}"&gt;&gt;,
+          &lt;&lt;"summary           : ERROR\n"&gt;&gt;]],
+        [{file,"lux_log.erl"},{line,226}]},
+ {lux_log,parse_summary_result,2,[{file,"lux_log.erl"},{line,501}]},
+ {lux_log,do_parse_summary_log,3,[{file,"lux_log.erl"},{line,135}]},
+ {lux_log,try_parse_summary_log,2,[{file,"lux_log.erl"},{line,118}]},
+ {lux_log,parse_summary_log,2,[{file,"lux_log.erl"},{line,101}]},
+ {lux_html_history,parse_summary_files,7,
+                 [{file,"lux_html_history.erl"},{line,941}]},
+ {lists,foldl,3,[{file,"lists.erl"},{line,1263}]},
+ {lux_html_history,collect_branch,5,
+                 [{file,"lux_html_history.erl"},{line,99}]}]
+..s....ss.....................s...ss...........................
+Analyzed 98 test runs (1 errors)...ok
+file:///Users/hmattsso/dev/tailf/lux/lux_history.html
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -237,7 +254,938 @@ include a generic script that makes use of these variables.</p>
 <p>See the documentation about <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s in Erlang for
 details about the regular expression dialect used in Lux. It is
 an extended subset of <a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE</a>.
-<a name="script_syntax"/></p>
+<a name="../tutorial/README"/></p>
+
+<h1>Tutorial</h1>
+
+<h2>Installation</h2>
+
+<p>Read the file <strong>.../lux/tutorial/INSTALL.md</strong> or view it online on
+<a href="https://github.com/hawk/lux/blob/euc/tutorial/INSTALL.md">GitHub</a>
+about how to do a install LUX, build and test the chatty app.</p>
+
+<blockquote>
+<pre><code>cd .../lux/tutorial/chatty
+make build
+</code></pre>
+</blockquote>
+
+<h2>How do we test a simple chat server?</h2>
+
+<p>Imagine a scenario where we start a server and two clients. The
+clients cannot connect until the server is up and running. When text
+is entered in one client it must be verified that it is displayed in
+the other client(s). You can start the system with these commands,
+using three different shells:</p>
+
+<blockquote>
+<pre><code>cd chatty/test/intro
+erl -pa ../../../chatty/ebin -noshell -sname mytopic -s chatty server
+erl -pa ../../../chatty/ebin -noshell -sname cons    -s chatty client mytopic
+erl -pa ../../../chatty/ebin -noshell -sname hawk    -s chatty client mytopic
+</code></pre>
+</blockquote>
+
+<h2>Walkthru the test cases and emphasize on their differences</h2>
+
+<p>Now when you are familiar with the system, how would you write an
+automated test case for it? That is a stable test without race
+conditions.</p>
+
+<p>Walkthru these test cases below and emphasize on their differences.
+Hopefully the test code is self-explanatory.</p>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; lux .</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; lux .
+summary log       : /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_12_97352/lux_summary.log
+test case         : a_simple_server.lux
+progress          : ..:..:.:..:..:.:..:.:..:.:....:.:..:.:.:.:...:.:..:.:..:....
+result            : SUCCESS
+test case         : async_startup_fail.lux
+progress          : ..:..:.:..:..:..:.:.:.:.:....:.:.:..:..:..:.:..:..:.:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.:.25????25..
+result            : FAIL at 25 in shell hawk
+expected*
+Trying to join the mytopic chat room...
+Welcome to the chat room mytopic!a!!
+Enter text and press enter. Exit chat with \^d.
+
+hawk&gt;
+actual match_timeout
+erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt opic
+Trying to join the mytopic chat room...
+&lt;ERROR&gt; Failed to join 'mytopic@HMATTSSO-M-N1P1'. Is the server started?
+{"init terminating in do_boot",shutdown}
+init terminating in do_boot (shutdown)
+SH-PROMPT:
+diff
++ erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt 
++ opic
+  Trying to join the mytopic chat room...
+- Welcome to the chat room mytopic!a!!
+- Enter text and press enter. Exit chat with \^d.
+- 
+- hawk&gt;
++ &lt;ERROR&gt; Failed to join 'mytopic@HMATTSSO-M-N1P1'. Is the server started?
++ {"init terminating in do_boot",shutdown}
++ init terminating in do_boot (shutdown)
++ SH-PROMPT:
+
+test case         : sync_startup.lux
+progress          : ..:..:.:..:..:..:.:.:.:..:.:.:.:....:..:..:..:..:.:....:..:..:..:.:..:.:.:.:.:....:..:.:..:..:.:..:.:.:.:.::......:..::.....:............
+result            : SUCCESS
+test case         : sync_startup_cleanup.lux
+progress          : ()..:..:..:...:..:.:.:.:.:..:.:.:.:....:..:.:..:..:..:.:....:..:.:..:..:..:.:.:.:.:....:..:.:..:..:..:.:.:..:.:....:.:.:.::..c..........:..:.:..:.(.:.:..:.:.)(.:..:.:.)((.:..:.:.:.:.:.:.:.:.:.:.:.:.)(.:..:.:..))((.:..:.:.:.:.:.:.:.:.:.:.:.:.:.)(.:..:.:..))
+result            : SUCCESS
+successful        : 3
+failed            : 1
+async_startup_fail.lux:25 - match_timeout
+summary           : FAIL
+file:///Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_12_97352/lux_summary.log.html
+.../lux&gt; echo $?
+1
+</code></pre>
+</blockquote>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/intro/a_simple_server.lux</code> file:</p>
+
+<blockquote>
+<pre><code>[doc Demo a simple single shell test case]
+
+# Start a shell
+[shell server]
+  # Send text to the active shell
+  !erl -sname server -pa ../../../chatty/ebin
+  # Match output from the active shell
+  ?Erlang/OTP
+  ?Eshell
+  ?&gt; 
+
+  !chatty:server().
+  ?Starting server
+  ?&gt; 
+
+  !halt(3).
+  ?SH-PROMPT:
+
+  !echo "===$?==="
+  ?===3===
+  ?SH-PROMPT:
+</code></pre>
+</blockquote>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/intro/async_startup_fail.lux</code> file:</p>
+
+<blockquote>
+<pre><code>[doc Demo too fast startup]
+
+# Assign a global variable which is accessible in all shells
+[global topic=mytopic]
+[global ebin=../../../chatty/ebin]
+
+[shell server]
+  !erl -pa $ebin -sname $topic -s chatty server
+  ?Starting server
+
+[shell hawk]
+  !export ERL_CRASH_DUMP_BYTES=0
+  ?SH-PROMPT:
+  !erl -pa $ebin -sname hawk -noshell -s chatty client $topic
+
+  [progress Will fail due to startup race cond]
+  # Multi line match. The first double quote char defines the first
+  # column of the regexp.
+  """?
+  Trying to join the $topic chat room...
+  Welcome to the chat room $topic!a!!
+  Enter text and press enter. Exit chat with \^d.
+
+  hawk&gt;
+  """
+</code></pre>
+</blockquote>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/intro/sync_startup.lux</code> file:</p>
+
+<blockquote>
+<pre><code>[doc Demo start sync]
+
+[global topic=mytopic]
+[global ebin=../../../chatty/ebin]
+
+[shell server]
+  !erl -pa $ebin -sname $topic -s chatty server
+  ?Starting server
+
+  # Match sub-expressions
+  ?Trying to open log file (.*)\.\.\.ok.
+  [global logfile=$1]
+
+# Start another shell
+[shell server-log]
+  # Match in log file
+  !tail -F $logfile
+  ?Server started
+
+[shell hawk]
+  !erl -pa $ebin -sname hawk -noshell -s chatty client $topic
+  # Match with variable
+  """?
+  Trying to join the $topic chat room...
+  Welcome to the chat room $topic!!!
+  Enter text and press enter. Exit chat with \^d.
+
+  hawk&gt;
+  """
+
+[shell cons]
+  !erl -pa $ebin -sname cons -noshell -s chatty client $topic
+  # Verbatim match
+  """??
+  Trying to join the $topic chat room...
+  Welcome to the chat room $topic!!!
+  Enter text and press enter. Exit chat with ^d.
+
+  cons&gt;
+  """
+
+# Switch active shell
+[shell hawk]
+  ?cons: Client joined
+  !ping
+  ?hawk&gt;
+
+[shell server-log]
+  ?Client hawk said ping
+
+[shell cons]
+  ?hawk: ping
+</code></pre>
+</blockquote>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/intro/sync_startup_cleanup.lux</code> file:</p>
+
+<blockquote>
+<pre><code>[doc Demo cleanup]
+
+[include ../../../support/luxinc/macros.luxinc]
+
+[global topic=mytopic]
+[global ebin=../../../chatty/ebin]
+
+[shell server]
+  # Set fail pattern for shell
+  -[Ee][Rr][Rr][Oo][Rr]]
+  !erl -pa $ebin -sname $topic -s chatty server
+  ?Starting server
+
+  ?Trying to open log file (.*)\.\.\.ok.
+  [global logfile=$1]
+
+[shell server-log]
+  !tail -F $logfile
+  ?Server started
+
+[shell hawk]
+  !erl -pa $ebin -sname hawk -noshell -s chatty client $topic
+  """??
+  Trying to join the $topic chat room...
+  Welcome to the chat room $topic!!!
+  Enter text and press enter. Exit chat with ^d.
+
+  hawk&gt;
+  """
+
+[shell cons]
+  # Use interactive Erlang shell
+  !erl -pa $ebin -sname cons
+  ?Erlang/OTP
+  ?Eshell
+  ?cons@
+  !chatty:client(['${topic}']).
+  """??
+  Trying to join the $topic chat room...
+  Welcome to the chat room $topic!!!
+  Enter text and press enter. Exit chat with ^d.
+
+  cons&gt;
+  """
+
+[cleanup]
+  # Kill lingering processes
+  [invoke eval_any "pkill -f beam.*chatty.*client"]
+  [invoke eval_any "pkill -f beam.*chatty.*server"]
+
+  # Save log file
+  [invoke eval "mkdir -p ${LUX_EXTRA_LOGS}"]
+  [invoke eval "cp $logfile ${LUX_EXTRA_LOGS}/"]
+</code></pre>
+</blockquote>
+
+<h2>Post mortem analysis</h2>
+
+<p>Walkthru the different logs from the latest test run. They are found
+at <code>lux_logs/latest_run</code>. With this command you get a list of all logs:</p>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; ls -ld lux_logs/latest_run</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; ls -ld lux_logs/latest_run
+lrwxr-xr-x 1 hmattsso staff 29 May 14 23:31 lux_logs/latest_run -&gt; run_2019_05_14_21_31_12_97352
+.../lux&gt; echo $?
+0
+</code></pre>
+</blockquote>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; find -L lux_logs/latest_run</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; find -L lux_logs/latest_run
+lux_logs/latest_run
+lux_logs/latest_run/sync_startup.lux.event.log
+lux_logs/latest_run/sync_startup.lux.event.log.html
+lux_logs/latest_run/sync_startup_cleanup.lux.cleanup.stdin.log
+lux_logs/latest_run/a_simple_server.lux.server.stdout.log
+lux_logs/latest_run/sync_startup.lux.hawk.stdout.log
+lux_logs/latest_run/async_startup_fail.lux.hawk.stdin.log
+lux_logs/latest_run/async_startup_fail.lux.event.log.html
+lux_logs/latest_run/async_startup_fail.lux.hawk.stdout.log
+lux_logs/latest_run/async_startup_fail.lux.event.log.csv
+lux_logs/latest_run/sync_startup_cleanup.lux.server.stdout.log
+lux_logs/latest_run/sync_startup.lux.hawk.stdin.log
+lux_logs/latest_run/lux_summary.log.html
+lux_logs/latest_run/async_startup_fail.lux.config.log
+lux_logs/latest_run/sync_startup_cleanup.lux.cons.stdin.log
+lux_logs/latest_run/sync_startup_cleanup.lux.server-log.stdout.log
+lux_logs/latest_run/sync_startup_cleanup.lux.extra.logs
+lux_logs/latest_run/sync_startup_cleanup.lux.extra.logs/chatty_mytopic.log
+lux_logs/latest_run/sync_startup.lux.orig
+lux_logs/latest_run/sync_startup_cleanup.lux.event.log.csv
+lux_logs/latest_run/sync_startup_cleanup.lux.cleanup.stdout.log
+lux_logs/latest_run/sync_startup_cleanup.lux.event.log
+lux_logs/latest_run/sync_startup.lux.config.log
+lux_logs/latest_run/sync_startup_cleanup.lux.hawk.stdout.log
+lux_logs/latest_run/sync_startup.lux.server-log.stdin.log
+lux_logs/latest_run/a_simple_server.lux.event.log.html
+lux_logs/latest_run/async_startup_fail.lux.server.stdout.log
+lux_logs/latest_run/sync_startup.lux.server.stdin.log
+lux_logs/latest_run/a_simple_server.lux.orig
+lux_logs/latest_run/async_startup_fail.lux.event.log
+lux_logs/latest_run/sync_startup_cleanup.lux.orig
+lux_logs/latest_run/sync_startup_cleanup.lux.hawk.stdin.log
+lux_logs/latest_run/sync_startup_cleanup.lux.server.stdin.log
+lux_logs/latest_run/sync_startup_cleanup.lux.server-log.stdin.log
+lux_logs/latest_run/a_simple_server.lux.event.log.csv
+lux_logs/latest_run/sync_startup_cleanup.lux.config.log
+lux_logs/latest_run/Users
+lux_logs/latest_run/Users/hmattsso
+lux_logs/latest_run/Users/hmattsso/dev
+lux_logs/latest_run/Users/hmattsso/dev/tailf
+lux_logs/latest_run/Users/hmattsso/dev/tailf/lux
+lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial
+lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial/support
+lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial/support/luxinc
+lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial/support/luxinc/macros.luxinc.orig
+lux_logs/latest_run/lux_config.log
+lux_logs/latest_run/async_startup_fail.lux.server.stdin.log
+lux_logs/latest_run/sync_startup.lux.cons.stdout.log
+lux_logs/latest_run/sync_startup.lux.server-log.stdout.log
+lux_logs/latest_run/sync_startup_cleanup.lux.event.log.html
+lux_logs/latest_run/lux_result.log
+lux_logs/latest_run/async_startup_fail.lux.orig
+lux_logs/latest_run/lux_summary.log
+lux_logs/latest_run/sync_startup.lux.server.stdout.log
+lux_logs/latest_run/a_simple_server.lux.config.log
+lux_logs/latest_run/sync_startup.lux.event.log.csv
+lux_logs/latest_run/sync_startup_cleanup.lux.cons.stdout.log
+lux_logs/latest_run/a_simple_server.lux.event.log
+lux_logs/latest_run/a_simple_server.lux.server.stdin.log
+lux_logs/latest_run/lux.tap
+lux_logs/latest_run/sync_startup.lux.cons.stdin.log
+.../lux&gt; echo $?
+0
+</code></pre>
+</blockquote>
+
+<p>Some logs are common for all test cases in a test suite:</p>
+
+<ul>
+<li>Summary log</li>
+<li>Config log</li>
+<li>Annotated summary log (HTML)</li>
+</ul>
+
+<p>while others are per test case:</p>
+
+<ul>
+<li>Event log</li>
+<li>Extra logs</li>
+<li>Config log</li>
+<li>Statistics</li>
+<li>TAP log</li>
+<li>JUnit log</li>
+<li>Annotated event log (HTML)</li>
+</ul>
+
+<p>and yet some are per shell in the test case:</p>
+
+<ul>
+<li>Shell stdin log(s)</li>
+<li>Shell stdout log(s)</li>
+</ul>
+
+<h2>Debugging</h2>
+
+<p>There are various ways of debugging test cases. The simplest way is to
+use the <code>--progress=verbose</code> flag or <code>-v</code> for short:</p>
+
+<blockquote>
+<pre><code>lux -v a_simple_server.lux
+</code></pre>
+</blockquote>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; lux -v a_simple_server.lux</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; lux -v a_simple_server.lux
+summary log       : /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_36_62641/lux_summary.log
+test case         : a_simple_server.lux
+event log         : 0.3
+/Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/a_simple_server.lux
+lux(0): start_time "2019-05-14 23:31:36.150101"
+lux(1): doc "Demo a simple single shell test case"
+server(4): start "/Users/hmattsso/dev/tailf/lux/priv/bin/runpty /bin/sh -i"
+server(4): expected* ".+"
+server(4): timer started (10 seconds * 1.000 multiplier)
+server(4): recv "\e[?1034hsh-3.2$ "
+server(4): timer canceled (after 12137 micro seconds)
+server(4): match "\e[?1034hsh-3.2$ "
+server(4): send "export PS1=SH-PROMPT:
+  "
+server(4): recv "export"
+server(4): expected* "^SH-PROMPT:"
+server(4): timer started (10 seconds * 1.000 multiplier)
+server(4): recv " PS1=SH-PROMPT:
+  SH-PROMPT:"
+server(4): timer canceled (after 140 micro seconds)
+server(4): skip "export PS1=SH-PROMPT:
+  "
+server(4): match "SH-PROMPT:"
+server(6): send "erl -sname server -pa ../../../chatty/ebin
+  "
+server(6): recv "erl"
+server(6): recv " -sname server -pa ../."
+server(8): expected* "Erlang/OTP"
+server(8): timer started (10 seconds * 1.000 multiplier)
+server(8): recv "./../chatty/ebin
+  "
+server(8): recv "Erlang/OTP 21 [erts-10.3.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+
+  "
+server(8): timer canceled (after 163510 micro seconds)
+server(8): skip "erl -sname server -pa ../../../chatty/ebin
+  "
+server(8): match "Erlang/OTP"
+server(9): expected* "Eshell"
+server(9): timer started (10 seconds * 1.000 multiplier)
+server(9): recv "Eshell V10.3.2  (abort with ^G)
+  "
+server(9): timer canceled (after 119186 micro seconds)
+server(9): skip " 21 [erts-10.3.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+
+  "
+server(9): match "Eshell"
+server(9): recv "(server@HMATTSSO-M-N1P1)1&gt; "
+server(10): expected* "&gt; "
+server(10): timer started (10 seconds * 1.000 multiplier)
+server(10): timer canceled (after 11 micro seconds)
+server(10): skip " V10.3.2  (abort with ^G)
+  (server@HMATTSSO-M-N1P1)1"
+server(10): match "&gt; "
+server(12): send "chatty:server().
+  "
+server(13): expected* "Starting server"
+server(13): timer started (10 seconds * 1.000 multiplier)
+server(13): recv "chatty:server().
+  "
+server(13): recv "Starting server server...
+  "
+server(13): timer canceled (after 24800 micro seconds)
+server(13): skip "chatty:server().
+  "
+server(13): match "Starting server"
+server(14): expected* "&gt; "
+server(14): timer started (10 seconds * 1.000 multiplier)
+server(14): recv "Trying to open log file chatty_server.log..."
+server(14): recv "ok.
+  "
+server(14): recv "&lt;0.86.0&gt;
+  (server@HMATTSSO-M-N1P1)2&gt; "
+server(14): timer canceled (after 3003625 micro seconds)
+server(14): skip " server...
+  Trying to open log file chatty_server.log...ok.
+  &lt;0.86.0&gt;
+  (server@HMATTSSO-M-N1P1)2"
+server(14): match "&gt; "
+server(16): send "halt(3).
+  "
+server(17): expected* "SH-PROMPT:"
+server(17): timer started (10 seconds * 1.000 multiplier)
+server(17): recv "halt(3).
+  "
+server(17): recv "SH-PROMPT:"
+server(17): timer canceled (after 5795 micro seconds)
+server(17): skip "halt(3).
+  "
+server(17): match "SH-PROMPT:"
+server(19): send "echo "===$?==="
+  "
+server(19): recv "echo "===$?=="
+server(20): expected* "===3==="
+server(20): timer started (10 seconds * 1.000 multiplier)
+server(20): recv "="
+  ===3===
+  SH-PROMPT:"
+server(20): timer canceled (after 178 micro seconds)
+server(20): skip "echo "===$?==="
+  "
+server(20): match "===3==="
+server(21): expected* "SH-PROMPT:"
+server(21): timer started (10 seconds * 1.000 multiplier)
+server(21): timer canceled (after 7 micro seconds)
+server(21): skip "
+  "
+server(21): match "SH-PROMPT:"
+server(22): no cleanup
+server(22): inactivate zombify
+server(22): end of script
+server(22): stop success
+lux(0): end_time "2019-05-14 23:31:39.519734"
+result            : SUCCESS
+successful        : 1
+summary           : SUCCESS
+file:///Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_36_62641/lux_summary.log.html
+.../lux&gt; echo $?
+0
+</code></pre>
+</blockquote>
+
+<p>The shell stdin log is also quite useful when trying to reproduce a
+run of a test case.</p>
+
+<ul>
+<li>Start multiple terminalks and create shells manually</li>
+<li>Copy and paste from stdin logs to the shells</li>
+</ul>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; cat lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; cat lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log
+cat: lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log: No such file or directory
+.../lux&gt; echo $?
+1
+</code></pre>
+</blockquote>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; cat lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; cat lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log
+cat: lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log: No such file or directory
+.../lux&gt; echo $?
+1
+</code></pre>
+</blockquote>
+
+<p>Lux has a built-in debugger. It is always present, ready to read
+commands from stdin. For example the command <code>tail</code> or <code>t</code> for short
+can be used to interactively display the various logs while the test
+is running. By default it displays the last 10 lines of the event
+log. So when the test program is waiting for output you can use <code>tail</code>
+to see what is going on.</p>
+
+<blockquote>
+<pre><code>lux --timeout=30000 async_startup.lux
+t
+</code></pre>
+</blockquote>
+
+<p>Just pressing enter without any command will simply repeat the
+previous command. Some commands behaves slightly different when they
+are repeated. The <code>tail</code> command for example displays more and more
+for each time. It displays 10 lines, 20, lines, 30 lines, ...</p>
+
+<p>The test script may also be attached before line 1 with <code>--debug</code> or
+<code>-d</code> for short:</p>
+
+<blockquote>
+<pre><code>lux -d a_simple_server.lux
+</code></pre>
+</blockquote>
+
+<p>There you can explore the available commands using the built-in <code>help</code>
+command. Try these commands out and see what happens:</p>
+
+<p>Evaluate <code>cd tutorial/chatty/test/intro &amp;&amp; lux a_simple_server.delux</code></p>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdin.log</code> file:</p>
+
+<blockquote>
+<pre><code>export PS1=SH-PROMPT:
+lux -d --log_dir=tmp_logs a_simple_server.lux
+</code></pre>
+</blockquote>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdout.log</code> file:</p>
+
+<blockquote>
+<pre><code>[?1034hsh-3.2$ export PS1=SH-PROMPT:
+SH-PROMPT:lux -d --log_dir=tmp_logs a_simple_server.lux
+ERROR: Failed to open logfile: /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log -&gt; file already exists
+
+
+FATAL ERROR: /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log:
+ERROR: Failed to open logfile: /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log -&gt; file already exists
+
+SH-PROMPT:
+
+c 15
+shell server
+!im().
+n
+t
+help quit
+c
+</code></pre>
+</blockquote>
+
+<h2>Infra-structure support</h2>
+
+<p>In a hetrogenous test environment with various types of machines
+possibly with different architectures and hardware, it may be
+necessary to have machine dependent configuration settings. This can
+be achieved by using <code>.luxcfg</code> files. Look in the
+<code>lux_logs/latest_run/lux_config.log</code> file to figure out the
+architecture and name your <code>.luxcfg</code> file accordingly. It is also
+possible to have a host specific configuration file or rely on the
+default configuration in the file named <code>luxcfg</code>.</p>
+
+<p>Typical things that may vary from machine to machine is shell settings
+and test cases which only should be run on certain architectures. If
+some machine is very slow the <code>multiplier</code> can be set to something
+else than 1000 which is the default. The match timeout (in seconds) is
+multiplied with this setting to compute the actual timeout to get
+milli seconds which is used internally.</p>
+
+<p>Here you can find a couple of architecture specific examples:</p>
+
+<p>Evaluate <code>cd tutorial &amp;&amp; find support/luxcfg</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial &amp;&amp; find support/luxcfg
+support/luxcfg
+support/luxcfg/luxcfg
+support/luxcfg/NetBSD-macppc.luxcfg
+support/luxcfg/SunOS-i86pc.luxcfg
+.../lux&gt; echo $?
+0
+</code></pre>
+</blockquote>
+
+<p>Here are some examples of how test cases can be skipped or marked as
+unstable when architecture or host specific variables are set (or not
+set).</p>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/infra/skip.lux</code> file:</p>
+
+<blockquote>
+<pre><code>[doc Demonstrate an unstable test which is skipped]
+
+[config skip=SKIP_SUNOS]
+
+[shell date]
+  -[2-9]
+  !date +%S
+  ?SH-PROMPT
+</code></pre>
+</blockquote>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/infra/unstable.lux</code> file:</p>
+
+<blockquote>
+<pre><code>[doc Demonstrate an unstable test which is run but do not clutter the results]
+
+[config unstable_unless=TEST_DEVELOP]
+
+[shell date]
+  -[2-4]
+  !date +%S
+  ?SH-PROMPT
+</code></pre>
+</blockquote>
+
+<p>For more complex test cases there may be a need to have a build step
+before running the test case(s). One way of solving this is to use
+<code>lux --mode=list_dir</code> to find the directories which contain <code>.lux</code>
+files, and simply run make on those directories. A simple example of
+this can be found in this makefile:</p>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/Makefile</code> file:</p>
+
+<blockquote>
+<pre><code>LUXDIRS=$(filter-out .,$(shell lux --mode=list_dir *))
+
+.PHONY: all build test history clean info
+
+all: build test
+
+build:
+@for d in $(LUXDIRS); do \
+   if test -f $$d/Makefile ; then \
+      (cd $$d &amp;&amp; $(MAKE) $@) ; \
+   fi; \
+done
+
+test:
+lux .
+
+history:
+lux --history . .
+
+clean:
+rm -rf lux_logs lux_history* *~
+@for d in $(LUXDIRS); do \
+   if test -f $$d/Makefile ; then \
+      (cd $$d &amp;&amp; $(MAKE) $@) ; \
+   fi; \
+done
+info:
+@echo "LUXDIRS=$(LUXDIRS)"
+</code></pre>
+</blockquote>
+
+<p>History of test run results</p>
+
+<p>Snippet from the enclosed <code>.../lux/tutorial/chatty/test/infra/Makefile</code> file:</p>
+
+<blockquote>
+<pre><code>.PHONY: all build test history clean history_demo info
+
+TIMESTAMP=$(shell date +"%F_%T")
+GITHASH=$(shell git rev-parse --verify --short HEAD)
+TOPDIR=$(shell pwd | sed -e 's/tutorial.*/tutorial/')
+LUXOPTS=\
+--config_dir=$(TOPDIR)/support/luxcfg \
+--revision=$(TIMESTAMP)_$(GITHASH)
+
+all: build test
+
+build:
+
+test:
+lux $(LUX_OPTS) .
+
+history:
+lux --history . .
+
+clean:
+rm -rf lux_logs lux_history* chatty_*.log erl_crash.dump *~
+
+history_demo:
+for i in 0 1 2 3 4 5 6 7 8 9; do \
+    rev="2019-05-14_21:5$$i:04_$(GITHASH)$$i" ; \
+    opts="--revision=$$rev --suite=demo --config_dir=$(TOPDIR)/support/luxcfg" ; \
+    lux $$opts --hostname=sunny --config_name=SunOS-i86pc .; \
+    lux $$opts --hostname=netty --config_name=NetBSD-macppc .; \
+    sleep 1; \
+done
+
+info:
+@echo "TOPDIR=$(TOPDIR)"
+@echo "TIMESTAMP=$(TIMESTAMP)"
+@echo "GITHASH=$(GITHASH)"
+@echo "LUXOPTS=$(LUXOPTS)"
+</code></pre>
+</blockquote>
+
+<p>Evaluate <code>rm -rf tutorial/chatty/test/infra/lux_logs</code></p>
+
+<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; make history_demo</code></p>
+
+<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; lux --history history_logs lux_logs</code></p>
+
+<blockquote>
+<pre><code>.../lux&gt; cd tutorial/chatty/test/infra &amp;&amp; lux --history history_logs lux_logs
+Assembling history of logs from...
+lux_logs....................
+Analyzed 20 test runs (0 errors)...ok
+file:///Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/infra/history_logs/lux_history.html
+.../lux&gt; echo $?
+0
+</code></pre>
+</blockquote>
+
+<p>Walkthru history<em>logs/lux</em>history.html</p>
+
+<pre><code>- Overview
+- Per architecture
+- Per host
+- Still failing test cases
+</code></pre>
+
+<p>Jenkins</p>
+
+<ul>
+<li>Automated tests</li>
+<li>Display Jenkins test results as LUX history for non-LUX tests</li>
+</ul>
+
+<h2>More concepts</h2>
+
+<ul>
+<li>Fail pattern</li>
+<li>Loops
+<ul>
+<li>Foreach</li>
+<li>Break pattern</li>
+</ul></li>
+<li>Macros</li>
+<li>Variable scope
+<ul>
+<li>Environment
+<ul>
+<li>Initial values</li>
+<li>Require</li>
+<li>Local within one shell</li>
+<li>Global for all shells</li>
+<li>Statement block (my)</li>
+<li>Sub expression</li>
+</ul></li>
+</ul></li>
+<li>Regexp match vs verbatim match</li>
+<li>Match on permutations</li>
+<li>Shell config
+<ul>
+<li>Pseudo terminal (PTY)</li>
+<li>Normalized prompt</li>
+<li>Using other types of shells</li>
+</ul></li>
+<li>Use the power of various interactive languages</li>
+<li>Using LUX as an all purpose scripting language</li>
+</ul>
+
+<h2>Implementation</h2>
+
+<p>Why is Erlang a good fit? Primary due to its</p>
+
+<ul>
+<li>Concurrency</li>
+<li>Port programs</li>
+<li>Built-in regular expresssions (re)</li>
+<li>Timers</li>
+</ul>
+
+<p>Lux is written as an escript which can be installed as stand-alone
+(including the Erlang runtime). Reltool is used for this.</p>
+
+<p>The test cases in a suite are executed in sequence where a new
+interpreter process is started for each test script. The script is
+interpreted statement for statement.</p>
+
+<p>When a new Lux shell is to be started a new process is spawned. That
+process runs the Bourne shell as a port program and acts as a man in
+the middle between the interpreter and the port program.</p>
+
+<p>In fact it is not that simple. To make the Bourne shell believe it is
+executed in an interactive terminal there is actually one more man in
+the middle. The <code>runpty</code> is a small C program which manipulates the
+terminal settings for the pseudo TTY. When it has done that and setup
+sockets between the parent and child process it will fork the Bourne
+shell.</p>
+
+<p>Input data strings from the script is sent as is to the stdin of the
+port. The terminal is setup to echo the input to stdout.</p>
+
+<p>The stderr is redirected to stdout. The terminal will normalise the
+output from the Bourne shell (stdout and stderr) to make each end of
+line a carriage return followed by a line feed. The output from the
+port is buffered.</p>
+
+<p>When the script expects a regexp to match the buffer a timer is
+started. And the buffer is matched against the regexp when the buffer
+is updated. If the buffer does not match the regexp when the timer
+times out the script will fail.</p>
+
+<p>If the test script has a cleanup section, the cleanup is run as yet
+another Lux shell.</p>
+
+<h2>Lessons learned</h2>
+
+<ul>
+<li>Expect like testing requires a different mindset (find sync points in streams of data)</li>
+<li>Testability is a vital property of products, observability</li>
+<li>Effective post mortem analysis of test runs is a big time saver</li>
+<li>Test cases (as well as test tools) does also needs to be debugged</li>
+</ul>
+
+<h2>More info</h2>
+
+<ul>
+<li><p>Download from https://github.com/hawk/lux (Apache license)</p></li>
+<li><p>See the file <strong>../lux.html</strong> for the full documentation or view it online
+on <a href="https://github.com/hawk/lux/blob/euc/doc/lux.md">GitHub</a>.</p></li>
+</ul>
+
+<h2>Maintenance of LUX itself</h2>
+
+<ul>
+<li>Run LUX in Erlang debugger</li>
+<li>Use Erlang trace
+<ul>
+<li>Interactive display</li>
+<li>Display filtered Erlang trace</li>
+</ul></li>
+<li>Use Event Tracer</li>
+<li>Use xref</li>
+<li>Use reltool</li>
+<li>Install as stand-alone incl Erlang runtime</li>
+<li>Documentation
+<ul>
+<li>Markdown</li>
+<li>Generated from example runs</li>
+<li>Generated from built-in debugger help</li>
+<li>Generated from .md.src files</li>
+</ul></li>
+<li>Test of LUX itself</li>
+</ul>
+
+<h2>Tail-f/Cisco</h2>
+
+<ul>
+<li>Widely used for testing of Tail-f products</li>
+<li>Automated test environment using Jenkins
+<ul>
+<li>~4500 Lux test cases per run</li>
+<li>distributed over ~150 Docker containers</li>
+</ul></li>
+<li>ConfD
+<ul>
+<li>Device configuration</li>
+<li>Model driven configuration management framework for a network element</li>
+<li>Render northbound interfaces such as CLI, Netconf, SNMP, Rest, RestConf</li>
+<li>Tracable internal interfaces</li>
+</ul></li>
+<li>NSO
+<ul>
+<li>Orchestrator for a massive number of (hetrogenous) network elements</li>
+<li>Same standardised northbound interfaces as Confd</li>
+<li>Standard interfaces southbound combined with</li>
+<li>100+ adaptors for network elements lacking standard interfaces
+<a name="script_syntax"/></li>
+</ul></li>
+</ul>
 
 <h1>Script syntax</h1>
 
@@ -1793,12 +2741,12 @@ a hetrogenous lab environment:</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_04_07_11_40_13_63485/lux_summary.log
+summary log       : /Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_32_35_842281/lux_summary.log
 test case         : examples/calc.lux
-progress          : ..:..:..:.:...:..:.:.:....:..:..:..(....:..:.:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:..:.:..)(....:.:..:...)(.:..:.:..)..(.:..:.:..)......:..:.........
+progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:..:..)...:..:.:..:..(.:..:.:..)..(.:..:..)(....:.:..:...)(.:..:..)..(.:..:.:..)......:..:.........
 result            : SUCCESS
 test case         : examples/fail.lux
-progress          : ..:..:..:...:..:.:.:...:.:.:....:..:..32C..:..:.:..:..:..:.:..:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+progress          : ..:..:..:...:..:.:...:.:.:....:.:..:..32C..:..:..:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 result            : FAIL at 32 in shell calculator
 expected*
 19
@@ -1815,13 +2763,13 @@ diff
 + 4&gt; 
 
 test case         : examples/intro.lux
-progress          : ..:..:.:..:..:..:....:..:..:..:..:.:..:.:..:.:.:..:.:..:..:....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:..:.:.
+progress          : ..:..:.:..:..:.:.:.....:..:..:..:..:.:..:.:..:.:.:..:.:..:.:..:....:..:.:.:....c......:.:.:..:.:..:..:..:.:..:.:..:.
 result            : SUCCESS
 test case         : examples/loop.lux
-progress          : ..:..:..:.((.:..:.)(.:..:.:.)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.))((.:..:.)(.:..:.:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))...:..:..:..:..:.:..:.:..:...:..:.:..:.((.i=1..:..:.:.:..z)(..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:.:..:..:.:..:.
+progress          : ..:..:..:.((.:..:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:..:.)(.:..:.:.)(.:..:.))((.:.:..:.)(.:..:.:.)(.:..:.:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.:.))...:..:..:..:..:.:..:.:..:...:..:..:.((.i=1..:..:.:.:..z)(..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:.:..:.:).)c........:..:..:..:..:.:.
 result            : SUCCESS
 test case         : examples/loop_fail.lux
-progress          : ..:..:..:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+progress          : ..:..:.:..:.((.i=1..:..:..z)(z..i=2..:..:..z)(z..i=3..:..:.:..z))+5
 result            : FAIL at 5 in shell break
 expected*
 
@@ -1835,7 +2783,7 @@ result            : FAIL as required variable MAKE is not set
 test case         : examples/skip.lux
 result            : SKIP as variable TEST_SUNOS is not set
 test case         : examples/unstable.lux
-progress          : ..:..:.:..:....7
+progress          : ..:..:..:....7
 warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
 result            : WARNING at 7 in shell foo
 expected*
@@ -1861,7 +2809,7 @@ examples/fail.lux:32 - match_timeout
 examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 examples/require.lux:3 - FAIL as required variable MAKE is not set
 summary           : FAIL
-file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_07_11_40_13_63485/lux_summary.log.html
+file:///Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_32_35_842281/lux_summary.log.html
 .../lux&gt; echo $?
 1
 </code></pre>
@@ -1871,8 +2819,15 @@ file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_07_11_40_13_63485/lux_summar
 
 <h1>Installation</h1>
 
-<p>On MacOS, Lux can be installed with <code>brew install hawk/homebrew-hawk/lux</code>.
-It will install Erlang and whatewer else Lux needs.</p>
+<p>On MacOS, Lux can be installed with</p>
+
+<blockquote>
+<pre><code>brew tap hawk/homebrew-hawk
+brew install lux
+</code></pre>
+</blockquote>
+
+<p>It will install Erlang and whatewer else Lux needs.</p>
 
 <p>TLDR;</p>
 
@@ -1892,8 +2847,9 @@ runtime system must be installed in order to build the tool. Install
 </code></pre>
 </blockquote>
 
-<pre><code>       or
-</code></pre>
+<ul>
+<li>or</li>
+</ul>
 
 <blockquote>
 <pre><code>sudo apt-get install erlang
@@ -1902,9 +2858,9 @@ runtime system must be installed in order to build the tool. Install
 
 <ul>
 <li><p>By installing the <code>erlang</code> package most of the Erlang apps needed by
-Lux will be installed automatically. But there are additional Erlang
-packages which may be needed when using more exotic features, such
-as debugging and developing Lux itself:</p>
+Lux will be installed automatically. But on some systems there are
+additional Erlang packages which may be needed when using more
+exotic features, such as debugging and developing Lux itself:</p>
 
 <ul>
 <li><code>--internal_debug</code> requires <code>debugger</code>+<code>wx</code></li>
@@ -1912,11 +2868,11 @@ as debugging and developing Lux itself:</p>
 <li><code>--event_trace</code>    requires <code>runtime_tools</code>+<code>et</code>+<code>wx</code></li>
 <li><code>--reltool</code>        requires <code>reltool</code></li>
 </ul></li>
-<li><p>A standalone installation (using <code>--install</code>) requires <code>reltool</code>.</p></li>
-<li><p>Building Lux using <code>--make</code> requires <code>tools</code>.</p></li>
+<li><p>Building Lux using <code>--make</code> requires <code>tools</code>. (Avoid this kind of build.)</p></li>
+<li><p>Installation of Lux as standalone (using <code>--install</code>) requires <code>reltool</code>.</p></li>
 <li><p>Testing of Lux itself requires <code>tools</code>.</p></li>
 <li><p><code>--history</code> require may <code>inets</code>. But only when the logs are referred
-to by using URL's. Using local files does not require <code>inets</code>.</p></li>
+to by using URL's. Using local log files does not require <code>inets</code>.</p></li>
 <li><p>The documentation is pre-built. Re-generation of the documentation
 requires <strong><a href="http://www.daringfireball.net/projects/markdown" title="Markdown">Markdown</a></strong>.</p></li>
 </ul>
@@ -2001,7 +2957,7 @@ bin/lux --install &lt;TARGETDIR&gt;
 <h2>Obscure platforms</h2>
 
 <p>On "obscure platforms" which have <code>Erlang/OTP</code> but lacks <code>autotools</code>,
-make etc. it may still possible to build with</p>
+<code>make</code> etc. it may still possible to build Lux with</p>
 
 <blockquote>
 <pre><code>bin/lux --make

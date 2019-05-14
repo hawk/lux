@@ -97,13 +97,13 @@ Run a single script like this:
 Evaluate `lux examples/intro.lux`
 
 >     .../lux> lux examples/intro.lux
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_14_493987/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_30_44_568831/lux_summary.log
 >     test case         : examples/intro.lux
->     progress          : ..:...:.:..:.:..:....:...:.:.:..:..:.:..:..:..:.:...:..:..:.:.:..:..:.:.:....c....:.:...:..:..:..:..:.:..:..:.
+>     progress          : ..:..:..:.:..:.:.:.....:..:..:..:..:.:..:.:..:.:.:..:.:..:.....:..:.:.:....c......:.:.:..:.:..:..:.:..:..:..:.
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2017_08_23_11_45_14_493987/lux_summary.log.html
+>     file:///Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_30_44_568831/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -136,9 +136,25 @@ Evaluate `lux --history .`
 
 >     .../lux> lux --history .
 >     Assembling history of logs from...
->     	.....s...............
->     Analyzed 19 test runs (0 errors)...ok
->     file:///Users/hmattsso/dev/lux/lux_history.html
+>     	........................ss...................
+>     INTERNAL LUX ERROR in ./tutorial/chatty/test/intro/lux_logs/run_2019_05_14_17_35_39_52759/lux_summary.log
+>     function_clause
+>     [{lux_log,split_result,
+>               [[<<"successful        : 0\nerrors            : 1\n\ta_simple_server.lux:0 - INTERNAL LUX ERROR: {'EXIT',\n                        {{case_clause,no_shell},\n                         [{lux_debug,wait_for_reply,3,\n                              [{file,\"lux_debug.erl\"},{line,134}]},\n                          {lux_debug,init,2,\n                              [{file,\"lux_debug.erl\"},{line,71}]}]}}">>,
+>                 <<"summary           : ERROR\n">>]],
+>               [{file,"lux_log.erl"},{line,226}]},
+>      {lux_log,parse_summary_result,2,[{file,"lux_log.erl"},{line,501}]},
+>      {lux_log,do_parse_summary_log,3,[{file,"lux_log.erl"},{line,135}]},
+>      {lux_log,try_parse_summary_log,2,[{file,"lux_log.erl"},{line,118}]},
+>      {lux_log,parse_summary_log,2,[{file,"lux_log.erl"},{line,101}]},
+>      {lux_html_history,parse_summary_files,7,
+>                        [{file,"lux_html_history.erl"},{line,941}]},
+>      {lists,foldl,3,[{file,"lists.erl"},{line,1263}]},
+>      {lux_html_history,collect_branch,5,
+>                        [{file,"lux_html_history.erl"},{line,99}]}]
+>     ..s....ss.....................s...ss...........................
+>     Analyzed 98 test runs (1 errors)...ok
+>     file:///Users/hmattsso/dev/tailf/lux/lux_history.html
 >     .../lux> echo $?
 >     0
 
