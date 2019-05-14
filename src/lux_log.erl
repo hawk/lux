@@ -778,7 +778,7 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
                            true
                    end
            end,
-    {SubEvents, [_| Events2]} = lists:splitwith(Pred, Events),
+    {SubEvents, TmpEvents} = lists:splitwith(Pred, Events),
     [RawLineNoRange, SubFile2] = binary:split(SubFile, <<" \"">>),
     [RawLineNo, RawFirstLineNo, RawLastLineNo] =
         binary:split(RawLineNoRange, <<" ">>, [global]),
@@ -794,7 +794,12 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
               last_lineno = LastLineNo,
               file = SubFile4,
               events = SubEvents2},
-    do_parse_events(Events2, [E | Acc]).
+    case TmpEvents of
+        [_| Events2] ->
+            do_parse_events(Events2, [E | Acc]);
+        [] ->
+            do_parse_events([], [E | Acc])
+    end.
 
 extract_timers(Events) ->
     {_SendEvent, RevTimers} =
