@@ -413,7 +413,7 @@ opt_show_debug(C) ->
 show_debug(#cstate{debug={connect,Mode}} = C, Prefix, Data) ->
     Data2 =
         if
-            is_atom(Data) -> ?a2l(Data);
+            is_atom(Data) -> ?a2b(Data);
             true          -> Data
         end,
     case Mode of

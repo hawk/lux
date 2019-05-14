@@ -613,7 +613,7 @@ cleanup_cmd(I, Cmd, Prefix) ->
         end,
     I3 = I2#istate{mode = NewMode,
                    default_timeout = I2#istate.cleanup_timeout,
-                   debug_shell = undefined},
+                   debug_shell = no_shell},
     {I3, ShellCmd}.
 
 shell_eval(I, Cmd) ->
@@ -1170,7 +1170,7 @@ zombify_shells(I, Cmd) ->
     I2 = multisync(I, immediate, false),
     I3 = inactivate_shell(I2, zombify),
     if
-        I3#istate.debug_shell =:= undefined ->
+        I3#istate.debug_shell =:= no_shell ->
             ok;
         true ->
             lux_debug:format("\nCleanup. "

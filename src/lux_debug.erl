@@ -132,8 +132,8 @@ wait_for_reply(Dstate, Ipid, Timeout) ->
     receive
         {debug_reply, Ipid, CmdStr, NewCmdState, Dshell} ->
             case Dshell of
-                undefined ->
-                    ShellName = undefined,
+                no_shell ->
+                    ShellName = no_shell,
                     Mode = background,
                     ShellPid = undefined;
                 #debug_shell{name=ShellName,
@@ -177,7 +177,7 @@ wait_for_reply(Dstate, Ipid, Timeout) ->
 
 eval_cmd(I, Dpid, CmdStr, CmdState) when Dpid =:= I#istate.debug_pid ->
     case I#istate.debug_shell of
-        undefined ->
+        no_shell ->
             {CmdState2, I2} = do_eval_cmd(I, CmdStr, CmdState),
             Dshell = I2#istate.debug_shell,
             Dpid ! {debug_reply, self(), CmdStr, CmdState2, Dshell},
@@ -1480,7 +1480,7 @@ cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
             end,
             OldN = shell_name(I),
             if
-                OldN =/= undefined ->
+                OldN =/= no_shell ->
                     Old = lists:keyfind(OldN, #shell.name, AllShells),
                     Old#shell.pid ! {debug_shell, self(), disconnect};
                 true ->
@@ -1490,13 +1490,13 @@ cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
                 if
                     Health =:= zombie ->
                         format("ERROR: ~p is a zombie.\n", [Name]),
-                        undefined;
+                        no_shell;
                     N =/= OldN ->
                         Mode = list_to_existing_atom(Mode0),
                         Pid ! {debug_shell, self(), {connect, Mode}},
                         #debug_shell{name=N, mode=Mode, pid=Pid};
                     true ->
-                        undefined
+                        no_shell
                 end,
             {undefined, I#istate{debug_shell = DS}};
         _Ambiguous ->
@@ -1508,14 +1508,14 @@ all_shells(#istate{active_shell=ActiveShell,
                    shells=Shells}) ->
     AllShells =
         case ActiveShell of
-            undefined -> Shells;
+            no_shell -> Shells;
             #shell{} ->  [ActiveShell | Shells]
         end,
     lists:keysort(#shell.name, AllShells).
 
 shell_name(I) ->
     case I#istate.debug_shell of
-        undefined               -> undefined;
+        no_shell                -> no_shell;
         #debug_shell{name=Name} -> Name
     end.
 

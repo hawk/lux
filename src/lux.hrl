@@ -183,7 +183,7 @@
          active_shell = no_shell    :: no_shell | #shell{},
          active_name = "lux"        :: undefined | string(),
          shells = []                :: [#shell{}],
-         debug_shell                :: undefined | #debug_shell{},
+         debug_shell = no_shell     :: no_shell | #debug_shell{},
          blocked                    :: boolean(),
          has_been_blocked           :: boolean(),
          want_more                  :: boolean(),
