@@ -6,7 +6,20 @@ On MacOS, Lux can be installed with
 >     brew tap hawk/homebrew-hawk
 >     brew install lux
 
-It will install Erlang and whatewer else Lux needs.
+It will install Erlang and whatever else Lux needs.
+
+Debian/Ubuntu
+
+>     sudo apt-get install erlang erlang-dev
+>     wget https://github.com/hawk/lux/releases/download/lux-2.1/lux_2.1-1.deb
+>     sudo dpkg -i lux_2.1-1.deb
+
+Arch Linux
+
+>     mkdir tmp
+>     cd tmp
+>     wget https://github.com/hawk/lux/releases/download/lux-2.1/PKGBUILD
+>     makepkg -si
 
 TLDR;
 
@@ -25,7 +38,7 @@ The following software is required:
 
 * or
 
->     sudo apt-get install erlang
+>     sudo apt-get install erlang erlang-dev
 
 * By installing the `erlang` package most of the Erlang apps needed by
   Lux will be installed automatically. But on some systems there are
