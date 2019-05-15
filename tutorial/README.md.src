@@ -92,9 +92,9 @@ run of a test case.
   - Start multiple terminalks and create shells manually
   - Copy and paste from stdin logs to the shells
 
-#eval-include cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log
+#eval-include cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdin.log
 
-#eval-include cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log
+#eval-include cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdout.log
 
 Lux has a built-in debugger. It is always present, ready to read
 commands from stdin. For example the command `tail` or `t` for short
@@ -124,14 +124,6 @@ command. Try these commands out and see what happens:
 #include <tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdin.log>
 
 #include <tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdout.log>
-
->     c 15
->     shell server
->     !im().
->     n
->     t
->     help quit
->     c
 
 Infra-structure support
 -----------------------
