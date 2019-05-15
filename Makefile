@@ -13,6 +13,7 @@ SUBDIRS = src $(C_SRC_TARGET) $(LUX_EXTRAS)
 
 LUXCFG=$(DESTDIR)$(TARGETDIR)/priv/luxcfg
 
+.PHONY: all debug clean xref test test_clean config_clean install
 all debug clean:
 	@for d in $(SUBDIRS); do \
 	   if test ! -d $$d ; then \
@@ -25,7 +26,6 @@ all debug clean:
 xref:
 	bin/lux --xref
 
-.PHONY: test
 test:
 	cd test && $(MAKE) all
 

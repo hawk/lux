@@ -44,7 +44,7 @@ INSTALL_PGM=$(INSTALL) -m755
 INSTALL_DIR_AND_DATA = \
 	$(shell for d in `find $(1) -type d`; do \
 			$(INSTALL_DIR) $(DESTDIR)$(TARGETDIR)/$$d ; \
-			f=`find $$d -type f -maxdepth 1` ; \
+			f=`find $$d -maxdepth 1 -type f` ; \
 			$(INSTALL_DATA) $$f $(DESTDIR)$(TARGETDIR)/$$d ; \
 		done)
 
