@@ -57,24 +57,24 @@ at `lux_logs/latest_run`. With this command you get a list of all logs:
 
 Some logs are common for all test cases in a test suite:
 
-  - Summary log
-  - Config log
-  - Annotated summary log (HTML)
+  - Summary log - a summary of the outcome of the test suite
+  - Config log - actual configuration for the run
+  - Annotated summary log (HTML) - pretty printed asummary log
 
 while others are per test case:
 
-  - Event log
-  - Extra logs
-  - Config log
-  - Statistics
-  - TAP log
-  - JUnit log
-  - Annotated event log (HTML)
+  - Event log - a trace of internal lux events
+  - Extra logs - user defined logs/files worth to save after the run
+  - Config log - test case specific configuration
+  - Statistics - low level info about actual duration of timers
+  - TAP log - summary log on TAP format
+  - JUnit log - summary log on JUnit format
+  - Annotated event log (HTML) - pretty printed event log with links to other logs
 
 and yet some are per shell in the test case:
 
-  - Shell stdin log(s)
-  - Shell stdout log(s)
+  - Shell stdin log(s) - bytes sent to stdin of the shell
+  - Shell stdout log(s) - bytes received from stdout (and stderr) of the shell
 
 Debugging
 ---------
