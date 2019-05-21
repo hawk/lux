@@ -21,9 +21,23 @@ core*
 /priv/bin/runpty.dSYM
 
 # Doc
-/lux.html.tmp
-/doc/toc.md
+*.d
+*.tmp
+/README.md
+/doc/cmd_line_opts.md
+/doc/config_params.md
 /doc/debug_cmds.md
+/doc/debugging.md
+/doc/examples.md
+/doc/logs.md
+/doc/main_concepts.md
+/doc/references.md
+/doc/script_syntax.md
+/doc/toc.md
+/tutorial/README.md
+
 
 # Lux
 lux_logs
+tmp_logs
+lux_history*.html

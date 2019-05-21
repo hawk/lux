@@ -10,6 +10,6 @@ test:
 history:
 
 clean:
-	rm -rf lux_logs lux_history* chatty_*.log erl_crash.dump *~
+	rm -rf lux_logs tmp_logs lux_history* chatty_*.log erl_crash.dump *~
 
 info:
