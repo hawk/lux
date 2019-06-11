@@ -38,12 +38,12 @@ Hopefully the test code is self-explanatory.
 Evaluate `cd tutorial/chatty/test/intro && lux .`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux .
->     summary log       : /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_12_97352/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_04_314531/lux_summary.log
 >     test case         : a_simple_server.lux
->     progress          : ..:..:.:..:..:.:..:.:..:.:....:.:..:.:.:.:...:.:..:.:..:....
+>     progress          : ..:...:.:..:..:.:..:....:.:..:.:.:...:.:..:..:....
 >     result            : SUCCESS
 >     test case         : async_startup_fail.lux
->     progress          : ..:..:.:..:..:..:.:.:.:.:....:.:.:..:..:..:.:..:..:.:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.:.25????25..
+>     progress          : ..:..:.:..:..:.:..:.:.:.:....:.:.:..:.:...:.:..:..:.:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.25????25..
 >     result            : FAIL at 25 in shell hawk
 >     expected*
 >     	Trying to join the mytopic chat room...
@@ -72,16 +72,16 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	+ SH-PROMPT:
 >     	
 >     test case         : sync_startup.lux
->     progress          : ..:..:.:..:..:..:.:.:.:..:.:.:.:....:..:..:..:..:.:....:..:..:..:.:..:.:.:.:.:....:..:.:..:..:.:..:.:.:.:.::......:..::.....:............
+>     progress          : ..:..:.:..:..:..:.:.:.:..:.:.:.:....:..:..:..:.:..:.:....:..:.:..:..:.:..:.:.:.:....:..:..:..:.:..:.:.:.:.::......:..::.....:............
 >     result            : SUCCESS
 >     test case         : sync_startup_cleanup.lux
->     progress          : ()..:..:..:...:..:.:.:.:.:..:.:.:.:....:..:.:..:..:..:.:....:..:.:..:..:..:.:.:.:.:....:..:.:..:..:..:.:.:..:.:....:.:.:.::..c..........:..:.:..:.(.:.:..:.:.)(.:..:.:.)((.:..:.:.:.:.:.:.:.:.:.:.:.:.)(.:..:.:..))((.:..:.:.:.:.:.:.:.:.:.:.:.:.:.)(.:..:.:..))
+>     progress          : ()..:..:.:..:...:..:.:.:.:..:.:.:.:....:..:.:..:..:..:.:....:..:..:...:.:.:.:.:.:....:..:..:...:.:.:..:.:....:.:.:.::..c..........:..:..:.(.:..:.:.)(.:..:.:.)((..:.:.:.:.:.:.:.:.:.:.:.:.)(.:.:..:..))((.:..:.:.:.:.:.:.:.:.:.)(.:..:..))
 >     result            : SUCCESS
 >     successful        : 3
 >     failed            : 1
 >     	async_startup_fail.lux:25 - match_timeout
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_12_97352/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_04_314531/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -262,7 +262,7 @@ at `lux_logs/latest_run`. With this command you get a list of all logs:
 Evaluate `cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run`
 
 >     .../lux> cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run
->     lrwxr-xr-x 1 hmattsso staff 29 May 14 23:31 lux_logs/latest_run -> run_2019_05_14_21_31_12_97352
+>     lrwxr-xr-x 1 hmattsso staff 30 Jun 11 17:10 lux_logs/latest_run -> run_2019_06_11_15_10_04_314531
 >     .../lux> echo $?
 >     0
 
@@ -309,12 +309,11 @@ Evaluate `cd tutorial/chatty/test/intro && find -L lux_logs/latest_run`
 >     lux_logs/latest_run/Users
 >     lux_logs/latest_run/Users/hmattsso
 >     lux_logs/latest_run/Users/hmattsso/dev
->     lux_logs/latest_run/Users/hmattsso/dev/tailf
->     lux_logs/latest_run/Users/hmattsso/dev/tailf/lux
->     lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial
->     lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial/support
->     lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial/support/luxinc
->     lux_logs/latest_run/Users/hmattsso/dev/tailf/lux/tutorial/support/luxinc/macros.luxinc.orig
+>     lux_logs/latest_run/Users/hmattsso/dev/lux
+>     lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial
+>     lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial/support
+>     lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial/support/luxinc
+>     lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial/support/luxinc/macros.luxinc.orig
 >     lux_logs/latest_run/lux_config.log
 >     lux_logs/latest_run/async_startup_fail.lux.server.stdin.log
 >     lux_logs/latest_run/sync_startup.lux.cons.stdout.log
@@ -337,24 +336,24 @@ Evaluate `cd tutorial/chatty/test/intro && find -L lux_logs/latest_run`
 
 Some logs are common for all test cases in a test suite:
 
-  - Summary log
-  - Config log
-  - Annotated summary log (HTML)
+  - Summary log - a summary of the outcome of the test suite
+  - Config log - actual configuration for the run
+  - Annotated summary log (HTML) - pretty printed asummary log
 
 while others are per test case:
 
-  - Event log
-  - Extra logs
-  - Config log
-  - Statistics
-  - TAP log
-  - JUnit log
-  - Annotated event log (HTML)
+  - Event log - a trace of internal lux events
+  - Extra logs - user defined logs/files worth to save after the run
+  - Config log - test case specific configuration
+  - Statistics - low level info about actual duration of timers
+  - TAP log - summary log on TAP format
+  - JUnit log - summary log on JUnit format
+  - Annotated event log (HTML) - pretty printed event log with links to other logs
 
 and yet some are per shell in the test case:
 
-  - Shell stdin log(s)
-  - Shell stdout log(s)
+  - Shell stdin log(s) - bytes sent to stdin of the shell
+  - Shell stdout log(s) - bytes received from stdout (and stderr) of the shell
 
 Debugging
 ---------
@@ -367,58 +366,59 @@ use the `--progress=verbose` flag or `-v` for short:
 Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux -v a_simple_server.lux
->     summary log       : /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_36_62641/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_28_2162/lux_summary.log
 >     test case         : a_simple_server.lux
 >     event log         : 0.3
->     /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/a_simple_server.lux
->     lux(0): start_time "2019-05-14 23:31:36.150101"
+>     /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/a_simple_server.lux
+>     lux(0): start_time "2019-06-11 17:10:28.110469"
 >     lux(1): doc "Demo a simple single shell test case"
->     server(4): start "/Users/hmattsso/dev/tailf/lux/priv/bin/runpty /bin/sh -i"
+>     server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
 >     server(4): expected* ".+"
 >     server(4): timer started (10 seconds * 1.000 multiplier)
 >     server(4): recv "\e[?1034hsh-3.2$ "
->     server(4): timer canceled (after 12137 micro seconds)
+>     server(4): timer canceled (after 7104 micro seconds)
 >     server(4): match "\e[?1034hsh-3.2$ "
 >     server(4): send "export PS1=SH-PROMPT:
 >         "
->     server(4): recv "export"
+>     server(4): recv "expo"
+>     server(4): recv "rt PS1=SH-PROMPT:
+>         "
 >     server(4): expected* "^SH-PROMPT:"
 >     server(4): timer started (10 seconds * 1.000 multiplier)
->     server(4): recv " PS1=SH-PROMPT:
->         SH-PROMPT:"
->     server(4): timer canceled (after 140 micro seconds)
+>     server(4): recv "SH-PROMPT:"
+>     server(4): timer canceled (after 133 micro seconds)
 >     server(4): skip "export PS1=SH-PROMPT:
 >         "
 >     server(4): match "SH-PROMPT:"
 >     server(6): send "erl -sname server -pa ../../../chatty/ebin
 >         "
->     server(6): recv "erl"
->     server(6): recv " -sname server -pa ../."
+>     server(6): recv "erl -"
+>     server(6): recv "sname server -pa ../../../chatty"
 >     server(8): expected* "Erlang/OTP"
 >     server(8): timer started (10 seconds * 1.000 multiplier)
->     server(8): recv "./../chatty/ebin
+>     server(8): recv "/ebin
 >         "
->     server(8): recv "Erlang/OTP 21 [erts-10.3.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+>     server(8): recv "Erlang/OTP 21 [erts-10.3.5] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
 >         
 >         "
->     server(8): timer canceled (after 163510 micro seconds)
+>     server(8): timer canceled (after 108215 micro seconds)
 >     server(8): skip "erl -sname server -pa ../../../chatty/ebin
 >         "
 >     server(8): match "Erlang/OTP"
 >     server(9): expected* "Eshell"
 >     server(9): timer started (10 seconds * 1.000 multiplier)
->     server(9): recv "Eshell V10.3.2  (abort with ^G)
+>     server(9): recv "Eshell V10.3.5  (abort with ^G)
 >         "
->     server(9): timer canceled (after 119186 micro seconds)
->     server(9): skip " 21 [erts-10.3.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+>     server(9): timer canceled (after 117009 micro seconds)
+>     server(9): skip " 21 [erts-10.3.5] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
 >         
 >         "
 >     server(9): match "Eshell"
 >     server(9): recv "(server@HMATTSSO-M-N1P1)1> "
 >     server(10): expected* "> "
 >     server(10): timer started (10 seconds * 1.000 multiplier)
->     server(10): timer canceled (after 11 micro seconds)
->     server(10): skip " V10.3.2  (abort with ^G)
+>     server(10): timer canceled (after 8 micro seconds)
+>     server(10): skip " V10.3.5  (abort with ^G)
 >         (server@HMATTSSO-M-N1P1)1"
 >     server(10): match "> "
 >     server(12): send "chatty:server().
@@ -429,7 +429,7 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 >         "
 >     server(13): recv "Starting server server...
 >         "
->     server(13): timer canceled (after 24800 micro seconds)
+>     server(13): timer canceled (after 21878 micro seconds)
 >     server(13): skip "chatty:server().
 >         "
 >     server(13): match "Starting server"
@@ -437,10 +437,10 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 >     server(14): timer started (10 seconds * 1.000 multiplier)
 >     server(14): recv "Trying to open log file chatty_server.log..."
 >     server(14): recv "ok.
->         "
->     server(14): recv "<0.86.0>
+>         <0.86.0>"
+>     server(14): recv "
 >         (server@HMATTSSO-M-N1P1)2> "
->     server(14): timer canceled (after 3003625 micro seconds)
+>     server(14): timer canceled (after 3002721 micro seconds)
 >     server(14): skip " server...
 >         Trying to open log file chatty_server.log...ok.
 >         <0.86.0>
@@ -453,25 +453,25 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 >     server(17): recv "halt(3).
 >         "
 >     server(17): recv "SH-PROMPT:"
->     server(17): timer canceled (after 5795 micro seconds)
+>     server(17): timer canceled (after 4958 micro seconds)
 >     server(17): skip "halt(3).
 >         "
 >     server(17): match "SH-PROMPT:"
 >     server(19): send "echo "===$?==="
 >         "
->     server(19): recv "echo "===$?=="
+>     server(19): recv "echo ""
 >     server(20): expected* "===3==="
 >     server(20): timer started (10 seconds * 1.000 multiplier)
->     server(20): recv "="
+>     server(20): recv "===$?==="
 >         ===3===
 >         SH-PROMPT:"
->     server(20): timer canceled (after 178 micro seconds)
+>     server(20): timer canceled (after 190 micro seconds)
 >     server(20): skip "echo "===$?==="
 >         "
 >     server(20): match "===3==="
 >     server(21): expected* "SH-PROMPT:"
 >     server(21): timer started (10 seconds * 1.000 multiplier)
->     server(21): timer canceled (after 7 micro seconds)
+>     server(21): timer canceled (after 9 micro seconds)
 >     server(21): skip "
 >         "
 >     server(21): match "SH-PROMPT:"
@@ -479,11 +479,11 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 >     server(22): inactivate zombify
 >     server(22): end of script
 >     server(22): stop success
->     lux(0): end_time "2019-05-14 23:31:39.519734"
+>     lux(0): end_time "2019-06-11 17:10:31.407339"
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/lux_logs/run_2019_05_14_21_31_36_62641/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_28_2162/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -494,20 +494,35 @@ run of a test case.
   - Start multiple terminalks and create shells manually
   - Copy and paste from stdin logs to the shells
 
-Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log`
+Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdin.log`
 
->     .../lux> cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log
->     cat: lux_logs/latest_run/a_simple_server.lux.eshell.stdin.log: No such file or directory
+>     .../lux> cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdin.log
+>     export PS1=SH-PROMPT:
+>     erl -sname server -pa ../../../chatty/ebin
+>     chatty:server().
+>     halt(3).
+>     echo "===$?==="
 >     .../lux> echo $?
->     1
+>     0
 
 
-Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log`
+Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdout.log`
 
->     .../lux> cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log
->     cat: lux_logs/latest_run/a_simple_server.lux.eshell.stdout.log: No such file or directory
+>     .../lux> cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdout.log
+>     [?1034hsh-3.2$ export PS1=SH-PROMPT:
+>     SH-PROMPT:erl -sname server -pa ../../../chatty/ebin
+>     Erlang/OTP 21 [erts-10.3.5] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+>     
+>     Eshell V10.3.5  (abort with ^G)
+>     (server@HMATTSSO-M-N1P1)1> chatty:server().
+>     Starting server server...
+>     Trying to open log file chatty_server.log...ok.
+>     <0.86.0>
+>     (server@HMATTSSO-M-N1P1)2> halt(3).
+>     SH-PROMPT:echo "===$?==="
+>     ===3===
 >     .../lux> echo $?
->     1
+>     SH-PROMPT:0
 
 
 Lux has a built-in debugger. It is always present, ready to read
@@ -539,28 +554,146 @@ Evaluate `cd tutorial/chatty/test/intro && lux a_simple_server.delux`
 Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdin.log` file:
 
 >     export PS1=SH-PROMPT:
+>     rm -rf tmp_logs
 >     lux -d --log_dir=tmp_logs a_simple_server.lux
+>     c 15
+>     shell server
+>     !im().
+>     ?
+>     n
+>     t
+>     help quit
+>     c
 >     
 
 Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdout.log` file:
 
 >     [?1034hsh-3.2$ export PS1=SH-PROMPT:
+>     SH-PROMPT:rm -rf tmp_logs
 >     SH-PROMPT:lux -d --log_dir=tmp_logs a_simple_server.lux
->     ERROR: Failed to open logfile: /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log -> file already exists
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log
 >     
+>     test case         : a_simple_server.lux
+>     progress          : 
+>     Break at "a_simple_server.lux:1"
 >     
->     FATAL ERROR: /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log:
->     	ERROR: Failed to open logfile: /Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log -> file already exists
+>     File a_simple_server.lux:
+>     1> [doc Demo a simple single shell test case]
+>     2: 
+>     3: # Start a shell
+>     4: [shell server]
+>     5:     # Send text to the active shell
+>     6:     !erl -sname server -pa ../../../chatty/ebin
+>     7:     # Match output from the active shell
+>     8:     ?Erlang/OTP
+>     9:     ?Eshell
+>     10:     ?> 
 >     
->     SH-PROMPT:
-
+>     Debugger for lux. Try help or continue.
 >     c 15
+>     
+>     Set temporary breakpoint at "a_simple_server.lux:15"
+>     
+>     Continue to run from "a_simple_server.lux:1"
+>     ..:..:.:..:..:.:..:.:..:.:....:.:..14?:?:?:?
+>     Break at "a_simple_server.lux:15"
+>     
+>     File a_simple_server.lux:
+>     13:     ?Starting server
+>     14:     ?> 
+>     15> 
+>     16:     !halt(3).
+>     17:     ?SH-PROMPT:
+>     18: 
+>     19:     !echo "===$?==="
+>     20:     ?===3===
+>     21:     ?SH-PROMPT:
+>     22: 
+>     22: 
 >     shell server
+>     
+>     Connect to shell "server" in background mode.
 >     !im().
+>     
+>     Send data to shell "server".
+>     
+>     server(send): im().
+>     server(send): 
+>     
+>     server(recv): im().
+>     server(recv): <0.89.0>
+>     server(recv): (server@HMATTSSO-M-N1P1)3> 
+>     ?
+>     
+>     Reset output buffer for shell "server".
 >     n
+>     
+>     File a_simple_server.lux:
+>     16>     !halt(3).
 >     t
+>     Log files at tmp_logs/.:
+>     
+>     *  1 lux_config.log
+>     *  2 lux_summary.log.tmp
+>     *  3 lux_result.log
+>     *  4 a_simple_server.lux.config.log
+>     *  5 a_simple_server.lux.event.log
+>     *  6 a_simple_server.lux.server.stdin.log
+>     *  7 a_simple_server.lux.server.stdout.log
+>     
+>     Last 10 (54..63) lines of log file: a_simple_server.lux.event.log
+>     
+>     server(14): recv "Trying to open log file chatty_server.log..."
+>     server(14): recv "ok.\r\n"
+>     server(14): recv "<0.86.0>\r\n(server@HMATTSSO-M-N1P1)2> "
+>     server(14): timer canceled (after 3003945 micro seconds)
+>     server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n<0.86.0>\r\n(server@HMATTSSO-M-N1P1)2"
+>     server(14): match "> "
+>     server(14): send "im().\n"
+>     server(14): recv "im().\r\n<0.89.0>\r\n(server@HMATTSSO-M-N1P1)3> "
+>     server(14): output reset
+>     
 >     help quit
+>     
+>     quit \[scope\]
+>     --------------
+>     
+>     Quit a single test case or the entire test suite
+>     in a controlled manner. Runs cleanup if applicable.
+>     
+>     **Parameters:**  
+>     
+>     * scope - scope of exit; enum(case|suite)  
+>     
 >     c
+>     
+>     Continue to run from "a_simple_server.lux:16"
+>     
+>     server(send): halt(3).
+>     server(send): 
+>     
+>     server(recv): halt(3).
+>     server(recv): 
+>     
+>     server(recv): SH-PROMPT:
+>     
+>     server(send): echo "===$?==="
+>     server(send): 
+>     
+>     server(recv): echo
+>     
+>     server(recv):  "===$?==="
+>     server(recv): ===3===
+>     server(recv): 
+>     
+>     server(recv): SH-PROMPT:
+>     .
+>     Cleanup. Turn existing shells into zombies.
+>     
+>     Disconnect from shell "server".
+>     .
+>     result            : SUCCESS
+>     
 
 Infra-structure support
 -----------------------
@@ -714,7 +847,7 @@ Evaluate `cd tutorial/chatty/test/infra && lux --history history_logs lux_logs`
 >     Assembling history of logs from...
 >     	lux_logs....................
 >     Analyzed 20 test runs (0 errors)...ok
->     file:///Users/hmattsso/dev/tailf/lux/tutorial/chatty/test/infra/history_logs/lux_history.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_logs/lux_history.html
 >     .../lux> echo $?
 >     0
 
