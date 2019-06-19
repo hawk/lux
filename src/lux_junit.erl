@@ -82,6 +82,8 @@ classname(Filename, RunDir) ->
 name(Filename) ->
     filename:basename(Filename).
 
+body({warnings_and_result, _Warnings, Result}, HtmlLog) ->
+    body({result, Result}, HtmlLog);
 body({result, skip}, Indent) ->
     [Indent, "<skipped/>\n"];
 body({result, {_, LineNo, _ExpectedTag, Expected, Actual, Details}}, _Indent) ->
