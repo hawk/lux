@@ -1023,17 +1023,14 @@ parse_result(RawResult) ->
         fun(R) ->
                 case R of
                     <<"warning", _/binary>> -> true;
-                       _                       -> false
+                    _                       -> false
                 end
         end,
     {LongWarnings, [LongResult|Rest]} = lists:splitwith(Pred, RawResult),
-    Split =
-        fun(R) ->
-                [_Tag, Val] = binary:split(R, <<": ">>),
-                Val
-        end,
-    Warnings = lists:map(Split, LongWarnings),
-    Result = Split(LongResult),
+    Split = fun(R) -> binary:split(R, <<": ">>) end,
+    Warnings = lists:map(fun(L) -> [_T, W] = Split(L), Split(W) end,
+                         LongWarnings),
+    [_, Result] = Split(LongResult),
     R =
         case Result of
             <<"SUCCESS">> ->

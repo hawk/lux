@@ -778,9 +778,12 @@ html_timer_data(L, Data) ->
 html_result(Tag, {warnings_and_result, Warnings, Result}, HtmlLog) ->
     PrettyWarnings =
         [["\n<", Tag,
-          "><strong>Warning at line ", W, "</strong></",
+          "><strong>Warning at line ",
+          lux_html_utils:html_href(["#", Line], Line),
+          " - ", Text,
+          "</strong></",
           Tag, ">\n"] ||
-            W <- Warnings],
+            [Line, Text] <- Warnings],
     [
      PrettyWarnings,
      html_result2(Tag, Result, HtmlLog)
