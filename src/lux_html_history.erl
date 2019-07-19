@@ -113,14 +113,12 @@ do_generate(RelHtmlFile, AllRuns, Errors, MultiBranch, Opts) ->
                             HostTables, ConfigTables, HtmlDir,
                             RelHtmlFile, Errors, MultiBranch))
         end,
-
     Footer =
         [
          HtmlArgs,
          HtmlErrors,
          lux_html_utils:html_footer()
         ],
-
     case MultiBranch of
         true ->
             SplitBranches = keysplit(#run.branch, AllRuns),
@@ -367,16 +365,22 @@ header(Section, AllRuns, HostTables, ConfigTables,
     ].
 
 legend() ->
+    Legend =
+        [
+         {fail,           "First fail"},
+         {secondary_fail, "Secondary fail on same host"},
+         {warning,        "Warning"},
+         {none,           "Skipped"},
+         {success,        "Success"},
+         {no_branch,      "No data"}
+        ],
+    SortedLegend = keysort_prio(1, Legend),
+    LegendIo = [html_td(Text, Res, "left", "") || {Res, Text} <- SortedLegend],
     [
-     "<h3>Legend</h3>\n",
+     "<h3>Legend / sort order</h3>\n",
      "  <table border=\"1\">\n",
      "    <tr>\n",
-     html_td("First fail", fail, "left", ""),
-     html_td("Secondary fails on same host", secondary_fail, "left",""),
-     html_td("Warning", warning, "left", ""),
-     html_td("Skipped", none, "left", ""),
-     html_td("Success", success, "left", ""),
-     html_td("No data", no_data, "left", ""),
+     LegendIo,
      "    </tr>\n",
      "  </table>\n"
     ].
@@ -506,6 +510,7 @@ table_configs(NewLogDir, SplitConfigs, HtmlFile,
 double_table(HistoryLogDir, Name, Label, AllRuns, HtmlFile,
              MultiBranch, MultiHosts, MultiConfig) ->
     AllSuitesSuppress = suppress_none,
+    FailedCasesSuppress = suppress_any_success,
     Select = select_latest,
     AllT = table(HistoryLogDir, Name, "All test suites",
                  AllRuns, HtmlFile, MultiBranch,
@@ -513,7 +518,6 @@ double_table(HistoryLogDir, Name, Label, AllRuns, HtmlFile,
                  MultiHosts, MultiConfig),
     Details = [D#run{details=[D]} || R <- AllRuns,
                                      D <- R#run.details],
-    FailedCasesSuppress = suppress_any_success,
     FailedT = table(HistoryLogDir, Name, "Failed test cases",
                     Details, HtmlFile, MultiBranch,
                     FailedCasesSuppress, Select,
@@ -558,7 +562,11 @@ table(HistoryLogDir, Name, Grain, Runs, HtmlFile,
     HostInfo = fun(R, I) -> host_info(R, I, MultiHosts, MultiConfig) end,
     HostIoList = element(1, lists:mapfoldl(HostInfo, HtmlFile, SplitIds2)),
     CntIoList = element(1, lists:mapfoldl(fun run_cnt/2, {1,Rows}, SplitIds2)),
-    RowsIoList = [R#row.iolist || R <- Rows],
+    SplitRows = keysplit(#row.res, Rows),
+    SortedSplitRows = keysort_prio(1, SplitRows),
+    SortedRows = lists:append([lists:reverse(SubRows) ||
+                                  {_Res, SubRows} <- SortedSplitRows]),
+    RowsIoList = [R#row.iolist || R <- SortedRows],
     TableIoList =
         ?l2b([
               "  <table border=\"1\">\n",
@@ -577,6 +585,15 @@ table(HistoryLogDir, Name, Grain, Runs, HtmlFile,
              ]),
     %% #table{name=Name, res=SelectedRes, rows = Rows, iolist=TableIoList}.
     #table{name=Name, res=SelectedRes, iolist=TableIoList}.
+
+keysort_prio(Pos, List) ->
+    Fun =
+        fun(A, B) ->
+                PrioA = element(Pos, A),
+                PrioB = element(Pos, B),
+                lux_utils:summary_prio(PrioA) > lux_utils:summary_prio(PrioB)
+        end,
+    lists:sort(Fun, List).
 
 run_info({Id, [#run{start_time=Time, branch=RunBranch, repos_rev=Rev} | _]}) ->
     OptBranch =

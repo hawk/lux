@@ -221,13 +221,14 @@ summary_prio(Summary) ->
         validate       -> 0;
         enable         -> 1;
         no_data        -> 2;
-        success        -> 3;
-        none           -> 4;
-        skip           -> 5;
-        warning        -> 5;
-        secondary_fail -> 7;
-        fail           -> 8;
-        error          -> 9;
+        no_branch      -> 3;
+        success        -> 4;
+        none           -> 5;
+        skip           -> 6;
+        warning        -> 7;
+        secondary_fail -> 8;
+        fail           -> 9;
+        error          -> 10;
         disable        -> 999
     end.
 
