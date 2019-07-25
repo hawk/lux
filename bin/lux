@@ -17,6 +17,7 @@
          stop_trace/0,
          normalize_filename/1,
          split/2,
+         has_timestamp/0,
          timestamp/0
         ]).
 
@@ -314,12 +315,13 @@ do_add_defaults(Files, Opts) ->
              [AbsLogDir, file:format_error(FileReason)]}
     end.
 
+has_timestamp() ->
+    erlang:function_exported(erlang, timestamp, 0).
+
 timestamp() ->
-    try
-        hidden_apply(erlang, timestamp, []) % Avoid xref warning
-    catch
-        error:undef ->
-            hidden_apply(erlang, now, []) % Avoid compiler warning
+    case has_timestamp() of
+        true  -> hidden_apply(erlang, timestamp, []); % Avoid xref warning
+        false -> hidden_apply(erlang, now, [])        % Avoid compiler warning
     end.
 
 hidden_apply(M, F, A) ->

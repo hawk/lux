@@ -201,7 +201,11 @@
          system_vars                :: [string()],   % ["name=val"]
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
-         stopped_by_user            :: undefined | 'case' | suite}).
+         stopped_by_user            :: undefined | 'case' | suite,
+         start_time                 :: {non_neg_integer(),
+                                        non_neg_integer(),
+                                        non_neg_integer()},
+         emit_timestamp = false     :: boolean()}).
 
 
 -record(run,
@@ -235,11 +239,12 @@
          orig         :: file:filename()}).
 
 -record(event,
-        {lineno  :: non_neg_integer(),
-         shell   :: binary(),
-         op      :: binary(),
-         quote   :: quote | plain,
-         data    :: [binary()]}).
+        {lineno    :: non_neg_integer(),
+         shell     :: binary(),
+         op        :: binary(),
+         timestamp :: no_timestamp | binary(),
+         quote     :: quote | plain,
+         data      :: [binary()]}).
 
 -record(body,
         {invoke_lineno :: integer(),
@@ -314,7 +319,8 @@
          wakeup                  :: undefined | reference(),
          debug_level = 0         :: non_neg_integer(),
          events = []             :: [tuple()],
-         warnings = []           :: [#warning{}]}).
+         warnings = []           :: [#warning{}],
+         emit_timestamp = false  :: boolean()}).
 
 -record(rstate,
         {files                      :: [string()],

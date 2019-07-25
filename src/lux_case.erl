@@ -44,12 +44,13 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
     I2 = I#istate{commands = Cmds,
                   warnings = Warnings,
                   orig_commands = shrinked,
-                  stopped_by_user = Context},
+                  stopped_by_user = Context,
+                  start_time = StartTime},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
                 I4 = check_timeout(I3),
-                open_logs_and_eval(I4, StartTime);
+                open_logs_and_eval(I4);
             {error, ParseReason} ->
                 internal_error(I2, ParseReason)
         end
@@ -75,7 +76,7 @@ check_timeout(#istate{suite_timeout = SuiteTimeout,
 check_timeout(I) ->
     I.
 
-open_logs_and_eval(I, StartTime) ->
+open_logs_and_eval(I) ->
     Script = I#istate.file,
     Cmds = I#istate.commands,
     CaseLogDir = case_log_dir(I, Script),
@@ -92,12 +93,14 @@ open_logs_and_eval(I, StartTime) ->
             Progress = I3#istate.progress,
             LogFun = I3#istate.log_fun,
             Verbose = true,
+            EmitTimestamp = I3#istate.emit_timestamp,
             case lux_log:open_event_log(CaseLogDir, Script,
                                         Progress,
-                                        LogFun, Verbose) of
+                                        LogFun, Verbose,
+                                        EmitTimestamp) of
                 {ok, EventLog, EventFd} ->
                     Docs = docs(I3#istate.orig_file, Cmds),
-                    eval(I3, StartTime, Progress, Verbose, LogFun,
+                    eval(I3, Progress, Verbose, LogFun,
                          EventLog, EventFd, ConfigFd, Docs);
                 {error, FileReason} ->
                     internal_error(I3, file:format_error(FileReason))
@@ -112,7 +115,8 @@ default_istate(File) ->
             log_fun = fun(Bin) -> console_write(?b2l(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),
-            system_vars = lux_utils:system_vars()}.
+            system_vars = lux_utils:system_vars(),
+            emit_timestamp = lux_main:has_timestamp()}.
 
 default_shell_wrapper() ->
     Wrapper = filename:join([code:priv_dir(?APPLICATION), "bin", "runpty"]),
@@ -152,7 +156,7 @@ case_log_dir(SuiteLogDir, AbsScript) ->
     RelDir = filename:dirname(RelScript),
     filename:join([SuiteLogDir, RelDir]).
 
-eval(OldI, StartTime, Progress, Verbose,
+eval(OldI, Progress, Verbose,
      LogFun, EventLog, EventFd, ConfigFd, Docs) ->
     TraceMode =
         case dbg:get_tracer() of
@@ -179,7 +183,7 @@ eval(OldI, StartTime, Progress, Verbose,
                     Dpid = lux_debug:start_link(OldI#istate.debug_file),
                     DbgI = NewI#istate{debug_pid = Dpid},
                     ReplyTo ! {debug_pid, DbgI},
-                    Res = lux_interpret:init(DbgI, StartTime),
+                    Res = lux_interpret:init(DbgI),
                     ?TRACE_ME2(70, 'case', shutdown, []),
                     unlink(ReplyTo),
                     ReplyTo ! {done, self(), Res},
@@ -708,7 +712,7 @@ post_ilog(#istate{progress = Progress,
           Docs) ->
     lux_log:close_config_log(ConfigFd, Logs),
     log_doc(I, Docs),
-    lux_interpret:ilog(I, "\n", []),
+    lux_interpret:raw_ilog(I, "\n", []),
     LogFun =
         fun(Bin) ->
                 case Progress of

@@ -1565,9 +1565,10 @@ cmd_trace(I, Args, _CmdState) ->
     end.
 
 elog(I, Format, Args) ->
-    lux_interpret:ilog(I, "~s(~p): "++Format++"\n",
-                 [I#istate.active_name,
-                  (I#istate.latest_cmd)#cmd.lineno | Args]).
+    lux_interpret:ilog(I, Format ++ "\n",
+                       Args,
+                       I#istate.active_name,
+                       (I#istate.latest_cmd)#cmd.lineno).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

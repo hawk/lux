@@ -44,6 +44,7 @@
          lineno,
          cmd_stack,
          op,
+         timestamp :: no_timestamp | binary(),
          shell,
          data}).
 
@@ -478,6 +479,7 @@ lookup_file(Script, OrigScript, FirstLineNo, MaxLineNo,
 interleave_loop(A, [#event{lineno =  LineNo,
                            shell = Shell,
                            op = Op,
+                           timestamp = Timestamp,
                            quote = Quote,
                            data = RevData} | Events],
                 Flush, CodeLines,
@@ -505,6 +507,7 @@ interleave_loop(A, [#event{lineno =  LineNo,
                      lineno = LineNo,
                      cmd_stack = CmdStack,
                      op = Op,
+                     timestamp = Timestamp,
                      shell = Shell,
                      data = DataLines},
     Acc2 =
@@ -1000,6 +1003,7 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
                     lineno = LineNo,
                     cmd_stack = CmdStack,
                     op = Op,
+                    timestamp = Timestamp,
                     shell = Shell,
                     data = Data} ->
             Curr = event,
@@ -1016,7 +1020,13 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
                               type = undefined},
             CmdStack2 = [CmdPos | CmdStack],
             FullLineNo = lux_utils:pretty_full_lineno(CmdStack2),
-            Html = ["\n", Shell, "(", FullLineNo, "): ", Op, " "],
+            OptTimeStamp =
+                case Timestamp of
+                    no_timestamp -> [];
+                    _            -> [] %% Skip timestamp in HTML for now
+                    %% _            -> [Timestamp, " "]
+                end,
+            Html = ["\n", OptTimeStamp, Shell, "(", FullLineNo, "): ", Op, " "],
             [
              html_change_div_mode(Curr, Prev),
              lux_html_utils:html_quote(Html),

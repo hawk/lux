@@ -14,7 +14,7 @@
          write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/3,
-         open_event_log/5, close_event_log/1, write_event/4, scan_events/2,
+         open_event_log/6, close_event_log/1, write_event/9, scan_events/2,
          parse_events/2, parse_io_logs/2, open_config_log/3, close_config_log/2,
          extract_timers/1, timers_to_csv/1, csv_to_timers/1,
          safe_format/5, safe_write/4, unquote/1, dequote/1, split_quoted_lines/1
@@ -24,7 +24,7 @@
 -include("lux.hrl").
 
 -define(SUMMARY_LOG_VERSION, <<"0.3">>).
--define(EVENT_LOG_VERSION,   <<"0.3">>).
+-define(EVENT_LOG_VERSION,   <<"0.4">>).
 -define(CONFIG_LOG_VERSION,  <<"0.1">>).
 -define(RESULT_LOG_VERSION,  <<"0.1">>).
 
@@ -636,14 +636,19 @@ result_format(Progress, {IsTmp, Fd}, Format, Args) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Event log
 
-open_event_log(LogDir, Script, Progress, LogFun, Verbose)
+open_event_log(LogDir, Script, Progress, LogFun, Verbose, EmitTimestamp)
   when is_list(LogDir), is_list(Script) ->
     Base = filename:basename(Script),
     EventLog = lux_utils:join(LogDir, Base ++ ?CASE_EVENT_LOG),
     case file:open(EventLog, [write]) of
         {ok, EventFd} ->
+            EventLogVersion =
+                case EmitTimestamp of
+                    true -> ?EVENT_LOG_VERSION;
+                    false -> <<"0.3">>
+                end,
             safe_format(Progress, LogFun, {Verbose, EventFd},
-                        "~s~s\n", [?TAG(?EVENT_TAG), ?EVENT_LOG_VERSION]),
+                        "~s~s\n", [?TAG(?EVENT_TAG), EventLogVersion]),
             safe_format(Progress, LogFun, {Verbose, EventFd},
                         "\n~s\n\n", [lux_utils:normalize_filename(Script)]),
             {ok, EventLog, EventFd};
@@ -654,23 +659,30 @@ open_event_log(LogDir, Script, Progress, LogFun, Verbose)
 close_event_log(EventFd) ->
     file:close(EventFd).
 
-write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, "", []}) ->
+write_event(Progress, LogFun, Fd,
+            LineNo, Shell, Op,
+            Timestamp, Fmt, Args) ->
     OpStr = ?a2l(Op),
-    Data = ?FF("~s(~p): ~s\n", [Shell, LineNo, OpStr]),
-    safe_write(Progress, LogFun, Fd, Data);
-write_event(Progress, LogFun, Fd, {log_event, LineNo, Shell, Op, Fmt, Args}) ->
-    OpStr = ?a2l(Op),
-    Data = ?FF(Fmt, Args),
-%% ??   Data2 = lux_utils:normalize_match_regexp(Data),
-    Data2 = Data,
-    Data3 = ?FF("~s(~p): ~s ~s\n", [Shell, LineNo, OpStr, Data2]),
-    safe_write(Progress, LogFun, Fd, Data3).
+    Data =
+        case Timestamp of
+            no_timestamp ->
+                ?FF("~s(~p): ~s " ++ Fmt ++ "\n",
+                    [Shell, LineNo, OpStr] ++ Args);
+            {_Mega, _Secs, Micros} = Now ->
+                {_Date, {Hours, Mins, Secs}} = calendar:now_to_local_time(Now),
+                ?FF("~2..0w:~2..0w:~2..0w.~6..0w ~s(~p): ~s " ++ Fmt ++ "\n",
+                    [Hours, Mins, Secs, Micros, Shell, LineNo, OpStr | Args])
+        end,
+    safe_write(Progress, LogFun, Fd, Data).
 
 scan_events(EventLog, WWW) when is_list(EventLog) ->
     {ReadRes, NewWWW} = read_log(EventLog, ?EVENT_TAG, WWW),
     case ReadRes of
         {ok, ?EVENT_LOG_VERSION, Sections} ->
             %% Latest version
+            do_scan_events(EventLog, Sections, NewWWW);
+        {ok, <<"0.3">>, Sections} ->
+            %% Prev version without timestamps
             do_scan_events(EventLog, Sections, NewWWW);
         {ok, <<"0.2">>, Sections} ->
             %% Prev version without warnings
@@ -725,59 +737,82 @@ parse_events([<<>>], Acc) ->
 parse_events(Events, Acc) ->
     do_parse_events(Events, Acc).
 
-do_parse_events([<<"file_enter ", SubFile/binary>> | Events], Acc) ->
-    %% file_enter 11 47 53 demo/test.lux
-    %% file_exit 11 47 53 demo/test.lux
-    parse_other_file(<<"file_exit ">>, SubFile, Events, Acc);
-do_parse_events([<<"include_begin ", SubFile/binary>> | Events], Acc) ->
-    %% Old style
-    %% include_begin 11 47 53 demo/test.luxinc
-    %% include_end 11 47 53 demo/test.luxinc
-    parse_other_file(<<"include_end ">>, SubFile, Events, Acc);
 do_parse_events([Event | Events], Acc) ->
-    [Prefix, Details] = binary:split(Event, <<"): ">>),
-    [Shell, RawLineNo] = binary:split(Prefix, <<"(">>),
-    LineNo = list_to_integer(?b2l(RawLineNo)),
-    {Op, Data} =
-        case binary:split(Details, <<" ">>) of
-            [O]    -> {O, <<>>};
-            [O, D] -> {O, D}
-        end,
-    {Quote, Plain} = unquote(Data),
-    E2 =
-        case Acc of
-            [#event{lineno = LineNo,
-                    shell = Shell,
-                    op = Op,
-                    data = PrevData,
-                    quote = Quote} = E | Acc2]
-              when Quote =:= quote,
-                   Op =:= <<"recv">>,
-                   Data =/= <<"timeout">> ->
-                %% Combine consecutive two chunks of recv data
-                %% into one in order to improve readability
-                E#event{data = [Plain | PrevData]};
-            Acc2 ->
-                #event{lineno = LineNo,
-                       shell = Shell,
-                       op = Op,
-                       quote = Quote,
-                       data = [Plain]}
-        end,
-    do_parse_events(Events, [E2 | Acc2]);
+    {Timestamp, Rest} = split_timestamp(Event),
+    case Rest of
+        <<"file_enter ", SubFile/binary>> ->
+            %% file_enter 11 47 53 demo/test.lux
+            %% file_exit 11 47 53 demo/test.lux
+            parse_other_file(<<"file_exit ">>, SubFile, Events, Acc);
+        _ ->
+            [Prefix, Details] = binary:split(Rest, <<"): ">>),
+            [Shell, RawLineNo] = binary:split(Prefix, <<"(">>),
+            LineNo = list_to_integer(?b2l(RawLineNo)),
+            {Op, Data} =
+                case binary:split(Details, <<" ">>) of
+                    [O2]     -> {O2, <<>>};
+                    [O2, D2] -> {O2, D2}
+                end,
+            Acc2 = combine_recv_chunks(LineNo, Shell, Op, Timestamp, Data, Acc),
+            do_parse_events(Events, Acc2)
+    end;
 do_parse_events([], Acc) ->
     lists:reverse(Acc).
 
+split_timestamp(Event) ->
+    case Event of
+        <<H:2/binary, ":",
+          M:2/binary, ":",
+          S:2/binary, ".",
+          I:6/binary, " ",
+          Rest/binary>> ->
+            Timestamp = <<H/binary,":",M/binary,":",S/binary,".",I/binary>>;
+        _ ->
+            Rest = Event,
+            Timestamp = no_timestamp
+    end,
+    {Timestamp, Rest}.
+
+combine_recv_chunks(LineNo, Shell, Op, Timestamp, Data, Acc) ->
+    {Quote, Plain} = unquote(Data),
+    case Acc of
+        [#event{lineno = PrevLineNo,
+                shell = PrevShell,
+                op = PrevOp,
+                %% timestamp = PrevTimestamp,
+                data = PrevData,
+                quote = PrevQuote} = E | Acc2]
+          when PrevShell =:= Shell,
+               PrevLineNo =:= LineNo,
+               PrevQuote =:= quote,
+               PrevOp =:= <<"recv">>,
+               Op =:= <<"recv">>,
+               Data =/= <<"timeout">> ->
+            %% Combine consecutive two chunks of recv data
+            %% into one in order to improve readability
+            [E#event{data = [Plain | PrevData]} | Acc2];
+        Acc2 ->
+            E = #event{lineno = LineNo,
+                       shell = Shell,
+                       op = Op,
+                       timestamp = Timestamp,
+                       quote = Quote,
+                       data = [Plain]},
+            [E | Acc2]
+    end.
+
 parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
-    Pred = fun(E) ->
-                   EndSz = byte_size(EndTag),
-                   case E of
-                       <<EndTag:EndSz/binary, SubFile/binary>> ->
-                           false;
-                       _ ->
-                           true
-                   end
-           end,
+    Pred =
+        fun(E) ->
+                {_Timestamp, Rest} = split_timestamp(E),
+                EndSz = byte_size(EndTag),
+                case Rest of
+                    <<EndTag:EndSz/binary, SubFile/binary>> ->
+                        false;
+                    _ ->
+                        true
+                end
+        end,
     {SubEvents, TmpEvents} = lists:splitwith(Pred, Events),
     [RawLineNoRange, SubFile2] = binary:split(SubFile, <<" \"">>),
     [RawLineNo, RawFirstLineNo, RawLastLineNo] =

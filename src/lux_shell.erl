@@ -44,7 +44,8 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 shell_prompt_cmd = I#istate.shell_prompt_cmd,
                 shell_prompt_regexp = I#istate.shell_prompt_regexp,
                 loop_stack = I#istate.loop_stack,
-                debug_level = I#istate.debug_level},
+                debug_level = I#istate.debug_level,
+                emit_timestamp = I#istate.emit_timestamp},
     {Pid, Ref} = spawn_monitor(fun() -> init(C, ExtraLogs) end),
     receive
         {started, Pid, Logs, NewVarVals} ->
@@ -1563,10 +1564,17 @@ clog(#cstate{progress = Progress,
              log_fun = LogFun,
              event_log_fd = Fd,
              name = Shell,
-             latest_cmd = Cmd},
+             latest_cmd = Cmd,
+             emit_timestamp = EmitTimestamp},
      Op, Format, Args) ->
-    E = {log_event, Cmd#cmd.lineno, Shell, Op, Format, Args},
-    lux_log:write_event(Progress, LogFun, Fd, E).
+    Timestamp =
+        case EmitTimestamp of
+            true  -> lux_utils:timestamp();
+            false -> no_timestamp
+        end,
+    lux_log:write_event(Progress, LogFun, Fd,
+                        Cmd#cmd.lineno, Shell, Op,
+                        Timestamp, Format, Args).
 
 clog_skip(_C, <<>>) ->
     ok;
