@@ -197,7 +197,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             %% C#cstate{no_more_input = true, mode = suspend};
             stop_relax(C, success, end_of_script);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
-            safe_flush_port(C, Data, 0);
+            flush_port2(C, C#cstate.poll_timeout, [Data]);
         ?match_fail ->
             C#cstate{state_changed = true,
                      timed_out = true,
@@ -238,24 +238,6 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
 
-safe_flush_port(C, _Data, _ExtraPoll) when C#cstate.stdout_log_fd =:= closed ->
-    Progress = debug_progress(C),
-    lux_utils:progress_write(Progress, "^"),
-    C;
-safe_flush_port(C, Data, ExtraPoll) ->
-    Progress = debug_progress(C),
-    lux_utils:progress_write(Progress, ":"),
-    %% Read all available data
-    NewData = flush_port(C, C#cstate.poll_timeout+ExtraPoll, Data),
-    lux_log:safe_write(Progress,
-                       C#cstate.log_fun,
-                       C#cstate.stdout_log_fd,
-                       NewData),
-    OldData = C#cstate.actual,
-    C#cstate{state_changed = true,
-             actual = <<OldData/binary, NewData/binary>>,
-             events = save_event(C, recv, NewData)}.
-
 interpreter_down(C, Reason) ->
     TraceFrom = 'case',
     TraceTo = C#cstate.name,
@@ -263,14 +245,10 @@ interpreter_down(C, Reason) ->
 
 interpreter_died(C, Reason) ->
     interpreter_down(C, Reason),
-    Waste = flush_port(C,
-                       C#cstate.flush_timeout,
-                       C#cstate.actual),
-    clog_skip(C, Waste),
-    close_and_exit(C,
-                   {error, internal},
-                   {internal_error, interpreter_died, C#cstate.latest_cmd,
-                    Reason}).
+    C2 = flush_port(C),
+    clog_skip(C2, C2#cstate.actual),
+    IE = {internal_error, interpreter_died, C#cstate.latest_cmd, Reason},
+    close_and_exit(C2, {error, internal}, IE).
 
 timeout(C) ->
     IdleThreshold = timer:seconds(3),
@@ -457,12 +435,10 @@ sync_reply(C, From) ->
 
 assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     %% Assert - sender must be parent
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog_skip(C, Waste),
-    close_and_exit(C,
-                   {error, internal},
-                   {internal_error, invalid_sender, Cmd,
-                    process_info(From)});
+    C2 = flush_port(C),
+    clog_skip(C2, C2#cstate.actual),
+    IE = {internal_error, invalid_sender, Cmd, process_info(From)},
+    close_and_exit(C2, {error, internal}, IE);
 assert_eval(C, Cmd, _From)
   when C#cstate.no_more_output andalso
        Cmd#cmd.type =:= send ->
@@ -487,13 +463,13 @@ assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
                                  Cmd#cmd.type =:= post_cleanup ->
     ok;
 assert_eval(C, Cmd, _From) ->
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog_skip(C, Waste),
+    C2 = flush_port(C),
+    clog_skip(C2, C2#cstate.actual),
     IE = {internal_error, invalid_type, Cmd,
-          C#cstate.expected,
-          C#cstate.mode, Cmd#cmd.type, (C#cstate.latest_cmd)#cmd.type,
-          C#cstate.latest_cmd},
-    close_and_exit(C, {error, internal}, IE).
+          C2#cstate.expected,
+          C2#cstate.mode, Cmd#cmd.type, (C2#cstate.latest_cmd)#cmd.type,
+          C2#cstate.latest_cmd},
+    close_and_exit(C2, {error, internal}, IE).
 
 shell_eval(#cstate{name = Name} = C0,
            #cmd{type = Type, arg = Arg} = Cmd) ->
@@ -665,46 +641,48 @@ shell_eval(#cstate{name = Name} = C0,
 
 cleanup(C) ->
     C1 = clear_expected(C, "(cleanup)", suspend),
-    Data = flush_port(C1, C1#cstate.flush_timeout, C1#cstate.actual),
-    C2 = match_patterns(C1#cstate{actual = Data}),
-    case C2#cstate.fail of
+    C2 = flush_port(C1),
+    C3 = match_patterns(C2),
+    case C3#cstate.fail of
         undefined -> ok;
-        _         -> clog(C2, fail, "pattern reset", [])
+        _         -> clog(C3, fail, "pattern reset", [])
     end,
-    case C2#cstate.success of
+    case C3#cstate.success of
         undefined  -> ok;
-        _          -> clog(C2, success, "pattern reset", [])
+        _          -> clog(C3, success, "pattern reset", [])
     end,
-    LoopStack = C2#cstate.loop_stack,
+    LoopStack = C3#cstate.loop_stack,
     LoopStack2  = [L#loop{mode = break} || L <- LoopStack],
-    case lists:keymember(pattern, 1, C2#cstate.loop_stack) of
+    case lists:keymember(pattern, 1, C3#cstate.loop_stack) of
         false -> ok;
-        true  -> clog(C2, break, "pattern reset", [])
+        true  -> clog(C3, break, "pattern reset", [])
     end,
-    C3 = C2#cstate{expected = undefined,
+    C4 = C3#cstate{expected = undefined,
                    fail = undefined,
                    success = undefined,
                    loop_stack = LoopStack2},
-    dlog(C3, ?dmore, "expected=undefined (cleanup)", []),
-    opt_late_sync_reply(C3).
+    dlog(C4, ?dmore, "expected=undefined (cleanup)", []),
+    opt_late_sync_reply(C4).
 
 reset_output_buffer(C, Context) ->
-    Data = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    C2 = match_patterns(C#cstate{actual = Data}),
-    case Context of
-        debugger ->
-            C3 = C2,
-            Events = C#cstate.events;
-        script when Data =:= <<>> ->
-            C3 = cancel_timer(C2),
-            Events = C3#cstate.events;
-        script ->
-            C3 = cancel_timer(C2),
-            clog_skip(C3, Data),
-            Events = save_event(C3, recv, Data)
-    end,
-    clog(C3, output, "reset", []),
-    C3#cstate{state_changed = true,
+    C2 = flush_port(C),
+    Data = C2#cstate.actual,
+    Waste = ?l2b(lists:concat([byte_size(Data), " bytes wasted"])),
+    Events = save_event(C2, reset, Waste),
+    C5 =
+        case Context of
+            debugger ->
+                C2;
+            script when Data =:= <<>> ->
+                cancel_timer(C2);
+            script ->
+                C3 = match_patterns(C2),
+                C4 = cancel_timer(C3),
+                clog_skip(C4, Data),
+                C4
+        end,
+    clog(C5, output, "reset ~p bytes", [byte_size(Data)]),
+    C5#cstate{state_changed = true,
               actual = <<>>,
               events = Events}.
 
@@ -1212,22 +1190,47 @@ pre_r17_fix(Actual, [RegExp | RegExps], Opts) ->
 pre_r17_fix(_Actual, [], _Opts) ->
     nomatch.
 
-flush_port(#cstate{port = Port} = C, Timeout, Acc) ->
-    case do_flush_port(Port, 0, 0, Acc) of
-        {0, Acc2} when Timeout =/= 0 ->
-            {_N, Acc3} = do_flush_port(Port, multiply(C, Timeout), 0, Acc2),
-            Acc3;
-        {_N, Acc2} ->
-            Acc2
-    end.
+flush_port(#cstate{flush_timeout = FlushTimeout} = C) ->
+    flush_port2(C, FlushTimeout, []).
 
-do_flush_port(Port, Timeout, N, Acc) ->
+flush_port2(#cstate{port = Port} = C, VirtualTimeout, Acc0) ->
+    Acc3 =
+        case flush_port_loop(Port, 0, 0, Acc0) of
+            {0, Acc} when VirtualTimeout =/= 0 ->
+                RealTimeout = multiply(C, VirtualTimeout),
+                {_N, Acc2} = flush_port_loop(Port, RealTimeout, 0, Acc),
+                Acc2;
+            {_N, Acc} ->
+                Acc
+        end,
+    NewData = erlang:iolist_to_binary(lists:reverse(Acc3)),
+    clog_recv(C, NewData).
+
+flush_port_loop(Port, Timeout, N, Acc) ->
     receive
         {Port, {data, Data}} ->
-            do_flush_port(Port, Timeout, N+1, <<Acc/binary, Data/binary>>)
+            flush_port_loop(Port, Timeout, N+1, [Data | Acc])
     after Timeout ->
-            {N, Acc}
+            {N,Acc}
     end.
+
+clog_recv(C, <<>>) ->
+    C;
+clog_recv(C, _NewData) when C#cstate.stdout_log_fd =:= closed ->
+    Progress = debug_progress(C),
+    lux_utils:progress_write(Progress, "^"),
+    C;
+clog_recv(C, NewData) ->
+    Progress = debug_progress(C),
+    lux_utils:progress_write(Progress, ":"),
+    lux_log:safe_write(Progress,
+                       C#cstate.log_fun,
+                       C#cstate.stdout_log_fd,
+                       NewData),
+    OldData = C#cstate.actual,
+    C#cstate{state_changed = true,
+             actual = <<OldData/binary, NewData/binary>>,
+             events = save_event(C, recv, NewData)}.
 
 start_timer(#cstate{timer = undefined, match_timeout = infinity} = C) ->
     clog(C, timer, "started (infinity)", []),
@@ -1366,36 +1369,36 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
             {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
             Rest = C#cstate.actual
     end,
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog_skip(C, Waste),
+    C2 = flush_port(C),
+    clog_skip(C2, C2#cstate.actual),
     clog(C, stop, "~p", [Outcome]),
-    {NewOutcome, Extra} = prepare_outcome(C, Outcome, Actual),
+    {NewOutcome, Extra} = prepare_outcome(C2, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
-                  shell_name = C#cstate.name,
+                  shell_name = C2#cstate.name,
                   latest_cmd = Cmd,
-                  cmd_stack = C#cstate.cmd_stack,
+                  cmd_stack = C2#cstate.cmd_stack,
                   expected_tag = ExpectedTag,
                   expected = Expected,
                   extra = Extra,
                   actual = Actual,
                   rest = Rest,
-                  events = lists:reverse(C#cstate.events),
+                  events = lists:reverse(C2#cstate.events),
                   warnings = C#cstate.warnings},
     %% io:format("\nRES ~p\n", [Res]),
-    ?TRACE_ME2(40, C#cstate.name, Outcome, [{actual, Actual}, Res]),
-%%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
-    C2 = C#cstate{expected = undefined, actual = <<>>},
-    C3 = close_logs(C2),
-    send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
+    ?TRACE_ME2(40, C2#cstate.name, Outcome, [{actual, Actual}, Res]),
+%%  C3 = opt_late_sync_reply(C2#cstate{expected = undefined}),
+    C3 = C2#cstate{expected = undefined, actual = <<>>},
+    C4 = close_logs(C3),
+    send_reply(C4, C4#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
-            close_and_exit(C3, Outcome, Res);
+            close_and_exit(C4, Outcome, Res);
         Outcome =:= error ->
-            close_and_exit(C3, {error, Actual}, Res);
+            close_and_exit(C4, {error, Actual}, Res);
         true ->
             %% Wait for potential cleanup to be run
             %% before we close the port
-            wait_for_down(C3, Res)
+            wait_for_down(C4, Res)
     end.
 
 prepare_outcome(C, Outcome, Actual) ->
@@ -1481,14 +1484,14 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
 
 close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
     ?TRACE_ME2(40, C#cstate.name, close_logs, []),
-    Waste = flush_port(C, C#cstate.flush_timeout, C#cstate.actual),
-    clog_skip(C, Waste),
+    C2 = flush_port(C),
+    clog_skip(C2, C2#cstate.actual),
     catch file:close(element(2, InFd)),
     catch file:close(element(2, OutFd)),
-    C#cstate{log_fun = closed,
-             event_log_fd = closed, % Leave the log open for other processes
-             stdin_log_fd = closed,
-             stdout_log_fd = closed}.
+    C2#cstate{log_fun = closed,
+              event_log_fd = closed, % Leave the log open for other processes
+              stdin_log_fd = closed,
+              stdout_log_fd = closed}.
 
 flush_logs(#cstate{event_log_fd = {_,EventFd},
                    stdin_log_fd = {_,InFd},

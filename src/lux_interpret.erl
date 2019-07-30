@@ -1157,7 +1157,7 @@ cleanup_progress(#istate{active_name = ShellName,
                          progress = Progress} = I,
                  #cmd{lineno = LineNo, type = Type}) ->
     {PrefixStr, ProgressStr} = cleanup_strings(Type, CleanupReason),
-    ilog(I, "cleanup\n",
+    ilog(I, "~scleanup\n",
          [PrefixStr],
          ShellName, LineNo),
     lux_utils:progress_write(Progress, ProgressStr).
