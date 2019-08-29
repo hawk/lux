@@ -57,7 +57,8 @@
 
 generate(IsRecursive, LogFile, SuiteLogDir, Opts) ->
     WWW = undefined,
-    {Res, NewWWW} = do_generate(IsRecursive, LogFile, SuiteLogDir, WWW, Opts),
+    {Res, NewWWW} =
+        do_generate(IsRecursive, LogFile, SuiteLogDir, WWW, Opts),
     lux_utils:stop_app(NewWWW),
     Res.
 
@@ -1132,19 +1133,16 @@ add_up_dir(A, RelPath, include) when is_list(RelPath) ->
             filename:join([UpDir, RelPath])
     end.
 
-drop_run_dir_prefix(#astate{run_dir=LogDir}, File)
-  when is_list(LogDir), is_list(File) ->
+drop_run_dir_prefix(#astate{run_dir=LogDir}, File) ->
     drop_prefix(LogDir, File).
 
-drop_run_log_prefix(#astate{run_log_dir=LogDir}, File)
-  when is_list(LogDir), is_list(File) ->
+drop_run_log_prefix(#astate{run_log_dir=LogDir}, File) ->
     drop_prefix(LogDir, File).
 
-drop_new_log_prefix(#astate{new_log_dir=LogDir}, File)
-  when is_list(LogDir), is_list(File) ->
+drop_new_log_prefix(#astate{new_log_dir=LogDir}, File) ->
     drop_prefix(LogDir, File).
 
-drop_prefix(Dir, File) when is_list(Dir), is_list(File) ->
+drop_prefix(Dir, File) ->
     lux_utils:drop_prefix(Dir, File).
 
 pick_run_dir(ConfigProps) ->

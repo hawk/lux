@@ -218,7 +218,7 @@ write_config_log(SummaryLog, ConfigData) ->
 annotate_log(IsRecursive, LogFile, Opts) ->
     DefaultDir = filename:dirname(LogFile),
     SuiteLogDir = find_suite_log_dir(DefaultDir, DefaultDir),
-    annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts).
+    do_annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts).
 
 find_suite_log_dir(Dir, DefaultDir) ->
     ConfigLog = filename:join([Dir, ?SUITE_CONFIG_LOG]),
@@ -234,7 +234,7 @@ find_suite_log_dir(Dir, DefaultDir) ->
             end
     end.
 
-annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
+do_annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
     case lux_html_annotate:generate(IsRecursive, LogFile, SuiteLogDir, Opts) of
         {ok, HtmlFile} ->
             lux_html_parse:validate_html(HtmlFile, Opts);
@@ -252,7 +252,7 @@ annotate_event_log(R, Script, NewSummary, CaseLogDir, Opts) ->
                                       Base ++ ?CASE_EVENT_LOG]),
             SuiteLogDir = R#rstate.log_dir,
             NoHtmlOpts = lists:keydelete(html, 1, Opts),
-            case annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts) of
+            case do_annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts) of
                 ok ->
                     ok;
                 {error, File, ReasonStr} ->

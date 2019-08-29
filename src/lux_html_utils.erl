@@ -110,7 +110,7 @@ safe_write_file(File, IoList) when is_list(File) ->
     if
         Res =:= ok; Res =:= {error, eexist} ->
             TmpFile = File ++ ".tmp",
-            case file:write_file(TmpFile, IoList, [raw]) of
+            case file:write_file(TmpFile, IoList, [raw,sync]) of
                 ok ->
                     case file:rename(TmpFile, File) of
                         ok ->

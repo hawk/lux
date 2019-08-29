@@ -1,5 +1,6 @@
 #!/usr/bin/env escript
 %% This is an -*- erlang -*- file.
+%%! -sasl sasl_error_logger false
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2012-2019 Tail-f Systems AB
@@ -15,6 +16,7 @@
 -export([
          start_trace/3,
          stop_trace/0,
+         drop_prefix/1, drop_prefix/2,
          normalize_filename/1,
          split/2,
          has_timestamp/0,
@@ -266,7 +268,7 @@ do_add_defaults(Files, Opts) ->
         undefined -> RelLogDir = filename:join(["lux_logs", UniqRun]);
         RelLogDir -> ok
     end,
-    AbsLogDir0 = lux_utils:normalize_filename(RelLogDir),
+    AbsLogDir0 = normalize_filename(RelLogDir),
     ParentDir0 = filename:dirname(AbsLogDir0),
     Link0 = filename:join([ParentDir0, "latest_run"]),
     PrevLogDir =
@@ -340,6 +342,30 @@ r2(Int) when is_integer(Int) ->
 r2(String) when is_list(String) ->
     string:right(String, 2, $0).
 
+drop_prefix(File) ->
+    {ok, Cwd} = file:get_cwd(),
+    drop_prefix(Cwd, File).
+
+drop_prefix(Prefix, File) when is_binary(Prefix), is_binary(File) ->
+    list_to_binary(drop_prefix(binary_to_list(Prefix), binary_to_list(File)));
+drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
+    SplitPrefix = filename:split(Prefix),
+    SplitFile = filename:split(File),
+    do_drop_prefix(SplitPrefix, SplitFile, SplitPrefix, File).
+
+do_drop_prefix([H | Prefix], [H | File], OrigPrefix, OrigFile) ->
+    do_drop_prefix(Prefix, File, OrigPrefix, OrigFile);
+do_drop_prefix([], [], _OrigPrefix, _OrigFile) ->
+    ".";
+do_drop_prefix([], Rest, _OrigPrefix, _OrigFile) ->
+    filename:join(Rest);
+do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
+  when DownPrefix =/= OrigPrefix ->
+    UpPrefix = lists:duplicate(length(DownPrefix), ".."),
+    filename:join(UpPrefix ++ Rest);
+do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
+    OrigFile.
+
 normalize_filename(File) when is_binary(File) ->
     list_to_binary(normalize_filename(binary_to_list(File)));
 normalize_filename(File) when is_list(File) ->
@@ -368,7 +394,14 @@ do_normalize_filename([H|T], Acc) ->
 do_normalize_filename([], Acc) ->
     filename:join(lists:reverse(Acc)).
 
-split(File, Delim) ->
+split(File, Delim) when is_binary(File), is_binary(Delim) ->
+    case split(binary_to_list(File), binary_to_list(Delim)) of
+        false ->
+            false;
+        {Before, After} ->
+            {list_to_binary(Before), list_to_binary(After)}
+    end;
+split(File, Delim) when is_list(File), is_list(Delim) ->
     split2(File, Delim, Delim, [], 0).
 
 split2([H|T], [H|DT], OrigDelim, Acc, N) ->
@@ -485,11 +518,11 @@ gen_markdown(ToFile) ->
 pre_markdown(LuxAppDir, ToFile) ->
     FromFile = ToFile ++ ".src",
     AbsFileName0 = filename:absname(ToFile),
-    AbsFileName = lux_utils:normalize_filename(AbsFileName0),
-    RelFileName = lux_utils:drop_prefix(LuxAppDir, AbsFileName),
+    AbsFileName = normalize_filename(AbsFileName0),
+    RelFileName = drop_prefix(LuxAppDir, AbsFileName),
     RelFileDir = filename:dirname(RelFileName),
     {ok, Cwd} = file:get_cwd(),
-    RelWorkDir = lux_utils:drop_prefix(LuxAppDir, Cwd),
+    RelWorkDir = drop_prefix(LuxAppDir, Cwd),
     case file:read_file(FromFile) of
         {ok, Bin} ->
             try
@@ -1079,7 +1112,7 @@ do_xref(Sys) ->
     ok = xref:set_default(Xref, Defaults),
     {ok, Cwd} = file:get_cwd(),
     Add = fun({_App, _Mod, AbsFile}, Acc) ->
-                  RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
+                  RelFile = drop_prefix(Cwd, AbsFile),
                   case xref:add_module(Xref, RelFile) of
                       {ok, _} ->
                           Acc;
@@ -1170,12 +1203,12 @@ history(RelLogDir, Opts) ->
         []    -> Files = [RelLogDir];
         Files -> ok
     end,
-    AbsLogDir = filename:absname(RelLogDir),
-    HtmlFile = filename:join([AbsLogDir, "lux_history.html"]),
-    case safe_history(Files, HtmlFile, Opts2) of
+    RelHtmlFile = filename:join([RelLogDir, "lux_history.html"]),
+    AbsHtmlFile = filename:absname(RelHtmlFile),
+    case safe_history(Files, RelHtmlFile, Opts2) of
         ok ->
             io:format("...ok\n", []),
-            io:format("\nfile://~s\n", [HtmlFile]),
+            io:format("\nfile://~s\n", [AbsHtmlFile]),
             0;
         {error, File, ReasonStr} ->
             io:format("...ERROR\n\t~s: ~s\n", [File, ReasonStr]),

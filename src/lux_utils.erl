@@ -240,30 +240,10 @@ multiply(Timeout, Factor) ->
     (Timeout * Factor) div ?ONE_SEC.
 
 drop_prefix(File) ->
-    {ok, Cwd} = file:get_cwd(),
-    drop_prefix(Cwd, File).
+    lux_main:drop_prefix(File).
 
-drop_prefix(Prefix, File) when is_binary(Prefix) ->
-    drop_prefix(?b2l(Prefix), File);
-drop_prefix(Prefix, File) when is_binary(File) ->
-    ?l2b(drop_prefix(Prefix, ?b2l(File)));
-drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
-    SplitPrefix = filename:split(Prefix),
-    SplitFile = filename:split(File),
-    do_drop_prefix(SplitPrefix, SplitFile, SplitPrefix, File).
-
-do_drop_prefix([H | Prefix], [H | File], OrigPrefix, OrigFile) ->
-    do_drop_prefix(Prefix, File, OrigPrefix, OrigFile);
-do_drop_prefix([], [], _OrigPrefix, _OrigFile) ->
-    ".";
-do_drop_prefix([], Rest, _OrigPrefix, _OrigFile) ->
-    filename:join(Rest);
-do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
-  when DownPrefix =/= OrigPrefix ->
-    UpPrefix = lists:duplicate(length(DownPrefix), ".."),
-    filename:join(UpPrefix ++ Rest);
-do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
-    OrigFile.
+drop_prefix(Prefix, File) ->
+    lux_main:drop_prefix(Prefix, File).
 
 normalize_filename(File) ->
     lux_main:normalize_filename(File).
@@ -271,15 +251,21 @@ normalize_filename(File) ->
 split(File, Delim) ->
     lux_main:split(File, Delim).
 
-join(_Dir, File) when hd(File) =:= $/ ->
+join(Dir, <<"/", _/binary>> = File) when is_binary(Dir) ->
     File;
-join(Dir, File) ->
+join(Dir, File) when is_binary(Dir), is_binary(File) ->
+    ?l2b(join(?b2l(Dir), ?b2l(File)));
+join(Dir, []) when is_list(Dir) ->
+    Dir;
+join(Dir, File) when is_list(Dir), hd(File) =:= $/ ->
+    File;
+join(Dir, File) when is_list(Dir), is_list(File) ->
     Delim = "://",
     case split(File, Delim) of
         {_Prefix, _Rel} ->
             File;
         false ->
-            join2(Dir, File, Dir++"/"++File)
+            join2(Dir, File, Dir ++ "/" ++ File)
     end.
 
 join2(".", _File, Default) ->
@@ -299,6 +285,8 @@ join2(Dir, File, Default) ->
             Dir++"/"++File
     end.
 
+is_url(File) when is_binary(File) ->
+    is_url(?b2l(File));
 is_url("") ->
     true;
 is_url(File) ->
@@ -844,6 +832,8 @@ start_app(App) ->
             {false, fun() -> ok end}
     end.
 
+stop_app({N, WWW}) when is_integer(N) ->
+    stop_app(WWW);
 stop_app(WWW) ->
     if
         WWW =:= undefined ->
@@ -851,7 +841,7 @@ stop_app(WWW) ->
         WWW =:= false ->
             ok;
         is_function(WWW, 0) ->
-            %% Exec WWW()
+            %% WWW(), % Get rid of progress printouts
             ok
     end.
 

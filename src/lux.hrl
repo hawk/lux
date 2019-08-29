@@ -32,6 +32,7 @@
 -define(loop_break_pattern_mismatch,
         "Loop ended without match of break pattern ").
 -define(TIMER_THRESHOLD, 0.85).
+-define(HISTORY_LOG, "lux_history.html").
 -define(SUITE_SUMMARY_LOG, "lux_summary.log").
 -define(SUITE_CONFIG_LOG, "lux_config.log").
 -define(SUITE_RESULT_LOG, "lux_result.log").
@@ -207,7 +208,6 @@
                                         non_neg_integer()},
          emit_timestamp = false     :: boolean()}).
 
-
 -record(run,
         {test = ?DEFAULT_SUITE
                       :: binary(),              % [prefix "::"] suite [":" case]
@@ -216,7 +216,7 @@
          id = ?DEFAULT_RUN
                       :: binary(),              % --run
          log = ?DEFAULT_LOG
-                      :: file:filename(),       % file rel to summary log dir
+                      :: binary(),              % file rel to summary log dir
          start_time = ?DEFAULT_TIME
                       :: binary(),
          branch       :: undefined | string(),
@@ -224,19 +224,19 @@
                       :: binary(),              % $HOSTNAME or --hostname
          config_name = ?DEFAULT_CONFIG_NAME
                       :: binary(),              % --config
-         run_dir      :: file:filename(),       % current dir during run
-         run_log_dir  :: file:dirname(),        % dir where logs was created
-         new_log_dir  :: file:dirname(),        % top dir for new logs
+         run_dir      :: binary(),              % current dir during run
+         run_log_dir  :: binary(),              % rel dir where logs was created
+         new_log_dir  :: binary(),              % rel top dir for new logs
          repos_rev = ?DEFAULT_REV
                       :: binary(),              % --revision
          details = [] :: [#run{}]}).            % list of cases
 
 -record(source,
-        {branch       :: undefined | string(),
-         suite_prefix :: undefined | string(),
-         file         :: file:filename(),       % relative to cwd
-         dir          :: file:dirname(),        % relative to cwd
-         orig         :: file:filename()}).
+        {branch       :: undefined | binary(),
+         suite_prefix :: undefined | binary(),
+         file         :: binary(),              % relative to cwd
+         dir          :: binary(),              % relative to cwd
+         orig         :: binary()}).
 
 -record(event,
         {lineno    :: non_neg_integer(),

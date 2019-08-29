@@ -93,10 +93,11 @@ close_summary_tmp_log(SummaryFd) ->
 parse_summary_log(SummaryLog, WWW) when is_list(SummaryLog) ->
     Source = #source{branch=undefined,
                      suite_prefix=undefined,
-                     file=SummaryLog,
-                     orig=SummaryLog},
+                     file=?l2b(SummaryLog),
+                     orig=?l2b(SummaryLog)},
     parse_summary_log(Source, WWW);
-parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
+parse_summary_log(#source{file=SummaryLog} = Source, WWW)
+  when is_binary(SummaryLog)->
     try
         try_parse_summary_log(Source, WWW)
     catch
@@ -109,7 +110,8 @@ parse_summary_log(#source{file=SummaryLog} = Source, WWW) ->
             {{error, SummaryLog, ReasonStr}, WWW}
     end.
 
-try_parse_summary_log(#source{file=SummaryLog}, WWW) ->
+try_parse_summary_log(#source{file=SummaryLogBin}, WWW) ->
+    SummaryLog = ?b2l(SummaryLogBin),
     {ReadRes, NewWWW} = read_log(SummaryLog, ?SUMMARY_TAG, WWW),
     Res =
         case ReadRes of
@@ -195,17 +197,18 @@ read_log(Log, ExpectedTag, WWW) when is_list(Log) ->
 fetch_log(Log, undefined) ->
     case lux_utils:start_app(inets) of
         {true, StopFun} ->
-            fetch_log(Log, StopFun);
+            fetch_log(Log, {0, StopFun});
         {false, _StopFun} ->
             fetch_log(Log, false)
     end;
 fetch_log(Log, false = WWW) ->
     {file:read_file(Log), WWW};
-fetch_log(Log, StopFun = WWW) when is_function(StopFun, 0) ->
-    Res =
-        case lux_utils:is_url(Log) of
-            true ->
-                io:format(":", []),
+fetch_log(Log, {N, StopFun} = WWW) when is_function(StopFun, 0) ->
+    case lux_utils:is_url(Log) of
+        true ->
+            io:format(":", []),
+            Res =
+
                 case httpc:request(Log) of
                     {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
                         {ok, ?l2b(Body)};
@@ -214,11 +217,12 @@ fetch_log(Log, StopFun = WWW) when is_function(StopFun, 0) ->
                     {error, Reason} ->
                         String = lists:flatten(?FF("~p", [Reason])),
                         {error, String, <<>>}
-                end;
-            false ->
-                file:read_file(Log)
-        end,
-    {Res, WWW}.
+                end,
+            {Res, {N+1,StopFun}};
+        false ->
+            Res = file:read_file(Log),
+            {Res, WWW}
+   end.
 
 write_log(File, Tag, Version, Sections) when is_list(File) ->
     file:write_file(File, [?TAG(Tag), Version, [["\n\n",S] || S <- Sections]]).
@@ -298,22 +302,22 @@ split_doc([H|T] = Rest, AccDoc) ->
             {lists:reverse(AccDoc), Rest}
     end.
 
-parse_run_summary(Source, File, Res, Opts) ->
+parse_run_summary(Source, SummaryLog, Res, Opts) when is_list(SummaryLog) ->
     %% File is relative cwd
     try
-        do_parse_run_summary(Source, File, Res, Opts)
+        do_parse_run_summary(Source, SummaryLog, Res, Opts)
     catch
         ?CATCH_STACKTRACE(error, Reason, EST)
             ReasonStr =
                 lists:flatten(?FF("\nINTERNAL LUX ERROR"
                                   " in ~s\n~p\n\~p\n",
-                                  [File, Reason, EST])),
+                                  [SummaryLog, Reason, EST])),
             io:format("~s\n", [ReasonStr]),
-            {error, File, ReasonStr}
+            {error, SummaryLog, ReasonStr}
     end.
 
-do_parse_run_summary(Source, File, Res, Opts) ->
-    R = default_run(Source, File),
+do_parse_run_summary(Source, SummaryLog, Res, Opts) ->
+    R = default_run(Source, SummaryLog),
     case Res of
         {ok, Result, Groups, SummaryConfig, Ctime, _EventLogs} ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
@@ -361,9 +365,8 @@ do_parse_run_summary(Source, File, Res, Opts) ->
             RunId = find_config(<<"run">>, ConfigProps, R#run.id),
             ReposRev =
                 find_config(<<"revision">>, ConfigProps, R#run.repos_rev),
-            CwdBin = ?l2b(R#run.run_dir),
-            RunDir = ?b2l(find_config(<<"run_dir">>, ConfigProps, CwdBin)),
-            RunLogDir = ?b2l(find_config(<<"log_dir">>, ConfigProps, CwdBin)),
+            RunDir = find_config(<<"run_dir">>, ConfigProps, R#run.run_dir),
+            RunLogDir = find_config(<<"log_dir">>, ConfigProps, RunDir),
             NewLogDir = R#run.new_log_dir,
             Cases = [parse_run_case(NewLogDir, RunDir, RunLogDir,
                                     StartTime, Branch, HostName, ConfigName,
@@ -380,21 +383,40 @@ do_parse_run_summary(Source, File, Res, Opts) ->
                   hostname    = HostName,
                   config_name = ConfigName,
                   run_dir     = RunDir,
-                  run_log_dir = RunLogDir,
+                  run_log_dir = true_drop_prefix(RunDir, RunLogDir),
                   repos_rev   = ReposRev,
                   details     = Cases};
         {error, _SummaryLog, _ReasonStr} ->
             R
     end.
 
-default_run(Source, File) ->
+true_drop_prefix(Prefix, File) ->
+    SplitPrefix = filename:split(Prefix),
+    SplitFile = filename:split(File),
+    true_drop_prefix2(SplitPrefix, SplitFile, File).
+
+true_drop_prefix2([H|Prefix], [H|File], OrigFile) ->
+    true_drop_prefix2(Prefix, File, OrigFile);
+true_drop_prefix2([], [], OrigFile) when is_list(OrigFile) ->
+    ".";
+true_drop_prefix2([], [], OrigFile) when is_binary(OrigFile) ->
+    <<".">>;
+true_drop_prefix2([], File, _OrigFile) ->
+    filename:join(File);
+true_drop_prefix2(_Prefix, _File, OrigFile) ->
+    OrigFile.
+
+default_run(Source, SummaryLog) when is_list(SummaryLog) ->
     {ok, Cwd} = file:get_cwd(),
-    Log = filename:basename(File),
-    NewLogDir = lux_utils:normalize_filename(filename:dirname(File)),
+    RunDir = ?l2b(Cwd),
+    Log = ?l2b(filename:basename(SummaryLog)),
+    RunLogDir = true_drop_prefix(RunDir, Source#source.dir),
+    NewLogDir0 = lux_utils:normalize_filename(filename:dirname(SummaryLog)),
+    NewLogDir = ?l2b(true_drop_prefix(Cwd, NewLogDir0)),
     #run{log = Log,
          config_name = ?DEFAULT_CONFIG_NAME,
-         run_dir = Cwd,
-         run_log_dir = Source#source.dir,
+         run_dir = RunDir,
+         run_log_dir = RunLogDir,
          new_log_dir = NewLogDir}.
 
 split_config(ConfigBins) ->
@@ -415,10 +437,10 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
                StartTime, Branch, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, AbsName, AbsEventLog, _Doc, _HtmlLog, CaseRes})
-  when is_list(RunDir), is_list(RunLogDir),
+  when is_binary(NewLogDir), is_binary(RunDir), is_binary(RunLogDir),
        is_list(AbsName), is_list(AbsEventLog) ->
-    RelEventLog = lux_utils:drop_prefix(RunLogDir, AbsEventLog),
-    RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
+    RelEventLog = lux_utils:drop_prefix(RunLogDir, ?l2b(AbsEventLog)),
+    RelNameBin = lux_utils:drop_prefix(RunDir, ?l2b(AbsName)),
     {RunWarnings, RunResult} = run_result(CaseRes),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
@@ -429,18 +451,18 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          branch = Branch,
          hostname = Host,
          config_name = ConfigName,
-         run_dir = RunDir,
-         run_log_dir = RunLogDir,
-         new_log_dir = NewLogDir,
+         run_dir = undefined,
+         run_log_dir = undefined,
+         new_log_dir = undefined,
          repos_rev = ReposRev,
          details = []};
 parse_run_case(NewLogDir, RunDir, RunLogDir,
                StartTime, Branch, Host, ConfigName,
                Suite, RunId, ReposRev,
                {result_case, AbsName, Res, _Reason})
-  when is_list(RunDir), is_list(RunLogDir),
+  when is_binary(NewLogDir), is_binary(RunDir), is_binary(RunLogDir),
        is_list(AbsName) ->
-    RelNameBin = ?l2b(lux_utils:drop_prefix(RunDir, AbsName)),
+    RelNameBin = lux_utils:drop_prefix(RunDir, ?l2b(AbsName)),
     {RunWarnings, RunResult} = run_result(Res),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
@@ -450,9 +472,9 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          branch = Branch,
          hostname = Host,
          config_name = ConfigName,
-         run_dir = RunDir,
-         run_log_dir = RunLogDir,
-         new_log_dir = NewLogDir,
+         run_dir = undefined,
+         run_log_dir = undefined,
+         new_log_dir = undefined,
          repos_rev = ReposRev,
          details = []}.
 
