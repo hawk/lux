@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.1.1 - 2019-06-11</p>
+<p>Version 2.2 - 2019-09-17</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -2242,7 +2242,11 @@ default. In Bourne shell, which is the default shell, the variable
 <code>export PS1=SH-PROMPT:</code> followed by an explicit match of the prompt
 using the regexp <code>^SH-PROMPT:</code>. This behavior can be overridden by
 using <code>--shell_prompt_cmd</code> and <code>--shell_prompt_regexp</code> respectively
-when using more exotic shells.</p>
+when using more exotic shells, such as the Bourne Again shell:</p>
+
+<pre><code> [config shell_cmd=/bin/bash]
+ [config shell_prompt_cmd=unset PROMPT_COMMAND; export PS1=SH-PROMPT:]
+</code></pre>
 
 <p><strong>--shell_wrapper</strong> <br />
 <strong>--shell_wrapper [Executable]</strong> <br />

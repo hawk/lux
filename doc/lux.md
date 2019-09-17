@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.1.1 - 2019-06-11
+Version 2.2 - 2019-09-17
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -2150,7 +2150,10 @@ default. In Bourne shell, which is the default shell, the variable
 `export PS1=SH-PROMPT:` followed by an explicit match of the prompt
 using the regexp `^SH-PROMPT:`. This behavior can be overridden by
 using `--shell_prompt_cmd` and `--shell_prompt_regexp` respectively
-when using more exotic shells.
+when using more exotic shells, such as the Bourne Again shell:
+
+     [config shell_cmd=/bin/bash]
+     [config shell_prompt_cmd=unset PROMPT_COMMAND; export PS1=SH-PROMPT:]
 
 **--shell\_wrapper**  
 **--shell\_wrapper \[Executable\]**  
