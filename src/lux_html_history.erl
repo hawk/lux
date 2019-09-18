@@ -34,11 +34,12 @@ generate(PrefixedSources, RelHtmlFile, Opts0) ->
     HistoryLogDir = ?l2b(filename:dirname(AbsHtmlFile)),
     case read_cache(CacheFile, Opts) of
         {ok, OldThreshold, OldRuns, OldErrors} ->
+            ValidRuns = validate_runs(OldRuns),
             OldWWW = undefined,
             {Threshold, Runs, Errors, NewWWW} =
                 collect(SplitSources, HistoryLogDir,
                         OldThreshold, OldThreshold,
-                        OldRuns, OldErrors, OldWWW, Opts),
+                        ValidRuns, OldErrors, OldWWW, Opts),
             case NewWWW of
                 {N, StopFun} -> lux_utils:stop_app(StopFun);
                 undefined    -> N = 0;
@@ -46,10 +47,11 @@ generate(PrefixedSources, RelHtmlFile, Opts0) ->
             end,
             if
                 N =:= 0 ->
+                    %% No remote logs
                     write_cache(CacheFile, Threshold, Runs, Errors, Opts);
                 true ->
                     file:rename(CacheFile, CacheFile ++ ".tmp"),
-                    io:format("\n<WARNING> No caching from remote nodes.\n", [])
+                    io:format("\n<WARNING> No caching of remote logs\n", [])
             end,
 
             SplitBranches = keysplit(#run.branch, Runs),
@@ -143,6 +145,22 @@ source_dir(FileBin) when is_binary(FileBin) ->
         ?SUITE_SUMMARY_LOG -> filename:dirname(FileBin);
         _                  -> FileBin % Assume file is dir
     end.
+
+validate_runs(Runs) ->
+    {ok, Cwd} = file:get_cwd(),
+    validate_runs(Runs, Cwd, []).
+
+validate_runs([Run | Runs], Cwd, ValidRuns) ->
+    LogDir = filename:join(Cwd, Run#run.new_log_dir),
+    case filelib:is_dir(LogDir) of
+        true ->
+            validate_runs(Runs, Cwd, [Run | ValidRuns]);
+        false ->
+            io:format("-", []),
+            validate_runs(Runs, Cwd, ValidRuns)
+    end;
+validate_runs([], _Cwd, ValidRuns) ->
+    lists:reverse(ValidRuns).
 
 collect([{undefined, Sources} | SplitSources], HistoryLogDir,
         Threshold, Newest, Runs, Errors, WWW, Opts) ->
@@ -896,16 +914,18 @@ gen_cells(HistoryLogDir, Test, TestRuns, [{Id, _} | SplitIds],
 gen_cells(_HistoryLogDir, _Test, [], [],
           _HtmlFile, _MultiBranch, _Select, _Suppress,
           _HostMap, Cells, RowRes) ->
-    %% Cells are already in the correct order
+    %% Cells are already in the correct order. No need to revert.
     {RowRes, Cells}.
 
 is_success_res(Res) ->
     case Res of
-        no_data -> true;
-        none    -> true;
-        success -> true;
-        warning -> true;
-        _       -> false
+        no_data   -> true;
+        no_branch -> true;
+        success   -> true;
+        none      -> true;
+        skip      -> true;
+        warning   -> true;
+        _         -> false
     end.
 
 is_multi(List) ->
