@@ -259,7 +259,7 @@ do_generate(HistoryLogDir, AbsHtmlFile, RelHtmlFile,
                     _   -> "Latest run on each host"
                 end,
             {TableAll, TableAllIoList} =
-                table_all(HistoryLogDir, AllRuns, AbsHtmlFile,
+                table_all(HistoryLogDir, "All", AllRuns, AbsHtmlFile,
                           MultiBranch, MultiHosts, MultiConfig),
             FailedRuns = extract_failed_runs(TableAll),
 
@@ -563,11 +563,11 @@ table_latest(HistoryLogDir, LatestRuns, ConfigTables,
      IoList
     ].
 
-table_all(HistoryLogDir, AllRuns, HtmlFile,
+table_all(HistoryLogDir, Name, AllRuns, HtmlFile,
           MultiBranch, MultiHosts, MultiConfig) ->
     Suppress = suppress_none,
     Select = select_latest,
-    T = gen_table(HistoryLogDir, "All", "All test suites",
+    T = gen_table(HistoryLogDir, Name, "All test suites",
                   AllRuns, HtmlFile, MultiBranch,
                   Suppress, Select,
                   MultiHosts, MultiConfig),
@@ -697,30 +697,39 @@ table_configs(HistoryLogDir, SplitConfigs, HtmlFile,
 
 double_table(HistoryLogDir, Name, Label, AllRuns, HtmlFile,
              MultiBranch, MultiHosts, MultiConfig) ->
-    AllSuitesSuppress = suppress_none,
-    FailedCasesSuppress = suppress_any_success,
-    Select = select_latest,
-    AllT = gen_table(HistoryLogDir, Name, "All test suites",
-                     AllRuns, HtmlFile, MultiBranch,
-                     AllSuitesSuppress, Select,
-                     MultiHosts, MultiConfig),
-    Details = extract_test_case_runs(AllRuns),
-    FailedT = gen_table(HistoryLogDir, Name, "Failed test cases",
-                        Details, HtmlFile, MultiBranch,
-                        FailedCasesSuppress, Select,
-                        MultiHosts, MultiConfig),
-    #table{name=Name,
-           res=AllT#table.res,
-           iolist=
+    {TableAll, TableAllIoList} =
+        table_all(HistoryLogDir, "All", AllRuns, HtmlFile,
+                  MultiBranch, MultiHosts, MultiConfig),
+    case MultiBranch of
+        true ->
+            TableFailedCasesIoList = [];
+        false ->
+            FailedRuns = extract_failed_runs(TableAll),
+            Details = extract_test_case_runs(FailedRuns),
+            Suppress = suppress_any_success,
+            Select = select_latest,
+            TableFailedCases =
+                gen_table(HistoryLogDir, Name, "Still failing test cases",
+                          Details, HtmlFile, MultiBranch,
+                          Suppress, Select,
+                          MultiHosts, MultiConfig),
+            TableFailedCasesIoList =
+                [
+                 "\n<br/>\n",
+                 TableFailedCases#table.iolist
+                ]
+    end,
+    #table{name = Name,
+           res = TableAll#table.res,
+           iolist =
                [
                 "\n",
                 ["<h3>", lux_html_utils:html_anchor(Name, Label), "</h3>\n"],
-                AllT#table.iolist,
-                "\n<br/>\n",
-                FailedT#table.iolist
+                TableAllIoList,
+                TableFailedCasesIoList
                ]}.
 
-%% Suppress :: suppress_latest_success | suppress_any_success | suppress_none
+%% Suppress :: suppress_any_success | suppress_none
 %% Select   :: select_worst | select_latest
 gen_table(HistoryLogDir, Name, Grain, Runs, HtmlFile,
           MultiBranch, Suppress, Select,
