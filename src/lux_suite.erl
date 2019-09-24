@@ -202,9 +202,9 @@ initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
     NewRes;
 initial_res(R, Exists, ConfigData, SummaryLog, Summary)
   when Exists =:= false ->
-    write_config_log(SummaryLog, ConfigData),
-    lux_log:write_results(R#rstate.progress, SummaryLog, skip, [], []),
-    annotate_tmp_summary_log(R, Summary, undefined),
+    ok = write_config_log(SummaryLog, ConfigData),
+    ok = lux_log:write_results(R#rstate.progress, SummaryLog, skip, [], []),
+    ok = annotate_tmp_summary_log(R, Summary, undefined),
     [].
 
 write_config_log(SummaryLog, ConfigData) ->
@@ -277,14 +277,14 @@ annotate_tmp_summary_log(R, Summary, NextScript) ->
                           {next_script, NextScript}],
             SummaryLog = R#rstate.summary_log,
             TmpLog = SummaryLog ++ ".tmp",
-            file:sync(R#rstate.log_fd), % Flush summary log
+            ok = file:sync(R#rstate.log_fd), % Flush summary log
             case annotate_log(false, TmpLog, NoHtmlOpts) of
                 ok ->
                     TmpHtml =  TmpLog ++ ".html",
                     SummaryHtml = SummaryLog ++ ".html",
                     ok = file:rename(TmpHtml, SummaryHtml);
-                {error, Reason} ->
-                    {error, Reason}
+                {error, File, Reason} ->
+                    {error, File, Reason}
             end;
         true ->
             ok
@@ -574,7 +574,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                               Scripts, NewSummary, NewResults,
                               Max, CC+1, List, Opaque);
                 execute ->
-                    annotate_tmp_summary_log(NewR, OldSummary, Script),
+                    ok = annotate_tmp_summary_log(NewR, OldSummary, Script),
                     ?TRACE_ME(70, suite, 'case', P, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, P, Script),
