@@ -1080,8 +1080,8 @@ parse_summary_logs(Source, HistoryLogDir,
                                 Acc, Err, WWW, Opts)
     end.
 
-search_summary_dirs(Source, HistoryLogDir, RelDir,
-                    Threshold, Newest, Acc, Err, WWW, Opts)
+search_summary_dirs(Source, HistoryLogDir, RelDir, Threshold,
+                    Newest, Acc, Err, WWW, Opts)
   when is_list(RelDir) ->
     RelFile = ?b2l(Source#source.file),
     Dir0 = lux_utils:join(RelFile, RelDir),
@@ -1101,32 +1101,31 @@ search_summary_dirs(Source, HistoryLogDir, RelDir,
                         false ->
                             %% Skip
                             io:format("s", []),
-                            {Newest, {Acc, Err}, WWW}
+                            {{Newest,Acc,Err}, WWW}
                     end;
                 false ->
                     %% No interesting file found. Search subdirs
                     Fun =
-                        fun("latest_run", {{N, A,E},W}) ->
+                        fun("latest_run", {{N,A,E}, W}) ->
                                 %% Symlink
-                                {{N, A,E}, W};
-                           (File, {{N, A,E},W}) ->
+                                {{N,A,E}, W};
+                           (Base, {{N,A,E}, W}) ->
                                 RelDir2 =
                                     case RelDir of
                                         "" ->
-                                            File;
+                                            Base;
                                         _  ->
-                                            lux_utils:join(RelDir, File)
+                                            lux_utils:join(RelDir, Base)
                                     end,
                                 search_summary_dirs(Source, HistoryLogDir,
-                                                    RelDir2,
-                                                    Threshold, N,
-                                                    A, E, W, Opts)
+                                                    RelDir2, Threshold,
+                                                    N, A, E, W, Opts)
                         end,
-                    lists:foldl(Fun, {{Newest, Acc, Err}, WWW}, Files)
+                    lists:foldl(Fun, {{Newest,Acc,Err}, WWW}, Files)
             end;
         {error, _Reason} ->
             %% Not a dir or problem to read dir
-            {{Newest, Acc, Err}, WWW}
+            {{Newest,Acc,Err}, WWW}
     end.
 
 candidate_files() ->
