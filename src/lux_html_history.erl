@@ -81,17 +81,18 @@ read_cache(CacheFile, Opts) ->
                        opts = CacheOpts} ->
                     if
                         CacheOpts =/= Opts ->
-                            {error, CacheFile,
-                             <<"Command line options does not match"
-                               " options in cache file."
-                               " Please, remove the cache file.">>};
+                            io:format("\n<WARNING> Cache file is incompatible"
+                                      " with previous run ~s: ignoring cache\n",
+                                      [CacheFile]),
+                            {ok, 0, [], []};
                         true ->
                             {ok, CacheThreshold, CacheRuns, CacheErrors}
                     end;
                 _ ->
-                    {error, CacheFile,
-                     <<"Illegal cache file format."
-                       " Please, remove the cache file.">>}
+                    io:format("\n<WARNING> Illegal cache file "
+                              "format ~s: ignoring cache\n",
+                              [CacheFile]),
+                    {ok, 0, [], []}
             end;
         {error, enoent} ->
             {ok, 0, [], []};
