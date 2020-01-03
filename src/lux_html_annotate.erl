@@ -783,7 +783,7 @@ html_result(Tag, {warnings_and_result, Warnings, Result}, HtmlLog) ->
     PrettyWarnings =
         [["\n<", Tag,
           "><strong>Warning at line ",
-          lux_html_utils:html_href(["#", Line], Line),
+          lux_html_utils:html_href([HtmlLog, "#", Line], Line),
           " - ", Text,
           "</strong></",
           Tag, ">\n"] ||

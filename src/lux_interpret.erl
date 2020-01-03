@@ -836,7 +836,8 @@ expand_send(I, Cmd, Arg) ->
 
 no_such_var(I, Cmd, LineNo, BadName) ->
     E = ?l2b(["Variable $", BadName, " is not set"]),
-    ilog(I, "error ~s\n", [E],
+    ilog(I, "error ~s\n",
+         [E],
          I#istate.active_name, LineNo),
     OrigLine = lux_utils:strip_leading_whitespaces(Cmd#cmd.orig),
     handle_error(I, <<E/binary, ". Bad line: ", OrigLine/binary>>).
@@ -1167,13 +1168,13 @@ cleanup_strings(cleanup, normal) ->
 cleanup_strings(cleanup, _CleanupReason) ->
     {"", "C"};
 cleanup_strings(no_cleanup, normal) ->
-    {" no", ""};
+    {"no_", ""};
 cleanup_strings(no_cleanup, _CleanupReason) ->
-    {" no", ""};
+    {"no_", ""};
 cleanup_strings(post_cleanup, normal) ->
-    {" no", "p"};
+    {"no_", "p"};
 cleanup_strings(post_cleanup, _CleanupReason) ->
-    {" no", "P"}.
+    {"no_", "P"}.
 
 zombify_shells(I, Cmd) ->
     ?TRACE_ME2(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),
@@ -1588,8 +1589,7 @@ handle_error(#istate{active_shell = ActiveShell,
                 {reason, Reason}]),
     ilog(I, "error \"~s\"\n",
          [Reason],
-         I#istate.active_name,
-         (I#istate.latest_cmd)#cmd.lineno),
+         I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno),
     premature_stop(I, error, {'EXIT', {error, Reason}}).
 
 mode(Mode, Mode) ->
