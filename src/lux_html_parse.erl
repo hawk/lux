@@ -12,7 +12,7 @@
 -include_lib("lux.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
-validate_html(HtmlFile, Opts) ->
+validate_html(HtmlFile, Opts) when is_list(HtmlFile) ->
     case lists:keyfind(html, 1, Opts) of
         {html, validate} ->
             io:format("\nValidate ~p...\n", [HtmlFile]),
@@ -142,9 +142,9 @@ do_parse_files(Mode, [Rel|Rest], WWW, Acc) ->
 do_parse_files(_Mode, [], WWW, Acc) ->
     {lists:reverse(Acc), WWW}.
 
-link_type({target, Source, ""}) ->
+link_type({target, Source, ""}) when is_list(Source) ->
     {local, Source};
-link_type({target, Source, Target}) ->
+link_type({target, Source, Target}) when is_list(Source), is_list(Target) ->
     IsUrl = lux_utils:is_url(Target),
     if
         IsUrl ->

@@ -1021,13 +1021,6 @@ sys_info() ->
     {[Line], "0"} = lux_utils:cmd("uname -a"),
     Line.
 
-user_prefix() ->
-    case os:getenv("USER") of
-        false -> "";
-        ""    -> "";
-        User  -> User ++ "@"
-    end.
-
 double_rlog(#rstate{progress = Progress, log_fd = Fd}, Format, Args) ->
     IoList = ?FF(Format, Args),
     case Fd of
@@ -1238,7 +1231,7 @@ tap_suite_begin(R, Scripts, Directive)
             ok = lux_tap:plan(TAP, length(Scripts), Directive),
             ok = lux_tap:diag(TAP, "\n"),
             %% ok = lux_tap:diag(TAP, "LUX - LUcid eXpect scripting"),
-            OptUser = user_prefix(),
+            OptUser = lux_utils:user_prefix(),
             Host = lux_utils:real_hostname(),
             ok = lux_tap:diag(TAP, "ssh " ++ OptUser ++ Host),
             {ok, Cwd} = file:get_cwd(),

@@ -26,7 +26,7 @@
          cmd/1, cmd_expected/1, perms/1,
          pick_opt/3, split/2, join/2,
          is_url/1, start_app/1, stop_app/1,
-         real_hostname/0]).
+         user_prefix/0, real_hostname/0]).
 
 -include("lux.hrl").
 
@@ -892,6 +892,13 @@ stop_app(WWW) ->
         is_function(WWW, 0) ->
             %% WWW(), % Get rid of progress printouts
             ok
+    end.
+
+user_prefix() ->
+    case os:getenv("USER") of
+        false -> "";
+        ""    -> "";
+        User  -> User ++ "@"
     end.
 
 real_hostname() ->

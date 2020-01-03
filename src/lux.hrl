@@ -32,7 +32,8 @@
 -define(loop_break_pattern_mismatch,
         "Loop ended without match of break pattern ").
 -define(TIMER_THRESHOLD, 0.85).
--define(HISTORY_LOG, "lux_history.html").
+-define(HISTORY_LOG_BASE, "lux_history").
+-define(HTML_EXT, ".html").
 -define(SUITE_SUMMARY_LOG, "lux_summary.log").
 -define(SUITE_CONFIG_LOG, "lux_config.log").
 -define(SUITE_RESULT_LOG, "lux_result.log").
@@ -240,7 +241,7 @@
          new_log_dir  :: binary(),              % rel top dir for new logs
          repos_rev = ?DEFAULT_REV
                       :: binary(),              % --revision
-         details = [] :: [#run{}]}).            % list of cases
+         runs = []    :: [#run{}]}).            % list of cases
 
 -record(source,
         {branch       :: undefined | binary(),
@@ -395,15 +396,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Types
 
--type filename() :: string().
--type dirname()  :: string().
--type opts()     :: [{atom(), term()}].
--type cmds()     :: [#cmd{}].
--type summary()  :: success | skip | warning | fail | error.
--type lineno()   :: string().
--type skip()     :: {skip, filename(), string()}.
--type error()    :: {error, filename(), string()}.
--type no_input() :: {error, undefined, no_input_files}.
--type result()   :: {ok, filename(), summary(), lineno(), [#warning{}]}.
--type run_mode() :: list | list_dir | doc | validate | dump | execute.
+-type filename()     :: string().
+-type dirname()      :: string().
+-type opts()         :: [{atom(), term()}].
+-type cmds()         :: [#cmd{}].
+-type summary()      :: success | skip | warning | fail | error.
+-type lineno()       :: string().
+-type skip()         :: {skip, filename(), string()}.
+-type error()        :: {error, filename(), string()}.
+-type no_input()     :: {error, undefined, no_input_files}.
+-type result()       :: {ok, filename(), summary(), lineno(), [#warning{}]}.
+-type run_mode()     :: list | list_dir | doc | validate | dump | execute.
 -type expected_tag() :: ?EXPECTED_EQ | ?EXPECTED_RE.
+-type suppress()     :: suppress_any_success | suppress_none.
+-type select()       :: select_worst | select_latest.

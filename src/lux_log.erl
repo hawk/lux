@@ -385,7 +385,7 @@ do_parse_run_summary(Source, SummaryLog, Res, Opts) ->
                   run_dir     = RunDir,
                   run_log_dir = true_drop_prefix(RunDir, RunLogDir),
                   repos_rev   = ReposRev,
-                  details     = Cases};
+                  runs        = Cases};
         {error, _SummaryLog, _ReasonStr} ->
             R
     end.
@@ -455,7 +455,7 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          run_log_dir = undefined,
          new_log_dir = undefined,
          repos_rev = ReposRev,
-         details = []};
+         runs = []};
 parse_run_case(NewLogDir, RunDir, RunLogDir,
                StartTime, Branch, Host, ConfigName,
                Suite, RunId, ReposRev,
@@ -476,7 +476,7 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          run_log_dir = undefined,
          new_log_dir = undefined,
          repos_rev = ReposRev,
-         details = []}.
+         runs = []}.
 
 run_result({result_summary, Res, _Sections}) ->
     {[], run_result2(Res)};

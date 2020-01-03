@@ -1212,11 +1212,10 @@ history(RelLogDir, Opts) ->
         []    -> Files = [RelLogDir];
         Files -> ok
     end,
-    RelHtmlFile = filename:join([RelLogDir, "lux_history.html"]),
-    AbsHtmlFile = filename:absname(RelHtmlFile),
-    case safe_history(Files, RelHtmlFile, Opts2) of
-        ok ->
+    case safe_history(Files, RelLogDir, Opts2) of
+        {ok, RelHtmlFile} ->
             io:format("...ok\n", []),
+            AbsHtmlFile = filename:absname(RelHtmlFile),
             io:format("\nfile://~s\n", [AbsHtmlFile]),
             0;
         {error, File, ReasonStr} ->
@@ -1224,10 +1223,16 @@ history(RelLogDir, Opts) ->
             1
     end.
 
-safe_history(LogDirs, HtmlFile, Opts) ->
-    case lux_html_history:generate(LogDirs, HtmlFile, Opts) of
-        {ok, HtmlFile} ->
-            lux_html_parse:validate_html(HtmlFile, Opts);
+safe_history(LogDirs, RelLogDir, Opts) ->
+    case lux_html_history:generate(LogDirs, RelLogDir, Opts) of
+        {ok, BinRelHtmlFile} ->
+            RelHtmlFile = binary_to_list(BinRelHtmlFile),
+            case lux_html_parse:validate_html(RelHtmlFile, Opts) of
+                ok ->
+                    {ok, RelHtmlFile};
+                {error, File, Reason} ->
+                    {error, File, Reason}
+            end;
         {error, File, Reason} ->
             {error, File, Reason}
     end.
