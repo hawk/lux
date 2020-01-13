@@ -1174,14 +1174,12 @@ tail(#istate{suite_log_dir=SuiteLogDir} = I,
      AbsFile, CmdState, Format, UserN) ->
     RelFile = lux_utils:drop_prefix(SuiteLogDir, AbsFile),
     case file:read_file(AbsFile) of
-        {ok, Bin} ->
-            AllRows = binary:split(Bin, <<"\n">>, [global]),
-            Max = length(AllRows),
+        {ok, Bin0} ->
             N =
                 case CmdState of
-                    {debug_tail, AbsFile, PrevMin} ->
+                    {debug_tail, AbsFile, PrevMax} ->
                         %% Add 10
-                        PrevMin + 10;
+                        PrevMax + 10;
                     _ when is_integer(UserN) ->
                         %% User specified N
                         UserN;
@@ -1189,12 +1187,15 @@ tail(#istate{suite_log_dir=SuiteLogDir} = I,
                         %% Last 10
                         10
                 end,
-            Min = lists:max([0, Max - N]),
-            TailRows = lists:nthtail(Min, AllRows),
+            Bin = chop(Bin0),
+            AllRows = binary:split(Bin, <<"\n">>, [global]),
+            TailRows = tailtip(N, AllRows),
             Actual = length(TailRows),
+            Size = length(AllRows),
             format("Last ~p (~p..~p) lines of log file: ~s\n\n",
-                   [Actual, Max-Actual+1, Max, RelFile]),
+                   [Actual, Size-Actual+1, Size, RelFile]),
             [tail_format(Format, "~s\n", [Row]) || Row <- TailRows],
+            format("\n", []),
             {{debug_tail, AbsFile, N}, I};
         {error, FileReason}->
             FileStr = file:format_error(FileReason),
@@ -1207,6 +1208,39 @@ tail_format("compact", Format, Data) ->
 tail_format("verbose", Format, Data) ->
     Str = lists:flatten(?FF(Format, Data)),
     format("~s", [lux_log:dequote(Str)]).
+
+chop(Bin) ->
+    Sz = byte_size(Bin) - 1,
+    case Bin of
+        <<>> ->
+            Bin;
+        <<Chopped:Sz/binary, "\n">> ->
+            Chopped;
+        _ ->
+            Bin
+    end.
+
+tailtip(N, List) ->
+    case tailtip2(N, List) of
+        Rest when is_list(Rest) ->
+            Rest;
+        _TooBigCount ->
+            List
+    end.
+
+tailtip2(0, []) ->
+    [];
+tailtip2(N, []) when is_integer(N), N > 0 ->
+    1;
+tailtip2(N, [_H|T] = List) ->
+    case tailtip2(N, T) of
+        Rest when is_list(Rest) ->
+            Rest;
+        Count when Count < N ->
+            Count+1;
+        _Count ->
+            List
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
