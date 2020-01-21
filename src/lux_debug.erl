@@ -49,6 +49,9 @@
 format(Fmt, Args) ->
     io:format(Fmt, Args).
 
+f(Fmt, Args) ->
+    io_lib:format(Fmt, Args).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Read commands from stdin and communicate with interpreter
 
@@ -153,21 +156,26 @@ wait_for_reply(Dstate, Ipid, Timeout) ->
                     flushed;
                 is_integer(Timeout) ->
                     %% Display process info for interpreter and its children
-                    Dpid = self(),
-                    format("\n<LUX WARNING>"
-                           " Debugger timed out after ~p milli seconds.\n",
-                           [Timeout]),
-                    format("Debugger pid: ~p\n", [Dpid]),
-                    format("Interpreter pid: ~p\n", [Ipid]),
                     Item = [current_stacktrace, messages],
                     Show =
                         fun(Pid) ->
                                 Info = process_info(Pid, Item),
-                                format("Proc info for ~p:\n\t~p\n", [Pid, Info])
+                                f("Proc info for ~p:\n\t~p\n", [Pid, Info])
                         end,
                     Pids = [P || P <- processes(), P > Ipid],
                     AllPids = [Ipid | Pids],
-                    lists:foreach(Show, AllPids),
+                    Dpid = self(),
+                    IoList =
+                        [
+                         "\n<LUX INTERNAL DEBUG BEGIN>\n",
+                         f("<WARNING> Debugger timed out after ~p millisecs.\n",
+                           [Timeout]),
+                         f("Debugger pid: ~p\n", [Dpid]),
+                         f("Interpreter pid: ~p\n", [Ipid]),
+                         [Show(P) || P <- AllPids],
+                         "<LUX INTERNAL DEBUG END>\n"
+                        ],
+                    format("~s\n", [lists:flatten(IoList)]),
                     wait_for_reply(Dstate, Ipid, infinity)
             end
     end.
