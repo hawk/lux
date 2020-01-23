@@ -801,11 +801,12 @@ print_results(#rstate{progress=Progress,warnings=Warnings}, Summary, Results) ->
 
 parse_script(R, _SuiteFile, Script) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
+    CheckDoc = false, % Ignore missing summary doc warning for the time being
     case lux_parse:parse_file(Script,
                               R#rstate.mode,
                               R#rstate.skip_unstable,
                               R#rstate.skip_skip,
-                              true,
+                              CheckDoc,
                               Opts0) of
         {ok, Script2, Cmds, FileOpts, NewWarnings} ->
             FileArgs = opts_to_args(FileOpts, R#rstate.file_args),
