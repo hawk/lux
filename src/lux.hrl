@@ -72,6 +72,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Records
 
+-record(timer_ref,
+        {ref     :: reference(),
+         timeout :: infinity | non_neg_integer(),
+         send_to :: pid(),
+         msg     :: term()}).
+
 -record(cmd,
         {lineno :: non_neg_integer(),
          type   :: atom(),
@@ -167,7 +173,7 @@
          multiplier = ?ONE_SEC          :: non_neg_integer(),
          suite_timeout = infinity   :: non_neg_integer() | infinity,
          case_timeout = 5*?ONE_MIN  :: non_neg_integer() | infinity,
-         case_timer_ref             :: reference(),
+         case_timer_ref             :: #timer_ref{},
          flush_timeout = 0          :: non_neg_integer(),
          poll_timeout = 0           :: non_neg_integer(), % 100
          default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
@@ -312,11 +318,11 @@
          no_more_input = false   :: boolean(),
          no_more_output = false  :: boolean(),
          exit_status             :: integer(),
-         timer                   :: undefined | infinity | reference(),
+         timer_ref               :: undefined | #timer_ref{},
          timer_started_at        :: undefined | {non_neg_integer(),
                                                  non_neg_integer(),
                                                  non_neg_integer()},
-         wakeup                  :: undefined | reference(),
+         wakeup_ref              :: undefined | #timer_ref{},
          debug_level = 0         :: non_neg_integer(),
          events = []             :: [tuple()],
          warnings = []           :: [#warning{}],

@@ -162,7 +162,7 @@ progress_token(#cstate{idle_count = IdleCount} = C) ->
 
 shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
     ?TRACE_ME2(40, C#cstate.name, wait_for_event, []),
-    Timeout = timeout(C),
+    LoopTimeout = loop_timeout(C),
     receive
         {block, From} ->
             %% io:format("\nBLOCK ~s\n", [C#cstate.name]),
@@ -206,7 +206,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             dlog(C, ?dmore,"mode=resume (wakeup)", []),
             undefined = C#cstate.expected, % Assert
-            C2 = C#cstate{mode = resume, wakeup = undefined},
+            C2 = C#cstate{mode = resume, wakeup_ref = undefined},
             expect_more(C2);
         {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C#cstate{state_changed = true,
@@ -234,7 +234,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             io:format("\nDEBUG(~p):\n\t~p\n",
                       [?LINE, process_info(self(), messages)]),
             C
-    after multiply(C, Timeout) ->
+    after LoopTimeout ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
 
@@ -250,12 +250,12 @@ interpreter_died(C, Reason) ->
     IE = {internal_error, interpreter_died, C#cstate.latest_cmd, Reason},
     close_and_exit(C2, {error, internal}, IE).
 
-timeout(C) ->
-    IdleThreshold = timer:seconds(3),
+loop_timeout(C) ->
+    IdleThreshold = lux_utils:multiply(timer:seconds(3), C#cstate.multiplier),
     if
         C#cstate.expected =:= undefined ->
             infinity;
-        C#cstate.timer =/= undefined ->
+        C#cstate.timer_ref =/= undefined ->
             IdleThreshold;
         true ->
             IdleThreshold
@@ -579,12 +579,14 @@ shell_eval(#cstate{name = Name} = C0,
             undefined = C#cstate.expected, % Assert
             Progress = C#cstate.progress,
             Self = self(),
-            WakeUp = {wakeup, Secs},
-            Fun = fun() -> sleep_walker(Progress, Self, WakeUp) end,
+            WakeUpMsg = {wakeup, Secs},
+            Fun = fun() -> sleep_walker(Progress, Self, WakeUpMsg) end,
             Sleeper = spawn_link(Fun),
-            WakeupRef = erlang:send_after(timer:seconds(Secs), Sleeper, WakeUp),
+            T = Secs * ?ONE_SEC,
+            M = ?ONE_SEC,
+            WakeupRef = lux_utils:send_after(T, M, Sleeper, WakeUpMsg),
             dlog(C, ?dmore,"mode=suspend (sleep)", []),
-            C#cstate{mode = suspend, wakeup = WakeupRef};
+            C#cstate{mode = suspend, wakeup_ref = WakeupRef};
         progress ->
             true = is_list(Arg), % Assert
             String = Arg,
@@ -730,25 +732,25 @@ send_to_port(C, Data) ->
             end
     end.
 
-sleep_walker(Progress, ReplyTo, WakeUp) ->
+sleep_walker(Progress, ReplyTo, WakeUpMsg) ->
     %% Snore each second
     lux_utils:progress_write(Progress, "z"),
     receive
-        WakeUp ->
-            ReplyTo ! WakeUp,
+        WakeUpMsg ->
+            ReplyTo ! WakeUpMsg,
             unlink(ReplyTo)
     after ?ONE_SEC ->
-            sleep_walker(Progress, ReplyTo, WakeUp)
+            sleep_walker(Progress, ReplyTo, WakeUpMsg)
     end.
 
 want_more(#cstate{mode = Mode,
                   expected = Expected,
                   waiting = Waiting,
-                  wakeup = Wakeup}) ->
+                  wakeup_ref = WakeupRef}) ->
     Mode =:= resume andalso
     Expected =:= undefined andalso
     not Waiting andalso
-    Wakeup =:= undefined.
+    WakeupRef =:= undefined.
 
 expect_more(C) ->
     C2 = expect(C),
@@ -790,20 +792,20 @@ expect(#cstate{state_changed = true,
     %% Something has changed
     C = C0#cstate{state_changed = false},
     case Expected of
-        _ when C#cstate.wakeup =/= undefined ->
+        _ when C#cstate.wakeup_ref =/= undefined ->
             %% Sleeping
             undefined = Expected, % Assert
             suspend = C#cstate.mode, % Assert
-            undefined = C#cstate.timer, % Assert
+            undefined = C#cstate.timer_ref, % Assert
             C;
         _ when C#cstate.mode =:= suspend ->
             %% Suspended
             undefined = Expected, % Assert
-            undefined = C#cstate.timer, % Assert
+            undefined = C#cstate.timer_ref, % Assert
             C;
         undefined when C#cstate.mode =:= resume ->
             %% Nothing to wait for
-            undefined = C#cstate.timer, % Assert
+            undefined = C#cstate.timer_ref, % Assert
             C;
         #cmd{arg = Arg} when C#cstate.mode =:= resume ->
             %% Waiting
@@ -1097,12 +1099,12 @@ do_prepare_stop(C, Match, Context) ->
     {C3, Actual}.
 
 clear_expected(C, Context, Mode) ->
-    case C#cstate.wakeup of
+    case C#cstate.wakeup_ref of
         undefined -> ok;
-        WakeupRef -> erlang:cancel_timer(WakeupRef)
+        WakeupRef -> lux_utils:cancel_timer(WakeupRef)
     end,
     C2 = cancel_timer(C),
-    C3 = C2#cstate{mode = Mode, expected = undefined, wakeup = undefined},
+    C3 = C2#cstate{mode = Mode, expected = undefined, wakeup_ref = undefined},
     dlog(C3, ?dmore, "expected=[]~s", [Context]),
     C3.
 
@@ -1197,7 +1199,8 @@ flush_port2(#cstate{port = Port} = C, VirtualTimeout, Acc0) ->
     Acc3 =
         case flush_port_loop(Port, 0, 0, Acc0) of
             {0, Acc} when VirtualTimeout =/= 0 ->
-                RealTimeout = multiply(C, VirtualTimeout),
+                RealTimeout = lux_utils:multiply(VirtualTimeout,
+                                                 C#cstate.multiplier),
                 {_N, Acc2} = flush_port_loop(Port, RealTimeout, 0, Acc),
                 Acc2;
             {_N, Acc} ->
@@ -1232,49 +1235,51 @@ clog_recv(C, NewData) ->
              actual = <<OldData/binary, NewData/binary>>,
              events = save_event(C, recv, NewData)}.
 
-start_timer(#cstate{timer = undefined, match_timeout = infinity} = C) ->
-    clog(C, timer, "started (infinity)", []),
-    C#cstate{timer = infinity, timer_started_at = lux_utils:timestamp()};
-start_timer(#cstate{timer = undefined} = C) ->
-    Secs = C#cstate.match_timeout div ?ONE_SEC,
-    Multiplier = C#cstate.multiplier / ?ONE_SEC,
-    clog(C, timer, "started (~p seconds * ~.3f multiplier)",
-         [Secs, Multiplier]),
-    Timer = safe_send_after(C, C#cstate.match_timeout, self(), ?match_fail),
-    C#cstate{timer = Timer, timer_started_at = lux_utils:timestamp()};
+start_timer(#cstate{timer_ref = undefined, match_timeout = Timeout} = C) ->
+    M = C#cstate.multiplier,
+    if
+        Timeout =:= infinity ->
+            clog(C, timer, "started (infinity)", []);
+        is_integer(Timeout) ->
+            Secs = C#cstate.match_timeout div ?ONE_SEC,
+            MultiplierSecs = M / ?ONE_SEC,
+            clog(C, timer, "started (~p seconds * ~.3f multiplier)",
+                 [Secs, MultiplierSecs])
+    end,
+    TimerRef = lux_utils:send_after(Timeout, M, self(), ?match_fail),
+    C#cstate{timer_ref = TimerRef, timer_started_at = lux_utils:timestamp()};
 start_timer(#cstate{} = C) ->
     clog(C, timer, "already set", []),
     C.
 
-cancel_timer(#cstate{timer = undefined} = C) ->
+cancel_timer(#cstate{timer_ref = undefined} = C) ->
     C;
-cancel_timer(#cstate{match_timeout = MaxTimeout,
-                     timer = Timer,
+cancel_timer(#cstate{timer_ref = TimerRef,
                      timer_started_at = Earlier,
                      warnings = OldWarnings} = C) ->
-    ElapsedTime = timer:now_diff(lux_utils:timestamp(), Earlier),
-    clog(C, timer, "canceled (after ~p micro seconds)", [ElapsedTime]),
+    ElapsedMicros = timer:now_diff(lux_utils:timestamp(), Earlier),
+    clog(C, timer, "canceled (after ~p micro seconds)", [ElapsedMicros]),
     NewWarnings =
-        if
-            Timer =:= infinity ->
+        case lux_utils:cancel_timer(TimerRef) of
+            infinity ->
                 OldWarnings;
-            is_reference(Timer) ->
-                M = MaxTimeout*?ONE_SEC,
-                Threshold = erlang:trunc(multiply(C, M) * ?TIMER_THRESHOLD),
+            _TimeLeftMillis ->
+                TimeoutMicros = TimerRef#timer_ref.timeout * 1000,
+                ThresholdMicros =
+                    erlang:trunc(TimeoutMicros * ?TIMER_THRESHOLD),
                 if
-                    ElapsedTime > Threshold ->
-                        flush_timer(Timer),
+                    ElapsedMicros > ThresholdMicros ->
                         Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
                         W = make_warning(C, "Risky timer > " ++
                                              Percent ++ "% of max"),
                         [W | OldWarnings];
                     true ->
-                        flush_timer(Timer),
                         OldWarnings
                 end
         end,
+    flush_fail(),
     C#cstate{idle_count = 0,
-             timer = undefined,
+             timer_ref = undefined,
              timer_started_at = undefined,
              warnings = NewWarnings}.
 
@@ -1290,8 +1295,7 @@ make_warning(#cstate{orig_file = File,
              lineno = FullLineNo,
              details = ?l2b(Reason)}.
 
-flush_timer(Timer) ->
-    erlang:cancel_timer(Timer),
+flush_fail() ->
     receive
         ?match_fail ->
             true
@@ -1545,20 +1549,6 @@ save_event(#cstate{latest_cmd = _Cmd, events = Events} = C, Op, Data) ->
     end,
     %% [{Cmd#cmd.lineno, Op, Data} | Events].
     Events.
-
-safe_send_after(State, Timeout, Pid, Msg) ->
-    case multiply(State, Timeout) of
-        infinity   -> infinity;
-        NewTimeout -> erlang:send_after(NewTimeout, Pid, Msg)
-    end.
-
-multiply(#cstate{multiplier = Factor}, Timeout) ->
-    case Timeout of
-        infinity ->
-            infinity;
-        _ ->
-            lux_utils:multiply(Timeout, Factor)
-    end.
 
 clog(#cstate{event_log_fd = closed},
      _Op, _Format, _Args) ->

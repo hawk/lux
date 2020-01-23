@@ -68,7 +68,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                         lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
             after
-                cancel_timer(TimerRef)
+                lux_utils:cancel_timer(TimerRef)
             end;
         {error, {badarg, Name, Val}} ->
             ArgErr =
@@ -1037,27 +1037,7 @@ start_suite_timer(R) ->
     SuiteTimeout = pick_val(suite_timeout, R, infinity),
     Msg = {suite_timeout, SuiteTimeout},
     Multiplier = pick_val(multiplier, R, ?ONE_SEC),
-    case lux_utils:multiply(SuiteTimeout, Multiplier) of
-        infinity   -> {infinity, Msg};
-        NewTimeout -> {erlang:send_after(NewTimeout, self(), Msg), Msg}
-    end.
-
-cancel_timer({Ref, Msg}) ->
-    case Ref of
-        infinity ->
-            ok;
-        _ ->
-            case erlang:cancel_timer(Ref) of
-                false ->
-                    receive
-                        Msg -> ok
-                    after 0 ->
-                            ok
-                    end;
-                TimeLeft when is_integer(TimeLeft) ->
-                    ok
-            end
-    end.
+    lux_utils:send_after(SuiteTimeout, Multiplier, self(), Msg).
 
 pick_val(Tag, R, Default) ->
     Dicts = args_dicts(R),

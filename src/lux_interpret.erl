@@ -26,8 +26,9 @@ init(I0) ->
          [lux_utils:now_to_string(StartTime)],
          "lux", 0),
     I = opt_start_etrace(I0),
-    CaseRef = safe_send_after(I, I#istate.case_timeout, self(),
-                              {case_timeout, I#istate.case_timeout}),
+    T = I#istate.case_timeout,
+    M = I#istate.multiplier,
+    CaseRef = lux_utils:send_after(T, M, self(), {case_timeout, T}),
     try
         OrigCmds = I#istate.commands,
         I2 =
@@ -63,7 +64,7 @@ init(I0) ->
                       [ErrBin, EST]),
             {error, ErrBin, I}
     after
-        safe_cancel_timer(CaseRef),
+        lux_utils:cancel_timer(CaseRef),
         IA = opt_stop_etrace(I),
         EndTime = lux_utils:timestamp(),
         ilog(IA, "end_time \"~s\"\n",
@@ -182,7 +183,7 @@ loop(I)
     %% Check for stop and down before popping the cmd_stack
     sync_return(I2);
 loop(I) ->
-    Timeout = timeout(I),
+    LoopTimeout = loop_timeout(I),
     receive
         {debug_call, Pid, DbgCmd, CmdState} ->
             I2 = lux_debug:eval_cmd(I, Pid, DbgCmd, CmdState),
@@ -244,7 +245,7 @@ loop(I) ->
             %% io:format("\nDEBUG(~p):\n\t~p\n",
             %%        [?LINE, process_info(self(), messages)]),
             loop(I)
-    after lux_utils:multiply(I#istate.multiplier, Timeout) ->
+    after LoopTimeout ->
             I2 = opt_dispatch_cmd(I),
             loop(I2)
     end.
@@ -282,9 +283,7 @@ stopped_by_user(I, Scope) ->
     I3 = prepare_stop(I2, dummy_pid, {fail, stopped_by_user}),
     I3#istate{stopped_by_user = Scope, cleanup_reason = fail}.
 
-timeout(I) ->
-    %% io:format("\n MORE=~p BLOCKED=~p MODE=~p\n",
-    %% [I#istate.want_more, I#istate.blocked, I#istate.mode]),
+loop_timeout(I) ->
     if
         I#istate.want_more,
         not I#istate.blocked,
@@ -1115,17 +1114,18 @@ result_lineno(I, LineNoStr) ->
     end.
 
 refresh_case_timer(I) ->
-    case I#istate.case_timer_ref of
+    TimerRef = I#istate.case_timer_ref,
+    case TimerRef#timer_ref.timeout of
         infinity ->
             I;
-        CaseRef ->
-            case erlang:read_timer(CaseRef) of
-                TimeLeft when is_integer(TimeLeft) ->
+        TimeoutMillis when is_integer(TimeoutMillis) ->
+            case erlang:read_timer(TimerRef#timer_ref.ref) of
+                TimeLeft when is_integer(TimeLeft), TimeLeft > 0 ->
                     I;
-                _NoTimer ->
-                    T = I#istate.case_timeout,
-                    CaseRef2 = safe_send_after(I, T, self(), {case_timeout, T}),
-                    I#istate{case_timer_ref = CaseRef2}
+                _TimerHasExpired ->
+                    CaseRef = lux_utils:send_after(TimeoutMillis, 1, self(),
+                                                   TimerRef#timer_ref.msg),
+                    I#istate{case_timer_ref = CaseRef}
             end
     end.
 
@@ -1565,19 +1565,6 @@ dlog(I, Level, Format, Args) when I#istate.debug_level >= Level ->
          I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno);
 dlog(_I, _Level, _Format, _Args) ->
     ok.
-
-safe_send_after(I, Timeout, Pid, Msg) ->
-    case lux_utils:multiply(I#istate.multiplier, Timeout) of
-        infinity   -> infinity;
-        NewTimeout -> erlang:send_after(NewTimeout, Pid, Msg)
-    end.
-
-safe_cancel_timer(Timer) ->
-    case Timer of
-        infinity  -> undefined;
-        undefined -> undefined;
-        Ref       -> erlang:cancel_timer(Ref)
-    end.
 
 handle_error(#istate{active_shell = ActiveShell,
                      shells = Shells,

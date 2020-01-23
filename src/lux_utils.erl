@@ -10,7 +10,8 @@
          builtin_vars/0, system_vars/0, expand_vars/3,
          test_var/2, split_var/2,
          summary/2, summary_prio/1,
-         multiply/2, drop_prefix/1, drop_prefix/2,
+         validate_timeout/2, send_after/4, multiply/2, cancel_timer/1,
+         drop_prefix/1, drop_prefix/2,
          replace/2,
          normalize_filename/1, quote_newlines/1,
          normalize_newlines/1, normalize_match_regexp/1,
@@ -232,12 +233,50 @@ summary_prio(Summary) ->
         disable        -> 999
     end.
 
-multiply(_Timeout, infinity) ->
-    infinity;
-multiply(infinity, _Factor) ->
-    infinity;
-multiply(Timeout, Factor) ->
-    (Timeout * Factor) div ?ONE_SEC.
+validate_timeout(Timeout, Multiplier) ->
+    try
+        Ref = send_after(Timeout, Multiplier, fake_pid, validate_timeout),
+        cancel_timer(Ref),
+        true
+    catch
+        error:badarg ->
+            false
+    end.
+
+send_after(Timeout, Multiplier, Pid, Msg) ->
+    case multiply(Timeout, Multiplier) of
+        infinity ->
+            NewTimeout = infinity,
+            Infinity = timer:hours(1000),
+            Ref = erlang:send_after(Infinity, fake_pid, Msg);
+        NewTimeout ->
+            Ref = erlang:send_after(NewTimeout, Pid, Msg)
+    end,
+    #timer_ref{ref = Ref, timeout = NewTimeout, send_to = Pid, msg = Msg}.
+
+cancel_timer(#timer_ref{ref = Ref, send_to = Pid, msg = Msg}) ->
+    case Ref of
+        infinity ->
+            infinity;
+        _ ->
+            case erlang:cancel_timer(Ref) of
+                false when Pid =:= self() ->
+                    receive
+                        Msg ->
+                            0
+                    after 0 ->
+                            0
+                    end;
+                false ->
+                    0;
+                TimeLeft when is_integer(TimeLeft) ->
+                    TimeLeft
+            end
+    end.
+
+multiply(_Timeout, infinity)    -> infinity;
+multiply(infinity, _Multiplier) -> infinity;
+multiply(Timeout, Multiplier)   -> (Timeout*Multiplier) div ?ONE_SEC.
 
 drop_prefix(File) ->
     lux_main:drop_prefix(File).
