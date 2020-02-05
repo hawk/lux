@@ -1306,17 +1306,17 @@ flush_fail() ->
 extract_regexp(ExpectArg) ->
     case ExpectArg of
         reset ->
-            {'expected=', reset};
+            {?EXPECTED_EQ, reset};
         {endshell, _RegExpOper, RegExp, _MP} ->
-            {'expected*', RegExp};
+            {?EXPECTED_RE, RegExp};
         {verbatim, _RegExpOper, Verbatim} ->
-            {'expected=', Verbatim};
+            {?EXPECTED_EQ, Verbatim};
         {template, _RegExpOper, Template} ->
-            {'expected=', Template};
+            {?EXPECTED_EQ, Template};
         {regexp, _RegExpOper, RegExp} ->
-            {'expected*', RegExp};
+            {?EXPECTED_RE, RegExp};
         {mp, _RegExpOper, RegExp, _MP, _Multi} ->
-            {'expected*', RegExp}
+            {?EXPECTED_RE, RegExp}
     end.
 
 rebuild_multi_regexps(C, PreExpected0) ->
@@ -1368,7 +1368,7 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
         {Outcome, {ExpectedTag, Expected}, Rest} ->
             ok;
         {Outcome, Expected, Rest} ->
-            ExpectedTag = 'expected*';
+            ExpectedTag = ?EXPECTED_RE;
         Outcome ->
             {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
             Rest = C#cstate.actual

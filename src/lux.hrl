@@ -54,6 +54,10 @@
 -define(ONE_MIN, (?ONE_SEC*60)).
 -define(ONE_SEC_MICROS, (?ONE_SEC*1000)).
 
+-define(EXPECTED_EQ, 'expected=').
+-define(EXPECTED_RE, 'expected*').
+-define(EXPECTED_OLD, 'expected').
+
 -ifdef(OTP_RELEASE).
     -define(stacktrace(),
             fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
@@ -110,7 +114,7 @@
          shell_name    :: string(),
          latest_cmd    :: #cmd{},
          cmd_stack     :: [{string(), non_neg_integer(), atom()}],
-         expected_tag  :: 'expected=' | 'expected*',
+         expected_tag  :: expected_tag(),
          expected      :: binary() | atom(),
          extra         :: undefined | atom() | binary(),
          actual        :: binary() | atom(),
@@ -400,3 +404,4 @@
 -type no_input() :: {error, undefined, no_input_files}.
 -type result()   :: {ok, filename(), summary(), lineno(), [#warning{}]}.
 -type run_mode() :: list | list_dir | doc | validate | execute.
+-type expected_tag() :: ?EXPECTED_EQ | ?EXPECTED_RE.

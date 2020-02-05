@@ -1265,7 +1265,8 @@ wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout, HandleStop) ->
     receive
         {Expect, Pid} ->
             wait_for_reply(I, Pids, Expect, Fun, FlushTimeout, HandleStop);
-        %%      {Expect, Pid, Expected} when Expect =:= expected, Pids =:= [] ->
+        %%      {Expect, Pid, Expected} when Expect =:= ?EXPECTED_OLD,
+        %%                                   Pids =:= [] ->
         %%          Expected;
         {stop, SomePid, Res} when HandleStop ->
             I2 = prepare_stop(I, SomePid, Res),

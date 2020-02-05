@@ -682,18 +682,18 @@ cmd_expected(Cmd) ->
     ExpectTag =
         case Cmd of
             #cmd{type=expect, arg={endshell,_RegexpOper,Expected,_MP}} ->
-                'expected*';
+                ?EXPECTED_RE;
             #cmd{type=expect, arg={verbatim,_RegexpOper,Expected}} ->
-                'expected=';
+                ?EXPECTED_EQ;
             #cmd{type=expect, arg={template,_RegexpOper,Expected}} ->
-                'expected=';
+                ?EXPECTED_EQ;
             #cmd{type=expect, arg={regexp,_RegexpOper,Expected}} ->
-                'expected*';
+                ?EXPECTED_RE;
             #cmd{type=expect, arg={mp,_RegexpOper,Expected,_MP,_Multi}} ->
-                'expected*';
+                ?EXPECTED_RE;
             #cmd{} ->
                 Expected = <<"">>,
-                'expected*'
+                ?EXPECTED_RE
         end,
     {ExpectTag, Expected}.
 
@@ -725,12 +725,12 @@ diff(ExpectedTag, Old, New) ->
     lux_diff:compare(Old, New, Equal).
 
 equal(ExpectedTag, Expected, Expected)
-  when ExpectedTag =:= 'expected=';
-       ExpectedTag =:= expected ->
+  when ExpectedTag =:= ?EXPECTED_EQ;
+       ExpectedTag =:= ?EXPECTED_OLD ->
     match;
 equal(ExpectedTag, Expected0, Actual)
-  when ExpectedTag =:= 'expected*';
-       ExpectedTag =:= expected ->
+  when ExpectedTag =:= ?EXPECTED_RE;
+       ExpectedTag =:= ?EXPECTED_OLD ->
     Expected = normalize_diff_regexp(Expected0),
     try
         re:run(Actual, Expected,[{capture, none}, notempty])
@@ -738,7 +738,7 @@ equal(ExpectedTag, Expected0, Actual)
             nomatch
     end;
 equal(ExpectedTag, _Expected, _Actual)
-  when ExpectedTag =:= 'expected=' ->
+  when ExpectedTag =:= ?EXPECTED_EQ ->
     nomatch.
 
 normalize_diff_regexp(<<Prefix:1/binary, _/binary>> = RegExp)
@@ -773,7 +773,6 @@ normalize_diff_regexp(RegExp) when is_list(RegExp) ->
 -type mode() :: flat | deep | nested.
 -type acc() :: term().
 -type callback() :: fun((op(), mode(), context(), acc()) -> acc()).
--type expected_tag() :: 'expected=' | 'expected*'.
 -spec diff_iter(expected_tag(), [binary()], [binary()],
                 mode(), callback()) -> acc().
 -type diff() :: lux_diff:compact_diff().
@@ -815,7 +814,7 @@ diff_iter_loop(ExpectedTag, [H|T], Mode, Fun, Acc) ->
             AddChars = ?b2l(?l2b(expand_lines(Add))),
             DefaultMatch = lux_diff:default_match(),
             NestedDiff = lux_diff:compare(DelChars, AddChars, DefaultMatch),
-            NestedAcc = diff_iter('expected=', NestedDiff, nested, Fun),
+            NestedAcc = diff_iter(?EXPECTED_EQ, NestedDiff, nested, Fun),
             DeepAcc = Fun({nested,Del,Add,NestedAcc}, Mode, Context, Acc),
             diff_iter_loop(ExpectedTag, T, Mode, Fun, DeepAcc);
         {'!', Del, Add} when Mode =:= deep ->

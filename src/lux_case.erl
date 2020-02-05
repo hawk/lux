@@ -516,7 +516,7 @@ cleanup_fail(I, Reason) ->
             latest_cmd   = LatestCmd,
             cmd_stack    = CmdStack,
             shell_name   = I#istate.active_name,
-            expected_tag = expected,
+            expected_tag = ?EXPECTED_OLD,
             expected     = success,
             extra        = undefined,
             actual       = Reason,
