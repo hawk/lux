@@ -12,6 +12,7 @@
 -include("lux.hrl").
 
 -define(TAB_LEN, 8).
+-define(SPACE, $\ ).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file
@@ -405,7 +406,15 @@ regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
 parse_var(P, Fd, Cmd, Scope, String) ->
     case lux_utils:split_var(String, []) of
         {Var, Val} ->
-            {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
+            P2 =
+                case lists:member(?SPACE , Var) of
+                    true ->
+                        add_warning(P, Cmd, ["Variable name \"", Var,
+                                             "\" contains whitespace"]);
+                    false ->
+                        P
+                end,
+            {P2, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
         false ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
@@ -583,47 +592,64 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                         ["Syntax error at line ",
                          ?i2l(LineNo),
                          ": cleanup only allowed at top level in main script"]);
-        "cleanup" ++ Name ->
+        "cleanup" ->
+            Name = "",
             {P#pstate{has_cleanup = true},
-             Cmd#cmd{type = cleanup, arg = string:strip(Name)}};
-        "shell" ++ Name ->
+             Cmd#cmd{type = cleanup, arg = Name}};
+        "cleanup " ++ Name ->
+            P2 =
+                case lists:member(?SPACE , Name) of
+                    true ->
+                        add_warning(P, Cmd, ["Shell name \"", Name,
+                                             "\" contains whitespace"]);
+                    false ->
+                        P
+                end,
+            {P2#pstate{has_cleanup = true},
+             Cmd#cmd{type = cleanup, arg = Name}};
+        "shell" ->
+            Name = "",
             parse_shell(P, Fd, Cmd, LineNo, Name, shell);
-        "newshell" ++ Name when Name =/= "" ->
+        "shell " ++ Name ->
+            parse_shell(P, Fd, Cmd, LineNo, Name, shell);
+        "newshell " ++ Name when Name =/= "" ->
             P2 = P#pstate{newshell = true},
             parse_shell(P2, Fd, Cmd, LineNo, Name, newshell);
-        "endshell" ++ Data ->
-            case ?l2b(string:strip(Data)) of
-                %% <<>>   -> RegExp = <<"0">>;
-                <<>>   -> RegExp = <<".*">>;
-                RegExp -> ok
-            end,
+        "endshell" ->
+            RegExp = <<".*">>,
             {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
-        "config" ++ VarVal ->
+        "endshell " ++ Data ->
+            RegExp = ?l2b(Data),
+            {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
+        "config " ++ VarVal ->
             {P2, ConfigCmd} =
-                parse_var(P, Fd, Cmd, config, string:strip(VarVal)),
+                parse_var(P, Fd, Cmd, config, VarVal),
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
             Val2 = expand_vars(P2, Fd, Val, LineNo),
             ConfigCmd2 = ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}},
             test_skip(P2, Fd, ConfigCmd2);
-        "my" ++ VarVal ->
-            parse_var(P, Fd, Cmd, my, string:strip(VarVal));
-        "local" ++ VarVal ->
-            parse_var(P, Fd, Cmd, local, string:strip(VarVal));
-        "global" ++ VarVal ->
-            parse_var(P, Fd, Cmd, global, string:strip(VarVal));
-        "timeout" ++ Time ->
-            {P, Cmd#cmd{type = change_timeout, arg = string:strip(Time)}};
-        "sleep" ++ Time ->
-            {P, Cmd#cmd{type = sleep, arg = string:strip(Time)}};
-        "progress" ++ String ->
-            {P, Cmd#cmd{type = progress, arg = string:strip(String)}};
-        "debug" ++ DbgCmd ->
-            {P, Cmd#cmd{type = debug, arg = string:strip(DbgCmd)}};
-        "include" ++ RelFile ->
+        "my " ++ VarVal ->
+            parse_var(P, Fd, Cmd, my, VarVal);
+        "local " ++ VarVal ->
+            parse_var(P, Fd, Cmd, local, VarVal);
+        "global " ++ VarVal ->
+            parse_var(P, Fd, Cmd, global, VarVal);
+        "timeout" ->
+            Time = "",
+            {P, Cmd#cmd{type = change_timeout, arg = Time}};
+        "timeout " ++ Time ->
+            {P, Cmd#cmd{type = change_timeout, arg = Time}};
+        "sleep " ++ Time ->
+            {P, Cmd#cmd{type = sleep, arg = Time}};
+        "progress " ++ String ->
+            {P, Cmd#cmd{type = progress, arg = String}};
+        "debug " ++ DbgCmd ->
+            {P, Cmd#cmd{type = debug, arg = DbgCmd}};
+        "include " ++ RelFile ->
             CurrFile = P#pstate.file,
             CurrPosStack = P#pstate.pos_stack,
             Dir = filename:dirname(CurrFile),
-            RelFile2 = string:strip(expand_vars(P, Fd, RelFile, LineNo)),
+            RelFile2 = expand_vars(P, Fd, RelFile, LineNo),
             AbsFile = filename:absname(RelFile2, Dir),
             AbsFile2 = lux_utils:normalize_filename(AbsFile),
             try
@@ -644,21 +670,37 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                     %% re-throw
                     reparse_error(Fd, error, ErrorStack, Reason)
             end;
-        "macro" ++ Head ->
-            case string:tokens(string:strip(Head), " ") of
+        "macro " ++ Head ->
+            case string:tokens(Head, " ") of
                 [Name | ArgNames] ->
-                    {P, Cmd#cmd{type = macro,
-                                arg  = {body, macro, Name, ArgNames}}};
+                    P2 =
+                        case lists:member(?SPACE , Name) of
+                            true ->
+                                add_warning(P, Cmd, ["Macro name \"", Name,
+                                                     "\" contains whitespace"]);
+                            false ->
+                                P
+                        end,
+                    {P2, Cmd#cmd{type = macro,
+                                 arg  = {body, macro, Name, ArgNames}}};
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
                                  ?i2l(LineNo),
                                  ": missing macro name"])
             end;
-        "invoke" ++ Head ->
+        "invoke " ++ Head ->
             case split_invoke_args(P, Fd, LineNo, Head, normal, [], []) of
                 [Name | ArgVals] ->
-                    {P, Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}}};
+                    P2 =
+                        case lists:member(?SPACE , Name) of
+                            true ->
+                                add_warning(P, Cmd, ["Macro name \"", Name,
+                                                     "\" contains whitespace"]);
+                            false ->
+                                P
+                        end,
+                    {P2, Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}}};
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
@@ -668,9 +710,9 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "loop" ->
             %% Indefinite loop
             {P, Cmd#cmd{type = loop, arg = {body, loop, forever, undefined}}};
-        "loop" ++ Head ->
-            Pred = fun(Char) -> Char =/= $\ end,
-            case lists:splitwith(Pred, string:strip(Head)) of
+        "loop " ++ Head ->
+            Pred = fun(Char) -> Char =/= ?SPACE end,
+            case lists:splitwith(Pred, Head) of
                 {Var, Items0} when Var =/= "" ->
                     Items = string:strip(Items0, left),
                     {P, Cmd#cmd{type = loop, arg = {body, loop, Var, Items}}};
@@ -696,7 +738,7 @@ parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
             " " ++  _ ->
                 {"", Text};
             _ ->
-                Pred = fun(Char) -> Char =/= $\  end,
+                Pred = fun(Char) -> Char =/= ?SPACE  end,
                 lists:splitwith(Pred, Text)
         end,
     {P2, Doc} =
@@ -730,39 +772,46 @@ parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
      Cmd#cmd{type = doc, arg = {Level, Suffix, Doc}}}.
 
 parse_shell(P, Fd, Cmd, LineNo, Name, Type) ->
-    Name2 = string:strip(Name),
-    Match = re:run(Name2, "\\$\\$", [{capture,none}]),
-    case {Name2, Match} of
+    P2 =
+        case lists:member(?SPACE , Name) of
+            true ->
+                add_warning(P, Cmd, ["Shell name \"", Name,
+                                     "\" contains whitespace"]);
+            false ->
+                P
+        end,
+    Match = re:run(Name, "\\$\\$", [{capture,none}]),
+    case {Name, Match} of
         %%                 {"", _} ->
-        %%                     parse_error(P, Fd, LineNo,
+        %%                     parse_error(P2, Fd, LineNo,
         %%                                 ?FF("Syntax error at line ~p"
         %%                                     ": missing shell name",
         %%                                     [LineNo]));
         {"lux"++_, _} ->
-            parse_error(P, Fd, LineNo,
+            parse_error(P2, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
                             " shell name",
-                            [LineNo, Name2]));
+                            [LineNo, Name]));
         {"cleanup"++_, _} ->
-            parse_error(P, Fd, LineNo,
+            parse_error(P2, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
                             " shell name",
-                            [LineNo, Name2]));
+                            [LineNo, Name]));
         {"post_cleanup"++_, _} ->
-            parse_error(P, Fd, LineNo,
+            parse_error(P2, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
                             " shell name",
-                            [LineNo, Name2]));
+                            [LineNo, Name]));
         {_, match} ->
-            parse_error(P, Fd, LineNo,
+            parse_error(P2, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": $$ in shell name",
                             [LineNo]));
         {_, nomatch} ->
-            {P, Cmd#cmd{type = Type, arg = Name2}}
+            {P2, Cmd#cmd{type = Type, arg = Name}}
     end.
 
 test_user_config(P, I) ->
@@ -847,8 +896,8 @@ expand_vars(P, Fd, Val, LineNo) ->
         lux_utils:expand_vars(P#pstate.multi_vars, Val, error)
     catch
         throw:{no_such_var, BadVar} ->
-            Reason = ["Variable $", BadVar,
-                      " is not set on line ",
+            Reason = ["Variable ${", BadVar,
+                      "} is not set on line ",
                       ?i2l(LineNo)],
             parse_error(P, Fd, LineNo, Reason);
         error:Reason ->
@@ -869,9 +918,9 @@ split_invoke_args(P, Fd, LineNo, [H | T], normal = Mode, Arg, Args) ->
     case H of
         $\" -> % quote begin
             split_invoke_args(P, Fd, LineNo, T, quoted, Arg, Args);
-        $\  when Arg =:= [] -> % skip space between args
+        ?SPACE  when Arg =:= [] -> % skip space between args
             split_invoke_args(P, Fd, LineNo, T, Mode, Arg, Args);
-        $\  when Arg =/= [] -> % first space after arg
+        ?SPACE  when Arg =/= [] -> % first space after arg
             Arg2 = lists:reverse(Arg),
             split_invoke_args(P, Fd, LineNo, T, Mode, [], [Arg2 | Args]);
         $\\ when hd(T) =:= $\\ ; hd(T) =:= $\" -> % escaped char
@@ -945,7 +994,7 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
 
 count_prefix_len([H | T], N) ->
     case H of
-        $\  -> count_prefix_len(T, N+1);
+        ?SPACE  -> count_prefix_len(T, N+1);
         $\t -> count_prefix_len(T, N+?TAB_LEN);
         $"  -> N
     end.
@@ -990,7 +1039,7 @@ scan_single(P, Fd, Cmd, Line, PrefixLen, Incr) ->
             Left = PrefixLen - ?TAB_LEN,
             if
                 Left < 0 -> % Too much leading whitespace
-                    Spaces = lists:duplicate(abs(Left), $\ ),
+                    Spaces = lists:duplicate(abs(Left), ?SPACE),
                     {more, P, ?l2b([Spaces, Line])};
                 true ->
                     scan_single(P, Fd, Cmd, Rest, Left, Incr)

@@ -396,7 +396,7 @@ set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
     catch
         throw:{no_such_var, BadName} ->
             Msg = ["Bad argument: ", Name, "=", Val,
-                   "; $", BadName, " is not set"],
+                   "; ${", BadName, "} is not set"],
             {{error, ?l2b(lists:concat(Msg))}, U};
         _Class:_Reason ->
             set_config_val(Name, Val, Types, Pos, I, U)

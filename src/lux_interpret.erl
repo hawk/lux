@@ -566,7 +566,7 @@ dispatch_cmd(I,
                 {ok, NewCmd, MatchingMacros} ->
                     invoke_macro(I, NewCmd, MatchingMacros);
                 {error, BadName} ->
-                    E = ?l2b(["Variable $", BadName, " is not set"]),
+                    E = ?l2b(["Variable \"$", BadName, "\" is not set"]),
                     ilog(I, "error ~s\n",
                          [E],
                          I#istate.active_name, LineNo),
@@ -835,7 +835,7 @@ expand_send(I, Cmd, Arg) ->
     end.
 
 no_such_var(I, Cmd, LineNo, BadName) ->
-    E = ?l2b(["Variable $", BadName, " is not set"]),
+    E = ?l2b(["Variable ${", BadName, "} is not set"]),
     ilog(I, "error ~s\n",
          [E],
          I#istate.active_name, LineNo),
@@ -1305,7 +1305,8 @@ flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Control a shell
 
-ensure_shell(I, #cmd{arg = "", type = shell}) ->
+ensure_shell(I, #cmd{arg = Name, type = shell})
+  when Name == "" ->
     %% No name. Inactivate the shell
     inactivate_shell(I, no_name);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
