@@ -49,26 +49,36 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                     {error, Cwd, ReasonStr}
             end;
         {ok, R} ->
-            TimerRef = start_suite_timer(R),
             LogDir = R#rstate.log_dir,
             SummaryLog = filename:join([LogDir, ?SUITE_SUMMARY_LOG]),
             try
                 {ConfigData, R2} = parse_config(R), % May throw error
-                R3 = compute_files(R2, ?SUITE_SUMMARY_LOG),
-                R4 = adjust_files(R3),
-                full_run(R4, ConfigData, SummaryLog)
-            catch
-                throw:{error, undefined, no_input_files} ->
-                    {ok, Cwd} = file:get_cwd(),
-                    {error, Cwd, "ERROR: No input files\n"};
-                throw:{error, FileErr, ReasonStr} ->
-                    {error, FileErr, ReasonStr};
-                ?CATCH_STACKTRACE(Class, Reason, EST)
+                SuiteRef = start_suite_timer(R2),
+                try
+                    R3 = R2#rstate{suite_timer_ref = SuiteRef},
+                    R4 = compute_files(R3, ?SUITE_SUMMARY_LOG),
+                    R5 = adjust_files(R4),
+                    full_run(R5, ConfigData, SummaryLog)
+                catch
+                    throw:{error, undefined, no_input_files} ->
+                        {ok, Cwd} = file:get_cwd(),
+                        {error, Cwd, "ERROR: No input files\n"};
+                    throw:{error, FileErr, ReasonStr} ->
+                        {error, FileErr, ReasonStr};
+                    ?CATCH_STACKTRACE(Class, Reason, EST)
                     ReasonStr =
                         lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
-            after
-                lux_utils:cancel_timer(TimerRef)
+                after
+                    lux_utils:cancel_timer(SuiteRef)
+                end
+            catch
+                throw:{error, FileErr2, ReasonStr2} ->
+                    {error, FileErr2, ReasonStr2};
+                ?CATCH_STACKTRACE(Class2, Reason2, EST2)
+                ReasonStr2 =
+                    lists:flatten(?FF("~p:~p\n\t~p", [Class2, Reason2, EST2])),
+                {error, SummaryLog, ReasonStr2}
             end;
         {error, {badarg, Name, Val}} ->
             ArgErr =
@@ -578,9 +588,11 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     ?TRACE_ME(70, suite, 'case', P, []),
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, P, Script),
+                    SuiteRef = NewR#rstate.suite_timer_ref,
                     Res = lux_case:interpret_commands(Script2, Cmds,
                                                       ParseWarnings,
                                                       CaseStartTime,
+                                                      SuiteRef,
                                                       Opts, Opaque),
                     SkipReason = "",
                     case Res of

@@ -174,6 +174,7 @@
          suite_timeout = infinity   :: non_neg_integer() | infinity,
          case_timeout = 5*?ONE_MIN  :: non_neg_integer() | infinity,
          case_timer_ref             :: #timer_ref{},
+         suite_timer_ref            :: #timer_ref{},
          flush_timeout = 0          :: non_neg_integer(),
          poll_timeout = 0           :: non_neg_integer(), % 100
          default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
@@ -209,9 +210,7 @@
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
          stopped_by_user            :: undefined | 'case' | suite,
-         start_time                 :: {non_neg_integer(),
-                                        non_neg_integer(),
-                                        non_neg_integer()},
+         start_time                 :: erlang:timestamp(),
          emit_timestamp = false     :: boolean()}).
 
 -record(run,
@@ -319,9 +318,7 @@
          no_more_output = false  :: boolean(),
          exit_status             :: integer(),
          timer_ref               :: undefined | #timer_ref{},
-         timer_started_at        :: undefined | {non_neg_integer(),
-                                                 non_neg_integer(),
-                                                 non_neg_integer()},
+         timer_started_at        :: undefined | erlang:timestamp(),
          wakeup_ref              :: undefined | #timer_ref{},
          debug_level = 0         :: non_neg_integer(),
          events = []             :: [tuple()],
@@ -348,9 +345,8 @@
          config_name                :: string(),
          config_file                :: string(),
          suite = ?b2l(?DEFAULT_SUITE) :: string(),
-         start_time                 :: {non_neg_integer(),
-                                        non_neg_integer(),
-                                        non_neg_integer()},
+         start_time                 :: erlang:timestamp(),
+         suite_timer_ref            :: #timer_ref{},
          run                        :: string(),
          extend_run = false         :: boolean(),
          revision = ""              :: string(),

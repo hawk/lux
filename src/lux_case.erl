@@ -8,7 +8,7 @@
 -module(lux_case).
 
 -export([
-         interpret_commands/6,
+         interpret_commands/7,
          default_istate/1,
          parse_iopts/2,
          config_type/1,
@@ -27,14 +27,13 @@
 -spec(interpret_commands(filename(),
                          cmds(),
                          [#warning{}],
-                         {non_neg_integer(),
-                          non_neg_integer(),
-                          non_neg_integer()},
+                         erlang:timestamp(),
+                         #timer_ref{},
                          opts(),
                          [{atom(), term()}]) ->
              [{ok, summary(), filename(), [result()]} | error()]).
 
-interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
+interpret_commands(Script, Cmds, Warnings, StartTime, SuiteRef, Opts, Opaque) ->
     %% io:format("\nCmds ~p\n", [Cmds]),
     I = default_istate(Script),
     case lists:keyfind(stopped_by_user, 1, Opaque) of
@@ -45,7 +44,8 @@ interpret_commands(Script, Cmds, Warnings, StartTime, Opts, Opaque) ->
                   warnings = Warnings,
                   orig_commands = shrinked,
                   stopped_by_user = Context,
-                  start_time = StartTime},
+                  start_time = StartTime,
+                  suite_timer_ref = SuiteRef},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->

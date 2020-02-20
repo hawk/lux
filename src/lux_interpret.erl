@@ -20,56 +20,68 @@
 
 -define(call_level(I), I#istate.call_level).
 
-init(I0) ->
-    StartTime = I0#istate.start_time,
-    ilog(I0, "start_time \"~s\"\n",
-         [lux_utils:now_to_string(StartTime)],
-         "lux", 0),
-    I = opt_start_etrace(I0),
-    T = I#istate.case_timeout,
-    M = I#istate.multiplier,
+init(I) ->
+    I2 = opt_start_etrace(I),
+    StartTimeStr = lux_utils:now_to_string(I2#istate.start_time),
+    SuiteRef = I2#istate.suite_timer_ref,
+    T = I2#istate.case_timeout,
+    M = I2#istate.multiplier,
     CaseRef = lux_utils:send_after(T, M, self(), {case_timeout, T}),
+    ilog(I2, "start_time \"~s\"\n", [StartTimeStr], "lux", 0),
+    ilog(I2, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
+    ilog(I2, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
+    IB = I2#istate{case_timer_ref = CaseRef},
     try
-        OrigCmds = I#istate.commands,
-        I2 =
-            I#istate{macros = collect_macros(I, OrigCmds),
-                     blocked = false,
-                     has_been_blocked = false,
-                     want_more = true,
-                     old_want_more = undefined,
-                     orig_commands = OrigCmds,
-                     case_timer_ref = CaseRef},
-        I4 =
+        OrigCmds = IB#istate.commands,
+        Macros = collect_macros(IB, OrigCmds),
+        I3 =
+            IB#istate{macros = Macros,
+                      blocked = false,
+                      has_been_blocked = false,
+                      want_more = true,
+                      old_want_more = undefined,
+                      orig_commands = OrigCmds,
+                      case_timer_ref = CaseRef},
+        I5 =
             if
-                I2#istate.stopped_by_user =:= suite ->
-                    stopped_by_user(I2, I2#istate.stopped_by_user);
-                I2#istate.debug orelse I2#istate.debug_file =/= undefined ->
+                I3#istate.stopped_by_user =:= suite ->
+                    stopped_by_user(I3, I3#istate.stopped_by_user);
+                I3#istate.debug orelse I3#istate.debug_file =/= undefined ->
                     DebugState = {attach, temporary},
-                    {_, I3} = lux_debug:cmd_attach(I2, [], DebugState),
+                    {_, I4} = lux_debug:cmd_attach(I3, [], DebugState),
                     lux_debug:format("\nDebugger for lux. "
                                      "Try help or continue.\n",
                                      []),
-                    I3;
+                    I4;
                 true ->
-                    I2
+                    I3
             end,
-        Res = loop(I4),
+        Res = loop(I5),
         {ok, Res}
     catch
-        throw:{error, Reason, I5} ->
-            {error, Reason, I5};
+        throw:{error, Reason, IA} ->
+            {error, Reason, IA};
         ?CATCH_STACKTRACE(error, Reason, EST)
             ErrBin = ?l2b(?FF("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
                       [ErrBin, EST]),
-            {error, ErrBin, I}
+            {error, ErrBin, IB}
     after
+        ilog(IB, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
+        ilog(IB, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
+        EndTime = lux_utils:now_to_string(lux_utils:timestamp()),
+        ilog(IB, "end_time \"~s\"\n", [EndTime], "lux", 0),
         lux_utils:cancel_timer(CaseRef),
-        IA = opt_stop_etrace(I),
-        EndTime = lux_utils:timestamp(),
-        ilog(IA, "end_time \"~s\"\n",
-             [lux_utils:now_to_string(EndTime)],
-             "lux", 0)
+        opt_stop_etrace(IB)
+    end.
+
+timer_left(#timer_ref{timeout = infinity}) ->
+    "infinity";
+timer_left(#timer_ref{ref = Ref}) ->
+    case erlang:read_timer(Ref, []) of
+        ok     -> "expired";
+        false  -> "expired";
+        Millis -> lists:concat([Millis * 1000, " micros"])
     end.
 
 opt_start_etrace(#istate{progress = Progress, trace_mode = none} = I)
