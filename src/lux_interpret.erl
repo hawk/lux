@@ -408,24 +408,32 @@ dispatch_cmd(I,
                     ilog(I, "~p \"~s=~s\"\n",
                          [Scope, Var, QuotedVal],
                          I#istate.active_name, LineNo),
+                    I2 =
+                        case lists:member(?SPACE , Var) of
+                            true ->
+                                add_warning(I, ["Variable name \"", Var,
+                                                "\" contains whitespace"]);
+                            false ->
+                                I
+                        end,
                     VarVal = lists:flatten([Var, $=, Val2]),
                     case Scope of
                         my ->
                             Vars = [VarVal | I#istate.macro_vars],
-                            I#istate{macro_vars = Vars};
-                        local when I#istate.active_shell =:= no_shell ->
+                            I2#istate{macro_vars = Vars};
+                        local when I2#istate.active_shell =:= no_shell ->
                             Reason = <<"The command must be executed"
                                        " in context of a shell">>,
-                            handle_error(I, Reason);
+                            handle_error(I2, Reason);
                         local ->
-                            add_active_var(I, VarVal);
+                            add_active_var(I2, VarVal);
                         global ->
-                            I2 = add_active_var(I, VarVal),
+                            I3 = add_active_var(I2, VarVal),
                             Shells =
                                 [S#shell{vars = [VarVal | S#shell.vars]} ||
-                                    S <- I#istate.shells],
-                            GlobalVars = [VarVal | I#istate.global_vars],
-                            I2#istate{shells = Shells,
+                                    S <- I3#istate.shells],
+                            GlobalVars = [VarVal | I3#istate.global_vars],
+                            I3#istate{shells = Shells,
                                       global_vars = GlobalVars}
                     end;
                 {no_such_var, BadName} ->
@@ -753,15 +761,23 @@ invoke_macro(I,
             ilog(I, "invoke_~s~s\n",
                  [Name, QuotedMacroVars],
                  I#istate.active_name, LineNo),
+            I2 =
+                case lists:member(?SPACE , Name) of
+                    true ->
+                        add_warning(I, ["Macro name \"", Name,
+                                        "\" contains whitespace"]);
+                    false ->
+                        I
+                end,
 
-            BeforeI = I#istate{macro_vars = MacroVars, latest_cmd = InvokeCmd},
+            BeforeI = I2#istate{macro_vars = MacroVars, latest_cmd = InvokeCmd},
             DefaultFun = get_eval_fun(),
             AfterI = eval_body(BeforeI, LineNo, FirstLineNo, LastLineNo,
                                MacroFile, Body, MacroCmd, DefaultFun, false),
 
-            ilog(I, "exit_~s~s\n",
+            ilog(I2, "exit_~s~s\n",
                  [Name, QuotedMacroVars],
-                 I#istate.active_name, LineNo),
+                 I2#istate.active_name, LineNo),
             AfterI#istate{macro_vars = OldMacroVars};
         {bad_vars, I2} ->
             I2
@@ -852,6 +868,24 @@ no_such_var(I, Cmd, LineNo, BadName) ->
          I#istate.active_name, LineNo),
     OrigLine = lux_utils:strip_leading_whitespaces(Cmd#cmd.orig),
     handle_error(I, <<E/binary, ". Bad line: ", OrigLine/binary>>).
+
+add_warning(I, Reason) ->
+    W = make_warning(I, Reason),
+    I#istate{warnings = [W | I#istate.warnings]}.
+
+make_warning(#istate{orig_file = File,
+                     latest_cmd = LatestCmd,
+                     cmd_stack = CmdStack} = I,
+             Reason0) ->
+    Reason = lists:flatten(Reason0),
+    ilog(I, "warning ~p\n",
+         [Reason],
+         I#istate.active_name, LatestCmd#cmd.lineno),
+    lux_utils:progress_write(I#istate.progress, "W"),
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    #warning{file = File,
+             lineno = FullLineNo,
+             details = ?l2b(Reason)}.
 
 parse_int(I, Chars, Cmd) ->
     case safe_expand_vars(I, Chars) of
@@ -1318,33 +1352,45 @@ flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Control a shell
 
-ensure_shell(I, #cmd{arg = Name, type = shell})
-  when Name == "" ->
+ensure_shell(I, #cmd{arg = Name, type = Type})
+  when Type =:= shell, Name == "" ->
     %% No name. Inactivate the shell
     inactivate_shell(I, no_name);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
   when Name =/= "" ->
     case safe_expand_vars(I, Name) of
-        {ok, Name2} when I#istate.active_shell#shell.name =:= Name2 ->
-            case Type of
-                shell ->
-                    %% Keep active shell
-                    I;
-                newshell ->
-                    ilog(I, "error newshell may only start a shell once\n",
-                         [],
-                         Name, (I#istate.latest_cmd)#cmd.lineno),
-                    handle_error(I, ?l2b("shell " ++ Name ++ " already exists"))
-            end;
-        {ok, Name2} ->
-            I2 = I#istate{want_more = false},
-            case lists:keyfind(Name2, #shell.name, I2#istate.shells) of
-                false ->
-                    %% New shell
-                    shell_start(I2, Cmd#cmd{arg = Name2});
-                Shell ->
-                    %% Existing shell
-                    shell_switch(I2, Cmd, Shell)
+        {ok, NewName} ->
+            I2 =
+                case lists:member(?SPACE , NewName) of
+                    true ->
+                        add_warning(I, ["Shell name \"", NewName,
+                                        "\" contains whitespace"]);
+                    false ->
+                        I
+                end,
+            if
+                I2#istate.active_shell#shell.name =:= NewName ->
+                    case Type of
+                        shell ->
+                            %% Keep active shell
+                            I;
+                        newshell ->
+                            handle_error(I, ?l2b("shell " ++ NewName ++
+                                                     " already exists." ++
+                                                     " Use shell command to" ++
+                                                     " change active shell."))
+                    end;
+                true ->
+                    I3 = I2#istate{want_more = false},
+                    Shells = I3#istate.shells,
+                    case lists:keyfind(NewName, #shell.name, Shells) of
+                        false ->
+                            %% New shell
+                            shell_start(I3, Cmd#cmd{arg = NewName});
+                        Shell ->
+                            %% Existing shell
+                            shell_switch(I3, Cmd, Shell)
+                    end
             end;
         {no_such_var, BadName} ->
             no_such_var(I, Cmd, LineNo, BadName)
@@ -1352,11 +1398,8 @@ ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
 
 shell_start(I, #cmd{arg = Name, type = Type})
   when I#istate.newshell andalso Type =:= shell ->
-    ilog(I, "error In newshell mode the shell cmd"
-         " may not be used to start a shell\n",
-         [],
-         Name, (I#istate.latest_cmd)#cmd.lineno),
-    handle_error(I, ?l2b("shell " ++ Name ++ " must be started with newshell"));
+    handle_error(I, ?l2b("In newshell mode the shell " ++ Name ++
+                             " must be started with newshell"));
 shell_start(I, #cmd{arg = Name} = Cmd) ->
     case change_active_mode(I, Cmd, suspend) of
         {ok, I2} ->

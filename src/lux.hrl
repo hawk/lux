@@ -57,6 +57,7 @@
 -define(EXPECTED_EQ, 'expected=').
 -define(EXPECTED_RE, 'expected*').
 -define(EXPECTED_OLD, 'expected').
+-define(SPACE, $\ ).
 
 -ifdef(OTP_RELEASE).
     -define(stacktrace(),

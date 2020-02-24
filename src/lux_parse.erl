@@ -12,7 +12,6 @@
 -include("lux.hrl").
 
 -define(TAB_LEN, 8).
--define(SPACE, $\ ).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file
@@ -406,15 +405,7 @@ regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
 parse_var(P, Fd, Cmd, Scope, String) ->
     case lux_utils:split_var(String, []) of
         {Var, Val} ->
-            P2 =
-                case lists:member(?SPACE , Var) of
-                    true ->
-                        add_warning(P, Cmd, ["Variable name \"", Var,
-                                             "\" contains whitespace"]);
-                    false ->
-                        P
-                end,
-            {P2, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
+            {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
         false ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
@@ -597,15 +588,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             {P#pstate{has_cleanup = true},
              Cmd#cmd{type = cleanup, arg = Name}};
         "cleanup " ++ Name ->
-            P2 =
-                case lists:member(?SPACE , Name) of
-                    true ->
-                        add_warning(P, Cmd, ["Shell name \"", Name,
-                                             "\" contains whitespace"]);
-                    false ->
-                        P
-                end,
-            {P2#pstate{has_cleanup = true},
+            {P#pstate{has_cleanup = true},
              Cmd#cmd{type = cleanup, arg = Name}};
         "shell" ->
             Name = "",
@@ -692,15 +675,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "invoke " ++ Head ->
             case split_invoke_args(P, Fd, LineNo, Head, normal, [], []) of
                 [Name | ArgVals] ->
-                    P2 =
-                        case lists:member(?SPACE , Name) of
-                            true ->
-                                add_warning(P, Cmd, ["Macro name \"", Name,
-                                                     "\" contains whitespace"]);
-                            false ->
-                                P
-                        end,
-                    {P2, Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}}};
+                    {P, Cmd#cmd{type = invoke, arg = {invoke, Name, ArgVals}}};
                 [] ->
                     parse_error(P, Fd, LineNo,
                                 ["Syntax error at line ",
@@ -772,46 +747,38 @@ parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
      Cmd#cmd{type = doc, arg = {Level, Suffix, Doc}}}.
 
 parse_shell(P, Fd, Cmd, LineNo, Name, Type) ->
-    P2 =
-        case lists:member(?SPACE , Name) of
-            true ->
-                add_warning(P, Cmd, ["Shell name \"", Name,
-                                     "\" contains whitespace"]);
-            false ->
-                P
-        end,
     Match = re:run(Name, "\\$\\$", [{capture,none}]),
     case {Name, Match} of
         %%                 {"", _} ->
-        %%                     parse_error(P2, Fd, LineNo,
+        %%                     parse_error(P, Fd, LineNo,
         %%                                 ?FF("Syntax error at line ~p"
         %%                                     ": missing shell name",
         %%                                     [LineNo]));
         {"lux"++_, _} ->
-            parse_error(P2, Fd, LineNo,
+            parse_error(P, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
                             " shell name",
                             [LineNo, Name]));
         {"cleanup"++_, _} ->
-            parse_error(P2, Fd, LineNo,
+            parse_error(P, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
                             " shell name",
                             [LineNo, Name]));
         {"post_cleanup"++_, _} ->
-            parse_error(P2, Fd, LineNo,
+            parse_error(P, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
                             " shell name",
                             [LineNo, Name]));
         {_, match} ->
-            parse_error(P2, Fd, LineNo,
+            parse_error(P, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": $$ in shell name",
                             [LineNo]));
         {_, nomatch} ->
-            {P2, Cmd#cmd{type = Type, arg = Name}}
+            {P, Cmd#cmd{type = Type, arg = Name}}
     end.
 
 test_user_config(P, I) ->
