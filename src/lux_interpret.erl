@@ -1355,7 +1355,7 @@ flush_summary_log(#istate{summary_log_fd=SummaryFd}) ->
 ensure_shell(I, #cmd{arg = Name, type = Type})
   when Type =:= shell, Name == "" ->
     %% No name. Inactivate the shell
-    inactivate_shell(I, no_name);
+    inactivate_shell(I, abandon);
 ensure_shell(I, #cmd{lineno = LineNo, arg = Name, type = Type} = Cmd)
   when Name =/= "" ->
     case safe_expand_vars(I, Name) of
@@ -1469,7 +1469,7 @@ inactivate_shell(#istate{active_shell = no_shell} = I, _Reason) ->
     I;
 inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I,
                  Reason) ->
-    ilog(I, "inactivate ~p\n",
+    ilog(I, "inactivate after ~p\n",
          [Reason],
          I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno),
     I#istate{active_shell = no_shell,
@@ -1512,7 +1512,7 @@ adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, ActivePids) ->
     wait_for_reply(I, Pids, adjust_stacks_ack, Fun, infinity).
 
 shell_crashed(I, Pid, Reason) when Pid =:= I#istate.active_shell#shell.pid ->
-    I2 = inactivate_shell(I, crashed),
+    I2 = inactivate_shell(I, crash),
     shell_crashed(I2, Pid, Reason);
 shell_crashed(I, Pid, Reason) ->
     What =

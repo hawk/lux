@@ -295,28 +295,27 @@ adjust_stacks(C, From, When, IsRootLoop, NewCmd, CmdStack, Fun) ->
                      cmd_stack = CmdStack}
     end.
 
-change_mode(C, From, Mode, Cmd, CmdStack) ->
+change_mode(C, From, NewMode, Cmd, CmdStack) ->
     Reply = {change_mode_ack, self()},
-    case Mode of
-        suspend ->
-            clog(C, Mode, "", []),
+    OldMode = C#cstate.mode,
+    case NewMode of
+        suspend when OldMode =:= resume ->
+            clog(C, NewMode, "", []),
             dlog(C, ?dmore,"mode=suspend waiting=false (~p)",
                  [Cmd#cmd.type]),
-            resume = C#cstate.mode, % Assert
             send_reply(C, From, Reply),
-            C#cstate{mode = Mode,
+            C#cstate{mode = NewMode,
                      waiting = false};
-        resume ->
+        resume when OldMode =:= suspend ->
             NewC =
-                C#cstate{mode = Mode,
+                C#cstate{mode = NewMode,
                          waiting = false,
                          latest_cmd = Cmd,
                          cmd_stack = CmdStack},
             dlog(NewC, ?dmore, "mode=resume waiting=false (~p)",
                  [Cmd#cmd.type]),
-            clog(NewC, Mode, "(idle since line ~p)",
+            clog(NewC, NewMode, "(idle since line ~p)",
                  [C#cstate.latest_cmd#cmd.lineno]),
-            suspend = C#cstate.mode, % Assert
             send_reply(NewC, From, Reply),
             NewC
     end.
@@ -629,11 +628,11 @@ shell_eval(#cstate{name = Name} = C0,
             C#cstate{match_timeout = Millis,
                      warnings = NewWarnings};
         no_cleanup ->
-            cleanup(C);
+            cleanup(C, Type);
         cleanup ->
-            cleanup(C);
+            cleanup(C, Type);
         post_cleanup ->
-            cleanup(C);
+            cleanup(C, Type);
         Unexpected ->
             clog(C, shell_got_msg, "~p", [Unexpected]),
             Err = ?FF("[shell ~s] got cmd with type ~p\n\t~p\n",
@@ -641,7 +640,7 @@ shell_eval(#cstate{name = Name} = C0,
             stop(C, error, ?l2b(Err))
     end.
 
-cleanup(C) ->
+cleanup(C, _Type) ->
     C1 = clear_expected(C, "(cleanup)", suspend),
     C2 = flush_port(C1),
     C3 = match_patterns(C2),
@@ -800,6 +799,11 @@ expect(#cstate{state_changed = true,
             C;
         _ when C#cstate.mode =:= suspend ->
             %% Suspended
+            undefined = Expected, % Assert
+            undefined = C#cstate.timer_ref, % Assert
+            C;
+        _ when C#cstate.mode =:= stop ->
+            %% Stopped
             undefined = Expected, % Assert
             undefined = C#cstate.timer_ref, % Assert
             C;
@@ -1098,12 +1102,18 @@ do_prepare_stop(C, Match, Context) ->
     C3 = opt_late_sync_reply(C2),
     {C3, Actual}.
 
-clear_expected(C, Context, Mode) ->
+clear_expected(C, Context, Mode0) ->
     case C#cstate.wakeup_ref of
         undefined -> ok;
         WakeupRef -> lux_utils:cancel_timer(WakeupRef)
     end,
     C2 = cancel_timer(C),
+    OldMode = C#cstate.mode,
+    Mode =
+        case OldMode of
+            stop -> OldMode;
+            _    -> Mode0
+        end,
     C3 = C2#cstate{mode = Mode, expected = undefined, wakeup_ref = undefined},
     dlog(C3, ?dmore, "expected=[]~s", [Context]),
     C3.
@@ -1230,10 +1240,22 @@ clog_recv(C, NewData) ->
                        C#cstate.log_fun,
                        C#cstate.stdout_log_fd,
                        NewData),
+    Events = save_event(C, recv, NewData),
     OldData = C#cstate.actual,
+    Data = <<OldData/binary, NewData/binary>>,
+    KeptData =
+        case C#cstate.mode of
+            resume ->
+                Data;
+            suspend ->
+                Data;
+            stop ->
+                clog_skip(C, Data),
+                <<>>
+        end,
     C#cstate{state_changed = true,
-             actual = <<OldData/binary, NewData/binary>>,
-             events = save_event(C, recv, NewData)}.
+             actual = KeptData,
+             events = Events}.
 
 start_timer(#cstate{timer_ref = undefined, match_timeout = Timeout} = C) ->
     M = C#cstate.multiplier,
@@ -1351,7 +1373,7 @@ add_skip(_PreExpected, Perms) ->
     Perms.
 
 stop_relax(C, OutCome, Actual) ->
-    C2 = match_patterns(C#cstate{mode = suspend}),
+    C2 = match_patterns(C#cstate{mode = stop}),
     stop(C2, OutCome, Actual).
 
 stop(C, Outcome, _Actual) when C#cstate.pre_expected =/= [],
@@ -1390,8 +1412,8 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
     %% io:format("\nRES ~p\n", [Res]),
     ?TRACE_ME2(40, C2#cstate.name, Outcome, [{actual, Actual}, Res]),
 %%  C3 = opt_late_sync_reply(C2#cstate{expected = undefined}),
-    C3 = C2#cstate{expected = undefined, actual = <<>>},
-    C4 = close_logs(C3),
+    C3 = C2#cstate{expected = undefined, actual = <<>>, mode = stop},
+    C4 = C3, % close_logs(C3),
     send_reply(C4, C4#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
@@ -1485,7 +1507,7 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   warnings = C#cstate.warnings},
     if
         Why =:= interpreter_died ->
-            clog(C, error, "stop", []);
+            clog(C, close, "~p", [C#cstate.mode]);
         true ->
             io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
                       [Reason, Error, Res, ?stacktrace()]),

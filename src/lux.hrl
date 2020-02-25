@@ -287,7 +287,7 @@
          latest_cmd              :: #cmd{},
          cmd_stack = []          :: [{string(), non_neg_integer(), atom()}],
          wait_for_expect         :: undefined | pid(),
-         mode = resume           :: resume | suspend,
+         mode = resume           :: resume | suspend | stop,
          start_reason            :: fail | success | normal,
          progress                :: silent | summary | brief |
                                     doc | compact | verbose |
