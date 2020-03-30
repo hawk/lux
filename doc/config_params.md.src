@@ -410,7 +410,7 @@ arguments (for example `/bin/sh -i`, see also see `--shell_cmd` and
 `--shell_args`). The wrapper is expected to first configure the
 terminal and then start the shell.
 
-The builtin executable `lux/priv/runpty` will be used by default as
+The built-in executable `lux/priv/runpty` will be used by default as
 shell wrapper (if it has been built properly).
 
 It is also possible to use no shell wrapper at all by omitting the

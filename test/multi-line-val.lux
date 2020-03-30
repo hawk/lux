@@ -1,0 +1,31 @@
+[doc Multi-line variables]
+
+[global var=val]
+
+[global var=\
+    val]
+
+[global var=multi\nline\nval]
+[global var=mul\
+    ti\nline\nval]
+
+[global var=
+     """
+     multi
+     line
+     val
+     """]
+
+[global var=multi
+     """
+
+     line
+     val
+     """]
+
+[glob
+     """
+     al var=multi
+     line
+     val
+     """]

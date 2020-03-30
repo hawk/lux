@@ -9,15 +9,15 @@ mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is quite useful as it
 simplifies the indentation and makes scripts more easy to read with
 coloring for different types of language constructs.
 
-Lines beginning with `"""Char` are **multi line quotes**. The quote
+Lines beginning with `"""Char` are **multi-line quotes**. The quote
 ends with the next line beginning with `"""`. The opening quote and
 closing quote must be in the same column of the script. The char right
-after the first `"""` determines how the multi line quote will be
+after the first `"""` determines how the multi-line quote will be
 interpreted. The char is interpreted as a statement just like any of
 the single line statement characters (so it can be e.g. `?`, `!`, `~`,
 `#`, `-`, etc).
 
-When multi line quotes are indented the leading whitespaces are
+When multi-line quotes are indented the leading whitespaces are
 stripped from the quoted lines, up to but not including the column
 of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
@@ -285,7 +285,20 @@ assigns a value to a variable with a very limited scope. Works like
 variable setting is only valid within the macro that assigns the
 variable.
 
-###Builtin variables###
+###Multi-line values in variables###
+
+    [local Var=Multi\nLine\nValue]
+
+can be written as
+
+    [local Var=
+        """
+        Multi
+        Line
+        Value
+        """]
+
+###Built-in variables###
 
     _BS_        - backspace       (ASCII 8)
     _TAB_       - horizontal tab  (ASCII 9)
@@ -301,7 +314,7 @@ variable.
     _ASCII_127_ - delete          (ASCII 127)
     N           - where N is an integer refering to a captured substring
 
-###Builtin environment variables###
+###Built-in environment variables###
 
     LUX_SHELLNAME       - name of active Lux shell
     LUX_START_REASON    - reason for starting a shell (normal|fail|success)
@@ -330,7 +343,7 @@ only the oneline summary lines are displayed.
 **\[doc\]**  
   ...  
 **\[enddoc\]**  
-Multi line documentation, typically to be used first in the script.
+Multi-line documentation, typically to be used first in the script.
 The first line is regarded as a one line summary (on level 1) and
 the remaining lines on next level (2). Third line must be preceded
 by empty line.

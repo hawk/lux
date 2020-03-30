@@ -326,7 +326,7 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
         Type =:= meta ->
             parse_meta(P, Fd, Incr, UnStripped, Cmd, Tokens);
         Type =:= multi ->
-            parse_multi(P, Fd, Incr, UnStripped, Cmd, Tokens);
+            parse_multi(P, Fd, Incr, UnStripped, Cmd, Tokens, no_meta);
         RunMode =:= validate;
         RunMode =:= execute ->
             Cmd2 = parse_single(Cmd, UnStripped),
@@ -414,7 +414,7 @@ parse_var(P, Fd, Cmd, Scope, String) ->
                          " variable '", String, "'"])
     end.
 
-parse_meta(P, Fd, NextIncr, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+parse_meta(P, Fd, NextIncr, UnStripped, Cmd, Tokens) ->
     Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
     P2 =
         if
@@ -426,44 +426,84 @@ parse_meta(P, Fd, NextIncr, UnStripped, #cmd{lineno = LineNo} = Cmd, Tokens) ->
     MetaSize = byte_size(Stripped) - 1,
     case Stripped of
         <<Meta:MetaSize/binary, "]">> ->
-            {P3, MetaCmd} = parse_meta_token(P2, Fd, Cmd, Meta, LineNo),
-            {NewP, NewFd, NewLineNo, NewCmd} =
-                case MetaCmd#cmd.type of
-                    macro ->
-                        parse_body(P3, Fd, NextIncr, MetaCmd, "endmacro");
-                    loop ->
-                        parse_body(P3, Fd, NextIncr, MetaCmd, "endloop");
-                    doc ->
-                        parse_doc(P3, Fd, NextIncr, MetaCmd);
-                    _ ->
-                        {P3, Fd, LineNo+NextIncr, MetaCmd}
-                end,
-            RunMode = NewP#pstate.mode,
-            NewType = NewCmd#cmd.type,
-            NewTokens =
-                if
-                    NewType =:= config ->
-                        [NewCmd | Tokens];
-                    NewType =:= include  ->
-                        [NewCmd | Tokens];
-                    NewType =:= doc,
-                    RunMode =/= list,
-                    RunMode =/= list_dir ->
-                        [NewCmd | Tokens];
-                    RunMode =:= list;
-                    RunMode =:= list_dir;
-                    RunMode =:= doc ->
-                        %% Skip command
-                        Tokens;
-                    RunMode =:= validate;
-                    RunMode =:= execute ->
-                        [NewCmd | Tokens]
-                end,
-            parse(NewP, NewFd, NewLineNo+1, NewTokens);
+            parse_single_meta(P2, Fd, NextIncr, Meta, Cmd, Tokens);
         _ ->
-            parse_error(P2, Fd, LineNo,
-                        ["Syntax error at line ", ?i2l(LineNo),
-                         ": ']' is expected to be at end of line"])
+            %% BUGBUG: Pre-validate syntax of what we got so far
+            parse_multi_meta(P2, Fd, NextIncr, Cmd, Tokens)
+    end.
+
+parse_single_meta(P, Fd, NextIncr, Meta, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+    {P2, MetaCmd} = parse_meta_token(P, Fd, Cmd, Meta, LineNo),
+    {NewP, NewFd, NewLineNo, NewCmd} =
+        case MetaCmd#cmd.type of
+            macro ->
+                parse_body(P2, Fd, NextIncr, MetaCmd, "endmacro");
+            loop ->
+                parse_body(P2, Fd, NextIncr, MetaCmd, "endloop");
+            doc ->
+                parse_doc(P2, Fd, NextIncr, MetaCmd);
+            _ ->
+                {P2, Fd, LineNo+NextIncr, MetaCmd}
+        end,
+    RunMode = NewP#pstate.mode,
+    NewType = NewCmd#cmd.type,
+    NewTokens =
+        if
+            NewType =:= config ->
+                [NewCmd | Tokens];
+            NewType =:= include  ->
+                [NewCmd | Tokens];
+            NewType =:= doc,
+            RunMode =/= list,
+            RunMode =/= list_dir ->
+                [NewCmd | Tokens];
+            RunMode =:= list;
+            RunMode =:= list_dir;
+            RunMode =:= doc ->
+                %% Skip command
+                Tokens;
+            RunMode =:= validate;
+            RunMode =:= execute ->
+                [NewCmd | Tokens]
+        end,
+    parse(NewP, NewFd, NewLineNo+1, NewTokens).
+
+%% [global var=prefix-
+%%     """
+%%     multi
+%%     line
+%%     value
+%%     """]
+%%
+%% Interpreted as
+%%
+%% [global var=prefix-multi\nline\nvalue]
+parse_multi_meta(P, Fd, Incr, #cmd{lineno = LineNo} = Cmd, Tokens) ->
+    case file_next_wrapper(Fd) of
+        {line, OrigLine, NewFd, MultiIncr} ->
+            NewIncr = 0,
+            NewLineNo = LineNo + Incr + MultiIncr + 1,
+            UnStripped = lux_utils:strip_leading_whitespaces(OrigLine),
+            Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
+            case Stripped of
+                <<"\"\"\"">> ->
+                    NewP =
+                        if
+                            Stripped =/= UnStripped ->
+                                add_warning(P, Cmd, <<"Trailing whitespaces">>);
+                            true ->
+                                P
+                        end,
+                    MultiCmd = Cmd#cmd{lineno = NewLineNo, orig = OrigLine},
+                    parse_multi(NewP, NewFd, NewIncr, UnStripped, MultiCmd,
+                                Tokens, Cmd);
+                _ ->
+                    parse_error(P, NewFd, LineNo,
+                                ["Syntax error at line ", ?i2l(LineNo),
+                                 ": ']' is expected to be at end of line"])
+            end;
+        eof = NewFd ->
+            {P, NewFd, Tokens}
     end.
 
 parse_doc(P, Fd, NextIncr, #cmd{arg = {_Level, Suffix, <<>>}} = Cmd) ->
@@ -907,22 +947,24 @@ split_invoke_args(P, Fd, LineNo, [H | T], quoted = Mode, Arg, Args) ->
     end.
 
 parse_multi(P, Fd, _NextIncr, <<>>,
-            #cmd{lineno = LineNo}, _Tokens) ->
+            #cmd{lineno = LineNo}, _Tokens, MetaCmd) ->
+    {GoodKeyword, _} = multi_end_keyword(MetaCmd),
     parse_error(P, Fd, LineNo,
                 ["Syntax error at line ", ?i2l(LineNo),
-                 ": '\"\"\"' command expected"]);
+                 ": '", GoodKeyword, "' expected"]);
 parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
-            #cmd{lineno = LineNo, orig = OrigLine} = Cmd, Tokens) ->
+            #cmd{lineno = LineNo, orig = OrigLine} = Cmd, Tokens, MetaCmd) ->
     PrefixLen = count_prefix_len(?b2l(OrigLine), 0),
     {P2, RevBefore, FdAfter, RemPrefixLen, MultiIncr} =
-        scan_multi(P, Fd, Cmd, PrefixLen, [], NextIncr),
+        scan_multi(P, Fd, Cmd, PrefixLen, [], NextIncr, MetaCmd),
     LastLineNo0 = LineNo+MultiIncr+length(RevBefore)+1,
     case file_next_wrapper(FdAfter) of
         eof = NewFd ->
+            {GoodKeyword, _} = multi_end_keyword(MetaCmd),
             parse_error(P2, NewFd, LastLineNo0,
                         ["Syntax error after line ",
                          ?i2l(LineNo),
-                         ": '\"\"\"' expected"]);
+                         ": '", GoodKeyword, "' expected"]);
         {line, _, NewFd, Incr} when RemPrefixLen =/= 0 ->
             LastLineNo = LastLineNo0+Incr,
             parse_error(P2, NewFd, LastLineNo,
@@ -952,28 +994,34 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
                     [] ->
                         <<"">>
                 end,
-            MultiLine = <<Chars/binary, Blob/binary>>,
             LastLineNo = LastLineNo0+Incr,
+            MultiLine =
+                case MetaCmd of
+                    no_meta ->
+                        <<Chars/binary, Blob/binary>>;
+                    #cmd{orig = MetaChars} ->
+                        <<MetaChars/binary, Blob/binary, "]">>
+                end,
             {P3, NewFd, Tokens2} =
                 parse_cmd(P2, Fd2, MultiLine, LastLineNo, 0, OrigLine, Tokens),
-            parse(P3, NewFd, LastLineNo+1, Tokens2)
+            parse(P3, NewFd, LastLineNo, Tokens2)
     end.
 
 count_prefix_len([H | T], N) ->
     case H of
-        ?SPACE  -> count_prefix_len(T, N+1);
-        $\t -> count_prefix_len(T, N+?TAB_LEN);
-        $"  -> N
+        ?SPACE -> count_prefix_len(T, N+1);
+        $\t    -> count_prefix_len(T, N+?TAB_LEN);
+        $"     -> N
     end.
 
-scan_multi(P, Fd, Cmd, PrefixLen, Acc, Incr0) ->
+scan_multi(P, Fd, Cmd, PrefixLen, Acc, Incr0, MetaCmd) ->
     case file_next_wrapper(Fd) of
         {line, Line, NewFd, Incr} ->
             NextIncr = Incr0+Incr,
-            case scan_single(P, Fd, Cmd, Line, PrefixLen, Incr0) of
+            case scan_single(P, Fd, Cmd, Line, PrefixLen, Incr0, MetaCmd) of
                 {more, P2, Line2} ->
                     scan_multi(P2, NewFd, Cmd, PrefixLen,
-                               [Line2 | Acc], NextIncr);
+                               [Line2 | Acc], NextIncr, MetaCmd);
                 {nomore, P2, RemPrefixLen} ->
                     {P2, Acc, file_push(NewFd,[Line]), RemPrefixLen, NextIncr}
             end;
@@ -981,9 +1029,17 @@ scan_multi(P, Fd, Cmd, PrefixLen, Acc, Incr0) ->
             {P, Acc, NewFd, PrefixLen, Incr0}
     end.
 
-scan_single(P, Fd, Cmd, Line, PrefixLen, Incr) ->
+scan_single(P, Fd, Cmd, Line, PrefixLen, Incr, MetaCmd) ->
+    {GoodKeyword, BadKeyword} = multi_end_keyword(MetaCmd),
+    Sz = byte_size(GoodKeyword),
     case Line of
-        <<"\"\"\"", UnStripped/binary>> ->
+        <<BadKeyword/binary>> when is_binary(BadKeyword) ->
+            ThisLineNo = Cmd#cmd.lineno+Incr,
+            parse_error(P, Fd, ThisLineNo,
+                        ["Syntax error at line ", ?i2l(ThisLineNo),
+                         ": '", GoodKeyword, "' expected.",
+                         " Found nested '", BadKeyword, "'."]);
+        <<GoodKeyword:Sz/binary, UnStripped/binary>> ->
             Stripped = lux_utils:strip_trailing_whitespaces(UnStripped),
             ThisLineNo = Cmd#cmd.lineno-Incr+1,
             if
@@ -1001,7 +1057,7 @@ scan_single(P, Fd, Cmd, Line, PrefixLen, Incr) ->
         _ when PrefixLen =:= 0 ->
             {more, P, Line};
         <<" ", Rest/binary>> ->
-            scan_single(P, Fd, Cmd, Rest, PrefixLen - 1, Incr);
+            scan_single(P, Fd, Cmd, Rest, PrefixLen - 1, Incr, MetaCmd);
         <<"\t", Rest/binary>> ->
             Left = PrefixLen - ?TAB_LEN,
             if
@@ -1009,10 +1065,17 @@ scan_single(P, Fd, Cmd, Line, PrefixLen, Incr) ->
                     Spaces = lists:duplicate(abs(Left), ?SPACE),
                     {more, P, ?l2b([Spaces, Line])};
                 true ->
-                    scan_single(P, Fd, Cmd, Rest, Left, Incr)
+                    scan_single(P, Fd, Cmd, Rest, Left, Incr, MetaCmd)
             end;
         _ ->
             {more, P, Line}
+    end.
+
+multi_end_keyword(MetaCmd) ->
+    Base = <<"\"\"\"">>,
+    case MetaCmd of
+        no_meta -> {Base, false};
+        #cmd{}  -> {<<Base/binary, "]">>, Base}
     end.
 
 parse_skip(P, Fd, LineNo, IoList) ->
@@ -1022,6 +1085,7 @@ parse_error(P, Fd, LineNo, IoList) ->
     parse_error(P, Fd, error, LineNo, IoList).
 
 parse_error(P, Fd, Tag, LineNo, IoList) ->
+    %% io:format("\nerror(~p): ~p\n", [?LINE, ?stacktrace()]),
     NewPosStack = cmd_pos_stack(P, LineNo),
     NewIoList = ?l2b(IoList),
     reparse_error(Fd, Tag, NewPosStack, NewIoList).

@@ -11,10 +11,10 @@ context of the active shell.
 
 Match operations search for a given pattern in the output stream. Once
 a match is found, the preceding characters are skipped. There are a
-few flavors of match operations. They may be single line or multi
-line. Evaluate regular expressions or verbatim. Variables can be
-expanded or not. When using regular expressions variables can be bound
-to parts of the output and used later in the test case.
+few flavors of match operations. They may be single-line or
+multi-line.  Evaluate regular expressions or verbatim. Variables can
+be expanded or not. When using regular expressions variables can be
+bound to parts of the output and used later in the test case.
 
 There are different variable scopes. They may be accessible from all
 shells (global), only accessible within the shell where they were set
