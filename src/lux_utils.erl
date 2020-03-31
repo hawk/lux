@@ -19,7 +19,7 @@
          expand_lines/1, split_lines/1, shrink_lines/1,
          to_string/1, capitalize/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
-         full_lineno/3, pretty_full_lineno/1,
+         full_lineno/3, pretty_full_lineno/1, cmd_pos/2, pretty_stack/2,
          pretty_filename/1, filename_split/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/3, equal/3, diff_iter/4, diff_iter/5, shrink_diff/3,
@@ -247,30 +247,28 @@ send_after(Timeout, Multiplier, Pid, Msg) ->
     case multiply(Timeout, Multiplier) of
         infinity ->
             NewTimeout = infinity,
-            Infinity = timer:hours(1000),
-            Ref = erlang:send_after(Infinity, fake_pid, Msg);
+            AlmostInfinity = timer:hours(1000),
+            Ref = erlang:send_after(AlmostInfinity, fake_pid, Msg);
         NewTimeout ->
             Ref = erlang:send_after(NewTimeout, Pid, Msg)
     end,
     #timer_ref{ref = Ref, timeout = NewTimeout, send_to = Pid, msg = Msg}.
 
-cancel_timer(#timer_ref{ref = Ref, send_to = Pid, msg = Msg}) ->
-    case Ref of
-        infinity ->
-            infinity;
-        _ ->
-            case erlang:cancel_timer(Ref) of
-                false when Pid =:= self() ->
-                    receive
-                        Msg ->
-                            0
-                    after 0 ->
-                            0
-                    end;
-                false ->
-                    0;
-                TimeLeft when is_integer(TimeLeft) ->
-                    TimeLeft
+cancel_timer(#timer_ref{ref = Ref, timeout = T, send_to = Pid, msg = Msg}) ->
+    case erlang:cancel_timer(Ref) of
+        false when Pid =:= self() ->
+            receive
+                Msg ->
+                    0
+            after 0 ->
+                    0
+            end;
+        false ->
+            0;
+        TimeLeft when is_integer(TimeLeft) ->
+            case T of
+                infinity -> infinity;
+                _        -> TimeLeft
             end
     end.
 
@@ -492,9 +490,8 @@ do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
 do_foldl_cmds(_Fun, Acc, _File, _RevFile, _CmdStack, [], {_Depth, _OptI}) ->
     Acc.
 
-full_lineno(File, #cmd{lineno = LineNo, type = Type}, CmdStack) ->
-    RevFile = filename_split(File),
-    CmdPos = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type},
+full_lineno(File, Cmd, CmdStack) ->
+    CmdPos = cmd_pos(File, Cmd),
     FullStack = [CmdPos | CmdStack],
     pretty_full_lineno(FullStack).
 
@@ -507,6 +504,20 @@ pretty_full_lineno(FullStack) ->
     LineNo = Pick(FileLine),
     LineNoSuffix = [[":", ?i2l(Pick(FL))] || FL <- Incl],
     lists:flatten([?i2l(LineNo), LineNoSuffix]).
+
+cmd_pos(File, #cmd{lineno = LineNo, type = Type}) ->
+    RevFile = filename_split(File),
+    #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type}.
+
+pretty_stack(OrigFile, FullStack) ->
+    Dir = filename:dirname(OrigFile),
+    Pretty = fun(#cmd_pos{rev_file = _RevFile, lineno=L}) when L < 0 ->
+                     false;
+                (#cmd_pos{rev_file = RevFile, lineno=L}) ->
+                     RelFile = drop_prefix(Dir, pretty_filename(RevFile)),
+                     {true, RelFile ++ ":" ++ ?i2l(L)}
+             end,
+    lists:zf(Pretty, FullStack).
 
 pretty_filename(RevFile) ->
     filename:join(lists:reverse(RevFile)).

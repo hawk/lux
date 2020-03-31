@@ -1283,14 +1283,12 @@ cancel_timer(#cstate{timer_ref = TimerRef,
              timer_started_at = undefined,
              warnings = NewWarnings}.
 
-make_warning(#cstate{orig_file = File,
-                    latest_cmd = LatestCmd,
-                    cmd_stack = CmdStack} = C,
+make_warning(#cstate{orig_file = File} = C,
             Reason) ->
-    clog(C, warning, "\"" ++ Reason ++ "\"", []),
-    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
     Progress = debug_progress(C),
     lux_utils:progress_write(Progress, "W"),
+    clog(C, warning, "\"" ++ Reason ++ "\"", []),
+    FullLineNo = clog_stack(C),
     #warning{file = File,
              lineno = FullLineNo,
              details = ?l2b(Reason)}.
@@ -1376,6 +1374,7 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
     C2 = flush_port(C),
     clog_skip(C2, C2#cstate.actual),
     clog(C, stop, "~p", [Outcome]),
+    clog_stack(C),
     {NewOutcome, Extra} = prepare_outcome(C2, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
                   shell_name = C2#cstate.name,
@@ -1404,6 +1403,18 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
             %% before we close the port
             wait_for_down(C4, Res)
     end.
+
+clog_stack(#cstate{orig_file = File,
+                   latest_cmd = LatestCmd,
+                   cmd_stack = CmdStack} = C) ->
+    CmdPos = lux_utils:cmd_pos(File, LatestCmd),
+    FullStack = [CmdPos|CmdStack],
+    FullLineNo = lux_utils:pretty_full_lineno(FullStack),
+    clog(C, where, "\"" ++ FullLineNo ++ "\"", []),
+    PrettyStack = lux_utils:pretty_stack(File, FullStack),
+    [clog(C, stack, "\"" ++ PS ++ "\"", []) ||
+        PS <- lists:reverse(PrettyStack)],
+    FullLineNo.
 
 prepare_outcome(C, Outcome, Actual) ->
     Context =

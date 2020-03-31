@@ -875,14 +875,14 @@ add_warning(I, Reason) ->
 
 make_warning(#istate{orig_file = File,
                      latest_cmd = LatestCmd,
-                     cmd_stack = CmdStack} = I,
+                     progress = Progress,
+                     active_name = ShellName} = I,
              Reason0) ->
+    lux_utils:progress_write(Progress, "W"),
     Reason = lists:flatten(Reason0),
-    ilog(I, "warning ~p\n",
-         [Reason],
-         I#istate.active_name, LatestCmd#cmd.lineno),
-    lux_utils:progress_write(I#istate.progress, "W"),
-    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    LineNo = LatestCmd#cmd.lineno,
+    ilog(I, "warning ~p\n", [Reason], ShellName, LineNo),
+    FullLineNo = ilog_stack(I),
     #warning{file = File,
              lineno = FullLineNo,
              details = ?l2b(Reason)}.
@@ -1614,6 +1614,20 @@ raw_ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
          Format,
          Args) ->
     lux_log:safe_format(Progress, LogFun, Fd, Format, Args).
+
+ilog_stack(#istate{orig_file = File,
+                   latest_cmd = LatestCmd,
+                   cmd_stack = CmdStack,
+                   active_name = ShellName} = C) ->
+    CmdPos = lux_utils:cmd_pos(File, LatestCmd),
+    FullStack = [CmdPos|CmdStack],
+    FullLineNo = lux_utils:pretty_full_lineno(FullStack),
+    LineNo = LatestCmd#cmd.lineno,
+    ilog(C, where, "\"" ++ FullLineNo ++ "\"", ShellName, LineNo),
+    PrettyStack = lux_utils:pretty_stack(File, FullStack),
+    [ilog(C, stack, "\"" ++ PS ++ "\"", ShellName, LineNo) ||
+        PS <- lists:reverse(PrettyStack)],
+    FullLineNo.
 
 dlog(I, Level, Format, Args) when I#istate.debug_level >= Level ->
     ilog(I, "debug2 \"" ++ Format ++ "\"\n",

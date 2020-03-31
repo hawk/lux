@@ -71,7 +71,6 @@ check_timeout(#istate{suite_timeout = SuiteTimeout,
     W = #warning{file = File,
                  lineno = FullLineNo,
                  details = <<"case_timeout > suite_timeout">>},
-    progress_warnings(I, [W]),
     I#istate{warnings = [W | I#istate.warnings]};
 check_timeout(I) ->
     I.
@@ -438,13 +437,15 @@ wait_for_done(I, Pid, Docs) ->
             Pid ! {suite_timeout, SuiteTimeout},
             case wait_for_done(I, Pid, Docs) of
                 {ok, _Summary, File, FullLineNo, CaseLogDir,
-                 Warnings, _Results, _FailBin, _NewOpaque} ->
+                 RunWarnings, UnstableWarnings, _Results,
+                 _FailBin, _NewOpaque} ->
                     ok;
-                {error, File, FullLineNo, CaseLogDir, Warnings, _} ->
+                {error, File, FullLineNo, CaseLogDir,
+                 RunWarnings, UnstableWarnings, _} ->
                     ok
             end,
             {error, File, FullLineNo, CaseLogDir,
-             Warnings, <<"suite_timeout">>};
+             RunWarnings, UnstableWarnings, <<"suite_timeout">>};
         {done, Pid, Res} ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
