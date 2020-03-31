@@ -161,19 +161,27 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
                         RelFile = lux_utils:pretty_filename(RevFile),
                         AbsFile = filename:absname(RelFile),
                         MacroFile = lux_utils:normalize_filename(AbsFile),
-                        case lists:keymember(Name, #macro.name, Acc) of
+                        case lists:keyfind(Name, #macro.name, Acc) of
                             false ->
-                                Macro = #macro{name = Name,
-                                               file = MacroFile,
-                                               cmd = Cmd},
-                                [Macro | Acc];
-                            true ->
+                                NewMacro = #macro{name = Name,
+                                                  file = MacroFile,
+                                                  lineno = LineNo,
+                                                  cmd = Cmd},
+                                [NewMacro | Acc];
+                            OldMacro ->
+                                Dir = filename:dirname(OrigFile),
                                 Reason =
                                     [
-                                     "Ambiguous macro ", Name, " at ",
-                                     MacroFile,
-                                     ":",
-                                     ?i2l(LineNo)
+                                     "Ambiguous macro '", Name,
+                                     "'. Both defined in file ",
+                                     lux_utils:drop_prefix(Dir, MacroFile),
+                                     " at line ",
+                                     ?i2l(LineNo),
+                                     " and in file ",
+                                     lux_utils:drop_prefix(Dir,
+                                                           OldMacro#macro.file),
+                                     " at line ",
+                                     ?i2l(OldMacro#macro.lineno)
                                     ],
                                 throw({error, ?l2b(Reason), I})
                         end;
@@ -784,10 +792,10 @@ invoke_macro(I,
     end;
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
     BinName = ?l2b(Name),
-    handle_error(I, <<"No such macro: ", BinName/binary>>);
-invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
-    BinName = ?l2b(Name),
-    handle_error(I, <<"Ambiguous macro: ", BinName/binary>>).
+    handle_error(I, <<"No such macro: ", BinName/binary>>).
+%% invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
+%%     BinName = ?l2b(Name),
+%%     handle_error(I, <<"Ambiguous macro: ", BinName/binary>>).
 
 format_macro_vars([]) ->
     " \"\"";

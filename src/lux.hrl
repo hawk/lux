@@ -131,9 +131,10 @@
          type           :: temporary  | next | skip | enabled | disabled}).
 
 -record(macro,
-        {name :: string(),
-         file :: string(),
-         cmd  :: #cmd{}}).
+        {name   :: string(),
+         file   :: string(),
+         lineno :: non_neg_integer(),
+         cmd    :: #cmd{}}).
 
 -record(loop,
         {mode :: iterate | break | #cmd{},

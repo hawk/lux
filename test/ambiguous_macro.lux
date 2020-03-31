@@ -1,0 +1,7 @@
+[doc Demonstrate an ambigous macro name]
+
+[macro mymacro]
+[endmacro]
+
+[macro mymacro arg1]
+[endmacro]
