@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.2.3 - 2019-09-26
+Version 2.2.3 - 2020-04-01
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1247,15 +1247,15 @@ mode for [Emacs][]** (`lux/emacs/lux-mode.el`) is quite useful as it
 simplifies the indentation and makes scripts more easy to read with
 coloring for different types of language constructs.
 
-Lines beginning with `"""Char` are **multi line quotes**. The quote
+Lines beginning with `"""Char` are **multi-line quotes**. The quote
 ends with the next line beginning with `"""`. The opening quote and
 closing quote must be in the same column of the script. The char right
-after the first `"""` determines how the multi line quote will be
+after the first `"""` determines how the multi-line quote will be
 interpreted. The char is interpreted as a statement just like any of
 the single line statement characters (so it can be e.g. `?`, `!`, `~`,
 `#`, `-`, etc).
 
-When multi line quotes are indented the leading whitespaces are
+When multi-line quotes are indented the leading whitespaces are
 stripped from the quoted lines, up to but not including the column
 of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
@@ -1523,7 +1523,20 @@ assigns a value to a variable with a very limited scope. Works like
 variable setting is only valid within the macro that assigns the
 variable.
 
-###Builtin variables###
+###Multi-line values in variables###
+
+    [local Var=Multi\nLine\nValue]
+
+can be written as
+
+    [local Var=
+        """
+        Multi
+        Line
+        Value
+        """]
+
+###Built-in variables###
 
     _BS_        - backspace       (ASCII 8)
     _TAB_       - horizontal tab  (ASCII 9)
@@ -1539,7 +1552,7 @@ variable.
     _ASCII_127_ - delete          (ASCII 127)
     N           - where N is an integer refering to a captured substring
 
-###Builtin environment variables###
+###Built-in environment variables###
 
     LUX_SHELLNAME       - name of active Lux shell
     LUX_START_REASON    - reason for starting a shell (normal|fail|success)
@@ -1568,7 +1581,7 @@ only the oneline summary lines are displayed.
 **\[doc\]**  
   ...  
 **\[enddoc\]**  
-Multi line documentation, typically to be used first in the script.
+Multi-line documentation, typically to be used first in the script.
 The first line is regarded as a one line summary (on level 1) and
 the remaining lines on next level (2). Third line must be preceded
 by empty line.
@@ -2166,7 +2179,7 @@ arguments (for example `/bin/sh -i`, see also see `--shell_cmd` and
 `--shell_args`). The wrapper is expected to first configure the
 terminal and then start the shell.
 
-The builtin executable `lux/priv/runpty` will be used by default as
+The built-in executable `lux/priv/runpty` will be used by default as
 shell wrapper (if it has been built properly).
 
 It is also possible to use no shell wrapper at all by omitting the
@@ -2507,10 +2520,10 @@ context of the active shell.
 
 Match operations search for a given pattern in the output stream. Once
 a match is found, the preceding characters are skipped. There are a
-few flavors of match operations. They may be single line or multi
-line. Evaluate regular expressions or verbatim. Variables can be
-expanded or not. When using regular expressions variables can be bound
-to parts of the output and used later in the test case.
+few flavors of match operations. They may be single-line or
+multi-line.  Evaluate regular expressions or verbatim. Variables can
+be expanded or not. When using regular expressions variables can be
+bound to parts of the output and used later in the test case.
 
 There are different variable scopes. They may be accessible from all
 shells (global), only accessible within the shell where they were set
@@ -2752,12 +2765,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_04_08_15_19_26_420329/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_04_01_14_48_34_924562/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:.:..:...:..:.:.:....:..:.:..:..(....:..:.:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:.:..:..)(....:.:..:...)(.:.:..:..)..(..:.:..)......:..:.........
+>     progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:..:..)..(.:.:..:..)(....:.:..:...)(.:..:..)..(.:.:...)......:.:..........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:.:..:...:..:.:...:.:.:....:.:..:..32C..:..:.:..:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:.:..:...:..:.:.:...:.:.:.:....:.:...32C..:..:.:..:..:.:..:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32 in shell calculator
 >     expected*
 >     	19
@@ -2774,13 +2787,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:..:.:..:....:..:.:..:..:..:.:..:..:.:.:..:.:..:.:..:.:....:..:.:.:....c......:.:.:..:..:..:.:..:..:..:.
+>     progress          : ..:..:.:..:..:.:.:.....:..:..:..:.:..:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:..:..:.:..:..:.:..
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:..:.)(.:.:..:.)(.:..:.:.))((.:.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.:.))((.:..:.:.)(.:..:.:.)(.:.:..:.)(.:.:..:.)(.:..:.:.)(.:.:..:.)(.:.:..:.)(.:.:..:.))...:..:..:...:.:.:..:.:.:....:..:..:.((.i=1..:.:..:.:..z)(..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:..:..:..:.:.
+>     progress          : ..:..:.:..:.((.:.:..:.)(.:..:.)(.:..:.))((.:.:..:.)(..:.:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:.:..:..:.:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):).c........:..:.:..:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+>     progress          : ..:..:.:..:.((.i=1..:.:...z)(z..i=2..:.:..:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at 5 in shell break
 >     expected*
 >     	
@@ -2794,7 +2807,7 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable.lux
->     progress          : ..:..:..:....7
+>     progress          : ..:..:.:..:....7
 >     warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at 7 in shell foo
 >     expected*
@@ -2820,7 +2833,7 @@ Evaluate `lux examples`
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require.lux:3 - FAIL as required variable MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_08_15_19_26_420329/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2020_04_01_14_48_34_924562/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -2995,7 +3008,7 @@ References
 [Erlang/OTP]:         http://www.erlang.org/
                       "Erlang programming language"
 [pre-built packages]:    https://www.erlang-solutions.com/downloads/download-erlang-otp
-                      "Prebuilt packages at Erlang Solutions"
+                      "Pre-built packages at Erlang Solutions"
 
 [regular expression]: http://www.erlang.org/doc/man/re.html#regexp_syntax
                       "Erlang style regular expressions (re)"

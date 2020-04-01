@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.2.3 - 2019-09-26</p>
+<p>Version 2.2.3 - 2020-04-01</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -1329,15 +1329,15 @@ mode for <a href="http://www.gnu.org/software/emacs" title="Emacs text editor">E
 simplifies the indentation and makes scripts more easy to read with
 coloring for different types of language constructs.</p>
 
-<p>Lines beginning with <code>"""Char</code> are <strong>multi line quotes</strong>. The quote
+<p>Lines beginning with <code>"""Char</code> are <strong>multi-line quotes</strong>. The quote
 ends with the next line beginning with <code>"""</code>. The opening quote and
 closing quote must be in the same column of the script. The char right
-after the first <code>"""</code> determines how the multi line quote will be
+after the first <code>"""</code> determines how the multi-line quote will be
 interpreted. The char is interpreted as a statement just like any of
 the single line statement characters (so it can be e.g. <code>?</code>, <code>!</code>, <code>~</code>,
 <code>#</code>, <code>-</code>, etc).</p>
 
-<p>When multi line quotes are indented the leading whitespaces are
+<p>When multi-line quotes are indented the leading whitespaces are
 stripped from the quoted lines, up to but not including the column
 of the double quote character, or to the first non-whitespace
 character, whichever occurs first. In this process, a tab character
@@ -1605,7 +1605,22 @@ assigns a value to a variable with a very limited scope. Works like
 variable setting is only valid within the macro that assigns the
 variable.</p>
 
-<h3>Builtin variables</h3>
+<h3>Multi-line values in variables</h3>
+
+<pre><code>[local Var=Multi\nLine\nValue]
+</code></pre>
+
+<p>can be written as</p>
+
+<pre><code>[local Var=
+    """
+    Multi
+    Line
+    Value
+    """]
+</code></pre>
+
+<h3>Built-in variables</h3>
 
 <pre><code>_BS_        - backspace       (ASCII 8)
 _TAB_       - horizontal tab  (ASCII 9)
@@ -1622,7 +1637,7 @@ _ASCII_127_ - delete          (ASCII 127)
 N           - where N is an integer refering to a captured substring
 </code></pre>
 
-<h3>Builtin environment variables</h3>
+<h3>Built-in environment variables</h3>
 
 <pre><code>LUX_SHELLNAME       - name of active Lux shell
 LUX_START_REASON    - reason for starting a shell (normal|fail|success)
@@ -1652,7 +1667,7 @@ only the oneline summary lines are displayed.</p>
 <p><strong>[doc]</strong> <br />
   ... <br />
 <strong>[enddoc]</strong> <br />
-Multi line documentation, typically to be used first in the script.
+Multi-line documentation, typically to be used first in the script.
 The first line is regarded as a one line summary (on level 1) and
 the remaining lines on next level (2). Third line must be preceded
 by empty line.</p>
@@ -2259,7 +2274,7 @@ arguments (for example <code>/bin/sh -i</code>, see also see <code>--shell_cmd</
 <code>--shell_args</code>). The wrapper is expected to first configure the
 terminal and then start the shell.</p>
 
-<p>The builtin executable <code>lux/priv/runpty</code> will be used by default as
+<p>The built-in executable <code>lux/priv/runpty</code> will be used by default as
 shell wrapper (if it has been built properly).</p>
 
 <p>It is also possible to use no shell wrapper at all by omitting the
@@ -2615,10 +2630,10 @@ context of the active shell.</p>
 
 <p>Match operations search for a given pattern in the output stream. Once
 a match is found, the preceding characters are skipped. There are a
-few flavors of match operations. They may be single line or multi
-line. Evaluate regular expressions or verbatim. Variables can be
-expanded or not. When using regular expressions variables can be bound
-to parts of the output and used later in the test case.</p>
+few flavors of match operations. They may be single-line or
+multi-line.  Evaluate regular expressions or verbatim. Variables can
+be expanded or not. When using regular expressions variables can be
+bound to parts of the output and used later in the test case.</p>
 
 <p>There are different variable scopes. They may be accessible from all
 shells (global), only accessible within the shell where they were set
@@ -2877,12 +2892,12 @@ a hetrogenous lab environment:</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2019_04_08_15_19_26_420329/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_04_01_14_48_34_924562/lux_summary.log
 test case         : examples/calc.lux
-progress          : ..:..:.:..:...:..:.:.:....:..:.:..:..(....:..:.:.:.:...)(.:..:..)...:..:..:..(.:..:..)..(.:.:..:..)(....:.:..:...)(.:.:..:..)..(..:.:..)......:..:.........
+progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:..:..)..(.:.:..:..)(....:.:..:...)(.:..:..)..(.:.:...)......:.:..........
 result            : SUCCESS
 test case         : examples/fail.lux
-progress          : ..:..:.:..:...:..:.:...:.:.:....:.:..:..32C..:..:.:..:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.
+progress          : ..:..:.:..:...:..:.:.:...:.:.:.:....:.:...32C..:..:.:..:..:.:..:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.
 result            : FAIL at 32 in shell calculator
 expected*
 19
@@ -2899,13 +2914,13 @@ diff
 + 4&gt; 
 
 test case         : examples/intro.lux
-progress          : ..:..:..:..:.:..:....:..:.:..:..:..:.:..:..:.:.:..:.:..:.:..:.:....:..:.:.:....c......:.:.:..:..:..:.:..:..:..:.
+progress          : ..:..:.:..:..:.:.:.....:..:..:..:.:..:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:..:..:.:..:..:.:..
 result            : SUCCESS
 test case         : examples/loop.lux
-progress          : ..:..:.:..:.((.:..:.)(.:.:..:.)(.:..:.:.))((.:.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.:.))((.:..:.:.)(.:..:.:.)(.:.:..:.)(.:.:..:.)(.:..:.:.)(.:.:..:.)(.:.:..:.)(.:.:..:.))...:..:..:...:.:.:..:.:.:....:..:..:.((.i=1..:.:..:.:..z)(..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:..:..:..:.:.
+progress          : ..:..:.:..:.((.:.:..:.)(.:..:.)(.:..:.))((.:.:..:.)(..:.:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:.:..:..:.:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):).c........:..:.:..:..:..:.:.
 result            : SUCCESS
 test case         : examples/loop_fail.lux
-progress          : ..:..:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+progress          : ..:..:.:..:.((.i=1..:.:...z)(z..i=2..:.:..:..z)(z..i=3..:..:..z))+5
 result            : FAIL at 5 in shell break
 expected*
 
@@ -2919,7 +2934,7 @@ result            : FAIL as required variable MAKE is not set
 test case         : examples/skip.lux
 result            : SKIP as variable TEST_SUNOS is not set
 test case         : examples/unstable.lux
-progress          : ..:..:..:....7
+progress          : ..:..:.:..:....7
 warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
 result            : WARNING at 7 in shell foo
 expected*
@@ -2945,7 +2960,7 @@ examples/fail.lux:32 - match_timeout
 examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 examples/require.lux:3 - FAIL as required variable MAKE is not set
 summary           : FAIL
-file:///Users/hmattsso/dev/lux/lux_logs/run_2019_04_08_15_19_26_420329/lux_summary.log.html
+file:///Users/hmattsso/dev/lux/lux_logs/run_2020_04_01_14_48_34_924562/lux_summary.log.html
 .../lux&gt; echo $?
 1
 </code></pre>
@@ -2994,7 +3009,7 @@ makepkg -si
 <li><p>On BSD based systems, GNU Make is required.</p></li>
 <li><p>The tool <strong>Lux</strong> is implemented with <strong><a href="http://www.erlang.org/" title="Erlang programming language">Erlang/OTP</a></strong> and its
 runtime system must be installed in order to build the tool. Install
-<code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">pre-built packages</a>:</p></li>
+<code>Erlang/OTP</code> from <a href="http://www.erlang.org/" title="Erlang programming language">source</a> or use <a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Pre-built packages at Erlang Solutions">pre-built packages</a>:</p></li>
 </ul>
 
 <blockquote>
@@ -3154,7 +3169,7 @@ open ../lux.html
 <li><a href="https://github.com/hawk/lux" title="LUcid eXpect scripting">Lux - LUcid eXpect scripting</a>  </li>
 <li><a href="http://www.nist.gov/el/msid/expect.cfm" title="Expect homepage">Expect homepage</a>  </li>
 <li><a href="http://www.erlang.org/" title="Erlang programming language">Erlang programming language</a>  </li>
-<li><a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Prebuilt packages at Erlang Solutions">Pre-built Erlang packages</a>  </li>
+<li><a href="https://www.erlang-solutions.com/downloads/download-erlang-otp" title="Pre-built packages at Erlang Solutions">Pre-built Erlang packages</a>  </li>
 <li><a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">Erlang style regular expressions (re)</a>  </li>
 <li><a href="http://www.pcre.org/" title="PCRE - Perl Compatible Regular Expressions">PCRE - Perl Compatible Regular Expressions</a>  </li>
 <li><a href="http://www.erlang.org/doc/apps/reltool/index.html" title="Erlang release management tool">Erlang release management tool</a>  </li>
