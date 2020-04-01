@@ -1,0 +1,17 @@
+[doc Double match of fail pattern in]
+
+# [shell early]
+#     !exit
+#    [endshell]
+
+[local a=b]
+
+[shell test]
+    -good
+    !echo "The good, the bad and the ugly"
+    ?badz
+
+[cleanup]
+    -cleanup
+    !echo "The fail, the cleanup and the rest"
+    ?bad

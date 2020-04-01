@@ -1,6 +1,8 @@
 [doc Demo stats for nested macros]
 
 [shell test]
+    [timeout 20]
+
     !sleep 9
     ?SH-PROMPT:
     [invoke outer]

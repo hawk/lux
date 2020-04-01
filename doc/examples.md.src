@@ -104,13 +104,13 @@ and another `.../lux_config/SunOS-sun4u.luxcfg`
 >     [config var=USE_VALGRIND=false]
 >     [config multiplier=3000]
 
-#include <examples/require.lux>
+#include <examples/require_fail.lux>
 
 #include <examples/warning.lux>
 
 #include <examples/skip.lux>
 
-#include <examples/unstable.lux>
+#include <examples/unstable_warn.lux>
 
 Here follow the output from the enclosed example test suite under
 `.../lux/examples`.

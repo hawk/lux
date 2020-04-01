@@ -1,7 +1,0 @@
-[shell test]
-    [timeout 1]
-    ?MISMATCH
-
-[cleanup]
-    !echo foo
-    ?^foo
