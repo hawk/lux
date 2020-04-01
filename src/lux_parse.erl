@@ -22,6 +22,14 @@
              {ok, filename(), cmds(), opts()} | skip() | error()).
 
 parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
+    R = do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts),
+    case RunMode of
+        dump -> io:format("\n~p\n", [R]);
+        _    -> ok
+    end,
+    R.
+
+do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
     try
         File = lux_utils:normalize_filename(RelFile),
         RevFile = lux_utils:filename_split(File),
@@ -165,6 +173,7 @@ file_open(#pstate{file = File, mode = RunMode}) ->
     do_file_open(File, RunMode).
 
 do_file_open( File, RunMode) when RunMode =:= validate;
+                                  RunMode =:= dump;
                                   RunMode =:= execute ->
     %% Bulk read file
     case file:read_file(File) of
@@ -328,6 +337,7 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
         Type =:= multi ->
             parse_multi(P, Fd, Incr, UnStripped, Cmd, Tokens, no_meta);
         RunMode =:= validate;
+        RunMode =:= dump;
         RunMode =:= execute ->
             Cmd2 = parse_single(Cmd, UnStripped),
             parse(P, Fd, NextLineNo, [Cmd2 | Tokens]);
@@ -463,6 +473,7 @@ parse_single_meta(P, Fd, NextIncr, Meta, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                 %% Skip command
                 Tokens;
             RunMode =:= validate;
+            RunMode =:= dump;
             RunMode =:= execute ->
                 [NewCmd | Tokens]
         end,
@@ -583,6 +594,7 @@ do_parse_body(#pstate{mode = RunMode} = P,
             {P, NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
         {line, _EndMacro, NewFd, Incr}
           when RunMode =:= validate;
+               RunMode =:= dump;
                RunMode =:= execute ->
             %% Parse body
             BodyLen = length(BodyLines)+BodyIncr,
@@ -979,7 +991,9 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
             LastLineNo = LastLineNo0+Incr,
             parse(P2, NewFd, LastLineNo+1, Tokens);
         {line, _EndOfMulti, Fd2, Incr}
-          when RunMode =:= validate; RunMode =:= execute ->
+          when RunMode =:= validate;
+               RunMode =:= dump;
+               RunMode =:= execute ->
             %% Join all lines with a newline as separator
             Blob =
                 case RevBefore of

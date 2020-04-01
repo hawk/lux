@@ -215,7 +215,7 @@ specs() ->
 enum(profile) ->
     [standalone, development, embedded];
 enum(mode) ->
-    [list, list_dir, doc, validate, execute];
+    [list, list_dir, doc, validate, dump, execute];
 enum(prio) ->
     [enable, success, skip, warning, fail, error, disable];
 enum(html) ->

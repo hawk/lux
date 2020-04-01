@@ -105,7 +105,9 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
             run_cases(R, Scripts, OldSummary, Results, Max, 1, [], []),
         NewSummary =
             if
-                NewResults =:= [], R#rstate.mode =/= validate ->
+                NewResults =:= [],
+                R#rstate.mode =/= validate,
+                R#rstate.mode =/= dump ->
                     lux_utils:summary(Summary, warning);
                 true ->
                     Summary
@@ -458,7 +460,7 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
         skip_skip when Val =:= true; Val =:= false ->
             parse_ropts(T, R#rstate{skip_skip = Val});
         mode when Val =:= list; Val =:= list_dir; Val =:= doc;
-                  Val =:= validate; Val =:= execute ->
+                  Val =:= validate; Val =:= dump; Val =:= execute ->
             parse_ropts(T, R#rstate{mode = Val});
         rerun when Val =:= enable; Val =:= success;
                    Val =:= skip; Val =:= warning;
@@ -549,14 +551,14 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
     case parse_script(TmpR, SuiteFile, Script) of
         {ok, NewR, Script2, Cmds, Opts} ->
             ParseWarnings = NewR#rstate.warnings,
-            case NewR#rstate.mode of
-                list ->
+            if
+                RunMode =:= list ->
                     run_cases(NewR, Scripts, OldSummary, Results,
                               Max, CC+1, [Script|List], Opaque);
-                list_dir ->
+                RunMode =:= list_dir ->
                     run_cases(NewR, Scripts, OldSummary, Results,
                               Max, CC+1, [Script|List], Opaque);
-                doc ->
+                RunMode =:= doc ->
                     DocCmds = extract_doc(Script2, Cmds),
                     Script3 = lux_utils:drop_prefix(Script2),
                     io:format("~s:\n", [Script3]),
@@ -571,7 +573,8 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     run_cases(NewR#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, NewResults,
                               Max, CC+1, List, Opaque);
-                validate ->
+                RunMode =:= validate;
+                RunMode =:= dump ->
                     init_case_rlog(NewR, P, Script),
                     {Summary, NewSummary, NewResults} =
                         adjust_warnings(Script, success,
@@ -583,7 +586,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     run_cases(NewR#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, NewResults,
                               Max, CC+1, List, Opaque);
-                execute ->
+                RunMode =:= execute ->
                     ok = annotate_tmp_summary_log(NewR, OldSummary, Script),
                     ?TRACE_ME(70, suite, 'case', P, []),
                     tap_case_begin(NewR, Script),
@@ -1176,7 +1179,7 @@ suite_config_type(Name) ->
         skip_skip ->
             {ok, [{atom, [true, false]}]};
         mode ->
-            {ok, [{atom, [list, list_dir, doc, validate, execute]}]};
+            {ok, [{atom, [list, list_dir, doc, validate, dump, execute]}]};
         doc ->
             {ok, [{integer, 0, infinity}]};
         config_name ->
