@@ -32,6 +32,27 @@ directories) are called test suites and the derived files (actual Lux
 scripts) are called test cases. The configuration parameter `--skip`
 can be used to conditionally skip test cases.
 
+The lookup of configuration parameters/settings is performed in the
+following order:
+
+1. Command line parameters. Eg. `--skip_skip` to ignore all skip settings.
+
+2. Command line parameters from `LUX_FLAGS` environment variable. To
+be used interactively.
+
+3. Command line parameters from `LUX_SYSTEM_FLAGS` environment
+variable. To be used by makefiles, scripts etc.
+
+4. Test case specific configuration settings
+
+5. Architecture specific configuration settings
+
+6. Site local default configuration settings defined in `lux/priv/luxcfg`
+
+7. Environment variables are converted to `[config var=val]`
+
+8. Hardcoded built-in default values
+
 Test case control
 -----------------
 
