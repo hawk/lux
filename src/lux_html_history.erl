@@ -934,7 +934,7 @@ is_success_res(Res) ->
         success   -> true;
         none      -> true;
         skip      -> true;
-        warning   -> true;
+        %% warning   -> true;
         _         -> false
     end.
 
