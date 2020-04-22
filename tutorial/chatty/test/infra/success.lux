@@ -1,0 +1,6 @@
+[doc Demo a successful test case]
+
+[shell bar]
+    !echo foo
+    ?echo foo
+    ?^foo

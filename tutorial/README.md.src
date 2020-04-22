@@ -168,18 +168,22 @@ History of test run results
 
 #include <tutorial/chatty/test/infra/Makefile>
 
-#eval-silent rm -rf tutorial/chatty/test/infra/lux_logs
+#eval-silent cd tutorial/chatty/test/infra && make history_demo_multi_hosts
+#eval-silent cd tutorial/chatty/test/infra && rm history_demo_multi_hosts/lux_history*
+#eval-include cd tutorial/chatty/test/infra && lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs
 
-#eval-silent cd tutorial/chatty/test/infra && make history_demo
+Walkthru history_demo_multi_host/lux_history.html
 
-#eval-include cd tutorial/chatty/test/infra && lux --history history_logs lux_logs
-
-Walkthru history_logs/lux_history.html
-
-    - Overview
-    - Per architecture
+- Overview
+    - Per architecture (config)
     - Per host
     - Still failing test cases
+
+#eval-silent cd tutorial/chatty/test/infra && make history_demo_multi_branch
+
+Walkthru history_demo_multi_branch/lux_history.html
+
+    - Compare branches
 
 Jenkins
 

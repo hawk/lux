@@ -1,0 +1,6 @@
+[doc Demo a warning]
+
+[config case_timeout=5000]
+[shell demo]
+    [timeout 10]
+    # Should imply a warning

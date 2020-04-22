@@ -7,8 +7,6 @@ BEAMS=$(patsubst %.erl,../ebin/%.beam,$(wildcard *.erl))
 
 all build: $(BEAMS)
 
-test:
-
 clean:
 	rm -f $(BEAMS) *~
 
