@@ -161,6 +161,13 @@ list_files(R, File) ->
             {error, Reason}
     end.
 
+full_run(#rstate{mode = Mode} = R, _ConfigData, SummaryLog)
+  when Mode =:= dump ->
+    InitialSummary = success,
+    InitialRes = [],
+    {_R2, Summary, Results} =
+        run_suite(R, R#rstate.files, InitialSummary, InitialRes),
+    {ok, Summary, SummaryLog, Results};
 full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
     ExtendRun = R#rstate.extend_run,
     case lux_log:open_summary_log(Progress, SummaryLog, ExtendRun) of
@@ -283,7 +290,8 @@ annotate_tmp_summary_log(R, Summary, NextScript) ->
         SummaryPrio >= HtmlPrio,
         R#rstate.mode =/= doc,
         R#rstate.mode =/= list,
-        R#rstate.mode =/= list_dir ->
+        R#rstate.mode =/= list_dir,
+        R#rstate.mode =/= dump ->
             %% Generate premature html log
             NoHtmlOpts = [{case_prefix, R#rstate.case_prefix},
                           {next_script, NextScript}],
@@ -308,7 +316,8 @@ annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
         SummaryPrio >= HtmlPrio,
         R#rstate.mode =/= doc,
         R#rstate.mode =/= list,
-        R#rstate.mode =/= list_dir ->
+        R#rstate.mode =/= list_dir,
+        R#rstate.mode =/= dump ->
             Opts = [{case_prefix, R#rstate.case_prefix},
                     {html, R#rstate.html}],
             case annotate_log(false, SummaryLog, Opts) of
@@ -487,7 +496,18 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
     end;
 parse_ropts([], R) ->
     UserArgs = opts_to_args(lists:reverse(R#rstate.user_args), []),
-    {ok, R#rstate{user_args = UserArgs}}.
+    Progress =
+        case R#rstate.mode of
+            M when M =:= list orelse
+                   M =:= list_dir orelse
+                   M =:= doc orelse
+                   M =:= dump ->
+                silent;
+            _ ->
+                R#rstate.progress
+        end,
+    {ok, R#rstate{user_args = UserArgs,
+                  progress = Progress}}.
 
 check_file({Tag, File}) ->
     case Tag of
@@ -789,7 +809,7 @@ display_doc({Level, Doc}, MaxLevel) ->
 
 write_results(#rstate{mode=Mode, summary_log=SummaryLog},
               Summary, Results)
-  when Mode =:= list; Mode =:= list_dir; Mode =:= doc ->
+  when Mode =:= list; Mode =:= list_dir; Mode =:= doc, Mode =:= dump ->
     {ok, Summary, SummaryLog, Results};
 write_results(#rstate{progress=Progress,
                       summary_log=SummaryLog,
@@ -1209,7 +1229,8 @@ suite_config_type(Name) ->
 tap_suite_begin(R, Scripts, Directive)
   when R#rstate.mode =/= list,
        R#rstate.mode =/= list_dir,
-       R#rstate.mode =/= doc ->
+       R#rstate.mode =/= doc,
+       R#rstate.mode =/= dump ->
     TapLog = filename:join([R#rstate.log_dir, ?CASE_TAP_LOG]),
     TapOpts = [TapLog | R#rstate.tap_opts],
     case lux_tap:open(TapOpts) of
