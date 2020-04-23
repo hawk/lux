@@ -5,7 +5,7 @@ SUBDIRS=src test
 all build test history clean:
 	@for d in $(SUBDIRS); do \
 	   if [ -f $$d/Makefile ] ; then \
-	      (cd $$d && $(MAKE) $@) ; \
+	      $(MAKE) -C $$d $@ || exit $?; \
 	   fi; \
 	done
 

@@ -19,7 +19,7 @@ all debug clean:
 	   if test ! -d $$d ; then \
 	       echo "=== Skipping subdir $$d" ; \
 	   else \
-	      (cd $$d && $(MAKE) $@) ; \
+	      $(MAKE) -C $$d $@ || exit $?; \
 	   fi ; \
 	done
 

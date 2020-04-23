@@ -7,7 +7,7 @@ all: build test
 build:
 	@for d in $(LUXDIRS); do \
 	   if test -f $$d/Makefile ; then \
-	      (cd $$d && $(MAKE) $@) ; \
+	      $(MAKE) -C $$d $@ || exit $?; \
 	   fi; \
 	done
 
