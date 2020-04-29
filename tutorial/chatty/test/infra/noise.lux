@@ -1,6 +1,8 @@
 [doc Demonstrate an unstable test which causes noise in the test results]
 
 [shell date]
+    # Ensure a quick fail if it fails
+    [timeout 2]
     -[1-3]
     !date +%S
     ?SH-PROMPT

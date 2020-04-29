@@ -3,6 +3,8 @@
 [config unstable_unless=TEST_DEVELOP]
 
 [shell date]
+    # Ensure a quick fail if it fails
+    [timeout 2]
     -[2-4]
     !date +%S
     ?SH-PROMPT

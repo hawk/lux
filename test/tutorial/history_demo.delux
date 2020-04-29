@@ -1,0 +1,148 @@
+[doc Verify advanced history generation]
+
+[config case_timeout=900000]
+[config var=tutorial_dir=../../tutorial]
+
+[include ${tutorial_dir}/support/luxinc/macros.luxinc]
+
+[global validate=LUX_SYSTEM_FLAGS=--html=validate ]
+
+[shell build]
+    [progress build]
+    -[Ee][Rr][Rr][Oo][Rr]|
+
+    [invoke eval "cd ${tutorial_dir}"]
+    [invoke eval "${validate} make clean"]
+    [invoke eval "${validate} make build"]
+
+[shell history_demo_multi_branch]
+    [progress history_demo_multi_branch]
+    [timeout 240]
+    -HTML ERROR
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !${validate} make  history_demo_multi_branch < /dev/null
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat history_demo_multi_branch/lux_history.html
+
+    ?chatty-2.0
+    ?chatty-1.0
+    ?Still failing test cases
+    ?demo:warning.lux
+
+    [invoke check_ok]
+
+[shell history_demo_multi_host]
+    [progress history_demo_multi_host]
+    [timeout 120]
+
+    -HTML ERROR
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !${validate} make history_demo_multi_host < /dev/null
+
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat history_demo_multi_host/lux_history.html
+
+    ?Still failing test cases
+    ?All configurations
+    ?NetBSD-macppc
+    ?SunOS-i86pc
+
+    ?All hosts
+    ?cloudy
+    ?netty
+    ?sunny
+
+    ?Latest run on each host
+
+    ?All test suites
+    ?netty.*NetBSD-macppc
+    ?cloudy.*SunOS-i86pc
+    ?sunny.*SunOS-i86pc
+    ?demo
+
+    ?Still failing test cases
+    ?netty.*NetBSD-macppc
+    ?cloudy.*SunOS-i86pc
+    ?sunny.*SunOS-i86pc
+    ?demo:warning.lux
+
+    [invoke check_ok]
+
+[shell history_demo_single]
+    [progress history_demo_single]
+    [timeout 120]
+    -HTML ERROR
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !${validate} make  history_demo_single < /dev/null
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat history_demo_single/lux_history.html
+
+    ?Still failing test cases
+    ?Still failing test cases
+    ?demo:warning.lux
+
+    [invoke check_ok]
+
+[shell history_demo_success]
+    [progress history_demo_success]
+    [timeout 60]
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !${validate} make  history_demo_success < /dev/null
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat history_demo_success/lux_history.html
+
+    ?No failing test cases
+
+    [invoke check_ok]
+
+[shell history_demo_warning]
+    [progress history_demo_warning]
+    [timeout 120]
+    -HTML ERROR
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !${validate} make history_demo_warning < /dev/null
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat history_demo_warning/lux_history.html
+
+    ?Still failing test cases
+    ?Still failing test cases
+    ?demo:warning.lux
+
+    [invoke check_ok]
+
+[shell history_demo_empty]
+    [progress history_demo_empty]
+    [timeout 60]
+    -HTML ERROR
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !${validate} make  history_demo_empty < /dev/null
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat history_demo_empty/lux_history.html
+
+    ?No failing test cases
+    ?No test suites run
+
+    [invoke check_ok]

@@ -1,0 +1,86 @@
+[doc Verify basic infra structure in tutorial]
+
+[config var=tutorial_dir=../../tutorial]
+
+[include ${tutorial_dir}/support/luxinc/macros.luxinc]
+
+[global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
+
+[shell build]
+    [progress build]
+    -${fail_pattern}
+
+    [invoke eval "cd ${tutorial_dir}"]
+    [invoke eval "make clean"]
+    [invoke eval "make build"]
+
+[shell debugger]
+    [progress debugger]
+    [timeout 30]
+    -${fail_pattern}
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/intro"]
+    [invoke eval "lux *.delux"]
+
+[shell intro]
+    [progress intro]
+    [timeout 60]
+#   -${fail_pattern}
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/intro"]
+    !make test < /dev/null
+    ???test case         : a_simple_server.lux
+    ???result            : SUCCESS
+    ???test case         : async_startup_fail.lux
+    ???result            : FAIL at 25 in shell hawk
+    ???test case         : sync_startup.lux
+    ???result            : SUCCESS
+    ???test case         : sync_startup_cleanup.lux
+    ???result            : SUCCESS
+    ?^SH-PROMPT:
+
+[shell infra]
+    [progress infra]
+    [timeout 60]
+#   -${fail_pattern}
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    !make test < /dev/null
+    ???test case         : noise.lux
+    ???result            :
+    ???test case         : skip.lux
+    ???result            : SKIP as variable PATH is set
+    ???test case         : success.lux
+    ???result            : SUCCESS
+    ???test case         : unstable.lux
+    ???result            :
+    ???test case         : warning.lux
+    ???warning           : 5: Match timeout > test case_timeout
+    ???result            : WARNING
+    ?^SH-PROMPT:
+
+[shell history]
+    [progress history]
+    [timeout 60]
+    -HTML ERROR
+
+    [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
+    [invoke eval "rm -rf lux_history.* lux_logs"]
+    [loop i 1..5]
+        [invoke eval_any "make test"]
+    [endloop]
+
+    !make history < /dev/null
+    !echo ===$$?===
+    ?^===0===
+    ?^SH-PROMPT:
+
+    !cat lux_history.html
+
+    ?Still failing test cases
+    ?All runs on host
+    ?no_suite
+    ?Still failing test cases
+    ?no_suite:warning.lux
+
+    [invoke check_ok]
