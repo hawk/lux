@@ -1,0 +1,14 @@
+[doc Use config var(iable) in same script]
+
+[config var=myenv=use_config_var]
+[include ${myenv}.luxinc]
+
+[shell ${myenv}]
+    !echo xxx/${myenv}/yyy
+    ?xxx.*yyy
+    ?xxx/use_config_var/yyy
+
+    [local myenv=override_config_var]
+    !echo xxx/${myenv}/yyy
+    ?xxx.*yyy
+    ?xxx/override_config_var/yyy

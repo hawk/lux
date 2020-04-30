@@ -662,7 +662,16 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             {Scope, Var, Val} = ConfigCmd#cmd.arg,
             Val2 = expand_vars(P2, Fd, Val, LineNo),
             ConfigCmd2 = ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}},
-            test_skip(P2, Fd, ConfigCmd2);
+            P3 =
+                if
+                    Var =:= "var" ->
+                        %% Add config var to multi dict
+                        MultiVars = P2#pstate.multi_vars,
+                        P2#pstate{multi_vars = [[Val] | MultiVars]};
+                    true ->
+                        P2
+                end,
+            test_skip(P3, Fd, ConfigCmd2);
         "my " ++ VarVal ->
             parse_var(P, Fd, Cmd, my, VarVal);
         "local " ++ VarVal ->
