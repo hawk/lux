@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.2.3 - 2020-04-01
+Version 2.3 - 2020-05-04
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -117,13 +117,13 @@ Run a single script like this:
 Evaluate `lux examples/intro.lux`
 
 >     .../lux> lux examples/intro.lux
->     summary log       : /Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_30_44_568831/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_55_22_424927/lux_summary.log
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:.:..:.:.:.....:..:..:..:..:.:..:.:..:.:.:..:.:..:.....:..:.:.:....c......:.:.:..:.:..:..:.:..:..:..:.
+>     progress          : ..:..:.:..:..:.:.:.....:..:.:..:..:.:..:.:..:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/tailf/lux/lux_logs/run_2019_05_14_21_30_44_568831/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_55_22_424927/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -155,26 +155,14 @@ Evaluate `lux --revision svn_4715 --run jenkins_22 examples`
 Evaluate `lux --history .`
 
 >     .../lux> lux --history .
+>     Invoke: /Users/hmattsso/dev/lux/bin/lux --history .
 >     Assembling history of logs from...
->     	........................ss...................
->     INTERNAL LUX ERROR in ./tutorial/chatty/test/intro/lux_logs/run_2019_05_14_17_35_39_52759/lux_summary.log
->     function_clause
->     [{lux_log,split_result,
->               [[<<"successful        : 0\nerrors            : 1\n\ta_simple_server.lux:0 - INTERNAL LUX ERROR: {'EXIT',\n                        {{case_clause,no_shell},\n                         [{lux_debug,wait_for_reply,3,\n                              [{file,\"lux_debug.erl\"},{line,134}]},\n                          {lux_debug,init,2,\n                              [{file,\"lux_debug.erl\"},{line,71}]}]}}">>,
->                 <<"summary           : ERROR\n">>]],
->               [{file,"lux_log.erl"},{line,226}]},
->      {lux_log,parse_summary_result,2,[{file,"lux_log.erl"},{line,501}]},
->      {lux_log,do_parse_summary_log,3,[{file,"lux_log.erl"},{line,135}]},
->      {lux_log,try_parse_summary_log,2,[{file,"lux_log.erl"},{line,118}]},
->      {lux_log,parse_summary_log,2,[{file,"lux_log.erl"},{line,101}]},
->      {lux_html_history,parse_summary_files,7,
->                        [{file,"lux_html_history.erl"},{line,941}]},
->      {lists,foldl,3,[{file,"lists.erl"},{line,1263}]},
->      {lux_html_history,collect_branch,5,
->                        [{file,"lux_html_history.erl"},{line,99}]}]
->     ..s....ss.....................s...ss...........................
->     Analyzed 98 test runs (1 errors)...ok
->     file:///Users/hmattsso/dev/tailf/lux/lux_history.html
+>     	./lux_history.cache (17594 bytes)
+>     -----
+>     	..................................................................................................................======.s=s====.=.=s==.=============..=s===========s=s==========.=====s===========s==================s=====s==...=s==.=.==.==..================
+>     Wrote 27023 bytes in run cache to file ./lux_history.cache
+>     Analyzed 351 test runs with 1557 test cases (0 errors)...ok
+>     file:///Users/hmattsso/dev/lux/lux_history.html
 >     .../lux> echo $?
 >     0
 
@@ -288,12 +276,12 @@ Hopefully the test code is self-explanatory.
 Evaluate `cd tutorial/chatty/test/intro && lux .`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux .
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_04_314531/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_55_51_913737/lux_summary.log
 >     test case         : a_simple_server.lux
->     progress          : ..:...:.:..:..:.:..:....:.:..:.:.:...:.:..:..:....
+>     progress          : ..:..:.:...:.:..:.:..:.:....:.:..14?:?:?:?..:.:..:.:.....
 >     result            : SUCCESS
 >     test case         : async_startup_fail.lux
->     progress          : ..:..:.:..:..:.:..:.:.:.:....:.:.:..:.:...:.:..:..:.:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.25????25..
+>     progress          : ..:..:.:..:..:.:..:.:.:....:.:.:..:.:..:..:.:..:..:.:.Will fail due to startup race cond.:.:..:.:.:.:.:.:.25????25..
 >     result            : FAIL at 25 in shell hawk
 >     expected*
 >     	Trying to join the mytopic chat room...
@@ -304,7 +292,7 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     actual match_timeout
 >     	erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt opic
 >     	Trying to join the mytopic chat room...
->     	<ERROR> Failed to join 'mytopic@HMATTSSO-M-N1P1'. Is the server started?
+>     	<ERROR> Failed to join 'mytopic@HMATTSSO-M-74JD'. Is the server started?
 >     	{"init terminating in do_boot",shutdown}
 >     	init terminating in do_boot (shutdown)
 >     	SH-PROMPT:
@@ -316,22 +304,22 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	- Enter text and press enter. Exit chat with \^d.
 >     	- 
 >     	- hawk>
->     	+ <ERROR> Failed to join 'mytopic@HMATTSSO-M-N1P1'. Is the server started?
+>     	+ <ERROR> Failed to join 'mytopic@HMATTSSO-M-74JD'. Is the server started?
 >     	+ {"init terminating in do_boot",shutdown}
 >     	+ init terminating in do_boot (shutdown)
 >     	+ SH-PROMPT:
 >     	
 >     test case         : sync_startup.lux
->     progress          : ..:..:.:..:..:..:.:.:.:..:.:.:.:....:..:..:..:.:..:.:....:..:.:..:..:.:..:.:.:.:....:..:..:..:.:..:.:.:.:.::......:..::.....:............
+>     progress          : ..:..:.:..:..:.:..:.:.:..:.:.:.:....:..:.:...:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:.:.::......:.:.:.....:............
 >     result            : SUCCESS
 >     test case         : sync_startup_cleanup.lux
->     progress          : ()..:..:.:..:...:..:.:.:.:..:.:.:.:....:..:.:..:..:..:.:....:..:..:...:.:.:.:.:.:....:..:..:...:.:.:..:.:....:.:.:.::..c..........:..:..:.(.:..:.:.)(.:..:.:.)((..:.:.:.:.:.:.:.:.:.:.:.:.)(.:.:..:..))((.:..:.:.:.:.:.:.:.:.:.)(.:..:..))
+>     progress          : ()..:..:.:..:...:.:..:.:.:..:.:.:.:....:..:.:..:..:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:..:.:....:.:.:.::..c..........:..:.:..(.:.:..:.)(.:..:.:.)((.:..:.:.:.:.:.:.)(.:.:.:...))((..:.:.:.:.:.:.:.:.)(.:.:...))
 >     result            : SUCCESS
 >     successful        : 3
 >     failed            : 1
 >     	async_startup_fail.lux:25 - match_timeout
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_04_314531/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_55_51_913737/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -512,7 +500,7 @@ at `lux_logs/latest_run`. With this command you get a list of all logs:
 Evaluate `cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run`
 
 >     .../lux> cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run
->     lrwxr-xr-x 1 hmattsso staff 30 Jun 11 17:10 lux_logs/latest_run -> run_2019_06_11_15_10_04_314531
+>     lrwxr-xr-x 1 hmattsso staff 30 May  4 09:55 lux_logs/latest_run -> run_2020_05_04_07_55_51_913737
 >     .../lux> echo $?
 >     0
 
@@ -616,124 +604,130 @@ use the `--progress=verbose` flag or `-v` for short:
 Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux -v a_simple_server.lux
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_28_2162/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_56_15_705188/lux_summary.log
 >     test case         : a_simple_server.lux
->     event log         : 0.3
+>     event log         : 0.4
 >     /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/a_simple_server.lux
->     lux(0): start_time "2019-06-11 17:10:28.110469"
->     lux(1): doc "Demo a simple single shell test case"
->     server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
->     server(4): expected* ".+"
->     server(4): timer started (10 seconds * 1.000 multiplier)
->     server(4): recv "\e[?1034hsh-3.2$ "
->     server(4): timer canceled (after 7104 micro seconds)
->     server(4): match "\e[?1034hsh-3.2$ "
->     server(4): send "export PS1=SH-PROMPT:
+>     09:56:15.785503 lux(0): start_time "2020-05-04 09:56:15.768615"
+>     09:56:15.785716 lux(0): suite_timeout infinity
+>     09:56:15.785779 lux(0): case_timeout 300000000 micros
+>     09:56:15.786010 lux(1): doc "Demo a simple single shell test case"
+>     09:56:15.788426 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
+>     09:56:15.788972 server(4): expected* ".+"
+>     09:56:15.789061 server(4): timer started (10 seconds * 1.000 multiplier)
+>     09:56:15.796573 server(4): recv "\e[?1034hsh-3.2$ "
+>     09:56:15.796694 server(4): timer canceled (after 7489 micro seconds)
+>     09:56:15.796793 server(4): match "\e[?1034hsh-3.2$ "
+>     09:56:15.797007 server(4): send "export PS1=SH-PROMPT:
 >         "
->     server(4): recv "expo"
->     server(4): recv "rt PS1=SH-PROMPT:
+>     09:56:15.797282 server(4): recv "expo"
+>     09:56:15.797411 server(4): recv "rt PS1=SH-PROMPT:
+>         SH-PROMPT:"
+>     09:56:15.797507 server(4): expected* "^SH-PROMPT:"
+>     09:56:15.797568 server(4): timer started (10 seconds * 1.000 multiplier)
+>     09:56:15.797653 server(4): timer canceled (after 7 micro seconds)
+>     09:56:15.797723 server(4): skip "export PS1=SH-PROMPT:
 >         "
->     server(4): expected* "^SH-PROMPT:"
->     server(4): timer started (10 seconds * 1.000 multiplier)
->     server(4): recv "SH-PROMPT:"
->     server(4): timer canceled (after 133 micro seconds)
->     server(4): skip "export PS1=SH-PROMPT:
+>     09:56:15.797789 server(4): match "SH-PROMPT:"
+>     09:56:15.797961 server(6): send "erl -sname server -pa ../../../chatty/ebin
 >         "
->     server(4): match "SH-PROMPT:"
->     server(6): send "erl -sname server -pa ../../../chatty/ebin
+>     09:56:15.798121 server(6): recv "erl -sna"
+>     09:56:15.798333 server(6): recv "me server -pa ../../../chatty/ebin
 >         "
->     server(6): recv "erl -"
->     server(6): recv "sname server -pa ../../../chatty"
->     server(8): expected* "Erlang/OTP"
->     server(8): timer started (10 seconds * 1.000 multiplier)
->     server(8): recv "/ebin
->         "
->     server(8): recv "Erlang/OTP 21 [erts-10.3.5] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+>     09:56:15.798432 server(8): expected* "Erlang/OTP"
+>     09:56:15.798550 server(8): timer started (10 seconds * 1.000 multiplier)
+>     09:56:15.895438 server(8): recv "Erlang/OTP 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
 >         
 >         "
->     server(8): timer canceled (after 108215 micro seconds)
->     server(8): skip "erl -sname server -pa ../../../chatty/ebin
+>     09:56:15.895615 server(8): timer canceled (after 96927 micro seconds)
+>     09:56:15.895743 server(8): skip "erl -sname server -pa ../../../chatty/ebin
 >         "
->     server(8): match "Erlang/OTP"
->     server(9): expected* "Eshell"
->     server(9): timer started (10 seconds * 1.000 multiplier)
->     server(9): recv "Eshell V10.3.5  (abort with ^G)
+>     09:56:15.895853 server(8): match "Erlang/OTP"
+>     09:56:15.896142 server(9): expected* "Eshell"
+>     09:56:15.896260 server(9): timer started (10 seconds * 1.000 multiplier)
+>     09:56:16.010064 server(9): recv "Eshell V10.7.1  (abort with ^G)
 >         "
->     server(9): timer canceled (after 117009 micro seconds)
->     server(9): skip " 21 [erts-10.3.5] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+>     09:56:16.010210 server(9): timer canceled (after 113858 micro seconds)
+>     09:56:16.010325 server(9): skip " 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
 >         
 >         "
->     server(9): match "Eshell"
->     server(9): recv "(server@HMATTSSO-M-N1P1)1> "
->     server(10): expected* "> "
->     server(10): timer started (10 seconds * 1.000 multiplier)
->     server(10): timer canceled (after 8 micro seconds)
->     server(10): skip " V10.3.5  (abort with ^G)
->         (server@HMATTSSO-M-N1P1)1"
->     server(10): match "> "
->     server(12): send "chatty:server().
+>     09:56:16.010418 server(9): match "Eshell"
+>     09:56:16.010520 server(9): recv "(server@HMATTSSO-M-74JD)1> "
+>     09:56:16.010751 server(10): expected* "> "
+>     09:56:16.010855 server(10): timer started (10 seconds * 1.000 multiplier)
+>     09:56:16.010989 server(10): timer canceled (after 8 micro seconds)
+>     09:56:16.011105 server(10): skip " V10.7.1  (abort with ^G)
+>         (server@HMATTSSO-M-74JD)1"
+>     09:56:16.011205 server(10): match "> "
+>     09:56:16.011483 server(12): send "chatty:server().
 >         "
->     server(13): expected* "Starting server"
->     server(13): timer started (10 seconds * 1.000 multiplier)
->     server(13): recv "chatty:server().
+>     09:56:16.011667 server(13): expected* "Starting server"
+>     09:56:16.011753 server(13): timer started (10 seconds * 1.000 multiplier)
+>     09:56:16.024808 server(13): recv "chatty:server("
+>     09:56:16.025016 server(13): recv ").
 >         "
->     server(13): recv "Starting server server...
+>     09:56:16.028546 server(13): recv "Starting server server...
 >         "
->     server(13): timer canceled (after 21878 micro seconds)
->     server(13): skip "chatty:server().
+>     09:56:16.028665 server(13): timer canceled (after 16801 micro seconds)
+>     09:56:16.028768 server(13): skip "chatty:server().
 >         "
->     server(13): match "Starting server"
->     server(14): expected* "> "
->     server(14): timer started (10 seconds * 1.000 multiplier)
->     server(14): recv "Trying to open log file chatty_server.log..."
->     server(14): recv "ok.
->         <0.86.0>"
->     server(14): recv "
->         (server@HMATTSSO-M-N1P1)2> "
->     server(14): timer canceled (after 3002721 micro seconds)
->     server(14): skip " server...
+>     09:56:16.028843 server(13): match "Starting server"
+>     09:56:16.029081 server(14): expected* "> "
+>     09:56:16.029155 server(14): timer started (10 seconds * 1.000 multiplier)
+>     09:56:19.028987 server(14): recv "Trying to open log file chatty_server.log..."
+>     09:56:19.029249 server(14): recv "ok.
+>         "
+>     09:56:19.030786 server(14): recv "<0.87.0>
+>         "
+>     09:56:19.030937 server(14): recv "(server@HMATTSSO-M-74JD)2> "
+>     09:56:19.031022 server(14): timer canceled (after 3001760 micro seconds)
+>     09:56:19.031172 server(14): skip " server...
 >         Trying to open log file chatty_server.log...ok.
->         <0.86.0>
->         (server@HMATTSSO-M-N1P1)2"
->     server(14): match "> "
->     server(16): send "halt(3).
+>         <0.87.0>
+>         (server@HMATTSSO-M-74JD)2"
+>     09:56:19.031420 server(14): match "> "
+>     09:56:19.031686 server(16): send "halt(3).
 >         "
->     server(17): expected* "SH-PROMPT:"
->     server(17): timer started (10 seconds * 1.000 multiplier)
->     server(17): recv "halt(3).
+>     09:56:19.031884 server(17): expected* "SH-PROMPT:"
+>     09:56:19.031984 server(17): timer started (10 seconds * 1.000 multiplier)
+>     09:56:19.032120 server(17): recv "halt(3).
 >         "
->     server(17): recv "SH-PROMPT:"
->     server(17): timer canceled (after 4958 micro seconds)
->     server(17): skip "halt(3).
+>     09:56:19.035637 server(17): recv "SH-PROMPT:"
+>     09:56:19.035777 server(17): timer canceled (after 3695 micro seconds)
+>     09:56:19.035909 server(17): skip "halt(3).
 >         "
->     server(17): match "SH-PROMPT:"
->     server(19): send "echo "===$?==="
+>     09:56:19.036011 server(17): match "SH-PROMPT:"
+>     09:56:19.036296 server(19): send "echo "===$?==="
 >         "
->     server(19): recv "echo ""
->     server(20): expected* "===3==="
->     server(20): timer started (10 seconds * 1.000 multiplier)
->     server(20): recv "===$?==="
+>     09:56:19.036440 server(19): recv "ech"
+>     09:56:19.036635 server(19): recv "o "===$?==="
 >         ===3===
 >         SH-PROMPT:"
->     server(20): timer canceled (after 190 micro seconds)
->     server(20): skip "echo "===$?==="
+>     09:56:19.036758 server(20): expected* "===3==="
+>     09:56:19.036861 server(20): timer started (10 seconds * 1.000 multiplier)
+>     09:56:19.036979 server(20): timer canceled (after 9 micro seconds)
+>     09:56:19.037068 server(20): skip "echo "===$?==="
 >         "
->     server(20): match "===3==="
->     server(21): expected* "SH-PROMPT:"
->     server(21): timer started (10 seconds * 1.000 multiplier)
->     server(21): timer canceled (after 9 micro seconds)
->     server(21): skip "
+>     09:56:19.037134 server(20): match "===3==="
+>     09:56:19.037274 server(21): expected* "SH-PROMPT:"
+>     09:56:19.037355 server(21): timer started (10 seconds * 1.000 multiplier)
+>     09:56:19.037468 server(21): timer canceled (after 8 micro seconds)
+>     09:56:19.037548 server(21): skip "
 >         "
->     server(21): match "SH-PROMPT:"
->     server(22): no cleanup
->     server(22): inactivate zombify
->     server(22): end of script
->     server(22): stop success
->     lux(0): end_time "2019-06-11 17:10:31.407339"
+>     09:56:19.037604 server(21): match "SH-PROMPT:"
+>     09:56:19.037775 server(22): no_cleanup
+>     09:56:19.037849 server(22): inactivate after zombify
+>     09:56:19.037908 server(22): end of script
+>     09:56:19.037976 server(22): stop success
+>     09:56:19.038084 server(22): where "22"
+>     09:56:19.038149 server(22): stack "a_simple_server.lux:22"
+>     09:56:19.038213 lux(0): case_timeout 296748000 micros
+>     09:56:19.038285 lux(0): suite_timeout infinity
+>     09:56:19.038357 lux(0): end_time "2020-05-04 09:56:19.038349"
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2019_06_11_15_10_28_2162/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_56_15_705188/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -761,14 +755,14 @@ Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_serv
 >     .../lux> cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdout.log
 >     [?1034hsh-3.2$ export PS1=SH-PROMPT:
 >     SH-PROMPT:erl -sname server -pa ../../../chatty/ebin
->     Erlang/OTP 21 [erts-10.3.5] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [hipe] [dtrace]
+>     Erlang/OTP 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
 >     
->     Eshell V10.3.5  (abort with ^G)
->     (server@HMATTSSO-M-N1P1)1> chatty:server().
+>     Eshell V10.7.1  (abort with ^G)
+>     (server@HMATTSSO-M-74JD)1> chatty:server().
 >     Starting server server...
 >     Trying to open log file chatty_server.log...ok.
->     <0.86.0>
->     (server@HMATTSSO-M-N1P1)2> halt(3).
+>     <0.87.0>
+>     (server@HMATTSSO-M-74JD)2> halt(3).
 >     SH-PROMPT:echo "===$?==="
 >     ===3===
 >     .../lux> echo $?
@@ -845,7 +839,7 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     Set temporary breakpoint at "a_simple_server.lux:15"
 >     
 >     Continue to run from "a_simple_server.lux:1"
->     ..:..:.:..:..:.:..:.:..:.:....:.:..14?:?:?:?
+>     ..:..:.:..:..:.:..:.:..:.:....:.:.:..:.:.:.:.
 >     Break at "a_simple_server.lux:15"
 >     
 >     File a_simple_server.lux:
@@ -871,8 +865,7 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     server(send): 
 >     
 >     server(recv): im().
->     server(recv): <0.89.0>
->     server(recv): (server@HMATTSSO-M-N1P1)3> 
+>     server(recv): 
 >     ?
 >     
 >     Reset output buffer for shell "server".
@@ -891,18 +884,24 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     *  6 a_simple_server.lux.server.stdin.log
 >     *  7 a_simple_server.lux.server.stdout.log
 >     
->     Last 10 (54..63) lines of log file: a_simple_server.lux.event.log
+>     Last 10 (58..67) lines of log file: a_simple_server.lux.event.log
 >     
->     server(14): recv "Trying to open log file chatty_server.log..."
->     server(14): recv "ok.\r\n"
->     server(14): recv "<0.86.0>\r\n(server@HMATTSSO-M-N1P1)2> "
->     server(14): timer canceled (after 3003945 micro seconds)
->     server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n<0.86.0>\r\n(server@HMATTSSO-M-N1P1)2"
->     server(14): match "> "
->     server(14): send "im().\n"
->     server(14): recv "im().\r\n<0.89.0>\r\n(server@HMATTSSO-M-N1P1)3> "
->     server(14): output reset
+>     09:56:24.081660 server(14): recv "ok.\r\n"
+>     09:56:24.083259 server(14): recv "<0.87.0>\r\n"
+>     09:56:24.083444 server(14): recv "(server@HMATTSSO-M-74JD)2> "
+>     09:56:24.083589 server(14): timer canceled (after 3002065 micro seconds)
+>     09:56:24.083685 server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n<0.87.0>\r\n(server@HMATTSSO-M-74JD)2"
+>     09:56:24.083760 server(14): match "> "
+>     09:56:24.086425 server(14): send "im().\n"
+>     09:56:24.587106 server(14): recv "im().\r\n"
+>     09:56:24.589150 server(14): reset "7 bytes wasted"
+>     09:56:24.589462 server(14): output reset 7 bytes
 >     
+>     
+>     server(recv): <0.90.0>
+>     server(recv): 
+>     
+>     server(recv): (server@HMATTSSO-M-74JD)3> 
 >     help quit
 >     
 >     quit \[scope\]
@@ -983,14 +982,9 @@ set).
 
 Snippet from the enclosed `.../lux/tutorial/chatty/test/infra/skip.lux` file:
 
->     [doc Demonstrate an unstable test which is skipped]
+>     [doc Demonstrate a skipped test]
 >     
->     [config skip=SKIP_SUNOS]
->     
->     [shell date]
->         -[2-9]
->         !date +%S
->         ?SH-PROMPT
+>     [config skip=PATH]
 >     
 
 Snippet from the enclosed `.../lux/tutorial/chatty/test/infra/unstable.lux` file:
@@ -1000,6 +994,8 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/infra/unstable.lux` file
 >     [config unstable_unless=TEST_DEVELOP]
 >     
 >     [shell date]
+>         # Ensure a quick fail if it fails
+>         [timeout 2]
 >         -[2-4]
 >         !date +%S
 >         ?SH-PROMPT
@@ -1017,20 +1013,12 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/Makefile` file:
 >     
 >     .PHONY: all build test history clean info
 >     
->     all: build test
->     
->     build:
+>     all build test history:
 >     	@for d in $(LUXDIRS); do \
 >     	   if test -f $$d/Makefile ; then \
->     	      (cd $$d && $(MAKE) $@) ; \
+>     	      $(MAKE) -C $$d $@ || exit $?; \
 >     	   fi; \
 >     	done
->     
->     test:
->     	lux .
->     
->     history:
->     	lux --history . .
 >     
 >     clean:
 >     	rm -rf lux_logs lux_history* *~
@@ -1047,67 +1035,128 @@ History of test run results
 
 Snippet from the enclosed `.../lux/tutorial/chatty/test/infra/Makefile` file:
 
->     .PHONY: all build test history clean history_demo info
+>     .PHONY: all build test history clean info
 >     
 >     TIMESTAMP=$(shell date +"%F_%T")
 >     GITHASH=$(shell git rev-parse --verify --short HEAD)
 >     TOPDIR=$(shell pwd | sed -e 's/tutorial.*/tutorial/')
->     LUXOPTS=\
->     	--config_dir=$(TOPDIR)/support/luxcfg \
->     	--revision=$(TIMESTAMP)_$(GITHASH)
 >     
 >     all: build test
 >     
 >     build:
 >     
 >     test:
->     	lux $(LUX_OPTS) .
+>     	lux .
 >     
 >     history:
->     	lux --history . .
+>     	lux --history . lux_logs
+>     	@echo
+>     	@echo open lux_history.html
 >     
 >     clean:
->     	rm -rf lux_logs lux_history* chatty_*.log erl_crash.dump *~
->     
->     history_demo:
->     	for i in 0 1 2 3 4 5 6 7 8 9; do \
->     		rev="2019-05-14_21:5$$i:04_$(GITHASH)$$i" ; \
->     		opts="--revision=$$rev --suite=demo --config_dir=$(TOPDIR)/support/luxcfg" ; \
->     		lux $$opts --hostname=sunny --config_name=SunOS-i86pc .; \
->     		lux $$opts --hostname=netty --config_name=NetBSD-macppc .; \
->     		sleep 1; \
->     	done
+>     	rm -rf lux_logs history_demo*_logs erl_crash.dump *~
 >     
 >     info:
 >     	@echo "TOPDIR=$(TOPDIR)"
 >     	@echo "TIMESTAMP=$(TIMESTAMP)"
 >     	@echo "GITHASH=$(GITHASH)"
->     	@echo "LUXOPTS=$(LUXOPTS)"
+>     
+>     ############################################################
+>     # Internal history demo targets
+>     ############################################################
+>     
+>     .PHONY: history_demo history_demo_single history_demo_multi_host history_demo_multi_branch history_demo_success history_demo_warning history_demo_empty
+>     
+>     history_demo: history_demo_single history_demo_multi_host history_demo_multi_branch history_demo_success history_demo_warning history_demo_empty
+>     	ls -1 history_demo_*/lux_history.html | sed -e 's/^/open /g'
+>     
+>     history_demo_single:
+>     	rm -rf ${@}; \
+>     	for i in 1 2 3 4 5 6 7 8 9; do \
+>     	  opts="--revision=$(TIMESTAMP)_$$i_$(GITHASH) --suite=demo --config_dir=$(TOPDIR)/support/luxcfg"; \
+>     	  lux $$opts --hostname=sunny  --config_name=SunOS-i86pc  --log_dir=${@}/run_logs/run_sunny_$$i .; \
+>     	done; \
+>     	lux --history ${@} ${@}/run_logs
+>     
+>     history_demo_multi_host:
+>     	rm -rf ${@}; \
+>     	for i in 1 2 3 4 5 6 7 8 9; do \
+>     	  opts="--revision=$(TIMESTAMP)_$$i_$(GITHASH) --suite=demo --config_dir=$(TOPDIR)/support/luxcfg"; \
+>     	  lux $$opts --hostname=sunny  --config_name=SunOS-i86pc   --log_dir=${@}/run_logs/run_sunny_$$i  .; \
+>     	  lux $$opts --hostname=cloudy --config_name=SunOS-i86pc   --log_dir=${@}/run_logs/run_cloudy_$$i .; \
+>     	  lux $$opts --hostname=netty  --config_name=NetBSD-macppc --log_dir=${@}/run_logs/run_netty_$$i  .; \
+>     	done; \
+>     	lux --history ${@} ${@}/run_logs
+>     
+>     history_demo_multi_branch:
+>     	rm -rf ${@}; \
+>     	branches="chatty-1.0 chatty-2.0"; \
+>     	histargs=${@}; \
+>     	for b in $$branches; do \
+>     	  for i in 1 2 3 4 5 6 7 8 9; do \
+>     	    opts="--revision=$(TIMESTAMP)_$$i_$(GITHASH) --suite=demo --config_dir=$(TOPDIR)/support/luxcfg"; \
+>     	    lux $$opts --hostname=sunny  --config_name=SunOS-i86pc    --log_dir=${@}/run_logs/$$b/run_sunny_$$i  .; \
+>     	    lux $$opts --hostname=cloudy --config_name=SunOS-i86pc    --log_dir=${@}/run_logs/$$b/run_cloudy_$$i .; \
+>     	    lux $$opts --hostname=netty  --config_name=NetBSD-macppc  --log_dir=${@}/run_logs/$$b/run_netty_$$i  .; \
+>     	  done; \
+>     	  histargs="$$histargs $$b:::${@}/run_logs/$$b"; \
+>     	done; \
+>     	lux --history $$histargs
+>     
+>     history_demo_success:
+>     	rm -rf ${@}; \
+>     	for i in 1 2 3 4 5 6 7 8 9; do \
+>     	  opts="--revision=$(TIMESTAMP)_$$i_$(GITHASH) --suite=demo --config_dir=$(TOPDIR)/support/luxcfg"; \
+>     	  lux $$opts --hostname=sunny  --config_name=SunOS-i86pc  --log_dir=${@}/run_logs/run_sunny_$$i success.lux; \
+>     	done; \
+>     	lux --history ${@} ${@}/run_logs
+>     
+>     history_demo_warning:
+>     	rm -rf ${@}; \
+>     	for i in 1 2 3 4 5 6 7 8 9; do \
+>     	  opts="--revision=$(TIMESTAMP)_$$i_$(GITHASH) --suite=demo --config_dir=$(TOPDIR)/support/luxcfg"; \
+>     	  lux $$opts --hostname=sunny  --config_name=SunOS-i86pc  --log_dir=${@}/run_logs/run_sunny_$$i success.lux warning.lux; \
+>     	done; \
+>     	lux --history ${@} ${@}/run_logs
+>     
+>     history_demo_empty:
+>     	rm -rf ${@}; \
+>     	lux --history ${@} ${@}/run_logs
 >     
 
-Evaluate `rm -rf tutorial/chatty/test/infra/lux_logs`
+Evaluate `cd tutorial/chatty/test/infra && make history_demo_multi_hosts`
 
+Evaluate `cd tutorial/chatty/test/infra && rm history_demo_multi_hosts/lux_history*`
 
-Evaluate `cd tutorial/chatty/test/infra && make history_demo`
+Evaluate `cd tutorial/chatty/test/infra && lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs`
 
-
-Evaluate `cd tutorial/chatty/test/infra && lux --history history_logs lux_logs`
-
->     .../lux> cd tutorial/chatty/test/infra && lux --history history_logs lux_logs
+>     .../lux> cd tutorial/chatty/test/infra && lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs
+>     Invoke: /Users/hmattsso/dev/lux/bin/lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs
 >     Assembling history of logs from...
->     	lux_logs....................
->     Analyzed 20 test runs (0 errors)...ok
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_logs/lux_history.html
+>     	history_demo_multi_hosts/run_logs
+>     HTML LUX WARNING: history_demo_multi_hosts/run_logs: No new runs
+>     Wrote 268 bytes in run cache to file history_demo_multi_hosts/lux_history.cache
+>     Analyzed 1 test runs with 0 test cases (1 errors)
+>     Skip empty file: history_demo_multi_hosts/lux_history_config_no_config.html
+>     ...ok
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_demo_multi_hosts/lux_history.html
 >     .../lux> echo $?
 >     0
 
 
-Walkthru history_logs/lux_history.html
+Walkthru history_demo_multi_host/lux_history.html
 
-    - Overview
-    - Per architecture
+- Overview
+    - Per architecture (config)
     - Per host
     - Still failing test cases
+
+Evaluate `cd tutorial/chatty/test/infra && make history_demo_multi_branch`
+
+
+Walkthru history_demo_multi_branch/lux_history.html
+
+    - Compare branches
 
 Jenkins
 
@@ -1801,6 +1850,27 @@ directories) are called test suites and the derived files (actual Lux
 scripts) are called test cases. The configuration parameter `--skip`
 can be used to conditionally skip test cases.
 
+The lookup of configuration parameters/settings is performed in the
+following order:
+
+1. Command line parameters. Eg. `--skip_skip` to ignore all skip settings.
+
+2. Command line parameters from `LUX_FLAGS` environment variable. To
+be used interactively.
+
+3. Command line parameters from `LUX_SYSTEM_FLAGS` environment
+variable. To be used by makefiles, scripts etc.
+
+4. Test case specific configuration settings
+
+5. Architecture specific configuration settings
+
+6. Site local default configuration settings defined in `lux/priv/luxcfg`
+
+7. Environment variables are converted to `[config var=val]`
+
+8. Hardcoded built-in default values
+
 Test case control
 -----------------
 
@@ -1810,6 +1880,9 @@ Mode can be one of :
 * `execute`  - evaluate the test cases. This is default.
 * `validate` - parse all script files and configuration files and
                report syntax errors and warnings.
+* `dump`     - parse and dump the internal form of all script files
+               and configuration files and report syntax errors and
+               warnings.
 * `list`     - display a list of all (non-skipped) test cases.
                One file per line.
 * `list_dir` - display a list of all directories with non-skipped
@@ -2714,7 +2787,7 @@ and another `.../lux_config/SunOS-sun4u.luxcfg`
 >     [config var=USE_VALGRIND=false]
 >     [config multiplier=3000]
 
-Snippet from the enclosed `.../lux/examples/require.lux` file:
+Snippet from the enclosed `.../lux/examples/require_fail.lux` file:
 
 >     [doc Demonstrate an error]
 >     
@@ -2748,7 +2821,7 @@ Snippet from the enclosed `.../lux/examples/skip.lux` file:
 >         ?bar
 >     
 
-Snippet from the enclosed `.../lux/examples/unstable.lux` file:
+Snippet from the enclosed `.../lux/examples/unstable_warn.lux` file:
 
 >     [doc Demonstrate an unstable test]
 >     
@@ -2765,12 +2838,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_04_01_14_48_34_924562/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_58_26_186834/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:..:..)..(.:.:..:..)(....:.:..:...)(.:..:..)..(.:.:...)......:.:..........
+>     progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:...)..(.:.:..:..)(....:.:..:...)(.:..:..)..(.:..:..)......:.:..........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:.:..:...:..:.:.:...:.:.:.:....:.:...32C..:..:.:..:..:.:..:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:.:..:...:..:.:.:...:.:.:....:.:...32C..:..:.:..:..:..:.:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at 32 in shell calculator
 >     expected*
 >     	19
@@ -2787,13 +2860,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:.:..:..:.:.:.....:..:..:..:.:..:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:..:..:.:..:..:.:..
+>     progress          : ..:..:.:..:..:.:.....:..:.:...:.:..:.:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:.:..
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:.:..:.)(.:..:.)(.:..:.))((.:.:..:.)(..:.:.)(.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:.:..:..:.:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):).c........:..:.:..:..:..:.:.
+>     progress          : ..:..:.:..:.((..:.)(.:.:..:.)(.:.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.))((.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..:.))...:..:.:..:..:.:..:..:.:..:...:..:.:..:.((.i=1..:..:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:).)c........:..:.:..:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..:.((.i=1..:.:...z)(z..i=2..:.:..:..z)(z..i=3..:..:..z))+5
+>     progress          : ..:..:.:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at 5 in shell break
 >     expected*
 >     	
@@ -2802,11 +2875,11 @@ Evaluate `lux examples`
 >     diff
 >     	  
 >     	
->     test case         : examples/require.lux
+>     test case         : examples/require_fail.lux
 >     result            : FAIL as required variable MAKE is not set
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
->     test case         : examples/unstable.lux
+>     test case         : examples/unstable_warn.lux
 >     progress          : ..:..:.:..:....7
 >     warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at 7 in shell foo
@@ -2826,14 +2899,14 @@ Evaluate `lux examples`
 >     skipped           : 1
 >     	examples/skip.lux:6
 >     warnings          : 2
->     	examples/unstable.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     	examples/unstable_warn.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 >     	examples/warning.lux:3 - Trailing whitespaces
 >     failed            : 3
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
->     	examples/require.lux:3 - FAIL as required variable MAKE is not set
+>     	examples/require_fail.lux:3 - FAIL as required variable MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2020_04_01_14_48_34_924562/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_58_26_186834/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
