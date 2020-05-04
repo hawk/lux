@@ -894,15 +894,19 @@ header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG, TagDict, Errors) ->
                 [
                  "  <table border=\"1\">\n",
                  "    <tr><td colspan=\"", ?i2l(length(ExtractedRes)), "\">\n",
-                 lux_html_utils:html_href(
-                   anchor_file({all, Type}, CurrP, TagDict), Title),
+                 case anchor_file({all, Type}, CurrP, TagDict) of
+                     ""       ->  Title;
+                     AllFile  ->  lux_html_utils:html_href(AllFile, Title)
+                 end,
                  "    </td></tr>\n",
                  "    <tr>\n",
                  [
                   [
                    "    <td class=\"", ?a2l(Res), "\"> ",
-                   lux_html_utils:html_href(
-                     anchor_file({Type, Name}, CurrP, TagDict), Name),
+                   case anchor_file({Type, Name}, CurrP, TagDict) of
+                       ""       -> Name;
+                       TypeFile -> lux_html_utils:html_href(TypeFile, Name)
+                   end,
                    "</td>\n"
                   ] || {Name, Res} <- ExtractedRes
                  ],
