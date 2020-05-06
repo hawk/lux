@@ -33,8 +33,10 @@
 
 [cleanup]
     # Save logs at fail
-    ~if [ "$LUX_START_REASON" = "fail" ]; then
-    ~  mkdir -p $LUX_EXTRA_LOGS/erl;
-    ~  cp -r ./logs/* $LUX_EXTRA_LOGS/erl;
-    !fi; true
+    """!
+    if [ "$LUX_START_REASON" = "fail" ]; then
+      mkdir -p $LUX_EXTRA_LOGS/erl;
+      cp -r ./logs/* $LUX_EXTRA_LOGS/erl;
+    fi; true
+    """
     ?SH-PROMPT:
