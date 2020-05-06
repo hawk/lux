@@ -251,6 +251,10 @@ choose_tmp(IsTmp, TmpString, String) ->
     end.
 
 html_summary_section(A, {section, Slogan, Count, FileBins}, Groups) ->
+    NamedLogs =
+        [{chop_root(drop_run_dir_prefix(A, Name)), HtmlLog} ||
+            {test_group, _Group, Cases} <- Groups,
+            {test_case, Name, _Log, _Doc, HtmlLog, _Res} <- Cases],
     [
      "<strong>", lux_html_utils:html_quote(Slogan), ": ", Count, "</strong>\n",
      case FileBins of
@@ -259,27 +263,22 @@ html_summary_section(A, {section, Slogan, Count, FileBins}, Groups) ->
          _ ->
              [
               "<div class=\"event\"><pre>",
-              [html_summary_file(A, F, Groups) || F <- FileBins],
+              [html_summary_file(A, F, NamedLogs) || F <- FileBins],
               "</pre></div>"
              ]
      end
     ].
 
-html_summary_file(A, {file_lineno, FileBin, LineNo}, Groups)
+html_summary_file(A, {file_lineno, FileBin, LineNo}, NamedLogs)
   when is_binary(FileBin) ->
     File = ?b2l(FileBin),
-    Files =
-        [HtmlLog ||
-            {test_group, _Group, Cases} <- Groups,
-            {test_case, Name, _Log, _Doc, HtmlLog, _Res} <- Cases,
-            File =:= Name],
     PrefixedRelScript = prefixed_rel_script(A, File),
     RelFile = chop_root(drop_run_dir_prefix(A, File)),
     Label = [PrefixedRelScript, ":", LineNo],
-    case Files of
-        [] ->
+    case lists:keyfind(File, 1, NamedLogs) of
+        false ->
             [lux_html_utils:html_href("#" ++ RelFile, Label), "\n"];
-        [HtmlLog|_] ->
+        {_, HtmlLog} ->
             [lux_html_utils:html_href(drop_run_log_prefix(A, HtmlLog), Label),
              "\n"]
     end.
