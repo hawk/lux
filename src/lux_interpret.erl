@@ -153,7 +153,7 @@ opt_stop_etrace(I) ->
 
 collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
     Collect =
-        fun(Cmd, RevFile, _CmdStack, Acc) ->
+        fun(Cmd, RevFile, _PosStack, Acc) ->
                 case Cmd of
                     #cmd{type = macro,
                          arg = {macro, Name, _ArgNames,
@@ -200,7 +200,7 @@ loop(I)
   when ?call_level(I) > 1 andalso I#istate.commands =:= [] ->
     %% Stop include
     I2 = multisync(I, wait_for_expect),
-    %% Check for stop and down before popping the cmd_stack
+    %% Check for stop and down before popping the pos_stack
     sync_return(I2);
 loop(I) ->
     LoopTimeout = loop_timeout(I),
@@ -678,22 +678,19 @@ get_eval_fun() ->
     fun(I) when is_record(I, istate) -> loop(I) end.
 
 eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
-          CmdFile, Body, #cmd{type = Type} = Cmd, Fun, IsRootLoop) ->
+          CmdFile, Body, Cmd, Fun, IsRootLoop) ->
     Enter =
         fun() ->
                 timestamp_ilog(OldI, "file_enter ~p ~p ~p ~p\n",
                                [InvokeLineNo, FirstLineNo, LastLineNo, CmdFile])
         end,
-    OldStack = OldI#istate.cmd_stack,
-    CurrentPos =
-        #cmd_pos{rev_file = lux_utils:filename_split(CmdFile),
-                 lineno = InvokeLineNo,
-                 type = Type},
+    OldStack = OldI#istate.pos_stack,
+    CurrentPos = lux_utils:cmd_pos(CmdFile, Cmd#cmd{lineno = InvokeLineNo}),
     NewStack = [CurrentPos | OldStack],
     BeforeI = OldI#istate{call_level = ?call_level(OldI) + 1,
                           file = CmdFile,
                           latest_cmd = Cmd,
-                          cmd_stack = NewStack,
+                          pos_stack = NewStack,
                           commands = Body},
     BeforeI2 = adjust_stacks(before, BeforeI, Cmd, NewStack,
                              Enter, IsRootLoop),
@@ -712,7 +709,7 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
         NewI = AfterI2#istate{call_level = ?call_level(OldI),
                               file = OldI#istate.file,
                               latest_cmd = OldI#istate.latest_cmd,
-                              cmd_stack = OldI#istate.cmd_stack,
+                              pos_stack = OldI#istate.pos_stack,
                               commands = OldI#istate.commands},
         if
             NewI#istate.cleanup_reason =:= normal ->
@@ -1056,7 +1053,7 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
 
 prepare_result(#istate{mode = Mode,
                        latest_cmd = LatestCmd,
-                       cmd_stack = CmdStack,
+                       pos_stack = PosStack,
                        active_name = ActiveName,
                        cleanup_reason = OrigCleanupReason},
                Res) ->
@@ -1069,32 +1066,32 @@ prepare_result(#istate{mode = Mode,
             #result{outcome = NewOutcome} ->
                 {NewOutcome, Res};
             {'EXIT', {error, FailReason}} ->
-                fail_result(LatestCmd, CmdStack, ActiveName, FailReason);
+                fail_result(LatestCmd, PosStack, ActiveName, FailReason);
             {fail, FailReason} ->
-                fail_result(LatestCmd, CmdStack, ActiveName, FailReason)
+                fail_result(LatestCmd, PosStack, ActiveName, FailReason)
         end,
     Res3 =
         case Res2 of
             #result{actual = <<?fail_pattern_matched, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
-                            cmd_stack = CmdStack};
+                            pos_stack = PosStack};
             #result{actual = <<?success_pattern_matched, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
-                            cmd_stack = CmdStack};
+                            pos_stack = PosStack};
             #result{actual = <<?loop_break_pattern_mismatch, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
-                            cmd_stack = CmdStack};
+                            pos_stack = PosStack};
             _ ->
                 Res2
         end,
     {CleanupReason, Res3#result{mode = Mode}}.
 
-fail_result(LatestCmd, CmdStack, ActiveName, FailReason) ->
+fail_result(LatestCmd, PosStack, ActiveName, FailReason) ->
     {ExpectedTag, Expected} = lux_utils:cmd_expected(LatestCmd),
     {fail,
      #result{outcome      = fail,
              latest_cmd   = LatestCmd,
-             cmd_stack    = CmdStack,
+             pos_stack    = PosStack,
              shell_name   = ActiveName,
              expected_tag = ExpectedTag,
              expected     = Expected,
@@ -1191,7 +1188,7 @@ prepare_cleanup(I, Cmd) ->
     I3#istate{mode = NewMode, want_more = true}.
 
 cleanup_mode(I) ->
-    case I#istate.cmd_stack of
+    case I#istate.pos_stack of
         [] -> Context = main;
         [#cmd_pos{type = Context} | _] -> ok
     end,
@@ -1486,7 +1483,7 @@ inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I,
 
 change_active_mode(I, Cmd, NewMode)
   when is_pid(I#istate.active_shell#shell.pid) ->
-    case cast(I, {change_mode, self(), NewMode, Cmd, I#istate.cmd_stack}) of
+    case cast(I, {change_mode, self(), NewMode, Cmd, I#istate.pos_stack}) of
         {ok, Pid} ->
             I2 = wait_for_reply(I, [Pid], change_mode_ack, undefined, infinity),
             {ok, I2};
@@ -1498,23 +1495,23 @@ change_active_mode(I, _Cmd, _NewMode) ->
     {ok, I}.
 
 adjust_stacks(When, #istate{active_shell = no_shell} = I,
-              NewCmd, CmdStack, Fun, IsRootLoop) ->
+              NewCmd, PosStack, Fun, IsRootLoop) ->
     Fun(),
-    adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, []);
+    adjust_suspended_stacks(When, I, NewCmd, PosStack, IsRootLoop, []);
 adjust_stacks(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
-           NewCmd, CmdStack, Fun, IsRootLoop) ->
-    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
+           NewCmd, PosStack, Fun, IsRootLoop) ->
+    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, PosStack, Fun},
     case cast(I, Msg) of
         {ok, ActivePid} ->
-            adjust_suspended_stacks(When, I, NewCmd, CmdStack,
+            adjust_suspended_stacks(When, I, NewCmd, PosStack,
                                     IsRootLoop, [ActivePid]);
         {bad_shell, I2} ->
             I2
     end.
 
-adjust_suspended_stacks(When, I, NewCmd, CmdStack, IsRootLoop, ActivePids) ->
+adjust_suspended_stacks(When, I, NewCmd, PosStack, IsRootLoop, ActivePids) ->
     Fun = fun() -> ignore end,
-    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, CmdStack, Fun},
+    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, PosStack, Fun},
     OtherPids = multicast(I#istate{active_shell = no_shell}, Msg),
     Pids = ActivePids ++ OtherPids,
     wait_for_reply(I, Pids, adjust_stacks_ack, Fun, infinity).
@@ -1625,16 +1622,16 @@ raw_ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
 
 ilog_stack(#istate{orig_file = File,
                    latest_cmd = LatestCmd,
-                   cmd_stack = CmdStack,
+                   pos_stack = PosStack,
                    active_name = ShellName} = C) ->
     CmdPos = lux_utils:cmd_pos(File, LatestCmd),
-    FullStack = [CmdPos|CmdStack],
+    FullStack = [CmdPos|PosStack],
     FullLineNo = lux_utils:pretty_full_lineno(FullStack),
     LineNo = LatestCmd#cmd.lineno,
-    ilog(C, where, "\"" ++ FullLineNo ++ "\"", ShellName, LineNo),
+    ilog(C, "where \"~s\"\n", [FullLineNo], ShellName, LineNo),
     PrettyStack = lux_utils:pretty_stack(File, FullStack),
-    [ilog(C, stack, "\"" ++ PS ++ "\"", ShellName, LineNo) ||
-        PS <- lists:reverse(PrettyStack)],
+    [ilog(C, "stack \"~s\" ~p ~s\n", [PS, T, N], ShellName, LineNo) ||
+        {PS, #cmd_pos{type = T, name = N}} <- PrettyStack],
     FullLineNo.
 
 dlog(I, Level, Format, Args) when I#istate.debug_level >= Level ->

@@ -776,7 +776,7 @@ adjust_warnings(Script, OldSummary, ParseWarnings, Results) ->
     {Summary, NewSummary, NewResults}.
 
 extract_doc(File, Cmds) ->
-    Fun = fun(Cmd, _RevFile, _CmdStack, Acc) ->
+    Fun = fun(Cmd, _RevFile, _PosStack, Acc) ->
                   case Cmd of
                       #cmd{type = doc} ->
                           [Cmd | Acc];
@@ -976,21 +976,17 @@ all_config_args(R) ->
     lists:append(lists:reverse(args_dicts(R))).
 
 stack_error(ErrorStack, ErrorBin) ->
-    #cmd_pos{rev_file = RevMainFile} = lists:last(ErrorStack),
-    #cmd_pos{rev_file = RevErrorFile} = hd(ErrorStack),
+    #cmd_pos{rev_file = RevMainFile,  name = MainName} = lists:last(ErrorStack),
+    #cmd_pos{rev_file = RevErrorFile, name = ErrorName} = hd(ErrorStack),
     FullLineNo = lux_utils:pretty_full_lineno(ErrorStack),
     if
         RevErrorFile =:= RevMainFile ->
-            #cmd_pos{rev_file = RevMainFile,
-                     lineno = FullLineNo,
-                     type = ErrorBin};
+            lux_utils:cmd_pos(RevMainFile, FullLineNo, ErrorBin, MainName);
         true ->
             ErrorFile = lux_utils:pretty_filename(RevErrorFile),
             FileBin = ?l2b(ErrorFile),
             ErrorBin2 = <<FileBin/binary, ": ", ErrorBin/binary>>,
-            #cmd_pos{rev_file = RevMainFile,
-                     lineno = FullLineNo,
-                     type = ErrorBin2}
+            lux_utils:cmd_pos(RevMainFile, FullLineNo, ErrorBin2, ErrorName)
     end.
 
 config_file(R, ConfigDir, UserConfigName, ActualConfigName) ->

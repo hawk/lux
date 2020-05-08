@@ -97,7 +97,7 @@ ensure_cleanup(_P, [LastCmd | _] = RevCmds) ->
     NoCleanup = LastCmd#cmd{type = no_cleanup},
     [NoCleanup | RevCmds].
 
-extract_config(Cmd, _RevFile, _CmdStack, Acc) ->
+extract_config(Cmd, _RevFile, _PosStack, Acc) ->
     case Cmd of
         #cmd{type = config, arg = {config, Var, Val}} ->
             Name = list_to_atom(Var),
@@ -697,7 +697,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             AbsFile = filename:absname(RelFile2, Dir),
             AbsFile2 = lux_utils:normalize_filename(AbsFile),
             try
-                NewPosStack = cmd_pos_stack(P, LineNo),
+                NewPosStack = cmd_pos_stack(P, Cmd),
                 {P2, FirstLineNo, LastLineNo, RevInclCmds} =
                     parse_file2(P#pstate{file = AbsFile2,
                                          pos_stack = NewPosStack}),
@@ -1109,7 +1109,8 @@ parse_error(P, Fd, LineNo, IoList) ->
 
 parse_error(P, Fd, Tag, LineNo, IoList) ->
     %% io:format("\nerror(~p): ~p\n", [?LINE, ?stacktrace()]),
-    NewPosStack = cmd_pos_stack(P, LineNo),
+    FakeCmd = #cmd{lineno = LineNo, type = undefined, arg = undefined},
+    NewPosStack = cmd_pos_stack(P, FakeCmd),
     NewIoList = ?l2b(IoList),
     reparse_error(Fd, Tag, NewPosStack, NewIoList).
 
@@ -1128,19 +1129,16 @@ add_warning(P, OptCmd, IoList) ->
 
 full_lineno(_P, undefined) ->
     "0";
-full_lineno(P, #cmd{lineno = LineNo}) ->
-    FullStack = cmd_pos_stack(P, LineNo),
+full_lineno(P, #cmd{} = Cmd) ->
+    FullStack = cmd_pos_stack(P, Cmd),
     lux_utils:pretty_full_lineno(FullStack).
 
-cmd_pos_stack(P, LineNo) ->
-    RevFile = lux_utils:filename_split(P#pstate.file),
+cmd_pos_stack(P, Cmd) ->
     OldPosStack = P#pstate.pos_stack,
     Context =
         case OldPosStack of
             [] -> main;
             _  -> include
         end,
-    CmdPos = #cmd_pos{rev_file = RevFile,
-                      lineno = LineNo,
-                      type = Context},
+    CmdPos = lux_utils:cmd_pos(P#pstate.file, Cmd#cmd{type = Context}),
     [CmdPos | OldPosStack].

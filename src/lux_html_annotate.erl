@@ -35,14 +35,14 @@
 -record(code_html,
         {script_comps,
          lineno,
-         cmd_stack,
+         pos_stack,
          lines
         }).
 
 -record(event_html,
         {script_comps,
          lineno,
-         cmd_stack,
+         pos_stack,
          op,
          timestamp :: no_timestamp | binary(),
          shell,
@@ -51,7 +51,7 @@
 -record(body_html,
         {script,
          orig_script,
-         cmd_stack,
+         pos_stack,
          lineno,
          lines}).
 
@@ -422,12 +422,12 @@ interleave_code(A, Events, Script) ->
 
 interleave_file(A, Events, Flush, Script,
                 FirstLineNo, MaxLineNo,
-                CmdStack, Files, Cache)
+                PosStack, Files, Cache)
   when is_list(Script) ->
     OrigScript = A#astate.script_file,
     {FCH, Files2} =
         lookup_file(Script, OrigScript, FirstLineNo, MaxLineNo,
-                    CmdStack, Files, Cache),
+                    PosStack, Files, Cache),
     case FCH of
         #code_html{} = CH ->
             {[CH], Files2, Cache};
@@ -443,15 +443,15 @@ interleave_file(A, Events, Flush, Script,
             Acc = [],
             interleave_loop(A, Events, Flush, CodeLines,
                             FirstLineNo, MaxLineNo,
-                            Acc, CmdStack,
+                            Acc, PosStack,
                             F, Files2, Cache)
     end.
 
 lookup_file(Script, OrigScript, FirstLineNo, MaxLineNo,
-            CmdStack, Files, Cache) ->
+            PosStack, Files, Cache) ->
     case dict:find({OrigScript, FirstLineNo, MaxLineNo}, Cache) of
         {ok, #code_html{} = CH} ->
-            {CH#code_html{cmd_stack = CmdStack}, Files};
+            {CH#code_html{pos_stack = PosStack}, Files};
         error ->
             case lists:keyfind(OrigScript, #file.orig_script, Files) of
                 #file{} = F ->
@@ -484,13 +484,13 @@ interleave_loop(A, [#event{lineno =  LineNo,
                            data = RevData} | Events],
                 Flush, CodeLines,
                 CodeLineNo, MaxLineNo,
-                Acc, CmdStack,
+                Acc, PosStack,
                 F, Files, Cache) ->
     TmpFlush = false,
     {CodeLines2, CodeLineNo2, CH, Cache2} =
         pick_code(F, CodeLines,
                   CodeLineNo, LineNo,
-                  TmpFlush, CmdStack,
+                  TmpFlush, PosStack,
                   Cache),
     ScriptComps = F#file.script_comps,
     Data = ?l2b(lists:reverse(RevData)),
@@ -505,7 +505,7 @@ interleave_loop(A, [#event{lineno =  LineNo,
         end,
     EH = #event_html{script_comps = ScriptComps,
                      lineno = LineNo,
-                     cmd_stack = CmdStack,
+                     pos_stack = PosStack,
                      op = Op,
                      timestamp = Timestamp,
                      shell = Shell,
@@ -518,53 +518,53 @@ interleave_loop(A, [#event{lineno =  LineNo,
     interleave_loop(A, Events,
                     Flush, CodeLines2,
                     CodeLineNo2, MaxLineNo,
-                    Acc2, CmdStack,
+                    Acc2, PosStack,
                     F, Files, Cache2);
 interleave_loop(A, [#body{} = B | Events],
                 Flush, CodeLines,
                 CodeLineNo, MaxLineNo,
-                Acc, CmdStack,
+                Acc, PosStack,
                 F, Files, Cache) ->
     ScriptComps = F#file.script_comps,
     CmdPos = #cmd_pos{rev_file = ScriptComps,
                       lineno = B#body.invoke_lineno,
                       type = undefined},
-    CmdStack2 = [CmdPos | CmdStack],
+    PosStack2 = [CmdPos | PosStack],
     SubScript = B#body.file,
     OrigSubScript = orig_script(A, SubScript),
     SubA = A#astate{script_file = OrigSubScript},
     {SubAnnotated, Files2, Cache2} =
         interleave_file(SubA, B#body.events, Flush, SubScript,
                         B#body.first_lineno, B#body.last_lineno,
-                        CmdStack2, Files, Cache),
+                        PosStack2, Files, Cache),
     Event = #body_html{script = SubScript,
                        orig_script = OrigSubScript,
-                       cmd_stack = CmdStack2,
+                       pos_stack = PosStack2,
                        lineno = B#body.first_lineno,
                        lines = SubAnnotated},
     interleave_loop(A, Events,
                     Flush, CodeLines,
                     CodeLineNo, MaxLineNo,
-                    [Event | Acc], CmdStack,
+                    [Event | Acc], PosStack,
                     F, Files2, Cache2);
 interleave_loop(_A, [],
                 Flush, CodeLines,
                 CodeLineNo, MaxLineNo,
-                Acc, CmdStack,
+                Acc, PosStack,
                 F, Files, Cache) ->
     {_Skipped, _CodeLineNo, CH, Cache2} =
         pick_code(F, CodeLines,
                   CodeLineNo, MaxLineNo,
-                  Flush, CmdStack, Cache),
+                  Flush, PosStack, Cache),
     {lists:reverse([CH | Acc]), Files, Cache2}.
 
-pick_code(F, Lines, CodeLineNo, MaxLineNo, Flush, CmdStack, Cache) ->
+pick_code(F, Lines, CodeLineNo, MaxLineNo, Flush, PosStack, Cache) ->
     {Lines2, CodeLineNo2, Code} =
         do_pick_code(F, Lines, CodeLineNo, MaxLineNo, Flush, []),
     ScriptComps = F#file.script_comps,
     CH = #code_html{script_comps = ScriptComps,
                     lineno = CodeLineNo,
-                    cmd_stack = CmdStack,
+                    pos_stack = PosStack,
                     lines = Code},
     Cache2 = dict:store({F#file.orig_script, CodeLineNo, MaxLineNo}, CH, Cache),
     {Lines2, CodeLineNo2, CH, Cache2}.
@@ -972,15 +972,16 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
     case Ann of
         #code_html{script_comps = ScriptComps,
                    lineno = CodeLineNo,
-                   cmd_stack = CmdStack,
+                   pos_stack = PosStack,
                    lines = Code} ->
             Curr = code,
             Fun = fun(L, C) ->
                           CmdPos = #cmd_pos{rev_file = ScriptComps,
                                             lineno = C,
-                                            type = undefined},
-                          CmdStack2 = [CmdPos | CmdStack],
-                          FullLineNo = lux_utils:pretty_full_lineno(CmdStack2),
+                                            type = undefined,
+                                            name = ""},
+                          PosStack2 = [CmdPos | PosStack],
+                          FullLineNo = lux_utils:pretty_full_lineno(PosStack2),
                           {[
                             case L of
                                 <<"[cleanup]">> -> "<a name=\"cleanup\"></a>\n";
@@ -1001,7 +1002,7 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
             ];
         #event_html{script_comps = ScriptComps,
                     lineno = LineNo,
-                    cmd_stack = CmdStack,
+                    pos_stack = PosStack,
                     op = Op,
                     timestamp = Timestamp,
                     shell = Shell,
@@ -1017,9 +1018,10 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
                 end,
             CmdPos = #cmd_pos{rev_file = ScriptComps,
                               lineno = LineNo,
-                              type = undefined},
-            CmdStack2 = [CmdPos | CmdStack],
-            FullLineNo = lux_utils:pretty_full_lineno(CmdStack2),
+                              type = undefined,
+                              name = ""},
+            PosStack2 = [CmdPos | PosStack],
+            FullLineNo = lux_utils:pretty_full_lineno(PosStack2),
             OptTimeStamp =
                 case Timestamp of
                     no_timestamp -> [];
@@ -1035,10 +1037,10 @@ html_code2(A, [Ann | Annotated], Prev, Orig) ->
             ];
         #body_html{script = SubScript,
                    orig_script = OrigSubScript,
-                   cmd_stack = CmdStack,
+                   pos_stack = PosStack,
                    lineno = _LineNo,
                    lines = SubAnnotated} ->
-            FullLineNo = lux_utils:pretty_full_lineno(CmdStack),
+            FullLineNo = lux_utils:pretty_full_lineno(PosStack),
             RelSubScript = drop_run_dir_prefix(A, SubScript),
             if
                 OrigSubScript =/= A#astate.script_file ->

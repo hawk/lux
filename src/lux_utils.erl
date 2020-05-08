@@ -19,7 +19,8 @@
          expand_lines/1, split_lines/1, shrink_lines/1,
          to_string/1, capitalize/1, tag_prefix/2,
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
-         full_lineno/3, pretty_full_lineno/1, cmd_pos/2, pretty_stack/2,
+         full_lineno/3, pretty_full_lineno/1, pretty_stack/2,
+         cmd_pos/2, cmd_pos/4,
          pretty_filename/1, filename_split/1,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/3, equal/3, diff_iter/4, diff_iter/5, shrink_diff/3,
@@ -427,25 +428,25 @@ do_fold_files(File, RegExp, Recursive, Fun, Acc, IsTopLevel) ->
     end.
 
 %% Iterate over commands
-foldl_cmds(Fun, Acc, File, CmdStack, Cmds) ->
-    foldl_cmds(Fun, Acc, File, CmdStack, Cmds, include).
+foldl_cmds(Fun, Acc, File, PosStack, Cmds) ->
+    foldl_cmds(Fun, Acc, File, PosStack, Cmds, include).
 
 %% Depth :: main         - iterate only over main script file
 %%        | include      - do also iterate over include files
 %%        | static       - do also iterate over loops and macros
 %%        | {dynamic, I} - do also iterate over macros invokations
-foldl_cmds(Fun, Acc, File, CmdStack, Cmds, Depth) when is_atom(Depth) ->
-    foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, undefined});
-foldl_cmds(Fun, Acc, File, CmdStack, Cmds, {Depth, OptI})
+foldl_cmds(Fun, Acc, File, PosStack, Cmds, Depth) when is_atom(Depth) ->
+    foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, undefined});
+foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, OptI})
   when Depth =:= main; Depth =:= include; Depth =:= static; Depth =:= dynamic ->
     File2 = drop_prefix(File),
     RevFile = filename_split(File2),
-    do_foldl_cmds(Fun, Acc, File2, RevFile, CmdStack, Cmds, {Depth, OptI}).
+    do_foldl_cmds(Fun, Acc, File2, RevFile, PosStack, Cmds, {Depth, OptI}).
 
-do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
+do_foldl_cmds(Fun, Acc, File, RevFile, PosStack,
               [#cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd | Cmds],
               {Depth, OptI} = FullDepth) ->
-    CmdPos = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type},
+    CmdPos = lux_utils:cmd_pos(File, Cmd),
     SubFun =
         fun(SubFile, SubCmds, SubStack) ->
                 SubAcc = Fun(Cmd, RevFile, SubStack, Acc),
@@ -457,19 +458,19 @@ do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
                          Depth =:= static;
                          Depth =:= dynamic ->
                 {include, SubFile, _FirstLineNo, _LastFileNo, SubCmds} = Arg,
-                SubFun(SubFile, SubCmds, [CmdPos | CmdStack]);
+                SubFun(SubFile, SubCmds, [CmdPos | PosStack]);
             macro when Depth =:= static;
                        Depth =:= dynamic ->
                 {macro, _Name, _ArgNames, _FirstLineNo, _LastLineNo, Body} =
                     Arg,
-                SubFun(File, Body, [CmdPos | CmdStack]);
+                SubFun(File, Body, [CmdPos | PosStack]);
             loop when Depth =:= static;
                       Depth =:= dynamic ->
                 {loop, _Name, _ItemStr, _FirstLineNo, _LastLineNo, Body} = Arg,
                 LoopPos = #cmd_pos{rev_file = RevFile,
                                    lineno = LineNo,
                                    type = iteration},
-                SubStack = [LoopPos, CmdPos | CmdStack],
+                SubStack = [LoopPos, CmdPos | PosStack],
                 SubFun(File, Body, SubStack);
             invoke when Depth =:= dynamic ->
                 case lux_interpret:lookup_macro(OptI, Cmd) of
@@ -478,21 +479,21 @@ do_foldl_cmds(Fun, Acc, File, RevFile, CmdStack,
                         {macro, _Name, _ArgNames,
                          _FirstLineNo, _LastLineNo, Body} =
                             MacroArg,
-                        SubFun(MacroFile, Body, [CmdPos | CmdStack]);
+                        SubFun(MacroFile, Body, [CmdPos | PosStack]);
                 _NoMatch ->
                         %% Ignore non-existent macro
                         Acc
                 end;
             _ ->
-                Fun(Cmd, RevFile, CmdStack, Acc)
+                Fun(Cmd, RevFile, PosStack, Acc)
         end,
-    do_foldl_cmds(Fun, Acc2, File, RevFile, CmdStack, Cmds, FullDepth);
-do_foldl_cmds(_Fun, Acc, _File, _RevFile, _CmdStack, [], {_Depth, _OptI}) ->
+    do_foldl_cmds(Fun, Acc2, File, RevFile, PosStack, Cmds, FullDepth);
+do_foldl_cmds(_Fun, Acc, _File, _RevFile, _PosStack, [], {_Depth, _OptI}) ->
     Acc.
 
-full_lineno(File, Cmd, CmdStack) ->
+full_lineno(File, Cmd, PosStack) ->
     CmdPos = cmd_pos(File, Cmd),
-    FullStack = [CmdPos | CmdStack],
+    FullStack = [CmdPos | PosStack],
     pretty_full_lineno(FullStack).
 
 pretty_full_lineno(FullStack) ->
@@ -505,17 +506,37 @@ pretty_full_lineno(FullStack) ->
     LineNoSuffix = [[":", ?i2l(Pick(FL))] || FL <- Incl],
     lists:flatten([?i2l(LineNo), LineNoSuffix]).
 
-cmd_pos(File, #cmd{lineno = LineNo, type = Type}) ->
+cmd_pos(File, #cmd{lineno = LineNo, type = Type, arg = Arg}) ->
     RevFile = filename_split(File),
-    #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type}.
+    cmd_pos(RevFile, LineNo, Type, Arg).
+
+cmd_pos(RevFile, LineNo, Type, Name) when is_list(Name) ->
+    P = #cmd_pos{rev_file = RevFile, lineno = LineNo, type = Type, name = Name},
+    %% io:format("\nNEW POS ~p\n\t~p\n", [P, ?stacktrace()]),
+    P;
+cmd_pos(RevFile, LineNo, Type, Arg) ->
+    case Arg of
+        {macro, Name, _ArgNames, _FirstLineNo, _LastLineNo, _Body}
+          when Type =:= macro ->
+            ok;
+        {body, macro, Name, _ArgNames}
+          when Type =:= macro ->
+            ok;
+        {include, Name, _FirstLineNo, _LastLineNo, _InclCmds}
+          when Type =:= include ->
+            ok;
+        _ ->
+            Name = ""
+    end,
+    cmd_pos(RevFile, LineNo, Type, Name).
 
 pretty_stack(OrigFile, FullStack) ->
     Dir = filename:dirname(OrigFile),
     Pretty = fun(#cmd_pos{rev_file = _RevFile, lineno=L}) when L < 0 ->
                      false;
-                (#cmd_pos{rev_file = RevFile, lineno=L}) ->
+                (#cmd_pos{rev_file = RevFile, lineno=L} = CmdPos) ->
                      RelFile = drop_prefix(Dir, pretty_filename(RevFile)),
-                     {true, RelFile ++ ":" ++ ?i2l(L)}
+                     {true, {RelFile ++ ":" ++ ?i2l(L), CmdPos}}
              end,
     lists:zf(Pretty, FullStack).
 

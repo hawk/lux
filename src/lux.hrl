@@ -103,7 +103,8 @@
 -record(cmd_pos,
         {rev_file   :: [string()],
          lineno     :: non_neg_integer(),
-         type       :: atom()}).
+         type       :: atom(),
+         name       :: string()}).
 
 -record(warning,
         {file    :: filename(),
@@ -115,7 +116,7 @@
          mode          :: running | cleanup | stopping,
          shell_name    :: string(),
          latest_cmd    :: #cmd{},
-         cmd_stack     :: [{string(), non_neg_integer(), atom()}],
+         pos_stack     :: [#cmd_pos{}],
          expected_tag  :: expected_tag(),
          expected      :: binary() | atom(),
          extra         :: undefined | atom() | binary(),
@@ -208,7 +209,7 @@
          commands                   :: [#cmd{}],
          orig_commands              :: [#cmd{}],
          macros = []                :: [#macro{}],
-         cmd_stack = []             :: [{string(), non_neg_integer(), atom()}],
+         pos_stack = []             :: [#cmd_pos{}],
          submatch_vars = []         :: [string()],   % ["name=val"]
          macro_vars = []            :: [string()],   % ["name=val"]
          global_vars = []           :: [string()],   % ["name=val"]
@@ -279,7 +280,7 @@
 
 -record(pattern,
         {cmd       :: #cmd{},
-         cmd_stack :: [{string(), non_neg_integer(), atom()}]}).
+         pos_stack :: [#cmd_pos{}]}).
 
 -record(cstate,
         {orig_file               :: string(),
@@ -287,7 +288,7 @@
          name                    :: string(),
          debug = disconnect      :: connect | disconnect,
          latest_cmd              :: #cmd{},
-         cmd_stack = []          :: [{string(), non_neg_integer(), atom()}],
+         pos_stack = []          :: [#cmd_pos{}],
          wait_for_expect         :: undefined | pid(),
          mode = resume           :: resume | suspend | stop,
          start_reason            :: fail | success | normal,

@@ -701,22 +701,20 @@ cmd_attach(I, _, CmdState) ->
                        [pretty_break_pos(CurrentPos)]),
                 [#cmd_pos{rev_file = RevFile,
                           lineno = LineNo,
-                          type = CmdType} | CmdStack] = CurrentFullLineNo,
-                {LineNo2, CmdType2} =
+                          type = CmdType} | PosStack] = CurrentFullLineNo,
+                {LineNo2, CmdType2, NOA} =
                     if
                         LineNo > 3 ->
                             TmpLineNo = LineNo-2,
                             case lookup_cmd(RevFile, TmpLineNo, I) of
-                                false -> {LineNo, CmdType};
-                                Cmd   -> {TmpLineNo, Cmd#cmd.type}
+                                false -> {LineNo, CmdType, ""};
+                                Cmd   -> {TmpLineNo, Cmd#cmd.type, Cmd#cmd.arg}
                             end;
                         true->
-                            {LineNo, CmdType}
+                            {LineNo, CmdType, ""}
                     end,
-                CmdPos2 = #cmd_pos{rev_file = RevFile,
-                                  lineno = LineNo2,
-                                  type = CmdType2},
-                FullLineNo = [CmdPos2 | CmdStack],
+                CmdPos2 = lux_utils:cmd_pos(RevFile, LineNo2, CmdType2, NOA),
+                FullLineNo = [CmdPos2 | PosStack],
                 BreakPos = full_lineno_to_static_break_pos(FullLineNo),
                 [{"n_lines", 10}, {"lineno", BreakPos}]
         end,
@@ -741,7 +739,7 @@ opt_block(I) ->
 lookup_cmd(File,
            LineNo,
            #istate{orig_file = OrigFile, orig_commands = OrigCmds}) ->
-    Fun = fun(#cmd{lineno = L} = Cmd, F, _CmdStack, Acc) ->
+    Fun = fun(#cmd{lineno = L} = Cmd, F, _PosStack, Acc) ->
                   if
                       F =:= File, L =:= LineNo -> Cmd;
                       true                     -> Acc
@@ -907,7 +905,7 @@ check_breakpoint(I, LineNo) ->
 
 lookup_break(I, LineNo, Breaks) when is_integer(LineNo) ->
     CurrentPos = current(I),
-    FullLineNo = [CurrentPos#cmd_pos{lineno = LineNo} | I#istate.cmd_stack],
+    FullLineNo = [CurrentPos#cmd_pos{lineno = LineNo} | I#istate.pos_stack],
     do_lookup_break(FullLineNo, Breaks).
 
 do_lookup_break(FullLineNo, [Break | Breaks]) ->
@@ -1615,24 +1613,22 @@ elog(I, Format, Args) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 current_full_lineno(I) ->
-    [current(I) | I#istate.cmd_stack].
+    [current(I) | I#istate.pos_stack].
 
 current(#istate{file = File,
                 call_level = Level,
                 latest_cmd = LatestCmd,
                 commands = Cmds}) ->
-    case Cmds of
-        [] when Level =:= 1 ->
-            LineNo = 1,
-            CmdType = main;
-        [] ->
-            LineNo = 1,
-            CmdType = LatestCmd#cmd.type;
-        [#cmd{type = CmdType, lineno = LineNo} | _] ->
-            ok
+    FakeCmd =
+        case Cmds of
+            [] when Level =:= 1 ->
+                #cmd{type = main, lineno = 1, arg = ""};
+            [] ->
+                LatestCmd;
+            [TopCmd | _] ->
+                TopCmd
         end,
-    RevFile = lux_utils:filename_split(File), % optimize later
-    #cmd_pos{rev_file = RevFile, lineno = LineNo, type = CmdType}.
+    lux_utils:cmd_pos(File, FakeCmd).
 
 full_lineno_to_static_break_pos(FullLineNo) ->
     #cmd_pos{rev_file = RevFile, lineno = LineNo} = hd(FullLineNo),
@@ -1651,8 +1647,8 @@ break_to_full_lineno(I, BreakPos, Scope) ->
             Cmds = I#istate.orig_commands
     end,
     Collect =
-        fun(Cmd, RevFile, CmdStack, Acc) ->
-                collect_break(Cmd, RevFile, CmdStack, Acc, BreakPos)
+        fun(Cmd, RevFile, PosStack, Acc) ->
+                collect_break(Cmd, RevFile, PosStack, Acc, BreakPos)
         end,
     Depth = break_to_depth(I, BreakPos),
     case lux_utils:foldl_cmds(Collect, [], File, [], Cmds, Depth) of
@@ -1666,12 +1662,10 @@ break_to_depth(I, BreakPos) ->
         is_list(BreakPos), BreakPos =/= []             -> {dynamic, I}
     end.
 
-collect_break(#cmd{type = CmdType, lineno = LineNo},
-              RevFile, CmdStack, Acc, BreakPos) ->
-    CmdPos = #cmd_pos{rev_file = RevFile,
-                      lineno = LineNo,
-                      type = CmdType},
-    FullLineNo = [CmdPos | CmdStack],
+collect_break(#cmd{type = CmdType, lineno = LineNo, arg = CmdArg},
+              RevFile, PosStack, Acc, BreakPos) ->
+    CmdPos = lux_utils:cmd_pos(RevFile, LineNo, CmdType, CmdArg),
+    FullLineNo = [CmdPos | PosStack],
     case match_break(FullLineNo, BreakPos, fuzzy) of
         true  -> [FullLineNo | Acc];
         false -> Acc

@@ -24,7 +24,7 @@
 -include("lux.hrl").
 
 -define(SUMMARY_LOG_VERSION, <<"0.3">>).
--define(EVENT_LOG_VERSION,   <<"0.4">>).
+-define(EVENT_LOG_VERSION,   <<"0.5">>).
 -define(CONFIG_LOG_VERSION,  <<"0.1">>).
 -define(RESULT_LOG_VERSION,  <<"0.1">>).
 
@@ -702,6 +702,9 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
     case ReadRes of
         {ok, ?EVENT_LOG_VERSION, Sections} ->
             %% Latest version
+            do_scan_events(EventLog, Sections, NewWWW);
+        {ok, <<"0.4">>, Sections} ->
+            %% Prev version without where and stack
             do_scan_events(EventLog, Sections, NewWWW);
         {ok, <<"0.3">>, Sections} ->
             %% Prev version without timestamps

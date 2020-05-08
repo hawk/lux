@@ -63,11 +63,11 @@ check_timeout(#istate{suite_timeout = SuiteTimeout,
                       case_timeout = CaseTimeout,
                       orig_file = File,
                       latest_cmd = LatestCmd,
-                      cmd_stack = CmdStack} = I)
+                      pos_stack = PosStack} = I)
   when is_integer(SuiteTimeout),
        is_integer(CaseTimeout),
        CaseTimeout > SuiteTimeout ->
-    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
     W = #warning{file = File,
                  lineno = FullLineNo,
                  details = <<"case_timeout > suite_timeout">>},
@@ -213,7 +213,7 @@ internal_error(I, ReasonTerm) ->
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     FullLineNo = lux_utils:full_lineno(I#istate.file,
                                        I#istate.latest_cmd,
-                                       I#istate.cmd_stack),
+                                       I#istate.pos_stack),
     RunWarnings = I#istate.warnings,
     UnstableWarnings = [],
     print_warnings(I, RunWarnings, UnstableWarnings),
@@ -512,10 +512,10 @@ pick_fail(NewI, Results) ->
 
 cleanup_fail(I, Reason) ->
     LatestCmd = I#istate.latest_cmd,
-    CmdStack = I#istate.cmd_stack,
+    PosStack = I#istate.pos_stack,
     #result{outcome      = fail,
             latest_cmd   = LatestCmd,
-            cmd_stack    = CmdStack,
+            pos_stack    = PosStack,
             shell_name   = I#istate.active_name,
             expected_tag = ?EXPECTED_OLD,
             expected     = success,
@@ -548,7 +548,7 @@ print_fail(OldI0, NewI, File, Results,
            #result{outcome      = fail,
                    mode         = _Mode,
                    latest_cmd   = LatestCmd,
-                   cmd_stack    = CmdStack,
+                   pos_stack    = PosStack,
                    shell_name   = ShellName,
                    expected_tag = ExpectedTag,
                    expected     = Expected,
@@ -557,7 +557,7 @@ print_fail(OldI0, NewI, File, Results,
                    rest         = Rest} = Fail) ->
     OldI = OldI0#istate{progress = silent},
     OldWarnings = NewI#istate.warnings,
-    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
     HiddenWarnings = [hidden_warning(OldI, File, R) ||
                          R <- Results,
                          R#result.outcome =:= fail,
@@ -638,14 +638,14 @@ hidden_warning(I,
                #result{outcome      = fail,
                        mode         = _Mode,
                        latest_cmd   = LatestCmd,
-                       cmd_stack    = CmdStack,
+                       pos_stack    = PosStack,
                        shell_name   = ShellName,
                        expected_tag = _ExpectedTag,
                        expected     = _Expected,
                        extra        = _Extra,
                        actual       = _Actual,
                        rest         = _Rest}) ->
-    FullLineNo = lux_utils:full_lineno(File, LatestCmd, CmdStack),
+    FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
     FailBin = ?l2b(lists:concat(["FAIL at ", FullLineNo,
                                  " in shell ", ShellName])),
     W = #warning{file = File, lineno = FullLineNo, details = FailBin},
@@ -727,7 +727,7 @@ post_ilog(#istate{progress = Progress,
 
 docs(File, OrigCmds) ->
     Fun =
-        fun(#cmd{type = doc, arg = Arg}, _RevFile, _CmdStack, Acc)
+        fun(#cmd{type = doc, arg = Arg}, _RevFile, _PosStack, Acc)
            when tuple_size(Arg) =:= 2 ->
                 [Arg | Acc];
            (_, _RevFile, _FileStack, Acc) ->
