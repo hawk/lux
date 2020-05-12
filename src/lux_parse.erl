@@ -780,7 +780,7 @@ parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
     {P2, Doc} =
         case ?l2b(string:strip(Unstripped)) of
             <<>> when Unstripped =/= ""  ->
-                Reason = <<"Missing doc text">>,
+                Reason = <<"Empty doc text">>,
                 {add_warning(P, Cmd, Reason), ?l2b(Unstripped)};
             Stripped ->
                 {P, Stripped}
