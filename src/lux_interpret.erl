@@ -78,7 +78,7 @@ init(I) ->
 timer_left(#timer_ref{timeout = infinity}) ->
     "infinity";
 timer_left(#timer_ref{ref = Ref}) ->
-    case erlang:read_timer(Ref, []) of
+    case erlang:read_timer(Ref) of
         ok     -> "expired";
         false  -> "expired";
         Millis -> lists:concat([Millis * 1000, " micros"])
