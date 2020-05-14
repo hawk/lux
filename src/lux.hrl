@@ -109,7 +109,7 @@
 -record(warning,
         {file    :: filename(),
          lineno  :: lineno(),
-         details :: binary()}).
+         reason  :: binary()}).
 
 -record(result,
         {outcome       :: fail | success | shutdown,

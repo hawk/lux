@@ -1298,9 +1298,9 @@ tap_case_end(#rstate{warnings = OrigWarnings},
         _    -> tap_comment(TAP, {Result, dummy, FullLineNo, Details})
     end.
 
-tap_comment(TAP, #warning{file=File, lineno=FullLineNo, details=Details}) ->
+tap_comment(TAP, #warning{file=File, lineno=FullLineNo, reason=Reason}) ->
     Outcome = warning,
-    tap_comment(TAP, Outcome, File, FullLineNo, Details);
+    tap_comment(TAP, Outcome, File, FullLineNo, Reason);
 tap_comment(TAP, {Outcome, _File, FullLineNo, Details}) ->
     tap_comment(TAP, Outcome, _File, FullLineNo, Details).
 

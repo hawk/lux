@@ -68,9 +68,8 @@ check_timeout(#istate{suite_timeout = SuiteTimeout,
        is_integer(CaseTimeout),
        CaseTimeout > SuiteTimeout ->
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
-    W = #warning{file = File,
-                 lineno = FullLineNo,
-                 details = <<"case_timeout > suite_timeout">>},
+    Reason =  "case_timeout > suite_timeout",
+    W = lux_utils:make_warning(File, FullLineNo, Reason),
     I#istate{warnings = [W | I#istate.warnings]};
 check_timeout(I) ->
     I.
@@ -222,9 +221,9 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
      RunWarnings, UnstableWarnings, ReasonBin}.
 
 print_warnings(I, RunWarnings, UnstableWarnings) ->
-    P = fun(#warning{lineno=FullLineNo, details=Details}) ->
+    P = fun(#warning{lineno=FullLineNo, reason=Reason}) ->
                 double_ilog(I, "~s~s: ~s\n",
-                            [?TAG("warning"), FullLineNo, Details])
+                            [?TAG("warning"), FullLineNo, Reason])
         end,
     lists:foreach(P, RunWarnings),
     lists:foreach(P, UnstableWarnings).
@@ -646,9 +645,9 @@ hidden_warning(I,
                        actual       = _Actual,
                        rest         = _Rest}) ->
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
-    FailBin = ?l2b(lists:concat(["FAIL at ", FullLineNo,
-                                 " in shell ", ShellName])),
-    W = #warning{file = File, lineno = FullLineNo, details = FailBin},
+    FailIoList = lists:concat(["FAIL at ", FullLineNo,
+                               " in shell ", ShellName]),
+    W = lux_utils:make_warning(File, FullLineNo, FailIoList),
     progress_warnings(I, [W]),
     W.
 
@@ -673,10 +672,8 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                     false;
                 true ->
                     Format = "Fail but UNSTABLE as variable ~s is set",
-                    Reason = ?l2b(format_val(Format, [Name], Val)),
-                    W = #warning{file = File,
-                                 lineno = FullLineNo,
-                                 details = Reason},
+                    Reason = format_val(Format, [Name], Val),
+                    W = lux_utils:make_warning(File, FullLineNo, Reason),
                     progress_warnings(I, [W]),
                     {true, W}
             end;
@@ -687,10 +684,8 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                     false;
                 false ->
                     Format = "Fail but UNSTABLE as variable ~s is not set",
-                    Reason = ?l2b(format_val(Format, [Name], Val)),
-                    W = #warning{file = File,
-                                 lineno = FullLineNo,
-                                 details = Reason},
+                    Reason = format_val(Format, [Name], Val),
+                    W = lux_utils:make_warning(File, FullLineNo, Reason),
                     progress_warnings(I, [W]),
                     {true, W}
             end

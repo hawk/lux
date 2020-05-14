@@ -888,9 +888,7 @@ make_warning(#istate{orig_file = File,
     LineNo = LatestCmd#cmd.lineno,
     ilog(I, "warning ~p\n", [Reason], ShellName, LineNo),
     FullLineNo = ilog_stack(I),
-    #warning{file = File,
-             lineno = FullLineNo,
-             details = ?l2b(Reason)}.
+    lux_utils:make_warning(File, FullLineNo, Reason).
 
 parse_int(I, Chars, Cmd) ->
     case safe_expand_vars(I, Chars) of

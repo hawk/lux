@@ -1121,7 +1121,7 @@ reparse_error(Fd, Tag, PosStack, IoList) ->
 make_warning(P, OptCmd, IoList) ->
     File = P#pstate.orig_file,
     FullLineNo = full_lineno(P, OptCmd),
-    #warning{file = File, lineno = FullLineNo, details = ?l2b(IoList)}.
+    lux_utils:make_warning(File, FullLineNo, IoList).
 
 add_warning(P, OptCmd, IoList) ->
     Warning = make_warning(P, OptCmd, IoList),

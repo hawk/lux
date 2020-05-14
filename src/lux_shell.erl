@@ -1311,9 +1311,7 @@ make_warning(#cstate{orig_file = File} = C,
     lux_utils:progress_write(Progress, "W"),
     clog(C, warning, "\"" ++ Reason ++ "\"", []),
     FullLineNo = clog_stack(C),
-    #warning{file = File,
-             lineno = FullLineNo,
-             details = ?l2b(Reason)}.
+    lux_utils:make_warning(File, FullLineNo, Reason).
 
 flush_fail() ->
     receive
