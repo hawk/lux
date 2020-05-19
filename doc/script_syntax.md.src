@@ -148,7 +148,7 @@ fail. Unless the loop break pattern is reset (cleared).
 An `expect` operation like `?`, but it waits for the `stdout` stream
 of the shell to be closed. This means the shell has terminated. The
 `Regexp` may optionally be used to match on the exit status from the
-ehell, such as `[endshell ^0$]`.
+shell, such as `[endshell ^0$]`.
 
 ### Meta statements ###
 
