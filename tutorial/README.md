@@ -38,12 +38,12 @@ Hopefully the test code is self-explanatory.
 Evaluate `cd tutorial/chatty/test/intro && lux .`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux .
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_55_51_913737/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_21_982342/lux_summary.log
 >     test case         : a_simple_server.lux
->     progress          : ..:..:.:...:.:..:.:..:.:....:.:..14?:?:?:?..:.:..:.:.....
+>     progress          : ..:..:.:..:..:.:..:.:..:.:....:.:.:..14?:?:?:?:?..:.:..:.:..:....
 >     result            : SUCCESS
 >     test case         : async_startup_fail.lux
->     progress          : ..:..:.:..:..:.:..:.:.:....:.:.:..:.:..:..:.:..:..:.:.Will fail due to startup race cond.:.:..:.:.:.:.:.:.25????25..
+>     progress          : ..:..:.:..:..:.:..:.:.:....:.:.:..:.:..:..:.:..:..:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.25????25..
 >     result            : FAIL at 25 in shell hawk
 >     expected*
 >     	Trying to join the mytopic chat room...
@@ -72,16 +72,16 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	+ SH-PROMPT:
 >     	
 >     test case         : sync_startup.lux
->     progress          : ..:..:.:..:..:.:..:.:.:..:.:.:.:....:..:.:...:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:.:.::......:.:.:.....:............
+>     progress          : ..:..:.:..:..:.:..:.:.:..:.:.:.:....:..:.:..:..:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:.:.::......:.:.:.....:............
 >     result            : SUCCESS
 >     test case         : sync_startup_cleanup.lux
->     progress          : ()..:..:.:..:...:.:..:.:.:..:.:.:.:....:..:.:..:..:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:..:.:....:.:.:.::..c..........:..:.:..(.:.:..:.)(.:..:.:.)((.:..:.:.:.:.:.:.)(.:.:.:...))((..:.:.:.:.:.:.:.:.)(.:.:...))
+>     progress          : ()..:..:.:..:...:.:..:.:.:..:.:.:.:....:..:.:...:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:.:..:.:....:.:.:.::..c..........:..:.:..:.(.:..:.:.)(.:.:..:.:.)((.:..:.:.:.:.:.)(.:.:...))((.:..:.:.:.:.:.:.)(.:.:...))
 >     result            : SUCCESS
 >     successful        : 3
 >     failed            : 1
 >     	async_startup_fail.lux:25 - match_timeout
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_55_51_913737/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_21_982342/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -262,7 +262,7 @@ at `lux_logs/latest_run`. With this command you get a list of all logs:
 Evaluate `cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run`
 
 >     .../lux> cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run
->     lrwxr-xr-x 1 hmattsso staff 30 May  4 09:55 lux_logs/latest_run -> run_2020_05_04_07_55_51_913737
+>     lrwxr-xr-x 1 hmattsso staff 30 May 25 14:51 lux_logs/latest_run -> run_2020_05_25_12_51_21_982342
 >     .../lux> echo $?
 >     0
 
@@ -366,130 +366,130 @@ use the `--progress=verbose` flag or `-v` for short:
 Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux -v a_simple_server.lux
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_56_15_705188/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_45_673239/lux_summary.log
 >     test case         : a_simple_server.lux
->     event log         : 0.4
+>     event log         : 0.5
 >     /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/a_simple_server.lux
->     09:56:15.785503 lux(0): start_time "2020-05-04 09:56:15.768615"
->     09:56:15.785716 lux(0): suite_timeout infinity
->     09:56:15.785779 lux(0): case_timeout 300000000 micros
->     09:56:15.786010 lux(1): doc "Demo a simple single shell test case"
->     09:56:15.788426 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
->     09:56:15.788972 server(4): expected* ".+"
->     09:56:15.789061 server(4): timer started (10 seconds * 1.000 multiplier)
->     09:56:15.796573 server(4): recv "\e[?1034hsh-3.2$ "
->     09:56:15.796694 server(4): timer canceled (after 7489 micro seconds)
->     09:56:15.796793 server(4): match "\e[?1034hsh-3.2$ "
->     09:56:15.797007 server(4): send "export PS1=SH-PROMPT:
+>     14:51:45.751309 lux(0): start_time "2020-05-25 14:51:45.735757"
+>     14:51:45.751477 lux(0): suite_timeout infinity
+>     14:51:45.751561 lux(0): case_timeout 300000000 micros
+>     14:51:45.752648 lux(1): doc "Demo a simple single shell test case"
+>     14:51:45.754795 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
+>     14:51:45.755352 server(4): expected* ".+"
+>     14:51:45.755434 server(4): timer started (10 seconds * 1.000 multiplier)
+>     14:51:45.762018 server(4): recv "\e[?1034hsh-3.2$ "
+>     14:51:45.762109 server(4): timer canceled (after 6572 micro seconds)
+>     14:51:45.762202 server(4): match "\e[?1034hsh-3.2$ "
+>     14:51:45.762362 server(4): send "export PS1=SH-PROMPT:
 >         "
->     09:56:15.797282 server(4): recv "expo"
->     09:56:15.797411 server(4): recv "rt PS1=SH-PROMPT:
+>     14:51:45.762512 server(4): expected* "^SH-PROMPT:"
+>     14:51:45.762597 server(4): timer started (10 seconds * 1.000 multiplier)
+>     14:51:45.762721 server(4): recv "export PS1=SH-PROMPT:
 >         SH-PROMPT:"
->     09:56:15.797507 server(4): expected* "^SH-PROMPT:"
->     09:56:15.797568 server(4): timer started (10 seconds * 1.000 multiplier)
->     09:56:15.797653 server(4): timer canceled (after 7 micro seconds)
->     09:56:15.797723 server(4): skip "export PS1=SH-PROMPT:
+>     14:51:45.762805 server(4): timer canceled (after 107 micro seconds)
+>     14:51:45.762878 server(4): skip "export PS1=SH-PROMPT:
 >         "
->     09:56:15.797789 server(4): match "SH-PROMPT:"
->     09:56:15.797961 server(6): send "erl -sname server -pa ../../../chatty/ebin
+>     14:51:45.762938 server(4): match "SH-PROMPT:"
+>     14:51:45.763125 server(6): send "erl -sname server -pa ../../../chatty/ebin
 >         "
->     09:56:15.798121 server(6): recv "erl -sna"
->     09:56:15.798333 server(6): recv "me server -pa ../../../chatty/ebin
+>     14:51:45.763300 server(6): recv "erl -sname"
+>     14:51:45.763519 server(6): recv " server -pa ../../../chatty/ebin
 >         "
->     09:56:15.798432 server(8): expected* "Erlang/OTP"
->     09:56:15.798550 server(8): timer started (10 seconds * 1.000 multiplier)
->     09:56:15.895438 server(8): recv "Erlang/OTP 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
+>     14:51:45.763633 server(8): expected* "Erlang/OTP"
+>     14:51:45.763738 server(8): timer started (10 seconds * 1.000 multiplier)
+>     14:51:45.853070 server(8): recv "Erlang/OTP 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
 >         
 >         "
->     09:56:15.895615 server(8): timer canceled (after 96927 micro seconds)
->     09:56:15.895743 server(8): skip "erl -sname server -pa ../../../chatty/ebin
+>     14:51:45.853235 server(8): timer canceled (after 89398 micro seconds)
+>     14:51:45.853347 server(8): skip "erl -sname server -pa ../../../chatty/ebin
 >         "
->     09:56:15.895853 server(8): match "Erlang/OTP"
->     09:56:15.896142 server(9): expected* "Eshell"
->     09:56:15.896260 server(9): timer started (10 seconds * 1.000 multiplier)
->     09:56:16.010064 server(9): recv "Eshell V10.7.1  (abort with ^G)
+>     14:51:45.853445 server(8): match "Erlang/OTP"
+>     14:51:45.853735 server(9): expected* "Eshell"
+>     14:51:45.853826 server(9): timer started (10 seconds * 1.000 multiplier)
+>     14:51:45.969904 server(9): recv "Eshell V10.7.1  (abort with ^G)
 >         "
->     09:56:16.010210 server(9): timer canceled (after 113858 micro seconds)
->     09:56:16.010325 server(9): skip " 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
+>     14:51:45.970076 server(9): timer canceled (after 116154 micro seconds)
+>     14:51:45.970194 server(9): skip " 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
 >         
 >         "
->     09:56:16.010418 server(9): match "Eshell"
->     09:56:16.010520 server(9): recv "(server@HMATTSSO-M-74JD)1> "
->     09:56:16.010751 server(10): expected* "> "
->     09:56:16.010855 server(10): timer started (10 seconds * 1.000 multiplier)
->     09:56:16.010989 server(10): timer canceled (after 8 micro seconds)
->     09:56:16.011105 server(10): skip " V10.7.1  (abort with ^G)
+>     14:51:45.970304 server(9): match "Eshell"
+>     14:51:45.970402 server(9): recv "(server@HMATTSSO-M-74JD)1> "
+>     14:51:45.970610 server(10): expected* "> "
+>     14:51:45.970700 server(10): timer started (10 seconds * 1.000 multiplier)
+>     14:51:45.970805 server(10): timer canceled (after 7 micro seconds)
+>     14:51:45.970895 server(10): skip " V10.7.1  (abort with ^G)
 >         (server@HMATTSSO-M-74JD)1"
->     09:56:16.011205 server(10): match "> "
->     09:56:16.011483 server(12): send "chatty:server().
+>     14:51:45.970975 server(10): match "> "
+>     14:51:45.971212 server(12): send "chatty:server().
 >         "
->     09:56:16.011667 server(13): expected* "Starting server"
->     09:56:16.011753 server(13): timer started (10 seconds * 1.000 multiplier)
->     09:56:16.024808 server(13): recv "chatty:server("
->     09:56:16.025016 server(13): recv ").
+>     14:51:45.971421 server(13): expected* "Starting server"
+>     14:51:45.971528 server(13): timer started (10 seconds * 1.000 multiplier)
+>     14:51:45.984308 server(13): recv "chatty:server()."
+>     14:51:45.984496 server(13): recv "
 >         "
->     09:56:16.028546 server(13): recv "Starting server server...
+>     14:51:45.988087 server(13): recv "Starting server server...
 >         "
->     09:56:16.028665 server(13): timer canceled (after 16801 micro seconds)
->     09:56:16.028768 server(13): skip "chatty:server().
+>     14:51:45.988197 server(13): timer canceled (after 16557 micro seconds)
+>     14:51:45.988317 server(13): skip "chatty:server().
 >         "
->     09:56:16.028843 server(13): match "Starting server"
->     09:56:16.029081 server(14): expected* "> "
->     09:56:16.029155 server(14): timer started (10 seconds * 1.000 multiplier)
->     09:56:19.028987 server(14): recv "Trying to open log file chatty_server.log..."
->     09:56:19.029249 server(14): recv "ok.
+>     14:51:45.988410 server(13): match "Starting server"
+>     14:51:45.988685 server(14): expected* "> "
+>     14:51:45.988783 server(14): timer started (10 seconds * 1.000 multiplier)
+>     14:51:48.989253 server(14): recv "Trying to open log file chatty_server.log..."
+>     14:51:48.989581 server(14): recv "ok.
 >         "
->     09:56:19.030786 server(14): recv "<0.87.0>
->         "
->     09:56:19.030937 server(14): recv "(server@HMATTSSO-M-74JD)2> "
->     09:56:19.031022 server(14): timer canceled (after 3001760 micro seconds)
->     09:56:19.031172 server(14): skip " server...
+>     14:51:48.992272 server(14): recv "<0.87.0>"
+>     14:51:48.992540 server(14): recv "
+>         (server@HMATTSSO-M-74JD)2> "
+>     14:51:48.992710 server(14): timer canceled (after 3003799 micro seconds)
+>     14:51:48.992888 server(14): skip " server...
 >         Trying to open log file chatty_server.log...ok.
 >         <0.87.0>
 >         (server@HMATTSSO-M-74JD)2"
->     09:56:19.031420 server(14): match "> "
->     09:56:19.031686 server(16): send "halt(3).
+>     14:51:48.993076 server(14): match "> "
+>     14:51:48.993614 server(16): send "halt(3).
 >         "
->     09:56:19.031884 server(17): expected* "SH-PROMPT:"
->     09:56:19.031984 server(17): timer started (10 seconds * 1.000 multiplier)
->     09:56:19.032120 server(17): recv "halt(3).
+>     14:51:48.993930 server(17): expected* "SH-PROMPT:"
+>     14:51:48.994094 server(17): timer started (10 seconds * 1.000 multiplier)
+>     14:51:48.994399 server(17): recv "halt(3).
 >         "
->     09:56:19.035637 server(17): recv "SH-PROMPT:"
->     09:56:19.035777 server(17): timer canceled (after 3695 micro seconds)
->     09:56:19.035909 server(17): skip "halt(3).
+>     14:51:48.998336 server(17): recv "SH-PROMPT:"
+>     14:51:48.998466 server(17): timer canceled (after 4154 micro seconds)
+>     14:51:48.998609 server(17): skip "halt(3).
 >         "
->     09:56:19.036011 server(17): match "SH-PROMPT:"
->     09:56:19.036296 server(19): send "echo "===$?==="
+>     14:51:48.998737 server(17): match "SH-PROMPT:"
+>     14:51:48.999066 server(19): send "echo "===$?==="
 >         "
->     09:56:19.036440 server(19): recv "ech"
->     09:56:19.036635 server(19): recv "o "===$?==="
+>     14:51:48.999294 server(19): recv "echo "
+>     14:51:48.999514 server(19): recv ""===$?==="
 >         ===3===
->         SH-PROMPT:"
->     09:56:19.036758 server(20): expected* "===3==="
->     09:56:19.036861 server(20): timer started (10 seconds * 1.000 multiplier)
->     09:56:19.036979 server(20): timer canceled (after 9 micro seconds)
->     09:56:19.037068 server(20): skip "echo "===$?==="
 >         "
->     09:56:19.037134 server(20): match "===3==="
->     09:56:19.037274 server(21): expected* "SH-PROMPT:"
->     09:56:19.037355 server(21): timer started (10 seconds * 1.000 multiplier)
->     09:56:19.037468 server(21): timer canceled (after 8 micro seconds)
->     09:56:19.037548 server(21): skip "
+>     14:51:48.999607 server(20): expected* "===3==="
+>     14:51:48.999706 server(20): timer started (10 seconds * 1.000 multiplier)
+>     14:51:48.999841 server(20): timer canceled (after 10 micro seconds)
+>     14:51:48.999962 server(20): skip "echo "===$?==="
 >         "
->     09:56:19.037604 server(21): match "SH-PROMPT:"
->     09:56:19.037775 server(22): no_cleanup
->     09:56:19.037849 server(22): inactivate after zombify
->     09:56:19.037908 server(22): end of script
->     09:56:19.037976 server(22): stop success
->     09:56:19.038084 server(22): where "22"
->     09:56:19.038149 server(22): stack "a_simple_server.lux:22"
->     09:56:19.038213 lux(0): case_timeout 296748000 micros
->     09:56:19.038285 lux(0): suite_timeout infinity
->     09:56:19.038357 lux(0): end_time "2020-05-04 09:56:19.038349"
+>     14:51:49.000062 server(20): match "===3==="
+>     14:51:49.000217 server(20): recv "SH-PROMPT:"
+>     14:51:49.000364 server(21): expected* "SH-PROMPT:"
+>     14:51:49.000437 server(21): timer started (10 seconds * 1.000 multiplier)
+>     14:51:49.000547 server(21): timer canceled (after 9 micro seconds)
+>     14:51:49.000626 server(21): skip "
+>         "
+>     14:51:49.000695 server(21): match "SH-PROMPT:"
+>     14:51:49.000912 server(22): no_cleanup
+>     14:51:49.001003 server(22): inactivate after zombify
+>     14:51:49.001097 server(22): end of script
+>     14:51:49.001192 server(22): stop success
+>     14:51:49.001347 server(22): where 22"
+>     14:51:49.001448 server(22): stack "a_simple_server.lux:22" no_cleanup 
+>     14:51:49.001544 lux(0): case_timeout 296750000 micros
+>     14:51:49.001622 lux(0): suite_timeout infinity
+>     14:51:49.001712 lux(0): end_time "2020-05-25 14:51:49.001703"
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_04_07_56_15_705188/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_45_673239/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -601,7 +601,7 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     Set temporary breakpoint at "a_simple_server.lux:15"
 >     
 >     Continue to run from "a_simple_server.lux:1"
->     ..:..:.:..:..:.:..:.:..:.:....:.:.:..:.:.:.:.
+>     ..:..:.:..:..:.:..:.:..:.:....:.:..:.:.:.:.
 >     Break at "a_simple_server.lux:15"
 >     
 >     File a_simple_server.lux:
@@ -646,24 +646,19 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     *  6 a_simple_server.lux.server.stdin.log
 >     *  7 a_simple_server.lux.server.stdout.log
 >     
->     Last 10 (58..67) lines of log file: a_simple_server.lux.event.log
+>     Last 10 (57..66) lines of log file: a_simple_server.lux.event.log
 >     
->     09:56:24.081660 server(14): recv "ok.\r\n"
->     09:56:24.083259 server(14): recv "<0.87.0>\r\n"
->     09:56:24.083444 server(14): recv "(server@HMATTSSO-M-74JD)2> "
->     09:56:24.083589 server(14): timer canceled (after 3002065 micro seconds)
->     09:56:24.083685 server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n<0.87.0>\r\n(server@HMATTSSO-M-74JD)2"
->     09:56:24.083760 server(14): match "> "
->     09:56:24.086425 server(14): send "im().\n"
->     09:56:24.587106 server(14): recv "im().\r\n"
->     09:56:24.589150 server(14): reset "7 bytes wasted"
->     09:56:24.589462 server(14): output reset 7 bytes
+>     14:51:53.836465 server(14): recv "ok.\r\n"
+>     14:51:53.838801 server(14): recv "<0.87.0>\r\n"
+>     14:51:53.839047 server(14): recv "(server@HMATTSSO-M-74JD)2> "
+>     14:51:53.839192 server(14): timer canceled (after 3003357 micro seconds)
+>     14:51:53.839285 server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n<0.87.0>\r\n(server@HMATTSSO-M-74JD)2"
+>     14:51:53.839387 server(14): match "> "
+>     14:51:53.845701 server(14): send "im().\n"
+>     14:51:54.346534 server(14): recv "im().\r\n"
+>     14:51:54.347532 server(14): reset "7 bytes wasted"
+>     14:51:54.347621 server(14): output reset 7 bytes
 >     
->     
->     server(recv): <0.90.0>
->     server(recv): 
->     
->     server(recv): (server@HMATTSSO-M-74JD)3> 
 >     help quit
 >     
 >     quit \[scope\]
@@ -683,7 +678,10 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     server(send): halt(3).
 >     server(send): 
 >     
->     server(recv): halt(3).
+>     server(recv): <0.90.0>
+>     server(recv): 
+>     
+>     server(recv): (server@HMATTSSO-M-74JD)3> halt(3).
 >     server(recv): 
 >     
 >     server(recv): SH-PROMPT:
@@ -691,12 +689,10 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     server(send): echo "===$?==="
 >     server(send): 
 >     
->     server(recv): echo
+>     server(recv): ech
 >     
->     server(recv):  "===$?==="
+>     server(recv): o "===$?==="
 >     server(recv): ===3===
->     server(recv): 
->     
 >     server(recv): SH-PROMPT:
 >     .
 >     Cleanup. Turn existing shells into zombies.
