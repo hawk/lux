@@ -82,9 +82,12 @@ classname(Filename, RunDir) ->
 name(Filename) ->
     filename:basename(Filename).
 
-body({result, skip}, Indent) ->
+body({warnings_and_result, _Warnings, skip}, Indent) ->
     [Indent, "<skipped/>\n"];
-body({result, {_, LineNo, _ExpectedTag, Expected, Actual, Details}}, _Indent) ->
+body({warnings_and_result,
+      _Warnings,
+      {_Res, LineNo, _Shell, _ExpectedTag, Expected, Actual, Details}},
+     _Indent) ->
     [
      "<failure type=\"NoMatch\">\n",
      "<![CDATA[",
@@ -94,7 +97,7 @@ body({result, {_, LineNo, _ExpectedTag, Expected, Actual, Details}}, _Indent) ->
      "\nDetails:\n", join(Details, "\n"),
      "]]>", "</failure>\n"
     ];
-body({result, Res}, Indent) ->
+body({warnings_and_result, _Warnings, Res}, Indent) ->
     [Indent, "<!-- ", ?a2l(Res), " -->\n"];
 body({error, Reason}, _Indent) ->
     [

@@ -1,5 +1,5 @@
 all debug:
-	../bin/lux --file_pattern=.delux$$ .
+	../bin/lux --file_pattern=.delux$$ --junit=true .
 
 clean:
 	rm -rf delux_logs lux_logs *~
