@@ -1430,7 +1430,7 @@ clog_stack(#cstate{orig_file = File,
     CmdPos = lux_utils:cmd_pos(File, LatestCmd),
     FullStack = [CmdPos|PosStack],
     FullLineNo = lux_utils:pretty_full_lineno(FullStack),
-    clog(C, where, "\~s\"", [FullLineNo]),
+    clog(C, where, "\"~s\"", [FullLineNo]),
     PrettyStack = lux_utils:pretty_stack(File, FullStack),
     [clog(C, stack, "\"~s\" ~p ~s", [PS, T, N]) ||
         {PS, #cmd_pos{type = T, name = N}} <- PrettyStack],
