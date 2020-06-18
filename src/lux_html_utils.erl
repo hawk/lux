@@ -182,7 +182,8 @@ html_quote(IoList) ->
 safe_ctrl(Char) ->
     if
         Char < 32, Char =/= $\t, Char =/= $\n, Char =/= $\r ->
-            ["<ctrl char \\", ?i2l(Char), " - see plain lux log for details>"];
+            ["<ctrl char \\", ?i2l(Char),
+             " - see textual lux log for details>"];
         true ->
             Char
     end.
@@ -194,14 +195,14 @@ safe_latin1(Bin, Acc) ->
         {error, Good, _Rest} ->
             BadSz = ?i2l(byte_size(Bin) - byte_size(Good)),
             Reason = ["<illegal char(s) - skipped ", BadSz,
-                      " bytes - see plain lux log for details>"],
+                      " bytes - see textual lux log for details>"],
             safe_latin1(<<>>, [Reason, Good | Acc]);
         {incomplete, Good, _Rest} ->
             BadSz = ?i2l(byte_size(Bin) - byte_size(Good)),
             Reason = ["<incomplete char - skipped ", BadSz,
-                      " bytes - see plain lux log for details>"],
+                      " bytes - see textual lux log for details>"],
             safe_latin1(<<>>, [Reason, Good | Acc]);
-        Good ->
+        Good when is_binary(Good) ->
             safe_latin1(<<>>, [Good | Acc])
     end.
 
