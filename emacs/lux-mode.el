@@ -136,7 +136,7 @@
      (t (error "Not a lux statement")))))
 
 (defun lux-which-cmd ()
-  "Return nil or command name and first parameter."
+  "Return nil or command name and first parameter"
   (save-excursion
     (let* ((regexp  (lux-build-meta-regexp)))
       (beginning-of-line)
@@ -152,9 +152,10 @@
   (concat "[ \t]*\\[\\(" keyword "\\)[ \t]+\\(" param1 "\\)[] \t]"))
 
 (defun lux-find-file (file)
-  "Wrapper for find-file-existing."
-  (let ((mark (copy-marker (point-marker))))
-    (find-file-existing file)
+  "Wrapper for find-file-existing"
+  (let* ((mark (copy-marker (point-marker)))
+         (new-file (lux-expand-file file)))
+    (find-file-existing new-file)
     (ring-insert-at-beginning (lux-window-history-ring) mark)))
 
 (defun lux-window-history-ring ()
@@ -202,11 +203,12 @@ and make an entry in lux-window-history-ring."
     (with-temp-buffer
       (save-excursion
         (while (and includes (not found))
-          (insert-file-contents (car includes) nil nil nil t)
-          (goto-char (point-min))
-          (when (re-search-forward macro-regexp nil t)
-            (setq found (car includes)))
-          (pop includes))))
+          (let ((cur-file (lux-expand-file (car includes))))
+            (insert-file-contents cur-file nil nil nil t)
+            (goto-char (point-min))
+            (when (re-search-forward macro-regexp nil t)
+              (setq found cur-file))
+            (pop includes)))))
     (when found
       (lux-find-file found)
       (goto-char (point-min))
@@ -222,6 +224,20 @@ and make an entry in lux-window-history-ring."
       (while (re-search-forward (lux-build-meta-regexp "include") nil t)
         (setq files (append files (cons (match-string-no-properties 2) nil))))
       files)))
+
+(defun lux-expand-file (orig-file)
+  "Expand environment variables and ask user if non-existent"
+  (let*
+      ((file (expand-file-name (substitute-in-file-name orig-file)))
+       (dir (file-name-directory file)))
+    (if (not (file-exists-p orig-file))
+        (read-file-name
+         "OK? "
+         "/" ;; dir
+         file
+        'confirm-after-completion
+         file)
+      orig-file)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Autoload
