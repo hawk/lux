@@ -6,8 +6,8 @@
     val]
 
 [global var=multi\nline\nval]
-[global var=mul\
-    ti\nline\nval]
+    [global var=mul\
+        ti\nline\nval]
 
 [global var=
      """

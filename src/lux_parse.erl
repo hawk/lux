@@ -364,9 +364,10 @@ parse_oper(P, Fd, LineNo, OrigLine) ->
         <<"\"\"\"", D/binary>> -> {multi,             undefined, D};
         <<"#",      D/binary>> -> {comment,           undefined, D};
         _ ->
+            QuotedOrigLine = lux_utils:quote_newlines(OrigLine),
             parse_error(P, Fd, LineNo,
                         ["Syntax error at line ", ?i2l(LineNo),
-                         ": '", OrigLine, "'"])
+                         ": '", QuotedOrigLine, "'"])
     end.
 
 parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
@@ -1009,11 +1010,9 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
                     [Single] ->
                         Single;
                     [Last | Other] ->
-                        Join =
-                            fun(F, L) ->
-                                    <<F/binary, <<"\n">>/binary, L/binary>>
-                            end,
-                        lists:foldl(Join, Last, Other);
+                        Join = fun(F, L) -> [F, "\n", L] end,
+                        IoList = lists:foldl(Join, Last, Other),
+                        ?l2b(IoList);
                     [] ->
                         <<"">>
                 end,
@@ -1025,8 +1024,9 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
                     #cmd{orig = MetaChars} ->
                         <<MetaChars/binary, Blob/binary, "]">>
                 end,
+            MultiLine2 = lux_utils:strip_leading_whitespaces(MultiLine),
             {P3, NewFd, Tokens2} =
-                parse_cmd(P2, Fd2, MultiLine, LastLineNo, 0, OrigLine, Tokens),
+                parse_cmd(P2, Fd2, MultiLine2, LastLineNo, 0, OrigLine, Tokens),
             parse(P3, NewFd, LastLineNo, Tokens2)
     end.
 
