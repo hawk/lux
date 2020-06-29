@@ -396,7 +396,7 @@ do_fold_files(File, RegExp, Recursive, Fun, Acc, IsTopLevel) ->
     case file:read_link_info(File) of
         {ok, #file_info{type = Type}} ->
             case Type of
-                directory when IsTopLevel; Recursive->
+                directory when Recursive orelse IsTopLevel ->
                     Dir = File,
                     case file:list_dir(Dir) of
                         {ok, Files} ->

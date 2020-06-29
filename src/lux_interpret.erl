@@ -56,8 +56,10 @@ init(I) ->
                 true ->
                     I3
             end,
-        Res = loop(I5),
-        {ok, Res}
+        I6 = loop(I5),
+        I7 = check_risky_timer(I6, "case_timeout", CaseRef),
+        I8 = check_risky_timer(I7, "suite_timeout", SuiteRef),
+        {ok, I8}
     catch
         throw:{error, Reason, IA} ->
             {error, Reason, IA};
@@ -69,19 +71,45 @@ init(I) ->
     after
         ilog(IB, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
         ilog(IB, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
+        lux_utils:cancel_timer(CaseRef),
         EndTime = lux_utils:now_to_string(lux_utils:timestamp()),
         ilog(IB, "end_time \"~s\"\n", [EndTime], "lux", 0),
-        lux_utils:cancel_timer(CaseRef),
         opt_stop_etrace(IB)
     end.
 
-timer_left(#timer_ref{timeout = infinity}) ->
-    "infinity";
-timer_left(#timer_ref{ref = Ref}) ->
+timer_left(#timer_ref{} = TimerRef) ->
+    timer_left(read_timer_left(TimerRef));
+timer_left(TimerLeft) ->
+    case TimerLeft of
+        infinity -> "infinity";
+        Millis   -> lists:concat([Millis * 1000, " micros"])
+    end.
+
+read_timer_left(#timer_ref{timeout = infinity}) ->
+    infinity;
+read_timer_left(#timer_ref{ref = Ref}) ->
     case erlang:read_timer(Ref) of
-        ok     -> "expired";
-        false  -> "expired";
-        Millis -> lists:concat([Millis * 1000, " micros"])
+        ok     -> 0;
+        false  -> 0;
+        Millis -> Millis
+    end.
+
+check_risky_timer(I, TimerName, TimerRef) ->
+    case read_timer_left(TimerRef) of
+        infinity ->
+            I;
+        LeftMillis ->
+            MaxMillis = TimerRef#timer_ref.timeout,
+            ThresholdMillis = erlang:trunc(MaxMillis * ?TIMER_THRESHOLD),
+            ElapsedMillis = MaxMillis - LeftMillis,
+            if
+                ElapsedMillis > ThresholdMillis ->
+                    Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
+                    add_warning(I, "Risky " ++ TimerName ++ " > " ++
+                                    Percent ++ "% of max");
+                true ->
+                    I
+            end
     end.
 
 opt_start_etrace(#istate{progress = Progress, trace_mode = none} = I)

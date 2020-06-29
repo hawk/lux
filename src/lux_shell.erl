@@ -1286,9 +1286,9 @@ cancel_timer(#cstate{timer_ref = TimerRef,
             infinity ->
                 OldWarnings;
             _TimeLeftMillis ->
-                TimeoutMicros = TimerRef#timer_ref.timeout * 1000,
+                MaxMicros = TimerRef#timer_ref.timeout * 1000,
                 ThresholdMicros =
-                    erlang:trunc(TimeoutMicros * ?TIMER_THRESHOLD),
+                    erlang:trunc(MaxMicros * ?TIMER_THRESHOLD),
                 if
                     ElapsedMicros > ThresholdMicros ->
                         Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
