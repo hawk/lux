@@ -1287,13 +1287,20 @@ cancel_timer(#cstate{timer_ref = TimerRef,
                 OldWarnings;
             _TimeLeftMillis ->
                 MaxMicros = TimerRef#timer_ref.timeout * 1000,
-                ThresholdMicros =
-                    erlang:trunc(MaxMicros * ?TIMER_THRESHOLD),
+                HighThresholdMicros =
+                    erlang:trunc(MaxMicros * ?HIGH_TIMER_THRESHOLD),
+                LowThresholdMicros =
+                    erlang:trunc(MaxMicros * ?LOW_TIMER_THRESHOLD),
                 if
-                    ElapsedMicros > ThresholdMicros ->
-                        Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
+                    ElapsedMicros > HighThresholdMicros ->
+                        Percent = ?i2l(trunc(?HIGH_TIMER_THRESHOLD * 100)),
                         W = make_warning(C, "Risky timer > " ++
                                              Percent ++ "% of max"),
+                        [W | OldWarnings];
+                    ElapsedMicros < LowThresholdMicros ->
+                        PPB = ?i2l(trunc(?LOW_TIMER_THRESHOLD * 1000000000)),
+                        W = make_warning(C, "Oversized timer < " ++
+                                             PPB ++ " ppm of max"),
                         [W | OldWarnings];
                     true ->
                         OldWarnings

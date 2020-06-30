@@ -100,11 +100,11 @@ check_risky_timer(I, TimerName, TimerRef) ->
             I;
         LeftMillis ->
             MaxMillis = TimerRef#timer_ref.timeout,
-            ThresholdMillis = erlang:trunc(MaxMillis * ?TIMER_THRESHOLD),
+            ThresholdMillis = erlang:trunc(MaxMillis * ?HIGH_TIMER_THRESHOLD),
             ElapsedMillis = MaxMillis - LeftMillis,
             if
                 ElapsedMillis > ThresholdMillis ->
-                    Percent = ?i2l(trunc(?TIMER_THRESHOLD * 100)),
+                    Percent = ?i2l(trunc(?HIGH_TIMER_THRESHOLD * 100)),
                     add_warning(I, "Risky " ++ TimerName ++ " > " ++
                                     Percent ++ "% of max");
                 true ->

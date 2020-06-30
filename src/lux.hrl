@@ -31,7 +31,8 @@
 -define(success_pattern_matched, "success pattern matched ").
 -define(loop_break_pattern_mismatch,
         "Loop ended without match of break pattern ").
--define(TIMER_THRESHOLD, 0.85).
+-define(HIGH_TIMER_THRESHOLD, 0.85).
+-define(LOW_TIMER_THRESHOLD, 0.000000001).
 -define(HISTORY_LOG_BASE, "lux_history").
 -define(HTML_EXT, ".html").
 -define(SUITE_SUMMARY_LOG, "lux_summary.log").
