@@ -105,9 +105,10 @@ run_suite(R0, SuiteFiles, OldSummary, Results) ->
             run_cases(R, Scripts, OldSummary, Results, Max, 1, [], []),
         NewSummary =
             if
-                NewResults =:= [],
-                R#rstate.mode =/= validate,
-                R#rstate.mode =/= dump ->
+                NewResults =:= []          andalso
+                R#rstate.mode =/= validate andalso
+                R#rstate.mode =/= dump     andalso
+                R#rstate.mode =/= expand ->
                     lux_utils:summary(Summary, warning);
                 true ->
                     Summary
@@ -162,7 +163,8 @@ list_files(R, File) ->
     end.
 
 full_run(#rstate{mode = Mode} = R, _ConfigData, SummaryLog)
-  when Mode =:= dump ->
+  when Mode =:= dump   orelse
+       Mode =:= expand ->
     InitialSummary = success,
     InitialRes = [],
     {_R2, Summary, Results} =
@@ -288,10 +290,11 @@ annotate_tmp_summary_log(R, Summary, NextScript) ->
     SummaryPrio = lux_utils:summary_prio(Summary),
     if
         SummaryPrio >= HtmlPrio,
-        R#rstate.mode =/= doc,
-        R#rstate.mode =/= list,
-        R#rstate.mode =/= list_dir,
-        R#rstate.mode =/= dump ->
+        R#rstate.mode =/= doc      andalso
+        R#rstate.mode =/= list     andalso
+        R#rstate.mode =/= list_dir andalso
+        R#rstate.mode =/= dump     andalso
+        R#rstate.mode =/= expand ->
             %% Generate premature html log
             NoHtmlOpts = [{case_prefix, R#rstate.case_prefix},
                           {next_script, NextScript}],
@@ -314,10 +317,11 @@ annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
     SummaryPrio = lux_utils:summary_prio(Summary),
     if
         SummaryPrio >= HtmlPrio,
-        R#rstate.mode =/= doc,
-        R#rstate.mode =/= list,
-        R#rstate.mode =/= list_dir,
-        R#rstate.mode =/= dump ->
+        R#rstate.mode =/= doc      andalso
+        R#rstate.mode =/= list     andalso
+        R#rstate.mode =/= list_dir andalso
+        R#rstate.mode =/= dump     andalso
+        R#rstate.mode =/= expand ->
             Opts = [{case_prefix, R#rstate.case_prefix},
                     {html, R#rstate.html}],
             case annotate_log(false, SummaryLog, Opts) of
@@ -339,8 +343,8 @@ annotate_final_summary_log(R, Summary, HtmlPrio, SummaryLog, Results) ->
 
 compute_files(R, LogBase) ->
     if
-        R#rstate.files =:= [],
-        R#rstate.orig_files =:= [],
+        R#rstate.files =:= []      andalso
+        R#rstate.orig_files =:= [] andalso
         R#rstate.rerun =:= disable ->
             throw_error(undefined, no_input_files);
         R#rstate.rerun =:= disable ->
@@ -438,10 +442,13 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{case_prefix = Val,
                                     user_args = UserArgs});
-        progress when Val =:= silent;
-                      Val =:= summary; Val =:= brief;
-                      Val =:= doc;
-                      Val =:= compact; Val =:= verbose; Val =:= debug ->
+        progress when Val =:= silent  orelse
+                      Val =:= summary orelse
+                      Val =:= brief   orelse
+                      Val =:= doc     orelse
+                      Val =:= compact orelse
+                      Val =:= verbose orelse
+                      Val =:= debug ->
             UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{progress = Val,
                                     user_args = UserArgs});
@@ -466,28 +473,40 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             parse_ropts(T, R#rstate{hostname = Val});
         skip_unstable when Val =:= true; Val =:= false ->
             parse_ropts(T, R#rstate{skip_unstable = Val});
-        skip_skip when Val =:= true; Val =:= false ->
+        skip_skip when Val =:= true orelse
+                       Val =:= false ->
             parse_ropts(T, R#rstate{skip_skip = Val});
-        mode when Val =:= list; Val =:= list_dir; Val =:= doc;
-                  Val =:= validate; Val =:= dump; Val =:= execute ->
+        mode when Val =:= list     orelse
+                  Val =:= list_dir orelse
+                  Val =:= doc      orelse
+                  Val =:= validate orelse
+                  Val =:= dump     orelse
+                  Val =:= expand   orelse
+                  Val =:= execute ->
             parse_ropts(T, R#rstate{mode = Val});
-        rerun when Val =:= enable; Val =:= success;
-                   Val =:= skip; Val =:= warning;
-                   Val =:= fail; Val =:= error;
+        rerun when Val =:= enable  orelse
+                   Val =:= success orelse
+                   Val =:= skip    orelse
+                   Val =:= warning orelse
+                   Val =:= fail    orelse
+                   Val =:= error   orelse
                    Val =:= disable ->
             parse_ropts(T, R#rstate{rerun = Val});
-        html when Val =:= validate;
-                  Val =:= enable; Val =:= success;
-                  Val =:= skip; Val =:= warning;
-                  Val =:= fail; Val =:= error;
+        html when Val =:= validate orelse
+                  Val =:= enable   orelse
+                  Val =:= success  orelse
+                  Val =:= skip     orelse
+                  Val =:= warning  orelse
+                  Val =:= fail     orelse
+                  Val =:= error    orelse
                   Val =:= disable ->
             parse_ropts(T, R#rstate{html = Val});
         tap when is_list(Val) ->
             TapOpts = [Val|R#rstate.tap_opts],
             parse_ropts(T, R#rstate{tap_opts = TapOpts});
-        junit when Val =:= true; Val =:= false ->
+        junit when Val =:= true orelse
+                   Val =:= false ->
             parse_ropts(T, R#rstate{junit = Val});
-
 
         %% case options
         _ ->
@@ -498,10 +517,11 @@ parse_ropts([], R) ->
     UserArgs = opts_to_args(lists:reverse(R#rstate.user_args), []),
     Progress =
         case R#rstate.mode of
-            M when M =:= list orelse
+            M when M =:= list     orelse
                    M =:= list_dir orelse
-                   M =:= doc orelse
-                   M =:= dump ->
+                   M =:= doc      orelse
+                   M =:= dump     orelse
+                   M =:= expand ->
                 silent;
             _ ->
                 R#rstate.progress
@@ -538,8 +558,8 @@ check_file({Tag, File}) ->
 
 run_cases(R, [{SuiteFile,{error=Summary,Reason}, _P, _LenP}|Scripts],
           OldSummary, Results, Max, CC, List, Opaque)
-  when R#rstate.mode =:= list;
-       R#rstate.mode =:= list_dir;
+  when R#rstate.mode =:= list     orelse
+       R#rstate.mode =:= list_dir orelse
        R#rstate.mode =:= doc ->
     ReasonStr = file:format_error(Reason),
     io:format("~s:\n", [lux_utils:drop_prefix(SuiteFile)]),
@@ -593,8 +613,9 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     run_cases(NewR#rstate{warnings = AllWarnings},
                               Scripts, NewSummary, NewResults,
                               Max, CC+1, List, Opaque);
-                RunMode =:= validate;
-                RunMode =:= dump ->
+                RunMode =:= validate orelse
+                RunMode =:= dump     orelse
+                RunMode =:= expand ->
                     init_case_rlog(NewR, P, Script),
                     {Summary, NewSummary, NewResults} =
                         adjust_warnings(Script, success,
@@ -655,8 +676,8 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                               Max, CC+1, List, NewOpaque)
             end;
         {skip, NewR, _ErrorStack, SkipReason}
-          when RunMode =:= list;
-               RunMode =:= list_dir;
+          when RunMode =:= list     orelse
+               RunMode =:= list_dir orelse
                RunMode =:= doc ->
             Summary =
                 case ?b2l(SkipReason) of
@@ -698,7 +719,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                       Scripts, NewSummary, Results2,
                       Max, CC+1, List, Opaque);
         {error = Summary, _ErrR, _ErrorStack, _ErrorBin}
-          when RunMode =:= list;
+          when RunMode =:= list     orelse
                RunMode =:= list_dir ->
             NewSummary = lux_utils:summary(OldSummary, Summary),
             run_cases(OrigR, Scripts, NewSummary, Results,
@@ -809,7 +830,11 @@ display_doc({Level, Doc}, MaxLevel) ->
 
 write_results(#rstate{mode=Mode, summary_log=SummaryLog},
               Summary, Results)
-  when Mode =:= list; Mode =:= list_dir; Mode =:= doc, Mode =:= dump ->
+  when Mode =:= list     orelse
+       Mode =:= list_dir orelse
+       Mode =:= doc      orelse
+       Mode =:= dump     orelse
+       Mode =:= expand ->
     {ok, Summary, SummaryLog, Results};
 write_results(#rstate{progress=Progress,
                       summary_log=SummaryLog,
@@ -1188,7 +1213,8 @@ suite_config_type(Name) ->
         skip_skip ->
             {ok, [{atom, [true, false]}]};
         mode ->
-            {ok, [{atom, [list, list_dir, doc, validate, dump, execute]}]};
+            {ok, [{atom, [list, list_dir, doc,
+                          validate, dump, expand, execute]}]};
         doc ->
             {ok, [{integer, 0, infinity}]};
         config_name ->
@@ -1216,10 +1242,11 @@ suite_config_type(Name) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 tap_suite_begin(R, Scripts, Directive)
-  when R#rstate.mode =/= list,
-       R#rstate.mode =/= list_dir,
-       R#rstate.mode =/= doc,
-       R#rstate.mode =/= dump ->
+  when R#rstate.mode =/= list     andalso
+       R#rstate.mode =/= list_dir andalso
+       R#rstate.mode =/= doc      andalso
+       R#rstate.mode =/= dump     andalso
+       R#rstate.mode =/= expand ->
     TapLog = filename:join([R#rstate.log_dir, ?CASE_TAP_LOG]),
     TapOpts = [TapLog | R#rstate.tap_opts],
     case lux_tap:open(TapOpts) of

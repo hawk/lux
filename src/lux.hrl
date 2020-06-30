@@ -407,7 +407,8 @@
 -type error()        :: {error, filename(), string()}.
 -type no_input()     :: {error, undefined, no_input_files}.
 -type result()       :: {ok, filename(), summary(), lineno(), [#warning{}]}.
--type run_mode()     :: list | list_dir | doc | validate | dump | execute.
+-type run_mode()     :: list | list_dir | doc |
+                        validate | dump | expand | execute.
 -type expected_tag() :: ?EXPECTED_EQ | ?EXPECTED_RE.
 -type suppress()     :: suppress_any_success | suppress_none.
 -type select()       :: select_worst | select_latest.

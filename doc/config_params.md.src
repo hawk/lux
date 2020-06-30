@@ -62,9 +62,11 @@ Mode can be one of :
 * `execute`  - evaluate the test cases. This is default.
 * `validate` - parse all script files and configuration files and
                report syntax errors and warnings.
-* `dump`     - parse and dump the internal form of all script files
+* `dump`     - parse and dump the internal form for all script files
                and configuration files and report syntax errors and
                warnings.
+* `expand`   - parse and expand source files for all script files
+               and configuration files.
 * `list`     - display a list of all (non-skipped) test cases.
                One file per line.
 * `list_dir` - display a list of all directories with non-skipped

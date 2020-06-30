@@ -24,8 +24,33 @@
 parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
     R = do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts),
     case RunMode of
-        dump -> io:format("\n~p\n", [R]);
-        _    -> ok
+        dump ->
+            io:format("\n~p\n", [R]);
+        expand ->
+            io:format("### Main file   : ~s\n", [RelFile]),
+            case R of
+                {ok, _AbsFile, Cmds, _FileOpts, _Warnings} ->
+                    Fun =
+                        fun(#cmd{} = Cmd, _F, _PosStack, Acc) ->
+                                case Cmd#cmd.arg of
+                                    {include, AbsInclFile, _, _, _} ->
+                                        I = lux_utils:drop_prefix(AbsInclFile),
+                                        io:format("### Include file: ~s\n",
+                                                  [I]);
+                                    _ ->
+                                        io:format("~s\n", [Cmd#cmd.orig])
+                                end,
+                                Acc
+                        end,
+                    lux_utils:foldl_cmds(Fun, acc, RelFile, [], Cmds, static);
+                {skip, _ErrorStack, ErrorBin} ->
+                    io:format("### Skip        : ~s\n", [ErrorBin]);
+                {error, _ErrorStack, ErrorBin} ->
+                    io:format("### Error       : ~s\n", [ErrorBin])
+            end,
+            io:format("### End of file : ~s\n\n", [RelFile]);
+        _Other ->
+            ok
     end,
     R.
 
@@ -172,8 +197,9 @@ file_open(Lines) when is_list(Lines) ->
 file_open(#pstate{file = File, mode = RunMode}) ->
     do_file_open(File, RunMode).
 
-do_file_open( File, RunMode) when RunMode =:= validate;
-                                  RunMode =:= dump;
+do_file_open( File, RunMode) when RunMode =:= validate orelse
+                                  RunMode =:= dump     orelse
+                                  RunMode =:= expand   orelse
                                   RunMode =:= execute ->
     %% Bulk read file
     case file:read_file(File) of
@@ -183,8 +209,8 @@ do_file_open( File, RunMode) when RunMode =:= validate;
         {error, FileReason} ->
             {error, FileReason}
     end;
-do_file_open(File, RunMode) when RunMode =:= list;
-                                 RunMode =:= list_dir;
+do_file_open(File, RunMode) when RunMode =:= list      orelse
+                                 RunMode =:= list_dir  orelse
                                  RunMode =:= doc ->
     %% Read lines on demand
     case file:open(File, [raw, binary, read_ahead]) of
@@ -336,13 +362,14 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
             parse_meta(P, Fd, Incr, UnStripped, Cmd, Tokens);
         Type =:= multi ->
             parse_multi(P, Fd, Incr, UnStripped, Cmd, Tokens, no_meta);
-        RunMode =:= validate;
-        RunMode =:= dump;
+        RunMode =:= validate  orelse
+        RunMode =:= dump      orelse
+        RunMode =:= expand    orelse
         RunMode =:= execute ->
             Cmd2 = parse_single(Cmd, UnStripped),
             parse(P, Fd, NextLineNo, [Cmd2 | Tokens]);
-        RunMode =:= list;
-        RunMode =:= list_dir;
+        RunMode =:= list     orelse
+        RunMode =:= list_dir orelse
         RunMode =:= doc ->
             %% Skip command
             parse(P, Fd, NextLineNo, Tokens)
@@ -372,7 +399,8 @@ parse_oper(P, Fd, LineNo, OrigLine) ->
 
 parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
     case Type of
-        send when SubType =:= lf         -> Cmd#cmd{arg = <<Data/binary, "\n">>};
+        send when SubType =:= lf         -> Cmd#cmd{arg =
+                                                        <<Data/binary, "\n">>};
         send when SubType =:= nolf       -> Cmd#cmd{arg = Data};
         expect when Data =:= <<>>        -> regexp(Cmd, SubType, reset, single);
         expect when SubType =:= verbatim -> regexp(Cmd, SubType, Data,  single);
@@ -406,7 +434,8 @@ regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
         RegExp =:= reset ->
             RegExpOper = single, % Assert
             Cmd#cmd{arg = reset};
-        Type =:= expect_add_strict orelse Type =:= expect_add ->
+        Type =:= expect_add_strict orelse
+        Type =:= expect_add ->
             RegExpOper = multi, % Assert
             Cmd#cmd{type = expect, arg = {RegExpType, Type, RegExp}};
         true ->
@@ -464,17 +493,18 @@ parse_single_meta(P, Fd, NextIncr, Meta, #cmd{lineno = LineNo} = Cmd, Tokens) ->
                 [NewCmd | Tokens];
             NewType =:= include  ->
                 [NewCmd | Tokens];
-            NewType =:= doc,
-            RunMode =/= list,
+            NewType =:= doc  andalso
+            RunMode =/= list andalso
             RunMode =/= list_dir ->
                 [NewCmd | Tokens];
-            RunMode =:= list;
-            RunMode =:= list_dir;
+            RunMode =:= list     orelse
+            RunMode =:= list_dir orelse
             RunMode =:= doc ->
                 %% Skip command
                 Tokens;
-            RunMode =:= validate;
-            RunMode =:= dump;
+            RunMode =:= validate orelse
+            RunMode =:= dump     orelse
+            RunMode =:= expand   orelse
             RunMode =:= execute ->
                 [NewCmd | Tokens]
         end,
@@ -586,16 +616,17 @@ do_parse_body(#pstate{mode = RunMode} = P,
                                  Reason])
             end;
         {line, _EndMacro, NewFd, Incr}
-          when RunMode =:= list;
-               RunMode =:= list_dir;
+          when RunMode =:= list     orelse
+               RunMode =:= list_dir orelse
                RunMode =:= doc ->
             %% Do not parse body
             BodyLen = length(BodyLines)+BodyIncr,
             LastLineNo = LineNo+NextIncr+Incr+BodyLen+1,
             {P, NewFd, LastLineNo, Cmd#cmd{arg = undefined}};
         {line, _EndMacro, NewFd, Incr}
-          when RunMode =:= validate;
-               RunMode =:= dump;
+          when RunMode =:= validate orelse
+               RunMode =:= dump     orelse
+               RunMode =:= expand   orelse
                RunMode =:= execute ->
             %% Parse body
             BodyLen = length(BodyLines)+BodyIncr,
@@ -855,7 +886,8 @@ test_user_config(P, I) ->
     lists:foreach(fun(Val) -> T("skip", Val) end, I#istate.skip),
     lists:foreach(fun(Val) -> T("skip_unless", Val) end, I#istate.skip_unless),
     lists:foreach(fun(Val) -> T("unstable", Val) end, I#istate.unstable),
-    lists:foreach(fun(Val) -> T("unstable_unless", Val) end, I#istate.unstable_unless),
+    lists:foreach(fun(Val) -> T("unstable_unless", Val) end,
+                  I#istate.unstable_unless),
     lists:foreach(fun(Val) -> T("require", Val) end, I#istate.require).
 
 test_skip(#pstate{mode = RunMode,
@@ -994,15 +1026,16 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
                          ": multi line block must end in same column as"
                          " it started on line ", ?i2l(LineNo)]);
         {line, _EndOfMulti, NewFd, Incr}
-          when RunMode =:= list;
-               RunMode =:= list_dir;
+          when RunMode =:= list     orelse
+               RunMode =:= list_dir orelse
                RunMode =:= doc ->
             %% Skip command
             LastLineNo = LastLineNo0+Incr,
             parse(P2, NewFd, LastLineNo+1, Tokens);
         {line, _EndOfMulti, Fd2, Incr}
-          when RunMode =:= validate;
-               RunMode =:= dump;
+          when RunMode =:= validate orelse
+               RunMode =:= dump     orelse
+               RunMode =:= expand   orelse
                RunMode =:= execute ->
             %% Join all lines with a newline as separator
             Blob =
