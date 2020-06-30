@@ -267,10 +267,10 @@
          events        :: [#event{}]}).
 
 -record(timer,
-        {match_lineno :: [integer()], % Reversed stack of lineno
-         match_data   :: [binary()],
-         send_lineno  :: [integer()], % Reversed stack of lineno
+        {send_lineno  :: [integer()],                 % Reversed stack of lineno
          send_data    :: [binary()],
+         match_lineno :: [integer()],                 % Reversed stack of lineno
+         match_data   :: [binary()],
          shell        :: binary(),                        % Name
          callstack    :: binary(),                        % Name->Name->Name
          macro        :: binary(),                        % Name

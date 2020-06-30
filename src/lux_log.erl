@@ -862,29 +862,66 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
     end.
 
 extract_timers(Events) ->
-    {_SendEvent, RevTimers} =
-        extract_timers(Events, undefined, [<<>>], [], []),
-    Timers = lists:reverse(RevTimers),
+    {_SendEvent, Case, RevTimers} =
+        do_extract_timers(Events, undefined, undefined, [<<>>], [], []),
+    Timers = lists:reverse([Case | RevTimers]),
     %% io:format("\ntimers: ~p\n", [Timers]),
     Timers.
 
-extract_timers([E | Events], Send, Calls, Nums, Acc) ->
+do_extract_timers([E | Events], Send, Case, Calls, Nums, Acc) ->
     case E of
+        #event{op = <<"case_timeout">>} ->
+            LeftMillis =
+                case binary:split(?l2b(E#event.data), <<" ">>, [global]) of
+                    [BinInt, <<"micros">>] ->
+                        list_to_integer(?b2l(BinInt));
+                    [<<"(0">>,<<"seconds">>,<<"*">>,_Mult,<<"multiplier)">>] ->
+                        %% Fail
+                        0
+                end,
+            NewCase =
+                case Case of
+                    undefined ->
+                        #timer{send_lineno = [E#event.lineno],
+                               send_data = <<>>,
+                               match_lineno = [E#event.lineno],
+                               match_data = <<>>,
+                               shell = <<"case_timeout">>,
+                               callstack = [],
+                               macro = <<>>,
+                               max_time = LeftMillis,
+                               status = started,
+                               elapsed_time = undefined};
+                    #timer{} ->
+                        Status =
+                            if
+                                LeftMillis =< 0               -> failed;
+                                Case#timer.status =:= failed  -> failed;
+                                Case#timer.status =:= started -> matched
+                            end,
+                        ElapsedMillis = Case#timer.max_time - LeftMillis,
+                        Case#timer{status = Status,
+                                   elapsed_time = ElapsedMillis}
+                end,
+            do_extract_timers(Events, Send, NewCase,
+                              Calls, Nums, Acc);
         #event{op = <<"send">>} ->
             NewSend = {E, Nums},
-            extract_timers(Events, NewSend, Calls, Nums, Acc);
+            do_extract_timers(Events, NewSend, Case,
+                              Calls, Nums, Acc);
         #event{op = <<"start">>} ->
             NewSend = {E, Nums},
-            extract_timers(Events, NewSend, Calls, Nums, Acc);
+            do_extract_timers(Events, NewSend, Case,
+                              Calls, Nums, Acc);
         #event{op = <<"expect", _/binary>>} ->
             {SendE, SendNums} = Send,
             SendLineNo = [SendE#event.lineno | SendNums],
             Callstack = format_calls(Calls, []),
             MatchLineNo = [E#event.lineno | Nums],
-            T = #timer{match_lineno = MatchLineNo,
-                       match_data = E#event.data,
-                       send_lineno = SendLineNo,
+            T = #timer{send_lineno = SendLineNo,
                        send_data = SendE#event.data,
+                       match_lineno = MatchLineNo,
+                       match_data = E#event.data,
                        shell = E#event.shell,
                        callstack = Callstack,
                        status = expected},
@@ -894,39 +931,48 @@ extract_timers([E | Events], Send, Calls, Nums, Acc) ->
                 NewAcc ->
                     ok
             end,
-            extract_timers(Events, Send, Calls, Nums, [T | NewAcc]);
+            do_extract_timers(Events, Send, Case,
+                              Calls, Nums, [T | NewAcc]);
         #event{op = <<"timer">>, data = [Data]} ->
             [T | NewAcc] = Acc,
             case parse_timer(Data) of
                 {started, MaxTime} when T#timer.status =:= expected  ->
                     NewT = T#timer{max_time = MaxTime,
                                    status = started},
-                    extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc]);
+                    do_extract_timers(Events, Send, Case,
+                                      Calls, Nums, [NewT|NewAcc]);
                 {canceled, Elapsed} when T#timer.status =:= started ->
                     NewT = T#timer{status = matched,
                                    elapsed_time = Elapsed},
-                    extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc]);
+                    do_extract_timers(Events, Send, Case,
+                                      Calls, Nums, [NewT|NewAcc]);
                 {failed, Elapsed} when T#timer.status =:= started ->
                     NewT = T#timer{status = failed,
                                    elapsed_time = Elapsed},
-                    extract_timers(Events, Send, Calls, Nums, [NewT|NewAcc])
+                    do_extract_timers(Events, Send, Case,
+                                      Calls, Nums, [NewT|NewAcc])
             end;
         #event{op = <<"invoke_", Macro/binary>>} ->
             NewCalls = [Macro | Calls],
-            extract_timers(Events, Send, NewCalls, Nums, Acc);
+            do_extract_timers(Events, Send, Case,
+                              NewCalls, Nums, Acc);
         #event{op = <<"exit_", Macro/binary>>} ->
             [Macro | NewCalls] = Calls,
-            extract_timers(Events, Send, NewCalls, Nums, Acc);
+            do_extract_timers(Events, Send, Case,
+                              NewCalls, Nums, Acc);
         #event{} ->
-            extract_timers(Events, Send, Calls, Nums, Acc);
+            do_extract_timers(Events, Send, Case,
+                              Calls, Nums, Acc);
         #body{events = EventsB} = B ->
             TmpNums = [B#body.invoke_lineno | Nums],
-    {NewSend, NewAcc} =
-                extract_timers(EventsB, Send, Calls, TmpNums, Acc),
-            extract_timers(Events, NewSend, Calls, Nums, NewAcc)
+            {NewSend, NewCase, NewAcc} =
+                do_extract_timers(EventsB, Send, Case,
+                                  Calls, TmpNums, Acc),
+            do_extract_timers(Events, NewSend, NewCase,
+                              Calls, Nums, NewAcc)
     end;
-extract_timers([], Send, _Calls, _Nums, Acc) ->
-    {Send, Acc}.
+do_extract_timers([], Send, Case, _Calls, _Nums, Acc) ->
+    {Send, Case, Acc}.
 
 format_calls([<<>>], Acc) ->
     ?l2b(join("->", Acc));
@@ -972,7 +1018,7 @@ timers_to_csv(Timers) ->
     ElemLines = [timer_to_elems(T) || T <- Timers,
                                       T#timer.status =/= expected],
     Sep = ";",
-    [[join(Sep, E), "\n"] || E <- [Header | ElemLines]].
+    ?l2b([[join(Sep, E), "\n"] || E <- [Header | ElemLines]]).
 
 timer_header() ->
     ["Send", "Match", "Shell", "Macro", "MaxTime", "Status", "Elapsed"].
@@ -982,9 +1028,9 @@ join(_Sep, []) ->
 join(Sep, [H|T]) ->
     [H|[[Sep, E] || E <- T]].
 
-timer_to_elems(#timer{match_lineno = MatchStack,
-                      send_lineno  = SendStack,
+timer_to_elems(#timer{send_lineno  = SendStack,
                       send_data    = _SendData,
+                      match_lineno = MatchStack,
                       shell        = Shell,
                       callstack    = Callstack,
                       max_time     = MaxTime,
@@ -1025,12 +1071,12 @@ csv_to_timers(CsvFile) ->
                 fun(RowBin) ->
                         [Send, Match, Shell, Macro, MaxTime, Status, Elapsed] =
                             binary:split(RowBin, <<"\n">>, [global]),
-                        #timer{match_lineno = Match,
-                               send_lineno  = Send,
+                        #timer{send_lineno  = Send,
                                send_data    = undefined,
+                               match_lineno = Match,
                                shell        = Shell,
                                callstack    = Macro,
-                               macro    = undefined,
+                               macro        = undefined,
                                max_time     = MaxTime,
                                status       = Status,
                                elapsed_time = Elapsed}

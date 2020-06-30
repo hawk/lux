@@ -369,12 +369,7 @@ annotate_event_log(#astate{log_file=EventLog} = A, WWW)
                               start_time = StartTime,
                               end_time = EndTime},
                 Timers = lux_log:extract_timers(Events),
-                %% io:format("\nTimers for ~s:\n\t~p\n",
-                %%           [drop_run_dir_prefix(A2, Script), Timers]),
-                Csv = lux_log:timers_to_csv(Timers),
-                %% io:format("\nTimers for ~s:\t~s\n",
-                %%           [drop_run_dir_prefix(A2, Script),
-                %%            lists:flatten(Csv)]),
+                CsvBin = lux_log:timers_to_csv(Timers),
                 OrigScript = orig_script(A2, Script),
                 A3 = A2#astate{script_file = OrigScript},
                 Logs = lux_log:parse_io_logs(LogBins, []),
@@ -382,7 +377,7 @@ annotate_event_log(#astate{log_file=EventLog} = A, WWW)
                 {Annotated, Files} = interleave_code(A3, Events, Script),
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
                                    Timers, Files, Logs, Annotated, ConfigBins),
-                {{ok, Csv, Html}, NewWWW};
+                {{ok, CsvBin, Html}, NewWWW};
             {error, _File, _ReasonStr} = Error ->
                 {Error, NewWWW}
         end
