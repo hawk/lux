@@ -56,9 +56,9 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs, ThisEscript) ->
             io:format("~p\n", [lux_utils:version()]),
             0;
         {"--gen_markdown", [File]} ->
-            gen_markdown(File);
+            res_to_file_exit(File, lux_debug:gen_markdown(File));
         {"--pre_markdown", [File]} ->
-            pre_markdown(LuxAppDir, File);
+            res_to_file_exit(File, lux_develop:pre_markdown(LuxAppDir, File));
         {"--internal_debug", [_]} ->
             internal_debug(Op, OrigArgs);
         {"--event_trace", [_]} ->
@@ -392,168 +392,6 @@ doc_url(AppDir) ->
     "file://" ++ filename:absname(UsersGuide).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Markdown
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-gen_markdown(ToFile) ->
-    case lux_debug:gen_markdown(ToFile) of
-        ok ->
-            0;
-        {error, FileReason} ->
-            io:format("ERROR: ~s: ~s\n",
-                      [ToFile, file:format_error(FileReason)]),
-            1
-    end.
-
-pre_markdown(LuxAppDir, ToFile) ->
-    FromFile = ToFile ++ ".src",
-    AbsFileName0 = filename:absname(ToFile),
-    AbsFileName = lux_utils:normalize_filename(AbsFileName0),
-    RelFileName = lux_utils:drop_prefix(LuxAppDir, AbsFileName),
-    RelFileDir = filename:dirname(RelFileName),
-    {ok, Cwd} = file:get_cwd(),
-    RelWorkDir = lux_utils:drop_prefix(LuxAppDir, Cwd),
-    case file:read_file(FromFile) of
-        {ok, Bin} ->
-            try
-                Expand =
-                    fun(L, {Files, Lines}) ->
-                            case markdown_line(RelWorkDir, L) of
-                                {keep, Line} ->
-                                    {Files, [Line | Lines]};
-                                {expand, InclFile, InclLines} ->
-                                    RelInclFile =
-                                        relpath(RelFileDir, InclFile),
-                                    {[RelInclFile | Files],
-                                     [InclLines | Lines]};
-                                {expand, EvalLines} ->
-                                    {Files,
-                                     [EvalLines | Lines]}
-                            end
-                    end,
-                Lines = lux_utils:split_lines(Bin),
-                {InclFiles, RevNewLines} =
-                    lists:foldl(Expand, {[], []}, Lines),
-                DepsIoList =
-                    [
-                     ToFile,
-                     ": ",
-                     join(" ", [FromFile | lists:reverse(InclFiles)])
-                    ],
-                DepsFile = ToFile ++ ".d",
-                %% Make dependency file
-                case file:write_file(DepsFile, DepsIoList) of
-                    ok ->
-                        ok;
-                    {error, FileReason} ->
-                        throw({error,
-                               "~s: ~s", [DepsFile,
-                                          file:format_error(FileReason)]})
-                end,
-                IoList = lux_utils:expand_lines(lists:reverse(RevNewLines)),
-                %% Markdown file
-                case file:write_file(ToFile, IoList) of
-                    ok ->
-                        0;
-                    {error, FileReason2} ->
-                        throw({error,
-                               "~s: ~s", [ToFile,
-                                          file:format_error(FileReason2)]})
-                end
-            catch
-                throw:{error, Format, Args} ->
-                    io:format("ERROR: ~s: " ++ Format ++ "\n",
-                              [FromFile] ++ Args),
-                    1
-            end;
-        {error, FileReason} ->
-            io:format("ERROR: ~s: ~s\n",
-                      [FromFile, file:format_error(FileReason)]),
-            1
-    end.
-
-relpath(".", Path) ->
-    Path;
-relpath(Prefix, Path) ->
-    UpDir = filename:join([".." || _ <- filename:split(Prefix)]),
-    filename:join([UpDir, Path]).
-
-markdown_line(RelWorkDir, Line) ->
-    Incomplete = {error, "Incomplete include statement", []},
-    case string:strip(binary_to_list(Line), left) of
-        "#include " ++ InclFile ->
-            case string:strip(InclFile, both) of
-                "<" ->
-                    throw(Incomplete);
-                "<" ++ InclFile2 ->
-                    case lists:reverse(InclFile2) of
-                        ">" ++ RevInclFile ->
-                            InclFile3 = lists:reverse(RevInclFile),
-                            markup_include(InclFile3);
-                        _ ->
-                            throw(Incomplete)
-                    end;
-                _ ->
-                    throw(Incomplete)
-            end;
-        "#eval-include " ++ Cmd0 ->
-            Cmd = string:strip(Cmd0),
-            FullCmd =
-                case relpath(RelWorkDir, "") of
-                    "" -> Cmd;
-                    UpDir  -> "cd " ++ UpDir ++ " && " ++ Cmd
-                end,
-            io:format("\t~s\n", [FullCmd]),
-            {Output, RetCode} = lux_utils:cmd(FullCmd),
-            io:format("\techo $?\n\t~s\n", [RetCode]),
-            Prompt = ".../lux> ",
-            Prefix = ">     ",
-            {expand,
-             [
-              "Evaluate `", Cmd, "`\n\n",
-              Prefix, Prompt, Cmd, "\n",
-              lux_utils:expand_lines([[Prefix, L] || L <- Output]),
-              "\n",
-              Prefix, Prompt, "echo $?\n",
-              Prefix, RetCode, "\n"
-             ]};
-        "#eval-silent " ++ Cmd0 ->
-            Cmd = string:strip(Cmd0),
-            FullCmd =
-                case relpath(RelWorkDir, "") of
-                    "" -> Cmd;
-                    UpDir  -> "cd " ++ UpDir ++ " && " ++ Cmd
-                end,
-            io:format("\t~s\n", [FullCmd]),
-            {_Output, RetCode} = lux_utils:cmd(FullCmd),
-            io:format("\techo $?\n\t~s\n", [RetCode]),
-            {expand,
-             [
-              "Evaluate `", Cmd, "`\n"
-             ]};
-        _ ->
-            {keep, Line}
-    end.
-
-markup_include(RelFile) ->
-    AbsFile = filename:join(["..", RelFile]),
-    case file:read_file(AbsFile) of
-        {ok, Bin} ->
-            Lines = lux_utils:split_lines(binary_to_list(Bin)),
-            RelFile2 = filename:join(["...", "lux", RelFile]),
-            {expand,
-             RelFile,
-             [
-              "Snippet from the enclosed `", RelFile2, "` file:\n",
-              "\n",
-              lux_utils:expand_lines([[">     ", L] || L <- Lines])
-             ]};
-        {error, FileReason} ->
-            RelFile2 = filename:join(["..", "lux", RelFile]),
-            throw({error, "~s: ~s", [RelFile2, file:format_error(FileReason)]})
-    end.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Erlang debug
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -844,8 +682,8 @@ filter_apps(MainOp, AppConds, _IsCross, false) ->
                              {true, {app, AppName, [{incl_cond, InclCond}]}};
                          {error, {already_loaded,AppName}}->
                              {true, {app, AppName, [{incl_cond, InclCond}]}};
-                         {error, _} when InclCond =:= include ->
-                             missing_app(MainOp, AppName);
+                         {error, Reason} when InclCond =:= include ->
+                             missing_app(MainOp, AppName, Reason);
                          {error, _} ->
                              false
                      end
@@ -1395,38 +1233,41 @@ fatal_error(RetCode, Format, Args) ->
 safe_halt(RetCode) ->
     throw({safe_halt, RetCode}).
 
-join(_Sep, []) ->
-    [];
-join(Sep, [H|T]) ->
- [H | join2(Sep, T)].
-
-join2(_Sep, []) ->
-    [];
-join2(Sep, [H | T]) ->
-    [Sep , H | join2(Sep, T)].
+res_to_file_exit(File, Res) ->
+    case Res of
+        ok ->
+            0;
+        {error, ReasonStr} ->
+            io:format("ERROR: ~s\n", [ReasonStr]),
+            1;
+        {error, File, ReasonStr} ->
+            io:format("ERROR: ~s: ~s\n", [File, ReasonStr]),
+            1
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Original code. There is a copy in bin/lux as well
+%% Original code. There is a copy in bin/lux as well.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 require_app(MainOp, AppName) ->
     case code:lib_dir(AppName) of
-        {error, _Reason} ->
-            missing_app(MainOp, AppName);
+        {error, Reason} ->
+            missing_app(MainOp, AppName, Reason);
         AppDir ->
             case application:load(AppName) of
                 ok ->
                     AppDir;
                 {error, {already_loaded,AppName}}->
                     AppDir;
-                {error, _} ->
-                    missing_app(MainOp, AppName)
+                {error, Reason} ->
+                    missing_app(MainOp, AppName, Reason)
             end
     end.
 
-missing_app(undefined, AppName) ->
-    fatal_error(4, "The application '~p' is missing.\n", [AppName]);
-missing_app(MainOp, AppName) ->
+missing_app(undefined, AppName, Reason) ->
+    fatal_error(4, "The application '~p' is missing.\n\t~p\n",
+                [AppName, Reason]);
+missing_app(MainOp, AppName, Reason) ->
     fatal_error(4,
-                "The application '~p' is required for the ~p option.\n",
-                [AppName, MainOp]).
+                "The application '~p' is required for the ~p option.\n\t~p\n",
+                [AppName, MainOp, Reason]).

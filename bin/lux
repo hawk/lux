@@ -269,22 +269,23 @@ do_normalize_path([], Acc) ->
 
 require_app(MainOp, AppName) ->
     case code:lib_dir(AppName) of
-        {error, _Reason} ->
-            missing_app(MainOp, AppName);
+        {error, Reason} ->
+            missing_app(MainOp, AppName, Reason);
         AppDir ->
             case application:load(AppName) of
                 ok ->
                     AppDir;
                 {error, {already_loaded,AppName}}->
                     AppDir;
-                {error, _} ->
-                    missing_app(MainOp, AppName)
+                {error, Reason} ->
+                    missing_app(MainOp, AppName, Reason)
             end
     end.
 
-missing_app(undefined, AppName) ->
-    fatal_error(4, "The application '~p' is missing.\n", [AppName]);
-missing_app(MainOp, AppName) ->
+missing_app(undefined, AppName, Reason) ->
+    fatal_error(4, "The application '~p' is missing. XXX ~p\n",
+                [AppName, Reason]);
+missing_app(MainOp, AppName, Reason) ->
     fatal_error(4,
-                "The application '~p' is required for the ~p option.\n",
-                [AppName, MainOp]).
+                "The application '~p' is required for the ~p option. ~p\n",
+                [AppName, MainOp, Reason]).

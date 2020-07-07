@@ -676,12 +676,17 @@ gen_markdown(File) ->
     LineNo = lineno_help(),
     Cmds = [["\n", pretty_cmd(Cmd)] ||
                Cmd <- lists:keysort(#debug_cmd.name, cmds())],
-    file:write_file(File,
-                    [Intro, "\n",
-                     Ambiguous, "\n",
-                     Params, "\n",
-                     LineNo, "\n",
-                     Cmds]).
+    IoList = [Intro, "\n",
+              Ambiguous, "\n",
+              Params, "\n",
+              LineNo, "\n",
+              Cmds],
+    case file:write_file(File, IoList) of
+        ok ->
+            ok;
+        {error, FileReason} ->
+            {error, File, file:format_error(FileReason)}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
