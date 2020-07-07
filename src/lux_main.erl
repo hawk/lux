@@ -17,6 +17,7 @@
 
 -spec(unsafe_main([string()]) -> non_neg_integer()).
 unsafe_main(OrigArgs) ->
+    ThisEscript = require_escript(),
     LuxAppDir = require_app(undefined, ?APPLICATION),
     OpModes = ["--internal_debug", "--suite_trace",
                "--display_trace", "--event_trace",
@@ -26,7 +27,6 @@ unsafe_main(OrigArgs) ->
                "--gen_markdown", "--pre_markdown"],
     Args  = expand_flags(OrigArgs, OpModes),
     Specs = specs(),
-    ThisEscript = require_escript(),
     Opts = getopts(Args, Specs, LuxAppDir, ThisEscript),
     %% io:format("Args: ~p\n", [Opts]),
     dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs, ThisEscript).
@@ -50,15 +50,17 @@ dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs, ThisEscript) ->
     end.
 
 do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs, ThisEscript) ->
-   EscriptMod = escript_mod(ThisEscript),
+    EscriptMod = escript_mod(ThisEscript),
+    RA = fun(AppName) -> require_app(Op, AppName) end,
+    MA = fun(AppName, Reason) -> missing_app(Op, AppName, Reason) end,
     case {Op, Args} of
         {"--version", [_]} ->
             io:format("~p\n", [lux_utils:version()]),
             0;
         {"--gen_markdown", [File]} ->
-            res_to_file_exit(File, lux_debug:gen_markdown(File));
+            res_to_file_exit(lux_debug:gen_markdown(File));
         {"--pre_markdown", [File]} ->
-            res_to_file_exit(File, lux_develop:pre_markdown(LuxAppDir, File));
+            res_to_file_exit(lux_develop:pre_markdown(LuxAppDir, File));
         {"--internal_debug", [_]} ->
             internal_debug(Op, OrigArgs);
         {"--event_trace", [_]} ->
@@ -72,11 +74,21 @@ do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs, ThisEscript) ->
         {"--display_trace", [File]} ->
             display_trace(Op, LuxAppDir, File, Opts);
         {"--install", [InstallDir]} ->
-            install(Op, LuxAppDir, InstallDir, Opts);
+            require_app(Op, reltool),
+            Res = lux_develop:install(LuxAppDir, InstallDir, Opts,
+                                      ThisEscript, RA, MA),
+            res_to_file_exit(Res);
         {"--reltool", [_]} ->
-            reltool(Op, LuxAppDir, Opts);
+            require_app(Op, reltool),
+            Res = lux_develop:reltool(LuxAppDir, Opts,
+                                      ThisEscript, RA, MA),
+            res_to_file_exit(Res);
         {"--xref", [_]} ->
-            xref(Op, LuxAppDir, Opts, EscriptMod);
+            require_app(Op, reltool),
+            require_app(Op, tools),
+            Res = lux_develop:xref(LuxAppDir, Opts, EscriptMod,
+                                   ThisEscript, RA, MA),
+            res_to_file_exit(Res);
         {"--annotate", [LogFile]} ->
             annotate(LogFile, Opts);
         {"--history", [LogDir]} ->
@@ -396,9 +408,9 @@ doc_url(AppDir) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 internal_debug(MainOp, Args) ->
+    ThisEscript = require_escript(),
     require_app(MainOp, debugger),
     require_app(MainOp, wx),
-    ThisEscript = require_escript(),
     {ok, [{shebang, Shebang0} | _Rest]} = escript:extract(ThisEscript, []),
     case Shebang0 of
         default -> Shebang = "/usr/bin/env escript";
@@ -525,306 +537,6 @@ event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs,
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Stand-alone installation
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-install(MainOp, LuxAppDir, InstallDir, Opts) ->
-    InstallProf = reltool_profile(Opts),
-    io:format("Installing ~p as a ~p system... ~s\n",
-              [?APPLICATION, InstallProf, InstallDir]),
-    {RootDir, ReltoolOpts} = reltool_opts(MainOp, LuxAppDir, Opts),
-    case reltool:start_server(ReltoolOpts) of
-        {ok, ServerPid} ->
-            case reltool:get_status(ServerPid) of
-                {ok, Warnings} ->
-                    [io:format("WARNING: ~s\n", [W]) || W <- Warnings],
-                    do_install(ServerPid, InstallDir, RootDir);
-                {error, StatusReasonStr} ->
-                    io:format("ERROR: ~s\n", [StatusReasonStr]),
-                    1
-            end;
-        {error, StartReasonStr} ->
-            io:format("ERROR: ~s\n", [StartReasonStr]),
-            1
-    end.
-
-do_install(ServerPid, InstallDir, RootDir) ->
-    GetSpecRes = reltool:get_target_spec(ServerPid),
-    _StopRes = reltool:stop(ServerPid),
-    case GetSpecRes of
-        {ok, Spec} ->
-            case InstallDir of
-                "" ->
-                    io:format("Spec: ~p.\n", [Spec]),
-                    timer:sleep(timer:seconds(1)),
-                    0;
-                _ ->
-                    case reltool:eval_target_spec(Spec,
-                                                  RootDir,
-                                                  InstallDir) of
-                        ok ->
-                            0;
-                        {error, EvalReasonStr} ->
-                            io:format("ERROR: ~s\n", [EvalReasonStr]),
-                            1
-                    end
-            end;
-        {error, SpecReasonStr} ->
-            io:format("ERROR: ~s\n", [SpecReasonStr]),
-            1
-    end.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Reltool
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-reltool(MainOp, LuxAppDir, Opts) ->
-    io:format("Starting reltool...\n", []),
-    process_flag(trap_exit, true),
-    {_RootDir, ReltoolOpts} = reltool_opts(MainOp, LuxAppDir, Opts),
-    case reltool:start(ReltoolOpts) of
-        {ok, Pid} ->
-            link(Pid),
-            receive
-                {'EXIT', Pid, Reason} ->
-                    io:format("reltool exit: ~p\n", [Reason])
-            end,
-            0;
-        {error, ReasonStr} ->
-            io:format("ERROR: ~s\n", [ReasonStr]),
-            1
-    end.
-
-reltool_opts(MainOp, LuxAppDir, Opts) ->
-    require_app(MainOp, reltool),
-    {IsCross, RootDir} = root_dir(Opts),
-    ThisEscript = escript:script_name(),
-    %% Include some extra files beside the default files
-    AppFilters =
-        [{incl_app_filters, ["^LICENSE", "^lux.html",
-                             "ebin", "^priv", "^examples.*", "^emacs.*"]},
-         {excl_archive_filters, ["^LICENSE", "^lux.html",
-                                 "^priv", "^examples.*", "^emacs.*"]},
-         {excl_app_filters, [".*empty$"]}],
-    HasAppLibDir = app_has_feature(MainOp, reltool, "0.6", mandatory),
-    LuxApps =
-        case HasAppLibDir of
-            true ->
-                %% New reltool can handle lib_dir in app
-                [{app, ?APPLICATION, [{lib_dir, LuxAppDir} | AppFilters]}];
-            false ->
-                %% Old reltool
-                [{app, ?APPLICATION, AppFilters},
-                 {lib_dirs, [filename:dirname(LuxAppDir)]}]
-        end,
-    HasRelaxedExclusion = app_has_feature(MainOp, reltool, "0.6.4", mandatory),
-    {AppCondsWx, AppCondsCross} =
-        case {IsCross, HasRelaxedExclusion} of
-            {true, false} ->
-                {[],
-                 []};
-            _ ->
-                %% New reltool can handle excluded non-existent apps
-                {[{wx, exclude}],
-                 [{hipe, exclude}, {reltool, exclude}]}
-        end,
-    AppCondsCommon = [{erts, include}, {crypto, exclude}, {tools, exclude}],
-    AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsWx,
-    {_, InstallApps} = lists:keyfind("--install_app", 1, Opts),
-    InstallApps2 = [{list_to_atom(A), include} || A <- InstallApps],
-    AppConds2 = [{A, C} || {A, C} <- AppConds,
-                           not lists:keymember(A, 1, InstallApps2)],
-    AppConds3 = AppConds2 ++ InstallApps2,
-    ExtraApps = filter_apps(MainOp, AppConds3, IsCross, HasRelaxedExclusion),
-    Common =
-        [{root_dir, RootDir},
-         {debug_info, strip},
-         {escript, ThisEscript, [{incl_cond, include}]}],
-    Profile =
-        case reltool_profile(Opts) of
-            standalone ->
-                [{profile, standalone},
-                 {excl_sys_filters,
-                  {add,
-                   ["^bin/(epmd|start.boot)(|\\.exe)" ++ [$$],
-                    "^erts.*/bin/(epmd|heart|ct_run)(|\\.exe)"  ++ [$$]]}}];
-            InstallProf ->
-                [{profile, InstallProf}]
-        end,
-    {RootDir, [{sys, Common ++ LuxApps ++ ExtraApps ++ Profile}]}.
-
-reltool_profile(Opts) ->
-    case lists:keyfind("--install_profile", 1, Opts) of
-        {_, []}      -> standalone;
-        {_, Profile} -> lists:last(Profile)
-    end.
-
-app_has_feature(MainOp, AppName, LowestVersion, Require) ->
-    LoadedApps = application:loaded_applications(),
-    case lists:keyfind(AppName, 1, LoadedApps) of
-        {_Name, _Slogan, Version} when Version >= LowestVersion ->
-            true;
-        {_Name, _Slogan, _Version} ->
-            false;
-        false when Require =:= optional ->
-            false;
-        false when Require =:= mandatory ->
-            require_app(MainOp, AppName), % Halt upon failure
-            app_has_feature(MainOp, AppName, LowestVersion, Require)
-    end.
-
-filter_apps(_MainOp, AppConds, _IsCross, true) ->
-    [{app, AppName, [{incl_cond,InclCond}]} || {AppName,InclCond} <- AppConds];
-filter_apps(MainOp, AppConds, _IsCross, false) ->
-    lists:zf(fun({AppName, InclCond}) ->
-                     case application:load(AppName) of
-                         ok ->
-                             {true, {app, AppName, [{incl_cond, InclCond}]}};
-                         {error, {already_loaded,AppName}}->
-                             {true, {app, AppName, [{incl_cond, InclCond}]}};
-                         {error, Reason} when InclCond =:= include ->
-                             missing_app(MainOp, AppName, Reason);
-                         {error, _} ->
-                             false
-                     end
-             end,
-             AppConds).
-
-root_dir(Opts) ->
-    case lists:keyfind("--root_dir", 1, Opts) of
-        {_, []}        -> {false, code:root_dir()};
-        {_, [RootDir]} -> {true, RootDir}
-    end.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Xref
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-xref(MainOp, LuxAppDir, Opts, EscriptMod) ->
-    process_flag(trap_exit, true),
-    require_app(MainOp, tools),
-    {_RootDir, ReltoolOpts} = reltool_opts(MainOp, LuxAppDir, Opts),
-    case reltool:start_server(ReltoolOpts) of
-        {ok, ServerPid} ->
-            case reltool:get_status(ServerPid) of
-                {ok, _Warnings} ->
-                    %% [io:format("WARNING: ~s\n", [W]) || W <- Warnings],
-                    {ok, {sys, Sys}} =
-                        reltool:get_config(ServerPid, true, true),
-                    _StopRes = reltool:stop(ServerPid),
-                    try
-                        do_xref(Sys, EscriptMod)
-                    catch
-                        _Class:Reason ->
-                            io:format("XREF LUX ERROR: ~p\n", [Reason]),
-                            1
-                    end;
-                {error, StatusReasonStr} ->
-                    io:format("XREF LUX ERROR: ~s\n", [StatusReasonStr]),
-                    1
-            end;
-        {error, StartReasonStr} ->
-            io:format("XREF LUX ERROR: ~s\n", [StartReasonStr]),
-            1
-    end.
-
-do_xref(Sys, EscriptMod) ->
-    {_, ErtsApps} = lists:keyfind(erts, 1, Sys),
-    ExtendedSys = Sys ++ ErtsApps,
-    AppEbins =  [{A, filename:join([D, "ebin"])} ||
-                    {app, A, O}  <- ExtendedSys,
-                    {lib_dir, D} <- O],
-    Fun = fun(A, M) ->
-                  {_, Ebin} = lists:keyfind(A, 1, AppEbins),
-                  {A, M, filename:join([Ebin, atom_to_list(M) ++ ".beam"])}
-          end,
-    ModFiles =  [Fun(A, M) || {app, A, O} <- ExtendedSys,
-                              {mod, M, _} <- O],
-    Xref = EscriptMod,
-    {ok, _} = xref:start(Xref),
-    %% ok = xref:set_library_path(Xref, LibDirs),
-    Defaults = [{warnings,false}, {verbose,false}, {builtins,true}],
-    ok = xref:set_default(Xref, Defaults),
-    {ok, Cwd} = file:get_cwd(),
-    Add = fun({_App, _Mod, AbsFile}, Acc) ->
-                  RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
-                  case xref:add_module(Xref, RelFile) of
-                      {ok, _} ->
-                          Acc;
-                      {error, Callback, Error} ->
-                          Chars = lists:flatten(Callback:format_error(Error)),
-                          Reason = [C || C <- Chars, C =/= $" ],
-                          io:format("ERROR: ~s", [Reason]),
-                          1
-                  end
-          end,
-    ExitCode = 0,
-    {ExitCode2, EscriptModFile} =
-        xref_add_escript(Sys, Add, ExitCode, EscriptMod),
-    ExitCode3 = lists:foldl(Add, ExitCode2, ModFiles),
-    ModFiles2 = [EscriptModFile | ModFiles],
-    ExitCode4 = undefined_function_calls(Xref, ModFiles2,
-                                         ExitCode3, EscriptMod),
-    xref:stop(Xref),
-    ExitCode4.
-
-xref_add_escript(Sys, Add, ExitCode, EscriptMod) ->
-    {_, EscriptFile, _} = lists:keyfind(escript, 1, Sys),
-    {ok, Sections} = escript:extract(EscriptFile, [compile_source]),
-    {_, EscriptBeam} = lists:keyfind(source, 1, Sections),
-    TmpEscriptFile = atom_to_list(EscriptMod) ++ ".beam",
-    EscriptModFile = {?APPLICATION, EscriptMod, TmpEscriptFile},
-    case file:write_file(TmpEscriptFile, EscriptBeam) of
-        ok ->
-            Res = Add(EscriptModFile, ExitCode),
-            file:delete(TmpEscriptFile),
-            {Res, EscriptModFile};
-        {error, FileReason} ->
-            io:format("ERROR: ~s ~s\n",
-                      [TmpEscriptFile, file:format_error(FileReason)]),
-            {1, EscriptModFile}
-    end.
-
-undefined_function_calls(Xref, ModFiles, ExitCode, EscriptMod) ->
-    {ok, MFAs} = xref:analyze(Xref, undefined_function_calls),
-    Fun =
-        fun({FromMFA, ToMFA}, Acc) ->
-                case ignore_call(FromMFA, ToMFA, ModFiles, EscriptMod) of
-                    true ->
-                        Acc;
-                    false ->
-                        io:format("ERROR: ~s calls undefined function ~s\n",
-                                  [mfa(FromMFA), mfa(ToMFA)]),
-                        1
-                end
-        end,
-    lists:foldl(Fun, ExitCode, MFAs).
-
-ignore_call(FromMFA, ToMFA, ModFiles, EscriptMod) ->
-    FromMod = element(1, FromMFA),
-     FromApp = which_app(FromMod, ModFiles, EscriptMod),
-    if
-        FromMod =:= EscriptMod ->
-            ToMod = element(1, ToMFA),
-            lists:member(ToMod, [make]);
-        FromMod =:= ?MODULE ->
-            ToMod = element(1, ToMFA),
-            lists:member(ToMod, [reltool, xref]);
-        FromApp =:= ?APPLICATION ->
-            false;
-        true ->
-            true
-    end.
-
-which_app(Mod, ModFiles, EscriptMod) ->
-    {Mod, {App, _, _}, _, _} =
-        {Mod, lists:keyfind(Mod, 2, ModFiles), EscriptMod, ?LINE},
-    App.
-
-mfa({M, F, A}) ->
-  io_lib:format("~s:~s/~p", [M, F, A]).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% HTML
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -897,7 +609,6 @@ do_run(Files, Opts, PrevLogDir, OrigArgs, ThisEscript) ->
         true ->
             lux_html_parse:validate_html(hd(Files), Opts);
         false ->
-            ThisEscript = escript:script_name(),
             lux_suite:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
     end.
 
@@ -1233,7 +944,7 @@ fatal_error(RetCode, Format, Args) ->
 safe_halt(RetCode) ->
     throw({safe_halt, RetCode}).
 
-res_to_file_exit(File, Res) ->
+res_to_file_exit(Res) ->
     case Res of
         ok ->
             0;
