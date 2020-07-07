@@ -6,7 +6,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_utils).
--export([version/0, timestamp/0,
+-export([version/0, timestamp/0, has_timestamp/0,
          builtin_vars/0, system_vars/0, expand_vars/3,
          test_var/2, split_var/2,
          summary/2, summary_prio/1,
@@ -41,7 +41,17 @@ version() ->
     end.
 
 timestamp() ->
-    lux_main:timestamp().
+    case has_timestamp() of
+        true  -> hidden_apply(erlang, timestamp, []); % Avoid xref warning
+        false -> hidden_apply(erlang, now, [])        % Avoid compiler warning
+    end.
+
+has_timestamp() ->
+    erlang:function_exported(erlang, timestamp, 0).
+
+hidden_apply(M, F, A) ->
+    Obfuscated = fun() -> M end(),
+    apply(Obfuscated, F, A).
 
 builtin_vars() ->
     %% Alphabetic order
@@ -278,16 +288,78 @@ multiply(infinity, _Multiplier) -> infinity;
 multiply(Timeout, Multiplier)   -> (Timeout*Multiplier) div ?ONE_SEC.
 
 drop_prefix(File) ->
-    lux_main:drop_prefix(File).
+    {ok, Cwd} = file:get_cwd(),
+    drop_prefix(Cwd, File).
 
-drop_prefix(Prefix, File) ->
-    lux_main:drop_prefix(Prefix, File).
+drop_prefix(Prefix, File) when is_binary(Prefix), is_binary(File) ->
+    list_to_binary(drop_prefix(binary_to_list(Prefix), binary_to_list(File)));
+drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
+    SplitPrefix = filename:split(Prefix),
+    SplitFile = filename:split(File),
+    do_drop_prefix(SplitPrefix, SplitFile, SplitPrefix, File).
 
-normalize_filename(File) ->
-    lux_main:normalize_filename(File).
+do_drop_prefix([H | Prefix], [H | File], OrigPrefix, OrigFile) ->
+    do_drop_prefix(Prefix, File, OrigPrefix, OrigFile);
+do_drop_prefix([], [], _OrigPrefix, _OrigFile) ->
+    ".";
+do_drop_prefix([], Rest, _OrigPrefix, _OrigFile) ->
+    filename:join(Rest);
+do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
+  when DownPrefix =/= OrigPrefix ->
+    UpPrefix = lists:duplicate(length(DownPrefix), ".."),
+    filename:join(UpPrefix ++ Rest);
+do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
+    OrigFile.
 
-split(File, Delim) ->
-    lux_main:split(File, Delim).
+normalize_filename(File) when is_binary(File) ->
+    list_to_binary(normalize_filename(binary_to_list(File)));
+normalize_filename(File) when is_list(File) ->
+    Delim = "://",
+    case split(File, Delim) of
+        {Prefix, Rel} ->
+            Delim2 = Delim,
+            Abs = Rel;
+        false ->
+            Prefix = "",
+            Delim2 = "",
+            Abs = filename:absname(File)
+    end,
+    File2 = do_normalize_filename(filename:split(Abs), []),
+    Prefix ++ Delim2 ++ File2.
+
+do_normalize_filename([H|T], Acc) ->
+    Acc2 =
+        case H of
+            "."                  -> Acc;
+            ".." when Acc =:= [] -> Acc;
+            ".."                 -> tl(Acc);
+            _                    -> [H|Acc]
+        end,
+    do_normalize_filename(T, Acc2);
+do_normalize_filename([], Acc) ->
+    filename:join(lists:reverse(Acc)).
+
+split(File, Delim) when is_binary(File), is_binary(Delim) ->
+    case split(binary_to_list(File), binary_to_list(Delim)) of
+        false ->
+            false;
+        {Before, After} ->
+            {list_to_binary(Before), list_to_binary(After)}
+    end;
+split(File, Delim) when is_list(File), is_list(Delim) ->
+    split2(File, Delim, Delim, [], 0).
+
+split2([H|T], [H|DT], OrigDelim, Acc, N) ->
+    %% Partial match delim
+    split2(T, DT, OrigDelim, [H|Acc], N+1);
+split2(Rest, [], _OrigDelim, Acc, N) ->
+    %% Full match delim
+    {lists:reverse(lists:nthtail(N, Acc)), Rest};
+split2([H|T], _Delim, OrigDelim, Acc, _N) ->
+    %% Reset delim
+    split2(T, OrigDelim, OrigDelim, [H|Acc], 0);
+split2([], _Delim, _OrigDelim, _Acc, _N) ->
+    false.
 
 join(Dir, <<"/", _/binary>> = File) when is_binary(Dir) ->
     File;

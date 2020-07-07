@@ -114,7 +114,7 @@ default_istate(File) ->
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),
             system_vars = lux_utils:system_vars(),
-            emit_timestamp = lux_main:has_timestamp()}.
+            emit_timestamp = lux_utils:has_timestamp()}.
 
 default_shell_wrapper() ->
     Wrapper = filename:join([code:priv_dir(?APPLICATION), "bin", "runpty"]),

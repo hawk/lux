@@ -8,12 +8,7 @@
 -module(lux_main).
 
 -export([
-         unsafe_main/1,
-         drop_prefix/1, drop_prefix/2,
-         normalize_filename/1,
-         split/2,
-         has_timestamp/0,
-         timestamp/0
+         unsafe_main/1
         ]).
 
 -include("lux.hrl").
@@ -238,7 +233,7 @@ do_add_defaults(Files, Opts) ->
         undefined -> ExtendRun = false;
         ExtendRun -> ok
     end,
-    StartTime = timestamp(),
+    StartTime = lux_utils:timestamp(),
     UniqStr = uniq_str(StartTime),
     UniqRun = "run_" ++ UniqStr,
     Run =
@@ -250,14 +245,15 @@ do_add_defaults(Files, Opts) ->
         undefined -> RelLogDir = filename:join(["lux_logs", UniqRun]);
         RelLogDir -> ok
     end,
-    AbsLogDir0 = normalize_filename(RelLogDir),
+    AbsLogDir0 = lux_utils:normalize_filename(RelLogDir),
     ParentDir0 = filename:dirname(AbsLogDir0),
     Link0 = filename:join([ParentDir0, "latest_run"]),
     PrevLogDir =
         case file:read_link(Link0) of
             {ok, LinkTo} ->
                 %% Reuse old log dir
-                normalize_filename(filename:join([ParentDir0, LinkTo]));
+                LinkTo2 = filename:join([ParentDir0, LinkTo]),
+                lux_utils:normalize_filename(LinkTo2);
             {error, _} ->
                 undefined
         end,
@@ -309,19 +305,6 @@ do_add_defaults(Files, Opts) ->
             end
     end.
 
-has_timestamp() ->
-    erlang:function_exported(erlang, timestamp, 0).
-
-timestamp() ->
-    case has_timestamp() of
-        true  -> hidden_apply(erlang, timestamp, []); % Avoid xref warning
-        false -> hidden_apply(erlang, now, [])        % Avoid compiler warning
-    end.
-
-hidden_apply(M, F, A) ->
-    Obfuscated = fun() -> M end(),
-    apply(Obfuscated, F, A).
-
 uniq_str({_MegaSecs, _Secs, MicroSecs} = Now) ->
     {{Year, Month, Day}, {Hour, Min, Sec}} =
         calendar:now_to_universal_time(Now),
@@ -333,80 +316,6 @@ r2(Int) when is_integer(Int) ->
     r2(integer_to_list(Int));
 r2(String) when is_list(String) ->
     string:right(String, 2, $0).
-
-drop_prefix(File) ->
-    {ok, Cwd} = file:get_cwd(),
-    drop_prefix(Cwd, File).
-
-drop_prefix(Prefix, File) when is_binary(Prefix), is_binary(File) ->
-    list_to_binary(drop_prefix(binary_to_list(Prefix), binary_to_list(File)));
-drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
-    SplitPrefix = filename:split(Prefix),
-    SplitFile = filename:split(File),
-    do_drop_prefix(SplitPrefix, SplitFile, SplitPrefix, File).
-
-do_drop_prefix([H | Prefix], [H | File], OrigPrefix, OrigFile) ->
-    do_drop_prefix(Prefix, File, OrigPrefix, OrigFile);
-do_drop_prefix([], [], _OrigPrefix, _OrigFile) ->
-    ".";
-do_drop_prefix([], Rest, _OrigPrefix, _OrigFile) ->
-    filename:join(Rest);
-do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
-  when DownPrefix =/= OrigPrefix ->
-    UpPrefix = lists:duplicate(length(DownPrefix), ".."),
-    filename:join(UpPrefix ++ Rest);
-do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
-    OrigFile.
-
-normalize_filename(File) when is_binary(File) ->
-    list_to_binary(normalize_filename(binary_to_list(File)));
-normalize_filename(File) when is_list(File) ->
-    Delim = "://",
-    case split(File, Delim) of
-        {Prefix, Rel} ->
-            Delim2 = Delim,
-            Abs = Rel;
-        false ->
-            Prefix = "",
-            Delim2 = "",
-            Abs = filename:absname(File)
-    end,
-    File2 = do_normalize_filename(filename:split(Abs), []),
-    Prefix ++ Delim2 ++ File2.
-
-do_normalize_filename([H|T], Acc) ->
-    Acc2 =
-        case H of
-            "."                  -> Acc;
-            ".." when Acc =:= [] -> Acc;
-            ".."                 -> tl(Acc);
-            _                    -> [H|Acc]
-        end,
-    do_normalize_filename(T, Acc2);
-do_normalize_filename([], Acc) ->
-    filename:join(lists:reverse(Acc)).
-
-split(File, Delim) when is_binary(File), is_binary(Delim) ->
-    case split(binary_to_list(File), binary_to_list(Delim)) of
-        false ->
-            false;
-        {Before, After} ->
-            {list_to_binary(Before), list_to_binary(After)}
-    end;
-split(File, Delim) when is_list(File), is_list(Delim) ->
-    split2(File, Delim, Delim, [], 0).
-
-split2([H|T], [H|DT], OrigDelim, Acc, N) ->
-    %% Partial match delim
-    split2(T, DT, OrigDelim, [H|Acc], N+1);
-split2(Rest, [], _OrigDelim, Acc, N) ->
-    %% Full match delim
-    {lists:reverse(lists:nthtail(N, Acc)), Rest};
-split2([H|T], _Delim, OrigDelim, Acc, _N) ->
-    %% Reset delim
-    split2(T, OrigDelim, OrigDelim, [H|Acc], 0);
-split2([], _Delim, _OrigDelim, _Acc, _N) ->
-    false.
 
 opt_ensure_dir(ExtendRun, SummaryLog) ->
     case not ExtendRun andalso filelib:is_dir(SummaryLog) of
@@ -499,28 +408,29 @@ gen_markdown(ToFile) ->
 pre_markdown(LuxAppDir, ToFile) ->
     FromFile = ToFile ++ ".src",
     AbsFileName0 = filename:absname(ToFile),
-    AbsFileName = normalize_filename(AbsFileName0),
-    RelFileName = drop_prefix(LuxAppDir, AbsFileName),
+    AbsFileName = lux_utils:normalize_filename(AbsFileName0),
+    RelFileName = lux_utils:drop_prefix(LuxAppDir, AbsFileName),
     RelFileDir = filename:dirname(RelFileName),
     {ok, Cwd} = file:get_cwd(),
-    RelWorkDir = drop_prefix(LuxAppDir, Cwd),
+    RelWorkDir = lux_utils:drop_prefix(LuxAppDir, Cwd),
     case file:read_file(FromFile) of
         {ok, Bin} ->
             try
-                Expand = fun(L, {Files, Lines}) ->
-                                 case markdown_line(RelWorkDir, L) of
-                                     {keep, Line} ->
-                                         {Files, [Line | Lines]};
-                                     {expand, InclFile, InclLines} ->
-                                         RelInclFile =
-                                             relpath(RelFileDir, InclFile),
-                                         {[RelInclFile | Files],
-                                          [InclLines | Lines]};
-                                     {expand, EvalLines} ->
-                                         {Files,
-                                          [EvalLines | Lines]}
-                                 end
-                         end,
+                Expand =
+                    fun(L, {Files, Lines}) ->
+                            case markdown_line(RelWorkDir, L) of
+                                {keep, Line} ->
+                                    {Files, [Line | Lines]};
+                                {expand, InclFile, InclLines} ->
+                                    RelInclFile =
+                                        relpath(RelFileDir, InclFile),
+                                    {[RelInclFile | Files],
+                                     [InclLines | Lines]};
+                                {expand, EvalLines} ->
+                                    {Files,
+                                     [EvalLines | Lines]}
+                            end
+                    end,
                 Lines = lux_utils:split_lines(Bin),
                 {InclFiles, RevNewLines} =
                     lists:foldl(Expand, {[], []}, Lines),
@@ -999,7 +909,7 @@ do_xref(Sys, EscriptMod) ->
     ok = xref:set_default(Xref, Defaults),
     {ok, Cwd} = file:get_cwd(),
     Add = fun({_App, _Mod, AbsFile}, Acc) ->
-                  RelFile = drop_prefix(Cwd, AbsFile),
+                  RelFile = lux_utils:drop_prefix(Cwd, AbsFile),
                   case xref:add_module(Xref, RelFile) of
                       {ok, _} ->
                           Acc;
