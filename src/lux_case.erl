@@ -24,14 +24,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Interpret parsed script
 
--spec(interpret_commands(filename(),
+-spec interpret_commands(filename(),
                          cmds(),
                          [#warning{}],
                          erlang:timestamp(),
                          #timer_ref{},
                          opts(),
                          [{atom(), term()}]) ->
-             [{ok, summary(), filename(), [result()]} | error()]).
+             [{ok, summary(), filename(), [result()]} | error()].
 
 interpret_commands(Script, Cmds, Warnings, StartTime, SuiteRef, Opts, Opaque) ->
     %% io:format("\nCmds ~p\n", [Cmds]),

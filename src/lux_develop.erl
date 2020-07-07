@@ -11,7 +11,7 @@
          pre_markdown/2,
          install/6,
          reltool/5,
-         xref/6
+         xref/5
         ]).
 
 -include("lux.hrl").
@@ -341,7 +341,7 @@ root_dir(Opts) ->
 %% Xref
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-xref(LuxAppDir, Opts, EscriptMod, ThisEscript, RA, MA) ->
+xref(LuxAppDir, Opts, ThisEscript, RA, MA) ->
     {_RootDir, ReltoolOpts} =
         reltool_opts(LuxAppDir, Opts, ThisEscript, RA, MA),
     process_flag(trap_exit, true),
@@ -354,7 +354,7 @@ xref(LuxAppDir, Opts, EscriptMod, ThisEscript, RA, MA) ->
                         reltool:get_config(ServerPid, true, true),
                     _StopRes = reltool:stop(ServerPid),
                     try
-                        do_xref(Sys, EscriptMod)
+                        do_xref(Sys)
                     catch
                         _Class:Reason ->
                             Str = lists:flatten(io_lib:format("~p", [Reason])),
@@ -367,7 +367,7 @@ xref(LuxAppDir, Opts, EscriptMod, ThisEscript, RA, MA) ->
             {error, StartReasonStr}
     end.
 
-do_xref(Sys, EscriptMod) ->
+do_xref(Sys) ->
     {_, ErtsApps} = lists:keyfind(erts, 1, Sys),
     ExtendedSys = Sys ++ ErtsApps,
     AppEbins =  [{A, filename:join([D, "ebin"])} ||
@@ -379,7 +379,7 @@ do_xref(Sys, EscriptMod) ->
           end,
     ModFiles =  [Fun(A, M) || {app, A, O} <- ExtendedSys,
                               {mod, M, _} <- O],
-    Xref = EscriptMod,
+    Xref = ?ESCRIPT_MOD,
     {ok, _} = xref:start(Xref),
     %% ok = xref:set_library_path(Xref, LibDirs),
     Defaults = [{warnings,false}, {verbose,false}, {builtins,true}],
@@ -398,19 +398,19 @@ do_xref(Sys, EscriptMod) ->
                 end
         end,
     Res = ok,
-    {Res2, EscriptModFile} = xref_add_escript(Sys, Add, Res, EscriptMod),
+    {Res2, EscriptModFile} = xref_add_escript(Sys, Add, Res),
     Res3 = lists:foldl(Add, Res2, ModFiles),
     ModFiles2 = [EscriptModFile | ModFiles],
-    Res4 = undefined_function_calls(Xref, ModFiles2, Res3, EscriptMod),
+    Res4 = undefined_function_calls(Xref, ModFiles2, Res3),
     xref:stop(Xref),
     Res4.
 
-xref_add_escript(Sys, Add, OldRes, EscriptMod) ->
+xref_add_escript(Sys, Add, OldRes) ->
     {_, EscriptFile, _} = lists:keyfind(escript, 1, Sys),
     {ok, Sections} = escript:extract(EscriptFile, [compile_source]),
     {_, EscriptBeam} = lists:keyfind(source, 1, Sections),
-    TmpEscriptFile = atom_to_list(EscriptMod) ++ ".beam",
-    EscriptModFile = {?APPLICATION, EscriptMod, TmpEscriptFile},
+    TmpEscriptFile = atom_to_list(?ESCRIPT_MOD) ++ ".beam",
+    EscriptModFile = {?APPLICATION, ?ESCRIPT_MOD, TmpEscriptFile},
     case file:write_file(TmpEscriptFile, EscriptBeam) of
         ok ->
             NewRes = Add(EscriptModFile, OldRes),
@@ -421,11 +421,11 @@ xref_add_escript(Sys, Add, OldRes, EscriptMod) ->
             {{error, TmpEscriptFile, ReasonStr}, EscriptModFile}
     end.
 
-undefined_function_calls(Xref, ModFiles, OldRes, EscriptMod) ->
+undefined_function_calls(Xref, ModFiles, OldRes) ->
     {ok, MFAs} = xref:analyze(Xref, undefined_function_calls),
     Fun =
         fun({FromMFA, ToMFA}, AccRes) ->
-                case ignore_call(FromMFA, ToMFA, ModFiles, EscriptMod) of
+                case ignore_call(FromMFA, ToMFA, ModFiles) of
                     true ->
                         AccRes;
                     false ->
@@ -436,11 +436,11 @@ undefined_function_calls(Xref, ModFiles, OldRes, EscriptMod) ->
         end,
     lists:foldl(Fun, OldRes, MFAs).
 
-ignore_call(FromMFA, ToMFA, ModFiles, EscriptMod) ->
+ignore_call(FromMFA, ToMFA, ModFiles) ->
     FromMod = element(1, FromMFA),
-     FromApp = which_app(FromMod, ModFiles, EscriptMod),
+     FromApp = which_app(FromMod, ModFiles),
     if
-        FromMod =:= EscriptMod ->
+        FromMod =:= ?ESCRIPT_MOD ->
             ToMod = element(1, ToMFA),
             lists:member(ToMod, [make]);
         FromMod =:= ?MODULE ->
@@ -452,9 +452,9 @@ ignore_call(FromMFA, ToMFA, ModFiles, EscriptMod) ->
             true
     end.
 
-which_app(Mod, ModFiles, EscriptMod) ->
+which_app(Mod, ModFiles) ->
     {Mod, {App, _, _}, _, _} =
-        {Mod, lists:keyfind(Mod, 2, ModFiles), EscriptMod, ?LINE},
+        {Mod, lists:keyfind(Mod, 2, ModFiles), ?ESCRIPT_MOD, ?LINE},
     App.
 
 mfa({M, F, A}) ->

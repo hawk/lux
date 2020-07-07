@@ -22,6 +22,7 @@
 -define(a2l(A), atom_to_list(A)).
 -define(a2b(A), ?l2b(?a2l(A))).
 -define(APPLICATION, lux).
+-define(ESCRIPT_MOD, lux_escript).
 -define(TAG_WIDTH, 20).
 -define(TAG(Tag), lux_utils:tag_prefix(Tag, ?TAG_WIDTH)).
 -define(dmore, 10).

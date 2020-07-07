@@ -16,10 +16,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file
 
--spec(parse_file(filename(), run_mode(),
+-spec parse_file(filename(), run_mode(),
                  boolean(), boolean(), boolean(),
                  opts()) ->
-             {ok, filename(), cmds(), opts()} | skip() | error()).
+             {ok, filename(), cmds(), opts()} | skip() | error().
 
 parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
     R = do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts),

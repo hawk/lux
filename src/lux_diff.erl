@@ -32,8 +32,8 @@
 %% both lists. The other elements can be merged in afterwards. This
 %% greatly speeds up the case when only a few elements are the same.
 
--spec(compare(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
-             compact_diff()).
+-spec compare(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
+             compact_diff().
 compare(A, A, _Fun) ->
     [A];
 compare(A, B, Fun) ->
@@ -78,8 +78,8 @@ grab_until([X|Xs], Y, Acc, Add) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Calcuate shortest edit list to go from A to B
 
--spec(compare2(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
-             compact_diff()).
+-spec compare2(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
+             compact_diff().
 
 compare2(A, B, Fun) ->
     DataA = list_to_tuple(A),
@@ -421,7 +421,7 @@ sms_d_k_r(K, D,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Expand compact diff into long diff
 
--spec(split_diff(compact_diff()) -> verbose_diff()).
+-spec split_diff(compact_diff()) -> verbose_diff().
 split_diff(Diff) ->
     split_diff(Diff, []).
 
@@ -439,8 +439,8 @@ split_diff([[H|T]|Rest], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Apply diff to list
 
--spec(apply_verbose_diff(A::elem_list(), Diff::verbose_diff()) ->
-             elem_list()).
+-spec apply_verbose_diff(A::elem_list(), Diff::verbose_diff()) ->
+             elem_list().
 apply_verbose_diff(A, Diff) ->
     apply_verbose_diff(A, Diff, []).
 
@@ -453,8 +453,8 @@ apply_verbose_diff([A|As], [{'-',A}|Rest], Acc) ->
 apply_verbose_diff([A|As], [{'=',A}|Rest], Acc) ->
     apply_verbose_diff(As, Rest, [A|Acc]).
 
--spec(apply_compact_diff(A::elem_list(), Diff::compact_diff()) ->
-             elem_list()).
+-spec apply_compact_diff(A::elem_list(), Diff::compact_diff()) ->
+             elem_list().
 apply_compact_diff(A, Diff) ->
     apply_compact_diff(A, Diff, []).
 
@@ -489,7 +489,7 @@ vget(T, I) ->
 vset(T, I, V) ->
     ets:insert(T, {I,V}).
 
--spec(default_match() -> match_fun()).
+-spec default_match() -> match_fun().
 default_match() ->
     fun(A, B) -> A =:= B end.
 
