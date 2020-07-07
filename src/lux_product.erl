@@ -5,7 +5,7 @@
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--module(lux_develop).
+-module(lux_product).
 
 -export([
          pre_markdown/2,

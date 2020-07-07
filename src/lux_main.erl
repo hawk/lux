@@ -38,7 +38,7 @@ op_modes() ->
      "--display_trace",
      "--internal_debug",
 
-     %% Develop
+     %% Product management
      "--gen_markdown",
      "--pre_markdown",
      "--install",
@@ -110,24 +110,23 @@ do_dispatch(Op, Opts, LuxAppDir, Args, OrigArgs) ->
         {"--gen_markdown", [File]} ->
             res_to_file_exit(lux_debug:gen_markdown(File));
         {"--pre_markdown", [File]} ->
-            res_to_file_exit(lux_develop:pre_markdown(LuxAppDir, File));
+            res_to_file_exit(lux_product:pre_markdown(LuxAppDir, File));
         {"--install", [InstallDir]} ->
             require_app(Op, reltool),
             ThisEscript = require_escript(),
-            Res = lux_develop:install(LuxAppDir, InstallDir, Opts,
+            Res = lux_product:install(LuxAppDir, InstallDir, Opts,
                                       ThisEscript, RA, MA),
             res_to_file_exit(Res);
         {"--reltool", [_]} ->
             require_app(Op, reltool),
             ThisEscript = require_escript(),
-            Res = lux_develop:reltool(LuxAppDir, Opts,
-                                      ThisEscript, RA, MA),
+            Res = lux_product:reltool(LuxAppDir, Opts, ThisEscript, RA, MA),
             res_to_file_exit(Res);
         {"--xref", [_]} ->
             require_app(Op, reltool),
             require_app(Op, tools),
             ThisEscript = require_escript(),
-            Res = lux_develop:xref(LuxAppDir, Opts, ThisEscript, RA, MA),
+            Res = lux_product:xref(LuxAppDir, Opts, ThisEscript, RA, MA),
             res_to_file_exit(Res);
 
         _BadArgs ->
