@@ -37,7 +37,7 @@ version() ->
         {_Name, _Slogan, Version} ->
             Version;
         false ->
-            "lux_not_loaded"
+            "unknown"
     end.
 
 timestamp() ->

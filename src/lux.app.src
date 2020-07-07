@@ -21,6 +21,7 @@
         lux_html_parse,
         lux_html_utils,
         lux_interpret,
+        lux_main,
         lux_log,
         lux_parse,
         lux_suite,
