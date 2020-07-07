@@ -220,7 +220,8 @@
                                     :: #cmd{},
          stopped_by_user            :: undefined | 'case' | suite,
          start_time                 :: erlang:timestamp(),
-         emit_timestamp = false     :: boolean()}).
+         emit_timestamp = false     :: boolean(),
+         escript_mod                :: atom()}).
 
 -record(run,
         {test = ?DEFAULT_SUITE

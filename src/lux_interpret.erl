@@ -15,7 +15,8 @@
          flush_logs/1,
          ilog/5,
          raw_ilog/3,
-         expand_vars/3
+         expand_vars/3,
+         extra_trace_modules/1
         ]).
 
 -define(call_level(I), I#istate.call_level).
@@ -121,10 +122,20 @@ opt_start_etrace(#istate{progress = Progress, trace_mode = none} = I)
                   Acc
           end,
     TraceTarget = {log, Fun, undefined},
-    {ok, log} = lux_main:start_trace(event, TraceTarget, FirstTracePid),
+    ExtraMods = extra_trace_modules(I),
+    {ok, log} =
+        lux_trace:start_trace(event, TraceTarget, FirstTracePid, ExtraMods),
     I#istate{trace_mode = progress};
 opt_start_etrace(I) ->
     I.
+
+extra_trace_modules(I) ->
+    case I#istate.escript_mod of
+        undefined ->
+            [];
+        EscriptMod ->
+            [EscriptMod]
+    end.
 
 display_trace(Progress, _Trace, _Str)
   when Progress =/= etrace, Progress =/= ctrace ->
@@ -174,7 +185,7 @@ display_trace(Progress, Trace, _Str) ->
 
 opt_stop_etrace(#istate{progress = Progress, trace_mode = TraceMode} = I)
   when Progress =:= detail, TraceMode =:= progress ->
-    lux_main:stop_trace(),
+    lux_trace:stop_trace(),
     I#istate{trace_mode = none};
 opt_stop_etrace(I) ->
     I.
@@ -277,9 +288,11 @@ loop(I) ->
             %%                           "timeout_trace"]),
             %% io:format("\n=======> ~p ->\n lux --display_trace  ~s\n",
             %%           [TimeoutType, TraceFile]),
-            %% lux_main:stop_trace(),
-            %% lux_main:start_trace('case', TraceFile,
-            %%                      I#istate.top_pid,[c, p, sos]),
+            %% lux_trace:stop_trace(),
+            %% ExtraMods = extra_trace_modules(I),
+            %% lux_trace:start_trace('case', TraceFile,
+            %%                       I#istate.top_pid,[c, p, sos],
+            %%                       ExtraMods),
             I2 = opt_timeout_stop(I, TimeoutType, TimeoutMillis),
             loop(I2);
         Unexpected ->

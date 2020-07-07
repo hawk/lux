@@ -8,6 +8,9 @@
 -module(lux_trace).
 
 -export([
+         start_suite_trace/2,
+         start_trace/4,
+         stop_trace/0,
          display/2
         ]).
 
@@ -50,6 +53,109 @@
          call_filters :: [call_filter()],
          data_filters :: [data_filter()]
         }).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Erlang trace
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+start_suite_trace(TraceFile, ExtraMods) ->
+    start_trace(suite, {file, TraceFile}, self(), ExtraMods).
+
+start_trace(TraceMode, TraceTarget, FirstTracePid, ExtraMods) ->
+    TracePids = trace_pids(TraceMode, FirstTracePid),
+    TraceFlags = trace_flags(TraceMode),
+    TraceMFAs = trace_mfas(TraceMode, ExtraMods),
+    internal_start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs).
+
+internal_start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs) ->
+    case dbg:get_tracer() of
+        {error, _Reason} ->
+            do_start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs);
+        {ok, _Tracer} ->
+            {error, already_started}
+    end.
+
+uniq_file(Base, Suffix, Count) ->
+    File = Base ++ Suffix,
+    case file:read_file_info(File) of
+        {ok, _FileInfo} ->
+            uniq_file(Base, "." ++ integer_to_list(Count), Count+1);
+        {error, enoent} ->
+            File
+    end.
+
+trace_pids(TraceMode, TracePid) ->
+    AllNewPids = [P || P <- processes(),
+                       P >= TracePid],
+    case TraceMode of
+        suite  -> [TracePid];
+        event  -> AllNewPids;
+        'case' -> AllNewPids
+    end.
+
+trace_flags(TraceMode) ->
+    case TraceMode of
+        suite  ->  [c, p];
+        event  ->  [c, p, sos];
+        'case' ->  [c, p, sos]
+    end.
+
+trace_mfas(TraceMode, ExtraMods) ->
+    LuxAppDir = code:lib_dir(?APPLICATION),
+    Mods = modules(LuxAppDir, ?APPLICATION, ExtraMods),
+    MFAs = [{M, '_', '_'} || M <- Mods],
+    case TraceMode of
+        suite  -> MFAs;
+        event  -> [{lux, trace_me, '_'}];
+        'case' -> MFAs
+    end.
+
+do_start_trace(TraceTarget, TracePids, TraceFlags0, TraceMFAs) ->
+    Res = start_tracer(TraceTarget),
+    TraceFlags = [timestamp | TraceFlags0],
+    [{ok, _} = dbg:p(P, TraceFlags) || P <- TracePids],
+    MatchSpec = [{'_', [], [{exception_trace}]}],
+    [{ok, _} = dbg:tpl(MFA, MatchSpec) || MFA <- TraceMFAs],
+    Res.
+
+start_tracer(TraceTarget) ->
+    case TraceTarget of
+        {file, TraceFile} ->
+            TraceFile2 = uniq_file(TraceFile, "", 2),
+            WrapFilesSpec =
+                {TraceFile2 ++ ".", wrap, ".etrace", 16*1024*1024, 8},
+            TracePort = dbg:trace_port(file, WrapFilesSpec),
+            {ok, _} = dbg:tracer(port, TracePort),
+            {ok, TraceFile2};
+        {log, HandlerFun, HandlerInit} ->
+            HandlerSpec = {HandlerFun, HandlerInit},
+            {ok, _} = dbg:tracer(process, HandlerSpec),
+            {ok, log}
+    end.
+
+stop_trace() ->
+    dbg:flush_trace_port(),
+    dbg:stop_clear().
+
+modules(AppDir, App, ExtraMods) ->
+    AppStr = atom_to_list(App),
+    AppFile = filename:join([AppDir, "ebin", AppStr ++ ".app"]),
+    case file:consult(AppFile) of
+        {ok, [{application, App, Spec}]} ->
+            {_, AppMods} = lists:keyfind(modules, 1, Spec),
+            ExtraMods ++ AppMods;
+        {ok, _} ->
+            io:format("WARNING: ~s: Bad file format\n", [AppFile]),
+            ['_'];
+        {error, Reason} ->
+            io:format("WARNING: ~s: ~s\n",
+                      [AppFile, file:format_error(Reason)]),
+            ['_']
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Display traces
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 display(TraceFile, FilterFile) ->
     case filelib:is_regular(TraceFile) of
@@ -127,6 +233,7 @@ trace_client(Trace, S) when tuple_size(Trace) >= 3 ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Filter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 filter(Trace, S) when is_tuple(Trace),
                       element(1, Trace) =:= trace_ts ->

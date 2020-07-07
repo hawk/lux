@@ -1580,10 +1580,12 @@ cmd_trace(I, Args, _CmdState) ->
                         "." ++ TraceModeLower,
                     TraceLog0 = lux_utils:join(LogDir, Base),
                     FirstTracePid = self(),
+                    ExtraMods = lux_interpret:extra_trace_modules(I),
                     {ok, TraceLog} =
-                        lux_main:start_trace(TraceMode2,
-                                             {file, TraceLog0},
-                                             FirstTracePid),
+                        lux_trace:start_trace(TraceMode2,
+                                              {file, TraceLog0},
+                                              FirstTracePid,
+                                              ExtraMods),
                     Base2 = filename:basename(TraceLog),
                     format("\nInternal tracing of test ~s started.\n",
                            [?a2l(TraceMode2)]),
@@ -1593,7 +1595,7 @@ cmd_trace(I, Args, _CmdState) ->
                     format("\nInternal tracing of test ~s stopped.\n",
                            [?a2l(TraceMode)]),
                     elog(I, "trace stop", []),
-                    lux_main:stop_trace(),
+                    lux_trace:stop_trace(),
                     {CmdState, I#istate{trace_mode = none}};
                 _ ->
                     format("\nERROR: Refused to ~p internal tracing of"

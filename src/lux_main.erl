@@ -9,8 +9,6 @@
 
 -export([
          unsafe_main/1,
-         start_trace/3,
-         stop_trace/0,
          drop_prefix/1, drop_prefix/2,
          normalize_filename/1,
          split/2,
@@ -59,23 +57,37 @@ dispatch(Opts, LuxAppDir, OpModes, Specs, OrigArgs, ThisEscript) ->
 do_dispatch(Op, Opts, LuxAppDir, OpModes, Specs, Args, OrigArgs, ThisEscript) ->
    EscriptMod = escript_mod(ThisEscript),
     case {Op, Args} of
-        {"--version", [_]}          -> version();
-        {"--gen_markdown", [File]}  -> gen_markdown(File);
-        {"--pre_markdown", [File]}  -> pre_markdown(LuxAppDir, File);
-        {"--internal_debug", [_]}   -> internal_debug(Op, OrigArgs);
-        {"--event_trace", [_]}      -> event_trace(Op, LuxAppDir, Opts,
-                                                   OpModes, Specs,
-                                                   OrigArgs, ThisEscript);
-        {"--suite_trace", [_]}      -> suite_trace(Op, LuxAppDir, Opts,
-                                                   OpModes, Specs,
-                                                   OrigArgs, ThisEscript);
-        {"--display_trace", [File]} -> display_trace(LuxAppDir, File, Opts);
-        {"--install", [InstallDir]} -> install(Op, LuxAppDir, InstallDir, Opts);
-        {"--reltool", [_]}          -> reltool(Op, LuxAppDir, Opts);
-        {"--xref", [_]}             -> xref(Op, LuxAppDir, Opts, EscriptMod);
-        {"--annotate", [LogFile]}   -> annotate(LogFile, Opts);
-        {"--history", [LogDir]}     -> history(LogDir, Opts);
-        _BadArgs                    -> usage(Specs, LuxAppDir, EscriptMod)
+        {"--version", [_]} ->
+            io:format("~p\n", [lux_utils:version()]),
+            0;
+        {"--gen_markdown", [File]} ->
+            gen_markdown(File);
+        {"--pre_markdown", [File]} ->
+            pre_markdown(LuxAppDir, File);
+        {"--internal_debug", [_]} ->
+            internal_debug(Op, OrigArgs);
+        {"--event_trace", [_]} ->
+            event_trace(Op, LuxAppDir, Opts,
+                        OpModes, Specs,
+                        OrigArgs, ThisEscript);
+        {"--suite_trace", [_]} ->
+            suite_trace(Op, LuxAppDir, Opts,
+                        OpModes, Specs,
+                        OrigArgs, ThisEscript);
+        {"--display_trace", [File]} ->
+            display_trace(Op, LuxAppDir, File, Opts);
+        {"--install", [InstallDir]} ->
+            install(Op, LuxAppDir, InstallDir, Opts);
+        {"--reltool", [_]} ->
+            reltool(Op, LuxAppDir, Opts);
+        {"--xref", [_]} ->
+            xref(Op, LuxAppDir, Opts, EscriptMod);
+        {"--annotate", [LogFile]} ->
+            annotate(LogFile, Opts);
+        {"--history", [LogDir]} ->
+            history(LogDir, Opts);
+        _BadArgs ->
+            usage(Specs, LuxAppDir, EscriptMod)
     end.
 
 expand_flags(Args, OpModes) ->
@@ -90,7 +102,7 @@ expand_flags(Args, OpModes) ->
     end.
 
 do_expand_flags(Args) ->
-   env_to_args("LUX_FLAGS") ++ env_to_args("LUX_SYSTEM_FLAGS") ++ Args.
+    env_to_args("LUX_FLAGS") ++ env_to_args("LUX_SYSTEM_FLAGS") ++ Args.
 
 env_to_args(Var) ->
     case os:getenv(Var) of
@@ -171,9 +183,9 @@ specs() ->
      {"--shell_cmd",          "/bin/sh",   string,                 mandatory},
      {"--shell_args",         ["-i"],      string,                 mandatory},
      {"--shell_prompt_cmd",   "export PS1=SH-PROMPT:",
-                                           string,                 mandatory},
+      string,                 mandatory},
      {"--shell_prompt_regexp","^SH-PROMPT:",
-                                           string,                 mandatory},
+      string,                 mandatory},
      {"--post_cleanup_cmd",   undefined,   string,                 optional},
      {"--file_pattern", ".*\.lux" ++ [$$], string,                 mandatory},
      {"--root_dir",           undefined,   string,                 mandatory},
@@ -412,6 +424,10 @@ opt_create_latest_link(undefined, AbsLogDir) ->
 opt_create_latest_link(_UserLogDir, _AbsLogDir) ->
     ok.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Usage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 usage(Specs, LuxAppDir, EscriptMod) ->
     do_usage(Specs, LuxAppDir, EscriptMod),
     1.
@@ -466,9 +482,9 @@ doc_url(AppDir) ->
     UsersGuide = filename:join([AppDir, "lux.html"]),
     "file://" ++ filename:absname(UsersGuide).
 
-version() ->
-    io:format("~p\n", [lux_utils:version()]),
-    0.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Markdown
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 gen_markdown(ToFile) ->
     case lux_debug:gen_markdown(ToFile) of
@@ -627,6 +643,10 @@ markup_include(RelFile) ->
             throw({error, "~s: ~s", [RelFile2, file:format_error(FileReason)]})
     end.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Erlang debug
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 internal_debug(MainOp, Args) ->
     require_app(MainOp, debugger),
     require_app(MainOp, wx),
@@ -647,13 +667,48 @@ internal_debug(MainOp, Args) ->
     spawn_link(fun() -> forward_stdin(Port, 1) end),
     forward_stdout(Port).
 
+forward_stdin(Port, N) ->
+    case io:get_line("") of
+        eof when N =:= 1 ->
+            %% Closed already at startup
+            exit(normal);
+        eof ->
+            io:format("\nEOF: stdin closed\n", []),
+            exit(normal);
+        {error,terminated} ->
+            exit(normal);
+        Data ->
+            %% forward to port
+            true = port_command(Port, Data),
+            forward_stdin(Port, N+2)
+    end.
+
+forward_stdout(Port) ->
+    receive
+        {Port, {data, Data}} ->
+            io:format("~s", [Data]),
+            forward_stdout(Port);
+        {Port, eof} ->
+            port_close(Port),
+            0;
+        Unexpected ->
+            io:format("Got something unexpected from port: ~p\n",
+                      [Unexpected]),
+            forward_stdout(Port)
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Erlang trace
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 suite_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs, EscriptMod) ->
     require_app(MainOp, runtime_tools),
     case add_defaults(Opts) of
         {ok, Opts2} ->
             LogDir = proplists:get_value(log_dir, Opts2),
             TraceFile0 = filename:join([LogDir, "lux_suite"]),
-            {ok, TraceFile} = start_suite_trace(TraceFile0),
+            {ok, TraceFile} =
+                lux_trace:start_suite_trace(TraceFile0, [EscriptMod]),
             io:format("WARNING: Internal tracing of suite started,"
                       " see file ~s\n",
                       [TraceFile]),
@@ -661,119 +716,19 @@ suite_trace(MainOp, LuxAppDir, Opts, OpModes, Specs, OrigArgs, EscriptMod) ->
             NewOpts = lists:keyreplace(Key, 1, Opts2, {Key, []}),
             Res = dispatch(NewOpts, LuxAppDir, OpModes, Specs,
                            OrigArgs, EscriptMod),
-            stop_trace(),
+            lux_trace:stop_trace(),
             Res;
         {error, Format, Args} ->
             io:format(Format, Args),
             1
     end.
 
-start_suite_trace(TraceFile) ->
-    start_trace(suite, {file, TraceFile}, self()).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Display trace
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-start_trace(TraceMode, TraceTarget, FirstTracePid) ->
-    TracePids = trace_pids(TraceMode, FirstTracePid),
-    TraceFlags = trace_flags(TraceMode),
-    TraceMFAs = trace_mfas(TraceMode),
-    start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs).
-
-start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs) ->
-    case dbg:get_tracer() of
-        {error, _Reason} ->
-            do_start_trace(TraceTarget, TracePids, TraceFlags, TraceMFAs);
-        {ok, _Tracer} ->
-            {error, already_started}
-    end.
-
-uniq_file(Base, Suffix, Count) ->
-    File = Base ++ Suffix,
-    case file:read_file_info(File) of
-        {ok, _FileInfo} ->
-            uniq_file(Base, "." ++ integer_to_list(Count), Count+1);
-        {error, enoent} ->
-            File
-    end.
-
-trace_pids(TraceMode, TracePid) ->
-    AllNewPids = [P || P <- processes(),
-                       P >= TracePid],
-    case TraceMode of
-        suite  -> [TracePid];
-        event  -> AllNewPids;
-        'case' -> AllNewPids
-    end.
-
-trace_flags(TraceMode) ->
-    case TraceMode of
-        suite  ->  [c, p];
-        event  ->  [c, p, sos];
-        'case' ->  [c, p, sos]
-    end.
-
-trace_mfas(TraceMode) ->
-    LuxAppDir = code:lib_dir(?APPLICATION),
-    Mods = modules(LuxAppDir, ?APPLICATION),
-    MFAs = [{M, '_', '_'} || M <- Mods],
-    case TraceMode of
-        suite  -> MFAs;
-        event  -> [{lux, trace_me, '_'}];
-        'case' -> MFAs
-    end.
-
-do_start_trace(TraceTarget, TracePids, TraceFlags0, TraceMFAs) ->
-    Res = start_tracer(TraceTarget),
-    TraceFlags = [timestamp | TraceFlags0],
-    [{ok, _} = dbg:p(P, TraceFlags) || P <- TracePids],
-    MatchSpec = [{'_', [], [{exception_trace}]}],
-    [{ok, _} = dbg:tpl(MFA, MatchSpec) || MFA <- TraceMFAs],
-    Res.
-
-start_tracer(TraceTarget) ->
-    case TraceTarget of
-        {file, TraceFile} ->
-            TraceFile2 = uniq_file(TraceFile, "", 2),
-            WrapFilesSpec =
-                {TraceFile2 ++ ".", wrap, ".etrace", 16*1024*1024, 8},
-            TracePort = dbg:trace_port(file, WrapFilesSpec),
-            {ok, _} = dbg:tracer(port, TracePort),
-            {ok, TraceFile2};
-        {log, HandlerFun, HandlerInit} ->
-            HandlerSpec = {HandlerFun, HandlerInit},
-            {ok, _} = dbg:tracer(process, HandlerSpec),
-            {ok, log}
-    end.
-
-stop_trace() ->
-    dbg:flush_trace_port(),
-    dbg:stop_clear().
-
-modules(AppDir, App) ->
-    AppStr = atom_to_list(App),
-    AppFile = filename:join([AppDir, "ebin", AppStr ++ ".app"]),
-    case file:consult(AppFile) of
-        {ok, [{application, App, Spec}]} ->
-            {_, AppMods} = lists:keyfind(modules, 1, Spec),
-            opt_add_escript_module(AppMods);
-        {ok, _} ->
-            io:format("WARNING: ~s: Bad file format\n", [AppFile]),
-            ['_'];
-        {error, Reason} ->
-            io:format("WARNING: ~s: ~s\n",
-                      [AppFile, file:format_error(Reason)]),
-            ['_']
-    end.
-
-opt_add_escript_module(AppMods) ->
-    try
-        ThisEscript = require_escript(),
-        EscriptMod = escript_mod(ThisEscript),
-        [EscriptMod | AppMods]
-    catch
-        error:_ ->
-            AppMods
-    end.
-
-display_trace(LuxAppDir, TraceFile, Opts) ->
+display_trace(MainOp, LuxAppDir, TraceFile, Opts) ->
+    require_app(MainOp, runtime_tools),
     FilterFile = filter_trace_file(LuxAppDir, Opts),
     lux_trace:display(TraceFile, FilterFile).
 
@@ -784,6 +739,10 @@ filter_trace_file(LuxAppDir, Opts) ->
         {_, FilterFile} ->
             lists:last(FilterFile)
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Event trace
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs,
             OrigArgs, EscriptMod) ->
@@ -817,35 +776,9 @@ event_trace(MainOp, LuxAppDir, Opts, OpModes, Specs,
             1
     end.
 
-forward_stdin(Port, N) ->
-    case io:get_line("") of
-        eof when N =:= 1 ->
-            %% Closed already at startup
-            exit(normal);
-        eof ->
-            io:format("\nEOF: stdin closed\n", []),
-            exit(normal);
-        {error,terminated} ->
-            exit(normal);
-        Data ->
-            %% forward to port
-            true = port_command(Port, Data),
-            forward_stdin(Port, N+2)
-    end.
-
-forward_stdout(Port) ->
-    receive
-        {Port, {data, Data}} ->
-            io:format("~s", [Data]),
-            forward_stdout(Port);
-        {Port, eof} ->
-            port_close(Port),
-            0;
-        Unexpected ->
-            io:format("Got something unexpected from port: ~p\n",
-                      [Unexpected]),
-            forward_stdout(Port)
-    end.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Stand-alone installation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 install(MainOp, LuxAppDir, InstallDir, Opts) ->
     InstallProf = reltool_profile(Opts),
@@ -892,6 +825,10 @@ do_install(ServerPid, InstallDir, RootDir) ->
             io:format("ERROR: ~s\n", [SpecReasonStr]),
             1
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Reltool
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 reltool(MainOp, LuxAppDir, Opts) ->
     io:format("Starting reltool...\n", []),
@@ -1010,6 +947,10 @@ root_dir(Opts) ->
         {_, []}        -> {false, code:root_dir()};
         {_, [RootDir]} -> {true, RootDir}
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Xref
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 xref(MainOp, LuxAppDir, Opts, EscriptMod) ->
     process_flag(trap_exit, true),
@@ -1135,6 +1076,10 @@ which_app(Mod, ModFiles, EscriptMod) ->
 mfa({M, F, A}) ->
   io_lib:format("~s:~s/~p", [M, F, A]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% HTML
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 annotate(LogFile0, Opts) ->
     {_Files, Opts2} = translate_opts(Opts),
     LogFile = filename:absname(LogFile0),
@@ -1179,6 +1124,10 @@ safe_history(LogDirs, RelLogDir, Opts) ->
         {error, File, Reason} ->
             {error, File, Reason}
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Run tests
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 run(Opts, Files, PrevLogDir, OrigArgs, ThisEscript) ->
     case do_run(Files, Opts, PrevLogDir, OrigArgs, ThisEscript) of
