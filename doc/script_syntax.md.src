@@ -84,7 +84,7 @@ post mortem analyzis to determine which sub-pattern that is
 matching which part of the output will be even worse. In the
 following example `?+` is used to register a sub-pattern and `?`
 evaluates the permutations of all sub-patterns (including the one
-specified with `?).
+specified with `?`).
 
     ?+A
     ?+B
