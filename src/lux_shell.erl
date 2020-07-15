@@ -238,17 +238,17 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
 
-interpreter_down(C, Reason) ->
-    TraceFrom = 'case',
-    TraceTo = C#cstate.name,
-    ?TRACE_ME(50, TraceFrom, TraceTo, 'DOWN', [{reason, Reason}]).
-
 interpreter_died(C, Reason) ->
     interpreter_down(C, Reason),
     C2 = flush_port(C),
     clog_skip(C2, C2#cstate.actual),
     IE = {internal_error, interpreter_died, C#cstate.latest_cmd, Reason},
     close_and_exit(C2, {error, internal}, IE).
+
+interpreter_down(C, Reason) ->
+    TraceFrom = 'case',
+    TraceTo = C#cstate.name,
+    ?TRACE_ME(50, TraceFrom, TraceTo, 'DOWN', [{reason, Reason}]).
 
 loop_timeout(C) ->
     IdleThreshold = lux_utils:multiply(timer:seconds(3), C#cstate.multiplier),

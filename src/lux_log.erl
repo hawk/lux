@@ -863,25 +863,49 @@ parse_other_file(EndTag, SubFile, Events, Acc) when is_binary(SubFile) ->
 
 extract_timers(Events) ->
     {_SendEvent, Case, RevTimers} =
-        do_extract_timers(Events, undefined, undefined, [<<>>], [], []),
+        do_extract_timers(Events, undefined, undefined, undefined,
+                          [<<>>], [], []),
     Timers = lists:reverse([Case | RevTimers]),
     %% io:format("\ntimers: ~p\n", [Timers]),
     Timers.
 
-do_extract_timers([E | Events], Send, Case, Calls, Nums, Acc) ->
+do_extract_timers([E | Events], Start, Send, Case, Calls, Nums, Acc) ->
     case E of
+        #event{op = <<"start_time">>} ->
+            do_extract_timers(Events, E, Send, Case, Calls, Nums, Acc);
+        #event{op = <<"end_time">>} ->
+            StartMicros = binary_datetime_to_micros(?l2b(Start#event.data)),
+            EndMicros = binary_datetime_to_micros(?l2b(E#event.data)),
+            ElapsedMicros = EndMicros - StartMicros,
+            NewCase =
+                if
+                    Case#timer.max_time =:= infinity,
+                    Case#timer.elapsed_time =:= undefined ->
+                        Case#timer{elapsed_time = ElapsedMicros};
+                    is_integer(Case#timer.max_time),
+                    is_integer(Case#timer.elapsed_time) ->
+                        %% Use the same time measurement even though not needed
+                        Case#timer{elapsed_time = ElapsedMicros}
+                        %% Case
+                end,
+            do_extract_timers(Events, Start, Send, NewCase, Calls, Nums, Acc);
+
         #event{op = <<"case_timeout">>} ->
             LeftMillis =
                 case binary:split(?l2b(E#event.data), <<" ">>, [global]) of
                     [BinInt, <<"micros">>] ->
-                        list_to_integer(?b2l(BinInt));
-                    [<<"(0">>,<<"seconds">>,<<"*">>,_Mult,<<"multiplier)">>] ->
+                        ?b2i(BinInt);
+                    [<<"(0">>, <<"seconds">>,
+                     <<"*">>,
+                     _Mult, <<"multiplier)">>] ->
                         %% Fail
-                        0
+                        0;
+                    [<<"infinity">>] ->
+                        infinity
                 end,
             NewCase =
                 case Case of
-                    undefined ->
+                    undefined -> %% Start
                         #timer{send_lineno = [E#event.lineno],
                                send_data = <<>>,
                                match_lineno = [E#event.lineno],
@@ -892,26 +916,35 @@ do_extract_timers([E | Events], Send, Case, Calls, Nums, Acc) ->
                                max_time = LeftMillis,
                                status = started,
                                elapsed_time = undefined};
-                    #timer{} ->
+                    #timer{} -> %% End
+                        MaxTime = Case#timer.max_time,
+                        ElapsedMillis =
+                            if
+                                is_integer(MaxTime),
+                                is_integer(LeftMillis) ->
+                                    MaxTime - LeftMillis;
+                                is_integer(Case#timer.elapsed_time) ->
+                                    Case#timer.elapsed_time
+                            end,
                         Status =
                             if
+                                is_integer(LeftMillis),
                                 LeftMillis =< 0               -> failed;
                                 Case#timer.status =:= failed  -> failed;
                                 Case#timer.status =:= started -> matched
                             end,
-                        ElapsedMillis = Case#timer.max_time - LeftMillis,
                         Case#timer{status = Status,
                                    elapsed_time = ElapsedMillis}
                 end,
-            do_extract_timers(Events, Send, NewCase,
+            do_extract_timers(Events, Start, Send, NewCase,
                               Calls, Nums, Acc);
         #event{op = <<"send">>} ->
             NewSend = {E, Nums},
-            do_extract_timers(Events, NewSend, Case,
+            do_extract_timers(Events, Start, NewSend, Case,
                               Calls, Nums, Acc);
         #event{op = <<"start">>} ->
             NewSend = {E, Nums},
-            do_extract_timers(Events, NewSend, Case,
+            do_extract_timers(Events, Start, NewSend, Case,
                               Calls, Nums, Acc);
         #event{op = <<"expect", _/binary>>} ->
             {SendE, SendNums} = Send,
@@ -931,7 +964,7 @@ do_extract_timers([E | Events], Send, Case, Calls, Nums, Acc) ->
                 NewAcc ->
                     ok
             end,
-            do_extract_timers(Events, Send, Case,
+            do_extract_timers(Events, Start, Send, Case,
                               Calls, Nums, [T | NewAcc]);
         #event{op = <<"timer">>, data = [Data]} ->
             [T | NewAcc] = Acc,
@@ -939,40 +972,59 @@ do_extract_timers([E | Events], Send, Case, Calls, Nums, Acc) ->
                 {started, MaxTime} when T#timer.status =:= expected  ->
                     NewT = T#timer{max_time = MaxTime,
                                    status = started},
-                    do_extract_timers(Events, Send, Case,
+                    do_extract_timers(Events, Start, Send, Case,
                                       Calls, Nums, [NewT|NewAcc]);
                 {canceled, Elapsed} when T#timer.status =:= started ->
                     NewT = T#timer{status = matched,
                                    elapsed_time = Elapsed},
-                    do_extract_timers(Events, Send, Case,
+                    do_extract_timers(Events, Start, Send, Case,
                                       Calls, Nums, [NewT|NewAcc]);
                 {failed, Elapsed} when T#timer.status =:= started ->
                     NewT = T#timer{status = failed,
                                    elapsed_time = Elapsed},
-                    do_extract_timers(Events, Send, Case,
+                    do_extract_timers(Events, Start, Send, Case,
                                       Calls, Nums, [NewT|NewAcc])
             end;
         #event{op = <<"invoke_", Macro/binary>>} ->
             NewCalls = [Macro | Calls],
-            do_extract_timers(Events, Send, Case,
+            do_extract_timers(Events, Start, Send, Case,
                               NewCalls, Nums, Acc);
         #event{op = <<"exit_", Macro/binary>>} ->
             [Macro | NewCalls] = Calls,
-            do_extract_timers(Events, Send, Case,
+            do_extract_timers(Events, Start, Send, Case,
                               NewCalls, Nums, Acc);
         #event{} ->
-            do_extract_timers(Events, Send, Case,
+            do_extract_timers(Events, Start, Send, Case,
                               Calls, Nums, Acc);
         #body{events = EventsB} = B ->
             TmpNums = [B#body.invoke_lineno | Nums],
             {NewSend, NewCase, NewAcc} =
-                do_extract_timers(EventsB, Send, Case,
+                do_extract_timers(EventsB, Start, Send, Case,
                                   Calls, TmpNums, Acc),
-            do_extract_timers(Events, NewSend, NewCase,
+            do_extract_timers(Events, Start, NewSend, NewCase,
                               Calls, Nums, NewAcc)
     end;
-do_extract_timers([], Send, Case, _Calls, _Nums, Acc) ->
+do_extract_timers([], _Start, Send, Case, _Calls, _Nums, Acc) ->
     {Send, Case, Acc}.
+
+binary_datetime_to_micros(DateTimeBin) ->
+    %% <<"2020-08-06 16:09:32.872350">>
+    [DateBin, TimeBin] = binary:split(DateTimeBin, <<" ">>, [global]),
+    [YearsBin, MonthsBin, DaysBin] = binary:split(DateBin, <<"-">>, [global]),
+    DateSecs = calendar:date_to_gregorian_days(?b2i(YearsBin),
+                                               ?b2i(MonthsBin),
+                                               ?b2i(DaysBin)),
+
+    [HoursBin, MinsBin, SecsAndMicrosBin] =
+        binary:split(TimeBin, <<":">>, [global]),
+    [SecsBin, MicrosBin] = binary:split(SecsAndMicrosBin, <<".">>, [global]),
+    TimeSecs =
+        (?b2i(HoursBin) * 60 * 60) +
+        (?b2i(MinsBin)  * 60) +
+        ?b2i(SecsBin),
+
+    TotalSecs = DateSecs + TimeSecs,
+    (TotalSecs * ?ONE_SEC_MICROS) + ?b2i(MicrosBin).
 
 format_calls([<<>>], Acc) ->
     ?l2b(join("->", Acc));
@@ -1053,6 +1105,8 @@ timer_to_elems(#timer{send_lineno  = SendStack,
          Elapsed =:= undefined,
          Status =:= started ->
              "";
+         Elapsed =:= undefined ->
+             "?";
          is_integer(Elapsed),
          Status =/= started ->
              ?i2l(Elapsed)

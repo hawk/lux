@@ -58,25 +58,31 @@ init(I) ->
                     I3
             end,
         I6 = loop(I5),
+        stop(I6),
         I7 = check_risky_timer(I6, "case_timeout", CaseRef),
         I8 = check_risky_timer(I7, "suite_timeout", SuiteRef),
+        lux_utils:cancel_timer(CaseRef),
         {ok, I8}
     catch
         throw:{error, Reason, IA} ->
+            stop(IA),
             {error, Reason, IA};
         ?CATCH_STACKTRACE(error, Reason, EST)
             ErrBin = ?l2b(?FF("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
                       [ErrBin, EST]),
-            {error, ErrBin, IB}
-    after
-        ilog(IB, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
-        ilog(IB, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
-        lux_utils:cancel_timer(CaseRef),
-        EndTime = lux_utils:now_to_string(lux_utils:timestamp()),
-        ilog(IB, "end_time \"~s\"\n", [EndTime], "lux", 0),
-        opt_stop_etrace(IB)
+        stop(IB),
+        {error, ErrBin, IB}
     end.
+
+stop(I) ->
+    CaseRef = I#istate.case_timer_ref,
+    SuiteRef = I#istate.suite_timer_ref,
+    ilog(I, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
+    ilog(I, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
+    EndTime = lux_utils:now_to_string(lux_utils:timestamp()),
+    ilog(I, "end_time \"~s\"\n", [EndTime], "lux", 0),
+    opt_stop_etrace(I).
 
 timer_left(#timer_ref{} = TimerRef) ->
     timer_left(read_timer_left(TimerRef));
@@ -90,7 +96,6 @@ read_timer_left(#timer_ref{timeout = infinity}) ->
     infinity;
 read_timer_left(#timer_ref{ref = Ref}) ->
     case erlang:read_timer(Ref) of
-        ok     -> 0;
         false  -> 0;
         Millis -> Millis
     end.
