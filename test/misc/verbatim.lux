@@ -1,0 +1,8 @@
+[doc test]
+
+[shell test]
+    !echo "XXXabcdefghi"
+    ?^XXX
+    ???abc
+    ???def
+    ???ghi

@@ -638,19 +638,13 @@ p(Int, Len) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Verbatim match
+
 verbatim_match(<<>>, _Expected) ->
     nomatch;
 verbatim_match(_Actual, <<>>) ->
     nomatch;
 verbatim_match(Actual, Expected) ->
     verbatim_search(Actual, Expected, Expected, 0).
-
-verbatim_normalize(<<"\r\n", Rest/binary>>) ->
-    {1, <<"\n", Rest/binary>>};
-verbatim_normalize(<<"\r", Rest/binary>>) ->
-    {0, <<"\n", Rest/binary>>};
-verbatim_normalize(Rest) ->
-    {0, Rest}.
 
 verbatim_search(Actual, Expected, Orig, Pos) ->
     {Add, Actual2} = verbatim_normalize(Actual),
@@ -661,13 +655,15 @@ verbatim_search2(<<Match:1/binary, Actual/binary>>,
                  <<Match:1/binary, Expected/binary>>,
                  Orig,
                  Pos) ->
-    %% First match
-    verbatim_collect(Actual, Expected, Orig, Pos, Pos, 1);
+    %% First char is matching - try to collect consecutive chars
+%io:format("SEARCH MATCH ~p ~p\n", [Match, Pos]),
+    verbatim_collect(Actual, Expected, Orig, Pos, Pos+1, 1);
 verbatim_search2(<<_A:1/binary, Actual/binary>>,
                  Expected,
                  Orig,
                  Pos) ->
-    %% No match while searching - reset expr
+    %% Char does not match - try next char
+%io:format("SEARCH NOMATCH ~p ~p\n", [_A, Pos+1]),
     verbatim_search(Actual, Expected, Orig, Pos+1);
 verbatim_search2(_Actual,
                  _Expected,
@@ -687,6 +683,7 @@ verbatim_collect2(<<Match:1/binary, Actual/binary>>,
                   Pos,
                   Len) ->
     %% Match
+%io:format("COLLECT MATCH ~p ~p (~p)\n", [Match, Base, Pos+1]),
     verbatim_collect(Actual, Expected, Orig, Base, Pos+1, Len+1);
 verbatim_collect2(<<_A:1/binary, Actual/binary>>,
                   <<_E:1/binary, _/binary>>,
@@ -695,13 +692,22 @@ verbatim_collect2(<<_A:1/binary, Actual/binary>>,
                   Pos,
                   _Len) ->
     %% No match
+%io:format("COLLECT NOMATCH ~p ~p (~p)\n", [_A, _Base, Pos+1]),
     verbatim_search(Actual, Orig, Orig, Pos+1);
 verbatim_collect2(_Actual, <<>>, _Orig, Base, _Pos, Len) ->
     %% Match completed
+%io:format("COLLECT COMPLETE ~p (~p)\n", [Base, _Pos]),
     {match, [{Base, Len}]};
-verbatim_collect2(_Actual, _Expected, _Orig, _Base, _Pos, _Len) ->
+verbatim_collect2(<<>>, _Expected, _Orig, _Base, _Pos, _Len) ->
     %% No match
     nomatch.
+
+verbatim_normalize(<<"\r\n", Rest/binary>>) ->
+    {1, <<"\n", Rest/binary>>};
+verbatim_normalize(<<"\r", Rest/binary>>) ->
+    {0, <<"\n", Rest/binary>>};
+verbatim_normalize(Rest) ->
+    {0, Rest}.
 
 expand_lines([] = Line) ->
     Line;

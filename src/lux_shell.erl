@@ -954,11 +954,11 @@ log_multi_nomatch(C, {multi, Multi}, Actual) ->
                 PE = ["Sub-pattern: ", P, "\n"],
                 F = lux_utils:to_string(".*"),
                 FE = ["    Found: ", F, "\n"],
-                {OptMatch, single} = match_single(Actual, MP),
+                {OptMatch, single} = match_single(Actual, MP, RegExp),
                 case OptMatch of
-                    {match, [{First, TotLen} | _] = _Matches} ->
-                        {_Skip, Match, _Rest} =
-                            split_total(Actual, First, TotLen, undefined),
+                    {match, Matches} ->
+                        {_Skip, Match, _Rest, _SubMatches} =
+                            split_total(Actual, Matches, undefined),
                         clog(C, found, "~s\"~s\"", [Context, F]),
                         FA = ["    Found: ",
                               lux_utils:to_string(Match), "\n"],
@@ -1129,8 +1129,8 @@ post_match(C, Actual, [], Context) ->
     post_match(C, Actual, [{0, byte_size(Actual)}], Context).
 
 split_single_match(C, Matches, Actual, Context, AltSkip) ->
-    [{First, TotLen} | SubMatches] = Matches,
-    {Skip, Match, Rest} = split_total(Actual, First, TotLen, AltSkip),
+    {Skip, Match, Rest, SubMatches} =
+        split_total(Actual, Matches, AltSkip),
     LogFun =
         fun() ->
                 clog_skip(C, Skip),
@@ -1148,12 +1148,13 @@ split_single_match(C, Matches, Actual, Context, AltSkip) ->
     SkipMatch = <<Skip/binary, Match/binary>>,
     {Skip, SkipMatch, Rest, SubBins, LogFun}.
 
-split_total(Actual, First, TotLen, AltSkip) ->
+split_total(Actual, Matches, AltSkip) ->
+    [{First, TotLen} | SubMatches] = Matches,
     {Consumed, Rest} = split_binary(Actual, First+TotLen),
     {Skip, Match} = split_binary(Consumed, First),
     case AltSkip of
-        undefined -> {Skip, Match, Rest};
-        _         -> {AltSkip, Actual, <<>>}
+        undefined -> {Skip, Match, Rest, SubMatches};
+        _         -> {AltSkip, Actual, <<>>, SubMatches}
     end.
 
 match(_Actual, undefined) ->
@@ -1165,25 +1166,54 @@ match(Actual, #cmd{type = Type, arg = Arg}) ->
         Type =:= expect; Type =:= fail; Type =:= success ; Type =:= break ->
             case Arg of
                 {verbatim, _RegExpOper, Expected} ->
-                    {lux_utils:verbatim_match(Actual, Expected), single};
-                {mp, _RegExpOper, _RegExp, MP, []} -> % Single
-                    match_single(Actual, MP);
-                {mp, _RegExpOper, _RegExp, MP, Multi} ->
+                    Matches = lux_utils:verbatim_match(Actual, Expected),
+                    %% io:format("\nlux_utils:verbatim_match(~p,"
+                    %%           "\n                         ~p)."
+                    %%           "\n                         -> ~p\n",
+                    %%           [Actual, Expected, Matches]),
+                    %% display_total(Actual, Matches),
+                    {Matches, single};
+                {mp, _RegExpOper, RegExp, MP, []} -> % Single
+                    match_single(Actual, MP, RegExp);
+                {mp, _RegExpOper, RegExp, MP, Multi} ->
                     case erlang:system_info(otp_release) of
                         "R" ++ _ -> % Pre 17.0
-                            {catch pre_r17_fix(Actual, Multi), {multi, Multi}};
+                            Matches =  pre_r17_fix(Actual, Multi),
+                            {Matches, {multi, Multi}};
                         _ ->
                             Opts = [{capture,all_names,index} | ?RE_RUN_OPTS],
-                            {catch re:run(Actual, MP, Opts), {multi, Multi}}
+                            Matches = re_run(Actual, MP, Opts, RegExp),
+                            {Matches, {multi, Multi}}
                     end;
-                {endshell, single, _RegExp, MP} ->
-                    match_single(Actual, MP)
+                {endshell, single, RegExp, MP} ->
+                    match_single(Actual, MP, RegExp)
             end
     end.
 
-match_single(Actual, MP) ->
+match_single(Actual, MP, RegExp) ->
     Opts = [{capture,all,index} | ?RE_RUN_OPTS],
-    {catch re:run(Actual, MP, Opts), single}.
+    Matches = re_run(Actual, MP, Opts, RegExp),
+    {Matches, single}.
+
+re_run(Actual, MP, Opts, _RegExp) ->
+    Matches = (catch re:run(Actual, MP, Opts)),
+%%     io:format("\nre:run(~p,"
+%%               "\n       ~p,"
+%%               "\n       ~p)."
+%%               "\n       -> ~p\n",
+%%               [Actual, _RegExp, Opts, Matches]),
+%%     display_total(Actual, Matches),
+    Matches.
+
+%% display_total(Actual, {match, Matches}) ->
+%%     {S,M,R,_} = split_total(Actual, Matches, undefined),
+%%     io:format("\n\tskip : ~p"
+%%               "\n\tmatch: ~p"
+%%               "\n\tkeep : ~p\n",
+%%               [S, M, R]);
+%% display_total(Actual, Res) ->
+%%     io:format("\n\ttry  : ~p"
+%%              "\n\tkeep : ~p\n", [Res, Actual]).
 
 pre_r17_fix(Actual, Multi) ->
     Names = lists:sort([list_to_atom(?b2l(N)) || {N, _, _} <- Multi]),
@@ -1195,7 +1225,7 @@ pre_r17_fix(Actual, Multi) ->
     pre_r17_fix(Actual, RegExps, Opts).
 
 pre_r17_fix(Actual, [RegExp | RegExps], Opts) ->
-    case re:run(Actual, RegExp, Opts) of
+    case re_run(Actual, RegExp, Opts, RegExp) of
         nomatch -> pre_r17_fix(Actual, RegExps, Opts);
         Match   -> Match
     end;
