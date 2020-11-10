@@ -1,0 +1,17 @@
+[doc Bind file contents to a variable]
+
+[global file=tmp.txt]
+
+[shell multi]
+    !echo "abc\ndef\ngih" > ${file}
+    ?SH-PROMPT:
+    !cat ${file}
+    ?(?s)cat ${file}\R(.*)\RSH-PROMPT:
+    [local contents=$1]
+    [progress BEGIN${contents}END]
+    !cat ${file}
+    ?${contents}
+
+[cleanup]
+    !rm -f ${file}
+    ?SH-PROMPT:
