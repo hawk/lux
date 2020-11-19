@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.3.2 - 2020-06-01</p>
+<p>Version 2.4 - 2020-11-19</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -1453,7 +1453,7 @@ post mortem analyzis to determine which sub-pattern that is
 matching which part of the output will be even worse. In the
 following example <code>?+</code> is used to register a sub-pattern and <code>?</code>
 evaluates the permutations of all sub-patterns (including the one
-specified with `?).</p>
+specified with <code>?</code>).</p>
 
 <pre><code>?+A
 ?+B
@@ -1971,9 +1971,11 @@ Mode can be one of :</p>
 <li><code>execute</code>  - evaluate the test cases. This is default.</li>
 <li><code>validate</code> - parse all script files and configuration files and
            report syntax errors and warnings.</li>
-<li><code>dump</code>     - parse and dump the internal form of all script files
+<li><code>dump</code>     - parse and dump the internal form for all script files
            and configuration files and report syntax errors and
            warnings.</li>
+<li><code>expand</code>   - parse and expand source files for all script files
+           and configuration files.</li>
 <li><code>list</code>     - display a list of all (non-skipped) test cases.
            One file per line.</li>
 <li><code>list_dir</code> - display a list of all directories with non-skipped

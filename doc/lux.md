@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.3.2 - 2020-06-01
+Version 2.4 - 2020-11-19
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1367,7 +1367,7 @@ post mortem analyzis to determine which sub-pattern that is
 matching which part of the output will be even worse. In the
 following example `?+` is used to register a sub-pattern and `?`
 evaluates the permutations of all sub-patterns (including the one
-specified with `?).
+specified with `?`).
 
     ?+A
     ?+B
@@ -1876,9 +1876,11 @@ Mode can be one of :
 * `execute`  - evaluate the test cases. This is default.
 * `validate` - parse all script files and configuration files and
                report syntax errors and warnings.
-* `dump`     - parse and dump the internal form of all script files
+* `dump`     - parse and dump the internal form for all script files
                and configuration files and report syntax errors and
                warnings.
+* `expand`   - parse and expand source files for all script files
+               and configuration files.
 * `list`     - display a list of all (non-skipped) test cases.
                One file per line.
 * `list_dir` - display a list of all directories with non-skipped
