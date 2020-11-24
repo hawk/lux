@@ -224,7 +224,11 @@ trace_client(Trace, S) when tuple_size(Trace) >= 3 ->
     {NewAction, Indent, NewS} = update_level(Pid, Type, S, Action),
     case NewAction of
         keep ->
-            Prefix = lists:duplicate(Indent, $ ),
+            Prefix =
+                if
+                    Indent < 0 ->  lists:duplicate(-Indent, $*);
+                    true       ->  lists:duplicate(Indent, $ )
+                end,
             io:format("~s~p.\n", [Prefix, NewTrace]);
         skip ->
             ok
