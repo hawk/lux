@@ -35,7 +35,7 @@
     ?SH-PROMPT:
     !(sleep 3; echo DONE >> $file)
 
-[shell forground]
+[shell foreground]
     # Probe the file for the DONE string using a break pattern
     [loop i 1..7]
         @DONE

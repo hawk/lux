@@ -20,14 +20,14 @@
     [progress $extra]
     [invoke async_event 8 $outer_file OUTER]
 
-  [shell forground]
+  [shell foreground]
     [loop i 1..50]
         [progress outer=$i]
         @OUTER
         [shell background_inner]
             [invoke async_event 2 $inner_file INNER]
 
-        [shell forground]
+        [shell foreground]
             [invoke wait_for 1 $inner_file INNER $extra]
         !cat $outer_file
         ?SH-PROMPT:
