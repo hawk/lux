@@ -44,6 +44,7 @@
         ?SH-PROMPT:
         [sleep 1]
     [endloop]
+    ?SH-PROMPT:
 
 [cleanup]
     !rm -f $file
