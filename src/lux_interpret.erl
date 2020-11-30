@@ -29,8 +29,8 @@ init(I) ->
     M = I2#istate.multiplier,
     CaseRef = lux_utils:send_after(T, M, self(), {case_timeout, T}),
     ilog(I2, "start_time \"~s\"\n", [StartTimeStr], "lux", 0),
-    ilog(I2, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
-    ilog(I2, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
+    ilog(I2, "suite_timeout ~s\n", [timer_left(I2, SuiteRef)], "lux", 0),
+    ilog(I2, "case_timeout ~s\n", [timer_left(I2, CaseRef)], "lux", 0),
     IB = I2#istate{case_timer_ref = CaseRef},
     try
         OrigCmds = IB#istate.commands,
@@ -78,18 +78,24 @@ init(I) ->
 stop(I) ->
     CaseRef = I#istate.case_timer_ref,
     SuiteRef = I#istate.suite_timer_ref,
-    ilog(I, "case_timeout ~s\n", [timer_left(CaseRef)], "lux", 0),
-    ilog(I, "suite_timeout ~s\n", [timer_left(SuiteRef)], "lux", 0),
+    ilog(I, "case_timeout ~s\n", [timer_left(I, CaseRef)], "lux", 0),
+    ilog(I, "suite_timeout ~s\n", [timer_left(I, SuiteRef)], "lux", 0),
     EndTime = lux_utils:now_to_string(lux_utils:timestamp()),
     ilog(I, "end_time \"~s\"\n", [EndTime], "lux", 0),
     opt_stop_etrace(I).
 
-timer_left(#timer_ref{} = TimerRef) ->
-    timer_left(read_timer_left(TimerRef));
-timer_left(TimerLeft) ->
+timer_left(I, #timer_ref{} = TimerRef) ->
+    timer_left(I, read_timer_left(TimerRef));
+timer_left(I, TimerLeft) ->
     case TimerLeft of
-        infinity -> "infinity";
-        Millis   -> lists:concat([Millis * 1000, " micros"])
+        infinity ->
+            "infinity";
+        Millis ->
+            Seconds = Millis div ?ONE_SEC,
+            Multiplier = I#istate.multiplier / ?ONE_SEC,
+            L = io_lib:format("~p micros left (~p seconds * ~.3f multiplier)",
+                              [Millis * 1000, Seconds, Multiplier]),
+            lists:flatten(L)
     end.
 
 read_timer_left(#timer_ref{timeout = infinity}) ->
@@ -371,10 +377,8 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis)
     I;
 opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
     ?TRACE_ME2(70, 'case', TimeoutType, [{premature, TimeoutMillis}]),
-    Seconds = TimeoutMillis div ?ONE_SEC,
-    Multiplier = I#istate.multiplier / ?ONE_SEC,
-    ilog(I, "~p (~p seconds * ~.3f multiplier)\n",
-         [TimeoutType, Seconds, Multiplier], I#istate.active_name,
+    ilog(I, "~p failed after ~p micros\n",
+         [TimeoutType, TimeoutMillis * 1000], I#istate.active_name,
          (I#istate.latest_cmd)#cmd.lineno),
     premature_stop(I, {fail, TimeoutType}, {fail, TimeoutType}).
 

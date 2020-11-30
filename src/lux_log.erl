@@ -24,7 +24,7 @@
 -include("lux.hrl").
 
 -define(SUMMARY_LOG_VERSION, <<"0.3">>).
--define(EVENT_LOG_VERSION,   <<"0.5">>).
+-define(EVENT_LOG_VERSION,   <<"0.6">>).
 -define(CONFIG_LOG_VERSION,  <<"0.1">>).
 -define(RESULT_LOG_VERSION,  <<"0.1">>).
 
@@ -703,6 +703,9 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
         {ok, ?EVENT_LOG_VERSION, Sections} ->
             %% Latest version
             do_scan_events(EventLog, Sections, NewWWW);
+        {ok, <<"0.5">>, Sections} ->
+            %% Prev version with old case_timeout format
+            do_scan_events(EventLog, Sections, NewWWW);
         {ok, <<"0.4">>, Sections} ->
             %% Prev version without where and stack
             do_scan_events(EventLog, Sections, NewWWW);
@@ -893,12 +896,15 @@ do_extract_timers([E | Events], Start, Send, Case, Calls, Nums, Acc) ->
         #event{op = <<"case_timeout">>} ->
             LeftMillis =
                 case binary:split(?l2b(E#event.data), <<" ">>, [global]) of
-                    [BinInt, <<"micros">>] ->
+                    [BinInt, <<"micros">> | _] ->
                         ?b2i(BinInt);
+                    [<<"failed">>, <<"after">>, _BinInt, <<"micros">> | _] ->
+                        %% Fail
+                        0;
                     [<<"(0">>, <<"seconds">>,
                      <<"*">>,
                      _Mult, <<"multiplier)">>] ->
-                        %% Fail
+                        %% Fail - backwards compatibility
                         0;
                     [<<"infinity">>] ->
                         infinity
