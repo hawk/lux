@@ -1112,15 +1112,15 @@ clear_expected(C, Context, Mode0) ->
     dlog(C3, ?dmore, "expected=[]~s", [Context]),
     C3.
 
-post_match(C, Actual, [{First, TotLen} | _], Context) ->
-    {Skip, NonSkip} = split_binary(Actual, First),
-    {Match, Rest} = split_binary(NonSkip, TotLen),
+post_match(C, Actual, [], Context) ->
+    post_match(C, Actual, [{0, byte_size(Actual)}], Context);
+post_match(C, Actual, Matches, Context) ->
+    {Skip, Match, Rest, _SubMatches} =
+        split_total(Actual, Matches, undefined),
     clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     C2 = C#cstate{actual = Rest},
-    {C2, Match};
-post_match(C, Actual, [], Context) ->
-    post_match(C, Actual, [{0, byte_size(Actual)}], Context).
+    {C2, Match}.
 
 split_single_match(C, Matches, Actual, Context, AltSkip) ->
     {Skip, Match, Rest, SubMatches} =
