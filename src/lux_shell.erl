@@ -284,7 +284,7 @@ adjust_stacks(C, From, When, IsRootLoop, NewCmd, PosStack, Fun) ->
             LoopCmd = Loop#loop.mode,
             {_, RegExp} = extract_regexp(LoopCmd#cmd.arg),
             {C2, ActualStop} =
-                do_prepare_stop(C, RegExp, <<?loop_break_mismatch>>),
+                prepare_stop(C, RegExp, <<?loop_break_mismatch>>),
             stop(C2, fail, ActualStop);
         _ ->
             C#cstate{latest_cmd = NewCmd,
@@ -976,9 +976,13 @@ log_multi_nomatch(C, _Single, Actual) ->
 
 match_patterns(C) ->
     Actual = C#cstate.actual,
-    match_alt_patterns(C, Actual, Actual, []).
+    match_alt_patterns(C, Actual, <<>>, []).
 
 match_alt_patterns(C, AltActual, AltRest, LogFuns) ->
+    %% SzA = byte_size(AltActual),
+    %% SzR = byte_size(AltRest),
+    %% <<AltActual:SzA/binary, AltRest:SzR/binary>> = C#cstate.actual, % assert
+
     %% Match against fail+success+break patterns at:
     %%   - try match (but not beyond a successful match)
     %%   - reset of output buffer
@@ -988,12 +992,13 @@ match_alt_patterns(C, AltActual, AltRest, LogFuns) ->
     %%     - relax
     %%     - end_of_script
 
-    C2 = match_stop_pattern(C, AltActual, AltRest, LogFuns,
+    C2 = match_stop_pattern(C,
+                            AltActual,
                             fail,
                             <<?fail_pattern_matched>>,
                             C#cstate.fail),
-
-    C3 = match_stop_pattern(C2, AltActual, AltRest, LogFuns,
+    C3 = match_stop_pattern(C2,
+                            AltActual,
                             success,
                             <<?success_pattern_matched>>,
                             C#cstate.success),
@@ -1002,22 +1007,18 @@ match_alt_patterns(C, AltActual, AltRest, LogFuns) ->
     AllStack = lists:reverse(C3#cstate.loop_stack),
     match_break_patterns(C3, AltActual, AltRest, AllStack, [], LogFuns).
 
-match_stop_pattern(C, AltActual, AltRest, LogFuns,
-                   StopEvent, StopContext, StopCmd) ->
+match_stop_pattern(C, AltActual, StopEvent, StopContext, StopCmd) ->
     {Res, _OptMulti} = match(AltActual, StopCmd),
     case Res of
         {match, Matches} ->
-            ExpectPatternMatched = (LogFuns =/= []),
-            Actual2 =
-                if
-                    ExpectPatternMatched ->
-                        <<AltActual/binary, AltRest/binary>>;
-                    true ->
-                        AltActual
-                end,
-            {C2, ActualStop} =
-                prepare_stop(C, Actual2, Matches, StopContext),
-            stop(C2, StopEvent, ActualStop);
+            %% Stop pattern matched. Do not eval LogFuns.
+            {Match, Rest} =
+                post_match(C, Matches, StopContext),
+            StopMatch = ?l2b(lux_utils:to_string(?b2l(Match))),
+            C2 = C#cstate{actual = Rest},
+            {C3, ActualStop} =
+                prepare_stop(C2, StopMatch, StopContext),
+            stop(C3, StopEvent, ActualStop);
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
@@ -1044,9 +1045,7 @@ match_break_patterns(C, AltActual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
                     BreakLoop = {break_pattern_matched, self(), LoopCmd},
                     send_reply(C3, C3#cstate.parent, BreakLoop),
                     {_Match, Rest} =
-                        post_match(C3, AltActual, Matches,
-                                   <<?loop_break_matched>>),
-
+                        post_match(C3, Matches,<<?loop_break_matched>>),
                     %% Break all inner loops
                     BrokenLoops = [L#loop{mode = break} || L <- AllStack],
                     Acc2 = BrokenLoops ++ Acc,
@@ -1065,17 +1064,20 @@ match_break_patterns(C, AltActual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
             end
     end;
 match_break_patterns(C, _AltActual, AltRest, [], Acc, LogFuns) ->
-    %% No break pattern matched. Log previous match and return alternate rest.
-    [LF() || LF <- LogFuns],
-    C#cstate{actual = AltRest, loop_stack = Acc}.
+    %% No break pattern matched
+    Rest =
+        if
+            LogFuns =/= [] ->
+                %% Expect pattern matched. Eval the LogFuns. Return AltRest.
+                [LF() || LF <- LogFuns],
+                AltRest;
+            true ->
+                %% Nothing matched. Return everything.
+                C#cstate.actual
+        end,
+    C#cstate{actual = Rest, loop_stack = Acc}.
 
-prepare_stop(C, Actual, Matches, Context) ->
-    {Match, Rest} = post_match(C, Actual, Matches, Context),
-    Match2 = ?l2b(lux_utils:to_string(?b2l(Match))),
-    C2 = C#cstate{actual = Rest},
-    do_prepare_stop(C2, Match2, Context).
-
-do_prepare_stop(C, Match, Context) ->
+prepare_stop(C, Match, Context) ->
     Actual = <<Context/binary, "\"", Match/binary, "\"">>,
     C2 = clear_expected(C, " (prepare stop)", suspend),
     C3 = opt_late_sync_reply(C2),
@@ -1097,9 +1099,11 @@ clear_expected(C, Context, Mode0) ->
     dlog(C3, ?dmore, "expected=[]~s", [Context]),
     C3.
 
-post_match(C, Actual, [], Context) ->
-    post_match(C, Actual, [{0, byte_size(Actual)}], Context);
-post_match(C, Actual, Matches, Context) ->
+post_match(C, [], Context) ->
+    Actual = C#cstate.actual,
+    post_match(C, [{0, byte_size(Actual)}], Context);
+post_match(C, Matches, Context) ->
+    Actual = C#cstate.actual,
     {Skip, Match, Rest, _SubMatches} =
         split_total(Actual, Matches, noendshell),
     clog_skip(C, Skip),
