@@ -1126,7 +1126,7 @@ prepare_result(#istate{mode = Mode,
             #result{actual = <<?success_pattern_matched, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             pos_stack = PosStack};
-            #result{actual = <<?loop_break_pattern_mismatch, _/binary>>} ->
+            #result{actual = <<?loop_break_mismatch, _/binary>>} ->
                 Res2#result{latest_cmd = LatestCmd,
                             pos_stack = PosStack};
             _ ->
@@ -1204,7 +1204,7 @@ result_lineno(I, LineNoStr) ->
             "-" ++ LineNoStr;
         [#result{actual= <<?success_pattern_matched, _/binary>>}|_] ->
             "+" ++ LineNoStr;
-        [#result{actual= <<?loop_break_pattern_mismatch, _/binary>>}|_] ->
+        [#result{actual= <<?loop_break_mismatch, _/binary>>}|_] ->
             "+" ++ LineNoStr;
         [#result{outcome = success}|_] ->
             "";

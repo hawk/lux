@@ -608,9 +608,9 @@ new_actual(Actual, Expected, Rest) when is_binary(Expected), is_binary(Rest) ->
     case Actual of
         <<?fail_pattern_matched, _/binary>> ->
             {Actual, Actual, Expected, Rest};
-        << ?success_pattern_matched, _/binary>> ->
+        <<?success_pattern_matched, _/binary>> ->
             {Actual, Actual, Expected, Rest};
-        << ?loop_break_pattern_mismatch, _/binary>> ->
+        <<?loop_break_mismatch, _/binary>> ->
             {Actual, Actual, Expected, Rest};
         {fail, OldActual} when is_atom(OldActual) ->
             NewActual = ?a2b(OldActual),

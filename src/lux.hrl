@@ -31,8 +31,8 @@
 -define(RE_RUN_OPTS,     [{newline,anycrlf}, notempty]).
 -define(fail_pattern_matched, "fail pattern matched ").
 -define(success_pattern_matched, "success pattern matched ").
--define(loop_break_pattern_mismatch,
-        "Loop ended without match of break pattern ").
+-define(loop_break_matched, "loop break pattern matched ").
+-define(loop_break_mismatch,"Loop ended without match of break pattern ").
 -define(HIGH_TIMER_THRESHOLD, 0.85).
 -define(LOW_TIMER_THRESHOLD, 0.000000001).
 -define(HISTORY_LOG_BASE, "lux_history").

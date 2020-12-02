@@ -284,8 +284,7 @@ adjust_stacks(C, From, When, IsRootLoop, NewCmd, PosStack, Fun) ->
             LoopCmd = Loop#loop.mode,
             {_, RegExp} = extract_regexp(LoopCmd#cmd.arg),
             {C2, ActualStop} =
-                do_prepare_stop(C, RegExp,
-                                <<?loop_break_pattern_mismatch>>),
+                do_prepare_stop(C, RegExp, <<?loop_break_mismatch>>),
             stop(C2, fail, ActualStop);
         _ ->
             C#cstate{latest_cmd = NewCmd,
@@ -825,7 +824,9 @@ expect(#cstate{state_changed = true,
                     C2 = match_patterns(C),
                     C3 = cancel_timer(C2),
                     ExitStatus = ?l2b(?i2l(C3#cstate.exit_status)),
-                    try_match(C3, ExitStatus, C3#cstate.expected, Actual),
+                    AltActual = ExitStatus,
+                    AltSkip = Actual,
+                    _C4 = try_match(C3, AltActual, AltSkip),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
                     %% Got end of file while waiting for more data
@@ -838,30 +839,31 @@ expect(#cstate{state_changed = true,
                     match_patterns(C);
                 true ->
                     %% Waiting for more data
-                    try_match(C, Actual, C#cstate.expected, undefined)
+                    try_match(C, Actual, noendshell)
 
             end
     end.
 
-try_match(C, Actual, Expected, AltSkip) ->
+try_match(C, Actual, AltSkip) ->
+    Expected = C#cstate.expected,
     Context = "",
     case match(Actual, Expected) of
         {{match, Matches}, single}  ->
             %% Successful single match
             C2 = cancel_timer(C),
-            {Skip, SkipMatch, Rest, SubMatches, LogFun} =
+            {SkipMatch, Rest, SubMatches, LogFun} =
                 split_single_match(C2, Matches, Actual, Context, AltSkip),
-            C3 = match_patterns(C2, SkipMatch, Rest, [LogFun]),
-            match_more(C3, Skip, SubMatches);
+            C3 = match_alt_patterns(C2, SkipMatch, Rest, [LogFun]),
+            match_more(C3, SubMatches);
         {{match, Matches}, {multi, Multi}}  ->
             %% Successful match
             C2 = cancel_timer(C),
-            {Skip, SkipMatch, Rest, LogFuns} =
+            {SkipMatch, Rest, LogFuns} =
                 split_multi_match(C2, Actual, Matches, Multi, Context),
-            C3 = match_patterns(C2, SkipMatch, Rest, LogFuns),
+            C3 = match_alt_patterns(C2, SkipMatch, Rest, LogFuns),
             SubMatches = [], % Don't bother about sub-patterns
-            match_more(C3, Skip, SubMatches);
-        {nomatch, _} when AltSkip =:= undefined ->
+            match_more(C3, SubMatches);
+        {nomatch, _} when AltSkip =:= noendshell ->
             %% Main pattern does not match
             %% Wait for more input
              match_patterns(C);
@@ -879,7 +881,7 @@ try_match(C, Actual, Expected, AltSkip) ->
             stop(C, error, ?l2b(Err))
     end.
 
-match_more(C, _Skip, SubMatches) ->
+match_more(C, SubMatches) ->
     case C#cstate.no_more_input of
         true ->
             %% End of input
@@ -913,13 +915,13 @@ split_multi_match(C, Actual, Matches, Multi, Context) ->
         end,
     NewMulti = lists:zipwith(Zip, Multi, Matches),
     SortedMulti = lists:keysort(2, NewMulti),
-    {Skip, Rest, LogFuns} =
-        log_multi_match(C, 0, Actual, SortedMulti, Context, undefined, []),
+    {Rest, LogFuns} =
+        log_multi_match(C, 0, Actual, SortedMulti, Context, []),
     Sz = byte_size(Actual) - byte_size(Rest),
     {SkipMatch, Rest} = split_binary(Actual, Sz),
-    {Skip, SkipMatch, Rest, LogFuns}.
+    {SkipMatch, Rest, LogFuns}.
 
-log_multi_match(C, Offset, Actual, [Multi | More], Context, OptSkip, LogFuns) ->
+log_multi_match(C, Offset, Actual, [Multi | More], Context, LogFuns) ->
     {_Name, Pos, Len, _NamedRegExp, Cmd} = Multi,
     {Skip, TmpActual} = split_binary(Actual, Pos - Offset),
     TmpC = C#cstate{latest_cmd = Cmd},
@@ -933,15 +935,10 @@ log_multi_match(C, Offset, Actual, [Multi | More], Context, OptSkip, LogFuns) ->
                      [Context, lux_utils:to_string(Rest)])
         end,
     NewOffset = Offset + byte_size(Skip) + byte_size(Match),
-    NewSkip =
-        if
-            OptSkip =:= undefined -> Skip;
-            true                  -> OptSkip
-        end,
     NewLogFuns = [LogFun | LogFuns],
-    log_multi_match(C, NewOffset, Rest, More, Context, NewSkip, NewLogFuns);
-log_multi_match(_C, _Offset, Rest, [], _Context, Skip, LogFuns) ->
-    {Skip, Rest, lists:reverse(LogFuns)}.
+    log_multi_match(C, NewOffset, Rest, More, Context, NewLogFuns);
+log_multi_match(_C, _Offset, Rest, [], _Context, LogFuns) ->
+    {Rest, lists:reverse(LogFuns)}.
 
 log_multi_nomatch(C, {multi, Multi}, Actual) ->
     LogFun =
@@ -957,7 +954,7 @@ log_multi_nomatch(C, {multi, Multi}, Actual) ->
                 case OptMatch of
                     {match, Matches} ->
                         {_Skip, Match, _Rest, _SubMatches} =
-                            split_total(Actual, Matches, undefined),
+                            split_total(Actual, Matches, noendshell),
                         clog(C, found, "~s\"~s\"", [Context, F]),
                         FA = ["    Found: ",
                               lux_utils:to_string(Match), "\n"],
@@ -978,9 +975,10 @@ log_multi_nomatch(C, _Single, Actual) ->
     {C, TaggedExpected, Actual}.
 
 match_patterns(C) ->
-    match_patterns(C, C#cstate.actual, C#cstate.actual, []).
+    Actual = C#cstate.actual,
+    match_alt_patterns(C, Actual, Actual, []).
 
-match_patterns(C, Actual, AltRest, LogFuns) ->
+match_alt_patterns(C, AltActual, AltRest, LogFuns) ->
     %% Match against fail+success+break patterns at:
     %%   - try match (but not beyond a successful match)
     %%   - reset of output buffer
@@ -989,74 +987,55 @@ match_patterns(C, Actual, AltRest, LogFuns) ->
     %%     - pre cleanup
     %%     - relax
     %%     - end_of_script
-    %% clog(C, match_patterns, "~p", [Actual]),
-    C2 = match_fail_pattern(C, Actual, AltRest, LogFuns),
-    C3 = match_success_pattern(C2, Actual, AltRest, LogFuns),
-    match_break_patterns(C3, Actual, AltRest, LogFuns).
 
-match_fail_pattern(C, Actual, AltRest, LogFuns) ->
-    {Res, _OptMulti} = match(Actual, C#cstate.fail),
-    case Res of
-        {match, Matches} ->
-            Actual2 =
-                if
-                    LogFuns =/= [] ->
-                        <<Actual/binary, AltRest/binary>>;
-                    true ->
-                        Actual
-                end,
-            {C2, ActualStop} =
-                prepare_stop(C, Actual2, Matches,
-                             <<?fail_pattern_matched>>),
-            stop(C2, fail, ActualStop);
-        nomatch ->
-            C;
-        {{'EXIT', Reason}, _} ->
-            {_, RegExp} = extract_regexp((C#cstate.fail)#cmd.arg),
-            Err = ?FF("Bad regexp:\n\t~p\n"
-                      "Reason:\n\t~p\n",
-                      [RegExp, Reason]),
-            stop(C, error, ?l2b(Err))
-    end.
+    C2 = match_stop_pattern(C, AltActual, AltRest, LogFuns,
+                            fail,
+                            <<?fail_pattern_matched>>,
+                            C#cstate.fail),
 
-match_success_pattern(C, Actual, AltRest, LogFuns) ->
-    {Res, _OptMulti} = match(Actual, C#cstate.success),
-    case Res of
-        {match, Matches} ->
-            Actual2 =
-                if
-                    LogFuns =/= [] ->
-                        <<Actual/binary, AltRest/binary>>;
-                    true ->
-                        Actual
-                end,
-            {C2, ActualStop} =
-                prepare_stop(C, Actual2, Matches,
-                             <<?success_pattern_matched>>),
-            stop(C2, success, ActualStop);
-        nomatch ->
-            C;
-        {{'EXIT', Reason}, _} ->
-            {_, RegExp} = extract_regexp((C#cstate.success)#cmd.arg),
-            Err = ?FF("Bad regexp:\n\t~p\n"
-                      "Reason:\n\t~p\n",
-                      [RegExp, Reason]),
-            stop(C, error, ?l2b(Err))
-    end.
+    C3 = match_stop_pattern(C2, AltActual, AltRest, LogFuns,
+                            success,
+                            <<?success_pattern_matched>>,
+                            C#cstate.success),
 
-match_break_patterns(C, Actual, AltRest, LogFuns) ->
     %% Search in reverse order. Top loop first.
-    AllStack = lists:reverse(C#cstate.loop_stack),
-    match_break_patterns(C, Actual, AltRest, AllStack, [], LogFuns).
+    AllStack = lists:reverse(C3#cstate.loop_stack),
+    match_break_patterns(C3, AltActual, AltRest, AllStack, [], LogFuns).
 
-match_break_patterns(C, Actual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
+match_stop_pattern(C, AltActual, AltRest, LogFuns,
+                   StopEvent, StopContext, StopCmd) ->
+    {Res, _OptMulti} = match(AltActual, StopCmd),
+    case Res of
+        {match, Matches} ->
+            ExpectPatternMatched = (LogFuns =/= []),
+            Actual2 =
+                if
+                    ExpectPatternMatched ->
+                        <<AltActual/binary, AltRest/binary>>;
+                    true ->
+                        AltActual
+                end,
+            {C2, ActualStop} =
+                prepare_stop(C, Actual2, Matches, StopContext),
+            stop(C2, StopEvent, ActualStop);
+        nomatch ->
+            C;
+        {{'EXIT', Reason}, _} ->
+            {_, RegExp} = extract_regexp((StopCmd)#cmd.arg),
+            Err = ?FF("Bad regexp:\n\t~p\n"
+                      "Reason:\n\t~p\n",
+                      [RegExp, Reason]),
+            stop(C, error, ?l2b(Err))
+    end.
+
+match_break_patterns(C, AltActual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
     case Loop#loop.mode of
         iterate ->
-            match_break_patterns(C, Actual, AltRest, Stack, [Loop|Acc], LF);
+            match_break_patterns(C, AltActual, AltRest, Stack, [Loop|Acc], LF);
         break ->
-            match_break_patterns(C, Actual, AltRest, Stack, [Loop|Acc], LF);
+            match_break_patterns(C, AltActual, AltRest, Stack, [Loop|Acc], LF);
         BreakCmd = #cmd{type = break} ->
-            {Res, _OptMulti} = match(Actual, BreakCmd),
+            {Res, _OptMulti} = match(AltActual, BreakCmd),
             case Res of
                 {match, Matches} ->
                     C2 = clear_expected(C, " (break loop)", C#cstate.mode),
@@ -1064,18 +1043,18 @@ match_break_patterns(C, Actual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
                     LoopCmd = Loop#loop.cmd,
                     BreakLoop = {break_pattern_matched, self(), LoopCmd},
                     send_reply(C3, C3#cstate.parent, BreakLoop),
-                    {C4, _Match} =
-                        post_match(C3, Actual, Matches,
-                                   <<"loop break pattern matched ">>),
-                    Rest = C4#cstate.actual,
+                    {_Match, Rest} =
+                        post_match(C3, AltActual, Matches,
+                                   <<?loop_break_matched>>),
+
                     %% Break all inner loops
-                    Breaks = [L#loop{mode = break} || L <- AllStack],
-                    Acc2 = Breaks ++ Acc,
-                    C4#cstate{actual = Rest,
+                    BrokenLoops = [L#loop{mode = break} || L <- AllStack],
+                    Acc2 = BrokenLoops ++ Acc,
+                    C3#cstate{actual = Rest,
                               waiting = true,
                               loop_stack = Acc2};
                 nomatch ->
-                    match_break_patterns(C, Actual, AltRest, Stack,
+                    match_break_patterns(C, AltActual, AltRest, Stack,
                                          [Loop|Acc], LF);
                 {{'EXIT', Reason}, _} ->
                     {_, RegExp} = extract_regexp(BreakCmd#cmd.arg),
@@ -1085,14 +1064,15 @@ match_break_patterns(C, Actual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
                     stop(C, error, ?l2b(Err))
             end
     end;
-match_break_patterns(C, _Actual, AltRest, [], Acc, LogFuns) ->
-    %% No break. Log previous match and return alternate rest.
+match_break_patterns(C, _AltActual, AltRest, [], Acc, LogFuns) ->
+    %% No break pattern matched. Log previous match and return alternate rest.
     [LF() || LF <- LogFuns],
     C#cstate{actual = AltRest, loop_stack = Acc}.
 
 prepare_stop(C, Actual, Matches, Context) ->
-    {C2, Match} = post_match(C, Actual, Matches, Context),
+    {Match, Rest} = post_match(C, Actual, Matches, Context),
     Match2 = ?l2b(lux_utils:to_string(?b2l(Match))),
+    C2 = C#cstate{actual = Rest},
     do_prepare_stop(C2, Match2, Context).
 
 do_prepare_stop(C, Match, Context) ->
@@ -1121,12 +1101,11 @@ post_match(C, Actual, [], Context) ->
     post_match(C, Actual, [{0, byte_size(Actual)}], Context);
 post_match(C, Actual, Matches, Context) ->
     {Skip, Match, Rest, _SubMatches} =
-        split_total(Actual, Matches, undefined),
+        split_total(Actual, Matches, noendshell),
     clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
     clog(C, rest, "~s\"~s\"", [Context, lux_utils:to_string(Rest)]),
-    C2 = C#cstate{actual = Rest},
-    {C2, Match}.
+    {Match, Rest}.
 
 split_single_match(C, Matches, Actual, Context, AltSkip) ->
     {Skip, Match, Rest, SubMatches} =
@@ -1148,16 +1127,19 @@ split_single_match(C, Matches, Actual, Context, AltSkip) ->
         end,
     SubBins = lists:map(Extract, SubMatches),
     SkipMatch = <<Skip/binary, Match/binary>>,
-    {Skip, SkipMatch, Rest, SubBins, LogFun}.
+    {SkipMatch, Rest, SubBins, LogFun}.
 
 split_total(Actual, Matches, AltSkip) ->
     [{First, TotLen} | SubMatches] = Matches,
-    {Consumed, Rest} = split_binary(Actual, First+TotLen),
-    {Skip, Match} = split_binary(Consumed, First),
     case AltSkip of
-        undefined -> {Skip, Match, Rest, SubMatches};
-        _         -> {AltSkip, Actual, <<>>, SubMatches}
-    end.
+        noendshell ->
+            {Consumed, Rest} = split_binary(Actual, First+TotLen),
+            {Skip, Match} = split_binary(Consumed, First);
+        Skip  ->
+            Match = Actual,
+            Rest = <<>>
+    end,
+    {Skip, Match, Rest, SubMatches}.
 
 match(_Actual, undefined) ->
     {nomatch, single};
@@ -1208,7 +1190,7 @@ re_run(Actual, MP, Opts, _RegExp) ->
     Matches.
 
 %% display_total(Actual, {match, Matches}) ->
-%%     {S,M,R,_} = split_total(Actual, Matches, undefined),
+%%     {S,M,R,_} = split_total(Actual, Matches, noendshell),
 %%     io:format("\n\tskip : ~p"
 %%               "\n\tmatch: ~p"
 %%               "\n\tkeep : ~p\n",
@@ -1515,7 +1497,7 @@ prepare_outcome(C, Outcome, Actual) ->
                 fail_pattern_matched;
             <<?success_pattern_matched, _/binary>> ->
                 success_pattern_matched;
-            <<?loop_break_pattern_mismatch, _/binary>> ->
+            <<?loop_break_mismatch, _/binary>> ->
                 loop_break_pattern_mismatch;
             _ ->
                 Actual
