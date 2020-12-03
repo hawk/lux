@@ -928,7 +928,9 @@ log_multi_match(C, Offset, Actual, [Multi | More], Context, OptSkip, LogFuns) ->
         fun() ->
                 clog_skip(TmpC, Skip),
                 clog(TmpC, match, "~s\"~s\"",
-                     [Context, lux_utils:to_string(Match)])
+                     [Context, lux_utils:to_string(Match)]),
+                clog(TmpC, rest, "~s\"~s\"",
+                     [Context, lux_utils:to_string(Rest)])
         end,
     NewOffset = Offset + byte_size(Skip) + byte_size(Match),
     NewSkip =
@@ -1122,6 +1124,7 @@ post_match(C, Actual, Matches, Context) ->
         split_total(Actual, Matches, undefined),
     clog_skip(C, Skip),
     clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
+    clog(C, rest, "~s\"~s\"", [Context, lux_utils:to_string(Rest)]),
     C2 = C#cstate{actual = Rest},
     {C2, Match}.
 
@@ -1132,7 +1135,9 @@ split_single_match(C, Matches, Actual, Context, AltSkip) ->
         fun() ->
                 clog_skip(C, Skip),
                 clog(C, match, "~s\"~s\"",
-                     [Context, lux_utils:to_string(Match)])
+                     [Context, lux_utils:to_string(Match)]),
+                clog(C, rest, "~s\"~s\"",
+                     [Context, lux_utils:to_string(Rest)])
         end,
     Extract =
         fun(PosLen) ->
