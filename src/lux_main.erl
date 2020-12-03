@@ -89,7 +89,7 @@ do_dispatch(Op, Opts, LuxAppDir, Args, OrigArgs) ->
     MA = fun(AppName, Reason) -> missing_app(Op, AppName, Reason) end,
     case {Op, Args} of
         {"--version", [_]} ->
-            io:format("~p\n", [lux_utils:version()]),
+            io:format("~s\n", [lux_utils:version()]),
             0;
 
         {"--annotate", [LogFile]} ->
