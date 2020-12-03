@@ -298,23 +298,26 @@ change_mode(C, From, NewMode, Cmd, PosStack) ->
     case NewMode of
         suspend when OldMode =:= resume ->
             clog(C, NewMode, "", []),
-            dlog(C, ?dmore,"mode=suspend waiting=false (~p)",
-                 [Cmd#cmd.type]),
+            dlog(C, ?dmore,"mode=~p waiting=false (~p)",
+                 [NewMode, Cmd#cmd.type]),
             send_reply(C, From, Reply),
             C#cstate{mode = NewMode,
                      waiting = false};
         resume when OldMode =:= suspend ->
-            NewC =
-                C#cstate{mode = NewMode,
-                         waiting = false,
-                         latest_cmd = Cmd,
-                         pos_stack = PosStack},
-            dlog(NewC, ?dmore, "mode=resume waiting=false (~p)",
-                 [Cmd#cmd.type]),
-            clog(NewC, NewMode, "(idle since line ~p)",
+            clog(C, NewMode, "(idle since line ~p)",
                  [C#cstate.latest_cmd#cmd.lineno]),
-            send_reply(NewC, From, Reply),
-            NewC
+            dlog(C, ?dmore, "mode=~p waiting=false (~p)",
+                 [NewMode, Cmd#cmd.type]),
+            send_reply(C, From, Reply),
+            C#cstate{mode = NewMode,
+                     waiting = false,
+                     latest_cmd = Cmd,
+                     pos_stack = PosStack};
+        BadMode when BadMode =:= NewMode, C#cstate.mode =:= stop ->
+            %% BUGBUG: Probablý harmless
+            clog(C, NewMode, "(internal error)", []),
+            send_reply(C, From, Reply),
+            C
     end.
 
 block(C, From, OrigC) ->
