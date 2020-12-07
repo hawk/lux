@@ -2069,7 +2069,8 @@ Timeouts
 **--timeout Timeout**  
 The script expects the shell output to match given
 [regular expression][]s. But the output must be received within a
-given time limit. The `Timeout` specifies how long it will wait before
+given time limit or the script will fail with a `match_timeout`. The
+`Timeout` specifies how long it will wait before
 the script fails. The `Timeout` defaults to `10000` milli seconds
 (`10` seconds). This `Timeout` can be overridden by the statement
 `[timeout Timeout]` in the script itself.
