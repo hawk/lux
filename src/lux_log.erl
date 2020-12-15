@@ -14,7 +14,7 @@
          write_config_log/2, split_config/1, find_config/3,
          write_results/5, print_results/5, parse_result/1, pick_result/2,
          safe_format/3, safe_write/2, double_write/3,
-         open_event_log/6, close_event_log/1, write_event/9, scan_events/2,
+         open_event_log/6, close_event_log/1, write_events/7, scan_events/2,
          parse_events/2, parse_io_logs/2, open_config_log/3, close_config_log/2,
          extract_timers/1, timers_to_csv/1, csv_to_timers/1,
          safe_format/5, safe_write/4, unquote/1, dequote/1, split_quoted_lines/1
@@ -681,21 +681,26 @@ open_event_log(LogDir, Script, Progress, LogFun, Verbose, EmitTimestamp)
 close_event_log(EventFd) ->
     file:close(EventFd).
 
-write_event(Progress, LogFun, Fd,
-            LineNo, Shell, Op,
-            Timestamp, Fmt, Args) ->
-    OpStr = ?a2l(Op),
-    Data =
-        case Timestamp of
-            no_timestamp ->
-                ?FF("~s(~p): ~s " ++ Fmt ++ "\n",
-                    [Shell, LineNo, OpStr] ++ Args);
-            {_Mega, _Secs, Micros} = Now ->
+write_events(Progress, LogFun, Fd,
+            LineNo, Shell, EmitTimestamp, Events) ->
+    Prefix =
+        case EmitTimestamp of
+            true ->
+                {_Mega, _Secs, Micros} = Now = lux_utils:timestamp(),
                 {_Date, {Hours, Mins, Secs}} = calendar:now_to_local_time(Now),
-                ?FF("~2..0w:~2..0w:~2..0w.~6..0w ~s(~p): ~s " ++ Fmt ++ "\n",
-                    [Hours, Mins, Secs, Micros, Shell, LineNo, OpStr | Args])
+                ?FF("~2..0w:~2..0w:~2..0w.~6..0w ~s(~p):",
+                    [Hours, Mins, Secs, Micros, Shell, LineNo]);
+            false ->
+                ?FF("~s(~p):",
+                    [Shell, LineNo])
         end,
-    safe_write(Progress, LogFun, Fd, Data).
+    IoList = [format_event(Prefix, E) || E <- Events],
+    safe_write(Progress, LogFun, Fd, IoList).
+
+format_event(Prefix, {Op, Format, Args}) ->
+    OpStr = ?a2l(Op),
+    ?FF("~s ~s " ++ Format ++ "\n",
+        [Prefix, OpStr] ++ Args).
 
 scan_events(EventLog, WWW) when is_list(EventLog) ->
     {ReadRes, NewWWW} = read_log(EventLog, ?EVENT_TAG, WWW),
@@ -1531,7 +1536,9 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
                     ok;
                 {error, FReason} ->
                     Str = file:format_error(FReason),
-                    io:format("\nfile write failed: ~s\n", [Str]),
+                    io:format("\nINTERNAL LUX ERROR: file write failed:"
+                              " ~s\n\t~p\n\t~p\n",
+                              [Str, Bin, ?stacktrace()]),
                     exit({safe_write, file, Fd, Bin, {error, FReason}})
             catch
                 _:WReason ->

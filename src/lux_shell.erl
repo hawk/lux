@@ -86,7 +86,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
                   stdout_log_fd = {false, OutFd}},
     {Exec, Args} = choose_exec(C2),
     FlatExec = lists:flatten([Exec, [[" ", A] || A <- Args]]),
-    Events = save_event(C2, start, FlatExec),
+    clog(C2, start, "\"~s\"", [lux_utils:to_string(FlatExec)]),
     StartReason = ?a2l(C#cstate.start_reason),
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason},
@@ -98,8 +98,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
         Port = open_port({spawn_executable, Exec}, Opts),
         NewVarVals = ["LUX_SHELLNAME=" ++ Name,
                       "LUX_START_REASON=" ++ StartReason],
-        C3 = C2#cstate{port = Port,
-                       events = Events},
+        C3 = C2#cstate{port = Port},
         Parent = C3#cstate.parent,
         erlang:monitor(process, Parent),
         send_reply(C3, Parent,
@@ -111,17 +110,19 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
                 LoopErrBin = ?l2b(?FF("INTERNAL LUX ERROR: ~999999p ~999999p",
                                       [LoopReason, LoopEST])),
                 io:format("\n~s\n", [LoopErrBin]),
-                stop(C2, error, LoopErrBin)
+                stop(C3, error, LoopErrBin,
+                     [{error, "INTERNAL LUX ERROR: \"~999999p\" ~999999p",
+                       [LoopErrBin, LoopEST]}])
         end
     catch
         ?CATCH_STACKTRACE(error, InitReason, InitEST)
-            FileErrStr = file:format_error(InitReason),
-            InitErrBin = ?l2b([FlatExec, ": ", FileErrStr]),
-            io:format("\n~s\n", [InitErrBin]),
-            clog(C2, error, "INTERNAL LUX ERROR: \"~999999p\" ~999999p",
-                 [FileErrStr, InitEST]),
-            stop(C2, error, InitErrBin)
-    end.
+        FileErrStr = file:format_error(InitReason),
+        InitErrBin = ?l2b([FlatExec, ": ", FileErrStr]),
+        io:format("\n~s\n", [InitErrBin]),
+        stop(C2, error, InitErrBin,
+             [{error, "INTERNAL LUX ERROR: \"~999999p\" ~999999p",
+               [FileErrStr, InitEST]}])
+        end.
 
 open_logfile(C, Slogan) ->
     LogFile = C#cstate.log_prefix ++ "." ++ Slogan ++ ".log",
@@ -129,11 +130,13 @@ open_logfile(C, Slogan) ->
         {ok, Fd} ->
             {LogFile, Fd};
         {error, FileReason} ->
-            String = file:format_error(FileReason),
-            BinErr = ?l2b(["Failed to open logfile: ", LogFile,
-                           " -> ", String]),
-            io:format("~s\n~p\n", [BinErr, ?stacktrace()]),
-            stop(C, error, BinErr)
+            FileErrStr = file:format_error(FileReason),
+            ErrBin = ?l2b(["Failed to open logfile: ", LogFile,
+                           " -> ", FileErrStr]),
+            io:format("~s\n~p\n", [ErrBin, ?stacktrace()]),
+            stop(C, error, ErrBin,
+                 [{error, "INTERNAL LUX ERROR: \"~999999p\n",
+                   [ErrBin]}])
     end.
 
 choose_exec(C) ->
@@ -177,8 +180,8 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             C2 = adjust_stacks(C, From, When, IsRootLoop,
                                NewCmd, PosStack, Fun),
             shell_wait_for_event(C2, OrigC);
-        {change_mode, From, Mode, Cmd, PosStack}
-          when Mode =:= resume; Mode =:= suspend ->
+        {change_mode, From, Mode, Cmd, PosStack}  when Mode =:= resume;
+                                                       Mode =:= suspend ->
             C2 = change_mode(C, From, Mode, Cmd, PosStack),
             expect_more(C2);
         {progress, _From, Level} ->
@@ -189,37 +192,35 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             assert_eval(C, Cmd, From),
             shell_eval(C, Cmd);
         {shutdown = Data, _From} ->
-            stop(C, shutdown, Data);
+            stop(C, shutdown, Data, []);
         {relax = Data, _From} ->
-            stop_relax(C, relax, Data);
+            stop_relax(C, relax, Data, []);
         {end_of_script, _From} ->
-            clog(C, 'end', "of script", []),
             dlog(C, ?dmore,"mode=resume (end_of_script)", []),
             %% C#cstate{no_more_input = true, mode = suspend};
-            stop_relax(C, success, end_of_script);
+            stop_relax(C, success, end_of_script,
+                       [{'end', "of script", []}]);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
             do_flush_port(C, C#cstate.poll_timeout, [Data], []);
         ?match_fail ->
+            clog(C, recv, "\"~p\"", [?match_fail]),
+            show_debug(C, "recv", ?l2b(?a2l(?match_fail))),
             C#cstate{state_changed = true,
-                     timed_out = true,
-                     events = save_event(C, recv, ?match_fail)};
+                     timed_out = true};
         {wakeup, Secs} ->
             clog(C, wake, "up (~p seconds)", [Secs]),
             dlog(C, ?dmore,"mode=resume (wakeup)", []),
             undefined = C#cstate.expected, % Assert
             C2 = C#cstate{mode = resume, wakeup_ref = undefined},
             expect_more(C2);
-        {Port, {exit_status, ExitStatus}}
-          when Port =:= C#cstate.port ->
+        {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             flush_port(C, [{shell_exit, ExitStatus}]);
-        {'EXIT', Port, PosixCode}
-          when Port =:= C#cstate.port,
-               C#cstate.exit_status =/= undefined ->
+        {'EXIT', Port, PosixCode} when Port =:= C#cstate.port ->
             flush_port(C, [{posix_exit, PosixCode}]);
-        {'DOWN', _, process, Pid, Reason} ->
+        {'DOWN', _, process, Pid, DownReason} ->
             if
                 Pid =:= C#cstate.parent ->
-                    interpreter_died(C, Reason);
+                    interpreter_died(C, DownReason);
                 true ->
                     %% Ignore
                     C
@@ -236,18 +237,6 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
     after LoopTimeout ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
     end.
-
-interpreter_died(C, Reason) ->
-    interpreter_down(C, Reason),
-    C2 = flush_port(C),
-    clog_skip(C2, C2#cstate.actual),
-    IE = {internal_error, interpreter_died, C#cstate.latest_cmd, Reason},
-    close_and_exit(C2, {error, internal}, IE).
-
-interpreter_down(C, Reason) ->
-    TraceFrom = 'case',
-    TraceTo = C#cstate.name,
-    ?TRACE_ME(50, TraceFrom, TraceTo, 'DOWN', [{reason, Reason}]).
 
 loop_timeout(C) ->
     IdleThreshold = lux_utils:multiply(timer:seconds(3), C#cstate.multiplier),
@@ -287,7 +276,7 @@ adjust_stacks(C, From, When, IsRootLoop, NewCmd, PosStack, Fun) ->
             {_, RegExp} = extract_regexp(LoopCmd#cmd.arg),
             {C2, ActualStop} =
                 prepare_stop(C, RegExp, <<?loop_break_mismatch>>),
-            stop(C2, fail, ActualStop);
+            stop(C2, fail, ActualStop, []);
         _ ->
             C#cstate{latest_cmd = NewCmd,
                      pos_stack = PosStack}
@@ -337,22 +326,18 @@ block(C, From, OrigC) ->
             C2 = adjust_stacks(C, From, When, IsRootLoop,
                                NewCmd, PosStack, Fun),
             block(C2, From, OrigC);
-        {'DOWN', _, process, Pid, Reason}
-          when Pid =:= C#cstate.parent ->
-            interpreter_died(C, Reason);
-        {Port, {exit_status, ExitStatus}}
-          when Port =:= C#cstate.port ->
+        {'DOWN', _, process, Pid, DownReason} when Pid =:= C#cstate.parent ->
+            interpreter_died(C, DownReason);
+        {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C2 = flush_port(C, [{shell_exit, ExitStatus}]),
             shell_wait_for_event(C2, OrigC);
-        {'EXIT', Port, PosixCode}
-          when Port =:= C#cstate.port,
-               C#cstate.exit_status =/= undefined ->
+        {'EXIT', Port, PosixCode} when Port =:= C#cstate.port ->
             C2 = flush_port(C, [{posix_exit, PosixCode}]),
             shell_wait_for_event(C2, OrigC);
         {shutdown = Data, _From} ->
-            stop(C, shutdown, Data);
+            stop(C, shutdown, Data, []);
         {relax = Data, _From} ->
-            stop_relax(C, relax, Data)
+            stop_relax(C, relax, Data, [])
     end.
 
 debug_shell(OldC, _From, What) ->
@@ -435,19 +420,16 @@ sync_reply(C, From) ->
 
 assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     %% Assert - sender must be parent
-    C2 = flush_port(C),
-    clog_skip(C2, C2#cstate.actual),
     IE = {internal_error, invalid_sender, Cmd, process_info(From)},
-    close_and_exit(C2, {error, internal}, IE);
-assert_eval(C, Cmd, _From)
-  when C#cstate.no_more_output andalso
-       Cmd#cmd.type =:= send ->
+    logs_close_and_exit(C, IE);
+assert_eval(C, Cmd, _From) when C#cstate.no_more_output andalso
+                                Cmd#cmd.type =:= send ->
     ErrBin = <<"The command must be executed",
                " in context of a running shell">>,
     C2 = C#cstate{latest_cmd = Cmd},
-    stop(C2, error, ErrBin);
+    stop(C2, error, ErrBin, []);
 assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
-    stop(C, fail, endshell);
+    stop(C, fail, endshell, []);
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
     ok;
 assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
@@ -463,13 +445,11 @@ assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
                                  Cmd#cmd.type =:= post_cleanup ->
     ok;
 assert_eval(C, Cmd, _From) ->
-    C2 = flush_port(C),
-    clog_skip(C2, C2#cstate.actual),
     IE = {internal_error, invalid_type, Cmd,
-          C2#cstate.expected,
-          C2#cstate.mode, Cmd#cmd.type, (C2#cstate.latest_cmd)#cmd.type,
-          C2#cstate.latest_cmd},
-    close_and_exit(C2, {error, internal}, IE).
+          C#cstate.expected,
+          C#cstate.mode, Cmd#cmd.type, (C#cstate.latest_cmd)#cmd.type,
+          C#cstate.latest_cmd},
+    logs_close_and_exit(C, IE).
 
 shell_eval(#cstate{name = Name} = C0,
            #cmd{type = Type, arg = Arg} = Cmd) ->
@@ -484,25 +464,26 @@ shell_eval(#cstate{name = Name} = C0,
         expect when element(1, Arg) =:= endshell ->
             single = element(2, Arg), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
-            clog(C, ExpectTag, "\"endshell retcode=~s\"",
-                 [lux_utils:to_string(RegExp)]),
             dlog(C, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
-            C2 = start_timer(C),
+            ExpectEvent = {ExpectTag, "\"endshell retcode=~s\"",
+                           [lux_utils:to_string(RegExp)]},
+            C2 = start_timer(C, [ExpectEvent]),
             C2#cstate{state_changed = true, expected = Cmd};
         expect when element(2, Arg) =:= expect_add orelse
                     element(2, Arg) =:= expect_add_strict ->
             %% Add alternate regexp
             Tag = element(2, Arg),
             {_, RegExp} = extract_regexp(Arg),
-            clog(C, Tag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             dlog(C, ?dmore, "expected=regexp (~p)", [Tag]),
+            ExpectEvent = {Tag, "\"~s\"", [lux_utils:to_string(RegExp)]},
             PreExpected = C#cstate.pre_expected,
             case PreExpected of
                 [H|_T] when element(2, H#cmd.arg) =/= Tag ->
                     Err = ?FF("Illegal syntax: "
                               "?+ cannot be mixed with ?++\n", []),
-                    stop(C, error, ?l2b(Err));
+                    stop(C, error, ?l2b(Err), [ExpectEvent]);
                 _ ->
+                    clog(C, [ExpectEvent]),
                     C#cstate{pre_expected = [Cmd | PreExpected]}
             end;
         expect when element(2, Arg) =:= multi andalso
@@ -511,13 +492,13 @@ shell_eval(#cstate{name = Name} = C0,
             Prev = hd(C#cstate.pre_expected),
             PrevTag = element(2, Prev#cmd.arg),
             {_, RegExp} = extract_regexp(Arg),
-            clog(C, PrevTag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             PreExpected = C#cstate.pre_expected,
             {ok, NewCmd, NewRegExp} =
                 rebuild_multi_regexps(C, [Cmd | PreExpected]),
-            clog(C, perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]),
             dlog(C, ?dmore, "expected=regexp (expect)", []),
-            C2 = start_timer(C),
+            PrevEvent = {PrevTag, "\"~s\"", [lux_utils:to_string(RegExp)]},
+            PermsEvent = {perms, "\"~s\"", [lux_utils:to_string(NewRegExp)]},
+            C2 = start_timer(C, [PrevEvent, PermsEvent]),
             C2#cstate{latest_cmd = NewCmd,
                       state_changed = true,
                       expected = NewCmd,
@@ -527,16 +508,16 @@ shell_eval(#cstate{name = Name} = C0,
             %% Single regexp
             true = lists:member(element(2, Arg), [single,multi]), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
-            clog(C, ExpectTag, "\"~s\"", [lux_utils:to_string(RegExp)]),
             dlog(C, ?dmore, "expected=regexp (expect)", []),
-            C2 = start_timer(C),
+            ExpectEvent= {ExpectTag, "\"~s\"", [lux_utils:to_string(RegExp)]},
+            C2 = start_timer(C, [ExpectEvent]),
             C2#cstate{state_changed = true, expected = Cmd};
         expect when element(2, Arg) =:= single andalso
                     C#cstate.pre_expected =/= [] ->
             %% Single regexp
             Err = ?FF("Illegal syntax: Pending ?+."
                       " Must be ended with ?.\n", []),
-            stop(C, error, ?l2b(Err));
+            stop(C, error, ?l2b(Err), []);
         fail ->
             PatCmd =
                 if
@@ -591,7 +572,8 @@ shell_eval(#cstate{name = Name} = C0,
             true = is_list(Arg), % Assert
             String = Arg,
             lux_utils:progress_write(C#cstate.progress, dequote(String)),
-            C#cstate{events = save_event(C, progress, String)};
+            clog(C, progress, "\"~s\"", [lux_utils:to_string(String)]),
+            C;
         change_timeout ->
             CaseTimeout = C#cstate.case_timeout,
             SuiteTimeout = C#cstate.suite_timeout,
@@ -635,10 +617,10 @@ shell_eval(#cstate{name = Name} = C0,
         post_cleanup ->
             cleanup(C, Type);
         Unexpected ->
-            clog(C, shell_got_msg, "~p", [Unexpected]),
             Err = ?FF("[shell ~s] got cmd with type ~p\n\t~p\n",
                       [Name, Unexpected, Cmd]),
-            stop(C, error, ?l2b(Err))
+            stop(C, error, ?l2b(Err),
+                 [{shell_got_msg, "~p", [Unexpected]}])
     end.
 
 cleanup(C, _Type) ->
@@ -670,7 +652,8 @@ reset_output_buffer(C, Context) ->
     C2 = flush_port(C),
     Data = C2#cstate.actual,
     Waste = ?l2b(lists:concat([byte_size(Data), " bytes wasted"])),
-    Events = save_event(C2, reset, Waste),
+    clog(C2, [{reset, "\"~s\"", [lux_utils:to_string(Waste)]},
+              {output, "reset ~p bytes", [byte_size(Data)]}]),
     C5 =
         case Context of
             debugger ->
@@ -683,10 +666,8 @@ reset_output_buffer(C, Context) ->
                 clog_skip(C4, Data),
                 C4
         end,
-    clog(C5, output, "reset ~p bytes", [byte_size(Data)]),
     C5#cstate{state_changed = true,
-              actual = <<>>,
-              events = Events}.
+              actual = <<>>}.
 
 dequote([$\\,$\\|T]) ->
     [$\\|dequote(T)];
@@ -710,22 +691,20 @@ send_to_port(C, Data) ->
                        C#cstate.log_fun,
                        C#cstate.stdin_log_fd,
                        Data),
-    C2 = C#cstate{events = save_event(C, send, Data)},
+
+    clog(C, send, "\"~s\"", [lux_utils:to_string(Data)]),
     try
-        true = port_command(C2#cstate.port, Data),
-        C2
+        true = port_command(C#cstate.port, Data),
+        C
     catch
         error:_Reason ->
             receive
-                {Port, {exit_status, ExitStatus}}
-                  when Port =:= C2#cstate.port ->
-                    flush_port(C2, [{shell_exit, ExitStatus}]);
-                {'EXIT', Port, PosixCode}
-                  when Port =:= C2#cstate.port,
-                       C2#cstate.exit_status =/= undefined ->
-                    flush_port(C2, [{posix_exit, PosixCode}])
+                {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
+                    flush_port(C, [{shell_exit, ExitStatus}]);
+                {'EXIT', Port, PosixCode} when Port =:= C#cstate.port ->
+                    flush_port(C, [{posix_exit, PosixCode}])
             after 0 ->
-                    C2
+                    C
             end
     end.
 
@@ -817,10 +796,10 @@ expect(#cstate{state_changed = true,
                     C2 = match_patterns(C),
                     Earlier = C2#cstate.timer_started_at,
                     Diff = timer:now_diff(lux_utils:timestamp(), Earlier),
-                    clog(C2, timer, "failed (after ~p micro seconds)", [Diff]),
                     {C3, AltExpected, AltActual} =
                         log_multi_nomatch(C2, Arg, Actual),
-                    stop(C3, {fail, AltExpected, AltActual}, ?match_fail);
+                    stop(C3, {fail, AltExpected, AltActual}, ?match_fail,
+                         [{timer, "failed (after ~p micro seconds)", [Diff]}]);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
                     %% Successful match of end of file (port program closed)
                     C2 = match_patterns(C),
@@ -835,7 +814,7 @@ expect(#cstate{state_changed = true,
                     C2 = match_patterns(C),
                     ErrBin = <<"The command must be executed",
                                " in context of a shell">>,
-                    stop(C2, error, ErrBin);
+                    stop(C2, error, ErrBin, []);
                 element(1, Arg) =:= endshell ->
                     %% Still waiting for end of file
                     match_patterns(C);
@@ -874,20 +853,20 @@ try_match(C, Actual, AltSkip) ->
             C3 = match_patterns(C2),
             {C4, AltExpected, AltActual} =
                 log_multi_nomatch(C3, OptMulti, Actual),
-            stop(C4, {fail, AltExpected, AltActual}, ?match_fail);
+            stop(C4, {fail, AltExpected, AltActual}, ?match_fail, []);
         {{'EXIT', Reason}, _} ->
             {_, RegExp} = extract_regexp(Expected#cmd.arg),
             Err = ?FF("Bad regexp:\n\t~p\n"
                       "Reason:\n\t~p\n",
                       [RegExp, Reason]),
-            stop(C, error, ?l2b(Err))
+            stop(C, error, ?l2b(Err), [])
     end.
 
 match_more(C, SubMatches) ->
     case C#cstate.no_more_input of
         true ->
             %% End of input
-            stop_relax(C, success, end_of_script);
+            stop_relax(C, success, end_of_script, []);
         false ->
             SubVars = submatch_vars(SubMatches, 1),
             [clog(C, capture, "\"~s\"",
@@ -928,14 +907,7 @@ log_multi_match(C, Offset, Actual, [Multi | More], Context, LogFuns) ->
     {Skip, TmpActual} = split_binary(Actual, Pos - Offset),
     TmpC = C#cstate{latest_cmd = Cmd},
     {Match, Rest} = split_binary(TmpActual, Len),
-    LogFun =
-        fun() ->
-                clog_skip(TmpC, Skip),
-                clog(TmpC, match, "~s\"~s\"",
-                     [Context, lux_utils:to_string(Match)]),
-                clog(TmpC, rest, "~s\"~s\"",
-                     [Context, lux_utils:to_string(Rest)])
-        end,
+    LogFun = fun() -> clog_match(TmpC, Context, Skip, Match, Rest) end,
     NewOffset = Offset + byte_size(Skip) + byte_size(Match),
     NewLogFuns = [LogFun | LogFuns],
     log_multi_match(C, NewOffset, Rest, More, Context, NewLogFuns);
@@ -948,7 +920,7 @@ log_multi_nomatch(C, {multi, Multi}, Actual) ->
                 {mp, _RegExpOper, RegExp, MP, []} = Arg,
                 Context = "",
                 P = lux_utils:to_string(RegExp),
-                clog(C, partitial, "~s\"~s\"", [Context, P]),
+                PartitialEvent = {partitial, "~s\"~s\"", [Context, P]},
                 PE = ["Sub-pattern: ", P, "\n"],
                 F = lux_utils:to_string(".*"),
                 FE = ["    Found: ", F, "\n"],
@@ -957,12 +929,16 @@ log_multi_nomatch(C, {multi, Multi}, Actual) ->
                     {match, Matches} ->
                         {_Skip, Match, _Rest, _SubMatches} =
                             split_total(Actual, Matches, noendshell),
-                        clog(C, found, "~s\"~s\"", [Context, F]),
+                        clog(C,
+                             [PartitialEvent,
+                              {found, "~s\"~s\"", [Context, F]}]),
                         FA = ["    Found: ",
                               lux_utils:to_string(Match), "\n"],
                         {[FE, PE | E], [FA, PE | A]};
                     nomatch ->
-                        clog(C, missing, "~s", [Context]),
+                        clog(C,
+                             [PartitialEvent,
+                              {missing, "~s", [Context]}]),
                         FA = ["    Missing\n"],
                         {[FE, PE | E], [FA, PE | A]}
                 end
@@ -1020,7 +996,7 @@ match_stop_pattern(C, AltActual, StopEvent, StopContext, StopCmd) ->
             C2 = C#cstate{actual = Rest},
             {C3, ActualStop} =
                 prepare_stop(C2, StopMatch, StopContext),
-            stop(C3, StopEvent, ActualStop);
+            stop(C3, StopEvent, ActualStop, []);
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
@@ -1028,7 +1004,7 @@ match_stop_pattern(C, AltActual, StopEvent, StopContext, StopCmd) ->
             Err = ?FF("Bad regexp:\n\t~p\n"
                       "Reason:\n\t~p\n",
                       [RegExp, Reason]),
-            stop(C, error, ?l2b(Err))
+            stop(C, error, ?l2b(Err), [])
     end.
 
 match_break_patterns(C, AltActual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
@@ -1062,7 +1038,7 @@ match_break_patterns(C, AltActual, AltRest, [Loop|Stack] = AllStack, Acc, LF) ->
                     Err = ?FF("Bad regexp:\n\t~p\n"
                               "Reason:\n\t~p\n",
                               [RegExp, Reason]),
-                    stop(C, error, ?l2b(Err))
+                    stop(C, error, ?l2b(Err), [])
             end
     end;
 match_break_patterns(C, _AltActual, AltRest, [], Acc, LogFuns) ->
@@ -1108,22 +1084,13 @@ post_match(C, Matches, Context) ->
     Actual = C#cstate.actual,
     {Skip, Match, Rest, _SubMatches} =
         split_total(Actual, Matches, noendshell),
-    clog_skip(C, Skip),
-    clog(C, match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]),
-    clog(C, rest, "~s\"~s\"", [Context, lux_utils:to_string(Rest)]),
+    clog_match(C, Context, Skip, Match, Rest),
     {Match, Rest}.
 
 split_single_match(C, Matches, Actual, Context, AltSkip) ->
     {Skip, Match, Rest, SubMatches} =
         split_total(Actual, Matches, AltSkip),
-    LogFun =
-        fun() ->
-                clog_skip(C, Skip),
-                clog(C, match, "~s\"~s\"",
-                     [Context, lux_utils:to_string(Match)]),
-                clog(C, rest, "~s\"~s\"",
-                     [Context, lux_utils:to_string(Rest)])
-        end,
+    LogFun = fun() -> clog_match(C, Context, Skip, Match, Rest) end,
     Extract =
         fun(PosLen) ->
                 case PosLen of
@@ -1228,27 +1195,28 @@ flush_port(#cstate{flush_timeout = FlushTimeout} = C) ->
 flush_port(#cstate{flush_timeout = FlushTimeout} = C, ExitAcc) ->
     do_flush_port(C, FlushTimeout, [], ExitAcc).
 
-do_flush_port(#cstate{port = Port} = C, VirtualTimeout, Acc0, ExitAcc) ->
+do_flush_port(#cstate{port = Port} = C, VirtualTimeout, DataAcc, ExitAcc) ->
     RealTimeout = lux_utils:multiply(VirtualTimeout, C#cstate.multiplier),
-    Acc3 =
-        case flush_port_data_loop(Port, 0, 0, Acc0) of
-            {0, Acc} when VirtualTimeout =/= 0 ->
-                {_N, Acc2} = flush_port_data_loop(Port, RealTimeout, 0, Acc),
-                Acc2;
-            {_N, Acc} ->
-                Acc
+    DataAcc4 =
+        case flush_port_data_loop(Port, 0, 0, DataAcc) of
+            {0, DataAcc2} when VirtualTimeout =/= 0 ->
+                {_N, DataAcc3} =
+                    flush_port_data_loop(Port, RealTimeout, 0, DataAcc2),
+                DataAcc3;
+            {_N, DataAcc2} ->
+                DataAcc2
         end,
-    NewData = erlang:iolist_to_binary(lists:reverse(Acc3)),
-    C2 = clog_recv(C, NewData),
-    Exits = flush_port_exit_loop(C2, RealTimeout, ExitAcc),
-    clog_recv_exits(C2, Exits).
+    NewData = erlang:iolist_to_binary(lists:reverse(DataAcc4)),
+    Exits = flush_port_exit_loop(C, RealTimeout, ExitAcc),
+    {C2, Events} = make_exit_events(C, Exits, []),
+    clog_recv(C2, NewData, Events).
 
-flush_port_data_loop(Port, Timeout, N, Acc) ->
+flush_port_data_loop(Port, Timeout, N, DataAcc) ->
     receive
-        {Port, {data, Data}} ->
-            flush_port_data_loop(Port, Timeout, N+1, [Data | Acc])
+        {Port, {data, MoreData}} ->
+            flush_port_data_loop(Port, Timeout, N+1, [MoreData | DataAcc])
     after Timeout ->
-            {N,Acc}
+            {N, DataAcc}
     end.
 
 flush_port_exit_loop(Port, Timeout, ExitAcc) ->
@@ -1263,68 +1231,74 @@ flush_port_exit_loop(Port, Timeout, ExitAcc) ->
             lists:reverse(ExitAcc)
     end.
 
-clog_recv(C, <<>>) ->
+clog_recv(C, <<>>, PostEvents) when C#cstate.event_log_fd =/= closed ->
+    clog(C, PostEvents),
     C;
-clog_recv(C, _NewData) when C#cstate.stdout_log_fd =:= closed ->
+clog_recv(C, _NewData, _PostEvents) when C#cstate.event_log_fd  =:= closed;
+                                         C#cstate.stdout_log_fd =:= closed ->
     Progress = debug_progress(C),
     lux_utils:progress_write(Progress, "^"),
     C;
-clog_recv(C, NewData) ->
+clog_recv(C, NewData, PostEvents) ->
     Progress = debug_progress(C),
     lux_utils:progress_write(Progress, ":"),
-    lux_log:safe_write(Progress,
-                       C#cstate.log_fun,
-                       C#cstate.stdout_log_fd,
-                       NewData),
-    Events = save_event(C, recv, NewData),
+    show_debug(C, "recv", NewData),
+    LogFun = C#cstate.log_fun,
+    Stdout = C#cstate.stdout_log_fd,
+    lux_log:safe_write(Progress, LogFun, Stdout, NewData),
     OldData = C#cstate.actual,
-    Data = <<OldData/binary, NewData/binary>>,
-    KeptData =
+    AllData = <<OldData/binary, NewData/binary>>,
+    {KeptData, SkipEvents} =
         case C#cstate.mode of
             resume ->
-                Data;
+                {AllData, []};
             suspend ->
-                Data;
+                {AllData, []};
             stop ->
-                clog_skip(C, Data),
-                <<>>
+                {<<>>, [{skip, "\"~s\"", [lux_utils:to_string(AllData)]}]}
         end,
+    RecvEvents = [{recv, "\"~s\"", [lux_utils:to_string(NewData)]}],
+    clog(C, RecvEvents ++ SkipEvents ++ PostEvents),
     C#cstate{state_changed = true,
-             actual = KeptData,
-             events = Events}.
+             actual = KeptData}.
 
-clog_recv_exits(C, [Exit | Exits]) ->
-    C2 =
-        case Exit of
-            {shell_exit, ExitStatus} ->
-                Events = save_event(C, shell_exit, "status="++?i2l(ExitStatus)),
-                C#cstate{state_changed = true,
-                         no_more_output = true,
-                         exit_status = ExitStatus,
-                         events = Events};
-            {posix_exit, PosixCode} ->
-                Events = save_event(C, posix_exit, "code="++?a2l(PosixCode)),
-                C#cstate{events = Events}
-        end,
-    clog_recv_exits(C2, Exits);
-clog_recv_exits(C, []) ->
-    C.
-
-start_timer(#cstate{timer_ref = undefined, match_timeout = Timeout} = C) ->
-    M = C#cstate.multiplier,
-    if
-        Timeout =:= infinity ->
-            clog(C, timer, "started (infinity)", []);
-        is_integer(Timeout) ->
-            Secs = C#cstate.match_timeout div ?ONE_SEC,
-            MultiplierSecs = M / ?ONE_SEC,
-            clog(C, timer, "started (~p seconds * ~.3f multiplier)",
-                 [Secs, MultiplierSecs])
+make_exit_events(C, [Exit | Exits], Events) ->
+    case Exit of
+        {shell_exit, ExitStatus} ->
+            String = "status="++?i2l(ExitStatus),
+            Event = {shell_exit, "\"~s\"", [lux_utils:to_string(String)]},
+            C2 = C#cstate{state_changed = true,
+                          no_more_output = true,
+                          exit_status = ExitStatus};
+        {posix_exit, PosixCode} when C#cstate.exit_status =/= undefined ->
+            String = "code="++?a2l(PosixCode),
+            Event = {posix_exit, "\"~s\"", [lux_utils:to_string(String)]},
+            C2 = C#cstate{state_changed = true,
+                          no_more_output = true}
     end,
+    make_exit_events(C2, Exits, [Event | Events]);
+make_exit_events(C, [], Events) ->
+    {C, lists:reverse(Events)}.
+
+start_timer(#cstate{timer_ref = undefined, match_timeout = Timeout} = C,
+            PreEvents) ->
+    M = C#cstate.multiplier,
+    TimerEvent =
+        if
+            Timeout =:= infinity ->
+                {timer, "started (infinity)", []};
+            is_integer(Timeout) ->
+                Secs = C#cstate.match_timeout div ?ONE_SEC,
+                MultiplierSecs = M / ?ONE_SEC,
+                {timer, "started (~p seconds * ~.3f multiplier)",
+                 [Secs, MultiplierSecs]}
+        end,
+    clog(C,PreEvents ++ [TimerEvent]),
     TimerRef = lux_utils:send_after(Timeout, M, self(), ?match_fail),
     C#cstate{timer_ref = TimerRef, timer_started_at = lux_utils:timestamp()};
-start_timer(#cstate{} = C) ->
-    clog(C, timer, "already set", []),
+start_timer(#cstate{} = C, PreEvents) ->
+    TimerEvent = {timer, "already set", []},
+    clog(C,PreEvents ++ [TimerEvent]),
     C.
 
 cancel_timer(#cstate{timer_ref = undefined} = C) ->
@@ -1369,8 +1343,7 @@ make_warning(#cstate{orig_file = File} = C,
             Reason) ->
     Progress = debug_progress(C),
     lux_utils:progress_write(Progress, "W"),
-    clog(C, warning, "\"" ++ Reason ++ "\"", []),
-    FullLineNo = clog_stack(C),
+    FullLineNo = clog_stack(C, [{warning, "\"" ++ Reason ++ "\"", []}]),
     lux_utils:make_warning(File, FullLineNo, Reason).
 
 flush_fail() ->
@@ -1412,7 +1385,7 @@ rebuild_multi_regexps(C, PreExpected0) ->
             {ok, NewCmd, NewRegExp};
         {error, {Reason, _Pos}} ->
             Err = ["Syntax error: ", Reason, " in regexp '", NewRegExp, "'"],
-            stop(C, error, ?l2b(Err))
+            stop(C, error, ?l2b(Err), [])
     end.
 
 named_regexps([Cmd | Cmds], N, Acc) ->
@@ -1430,17 +1403,17 @@ add_skip(expect_add, [First|Rest]) ->
 add_skip(_PreExpected, Perms) ->
     Perms.
 
-stop_relax(C, OutCome, Actual) ->
+stop_relax(C, OutCome, Actual, PreEvents) ->
     C2 = match_patterns(C#cstate{mode = stop}),
-    stop(C2, OutCome, Actual).
+    stop(C2, OutCome, Actual, PreEvents).
 
-stop(C, Outcome, _Actual) when C#cstate.pre_expected =/= [],
-                               Outcome =/= error,
-                               Outcome =/= fail ->
+stop(C, Outcome, _Actual, PreEvents) when C#cstate.pre_expected =/= [],
+                                          Outcome =/= error,
+                                          Outcome =/= fail ->
     Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
-    stop(C#cstate{pre_expected = []}, error, ?l2b(Err));
-stop(C, Outcome0, Actual) when is_binary(Actual);
-                                is_atom(Actual) ->
+    stop(C#cstate{pre_expected = []}, error, ?l2b(Err), PreEvents);
+stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual);
+                                          is_atom(Actual) ->
     Cmd = C#cstate.latest_cmd,
     case Outcome0 of
         {Outcome, {ExpectedTag, Expected}, Rest} ->
@@ -1452,9 +1425,13 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
             Rest = C#cstate.actual
     end,
     C2 = flush_port(C),
-    clog_skip(C2, C2#cstate.actual),
-    clog(C, stop, "~p", [Outcome]),
-    clog_stack(C),
+    StopEvent = {stop, "~p", [Outcome]},
+    SkipEvents =
+        case C2#cstate.actual of
+            <<>> -> [];
+            Skip -> [{skip, "\"~s\"", [lux_utils:to_string(Skip)]}]
+        end,
+    clog_stack(C, PreEvents ++ [StopEvent | SkipEvents]),
     {NewOutcome, Extra} = prepare_outcome(C2, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
                   shell_name = C2#cstate.name,
@@ -1465,35 +1442,36 @@ stop(C, Outcome0, Actual) when is_binary(Actual);
                   extra = Extra,
                   actual = Actual,
                   rest = Rest,
-                  events = lists:reverse(C2#cstate.events),
                   warnings = C#cstate.warnings},
     %% io:format("\nRES ~p\n", [Res]),
     ?TRACE_ME2(40, C2#cstate.name, Outcome, [{actual, Actual}, Res]),
-%%  C3 = opt_late_sync_reply(C2#cstate{expected = undefined}),
+    %%  C3 = opt_late_sync_reply(C2#cstate{expected = undefined}),
     C3 = C2#cstate{expected = undefined, actual = <<>>, mode = stop},
-    C4 = C3, % close_logs(C3),
-    send_reply(C4, C4#cstate.parent, {stop, self(), Res}),
+    send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
-            close_and_exit(C4, Outcome, Res);
+            port_close_and_exit(C3, Outcome, Res);
         Outcome =:= error ->
-            close_and_exit(C4, {error, Actual}, Res);
+            port_close_and_exit(C3, {error, Actual}, Res);
         true ->
             %% Wait for potential cleanup to be run
             %% before we close the port
-            wait_for_down(C4, Res)
+            wait_for_down(C3, Res)
     end.
 
 clog_stack(#cstate{orig_file = File,
                    latest_cmd = LatestCmd,
-                   pos_stack = PosStack} = C) ->
+                   pos_stack = PosStack} = C,
+           PreEvents) ->
     CmdPos = lux_utils:cmd_pos(File, LatestCmd),
     FullStack = [CmdPos|PosStack],
     FullLineNo = lux_utils:pretty_full_lineno(FullStack),
-    clog(C, where, "\"~s\"", [FullLineNo]),
+    WhereEvent = {where, "\"~s\"", [FullLineNo]},
     PrettyStack = lux_utils:pretty_stack(File, FullStack),
-    [clog(C, stack, "\"~s\" ~p ~s", [PS, T, N]) ||
-        {PS, #cmd_pos{type = T, name = N}} <- PrettyStack],
+    StackEvents =
+        [{stack, "\"~s\" ~p ~s", [PS, T, N]} ||
+            {PS, #cmd_pos{type = T, name = N}} <- PrettyStack],
+    clog(C, PreEvents ++ [WhereEvent | StackEvents]),
     FullLineNo.
 
 prepare_outcome(C, Outcome, Actual) ->
@@ -1545,14 +1523,37 @@ prepare_outcome(C, Outcome, Actual) ->
     end,
     {NewOutcome, Extra}.
 
-close_and_exit(C, Reason, #result{} = Res) ->
+interpreter_died(C, DownReason) ->
+    trace_interpreter_down(C, DownReason),
+    IE = {internal_error, interpreter_died, C#cstate.latest_cmd, DownReason},
+    C2 = C#cstate{event_log_fd = closed},
+    logs_close_and_exit(C2, IE).
+
+trace_interpreter_down(C, DownReason) ->
+    TraceFrom = 'case',
+    TraceTo = C#cstate.name,
+    ?TRACE_ME(50, TraceFrom, TraceTo, 'DOWN', [{reason, DownReason}]).
+
+port_close_and_exit(C, DownReason, #result{} = Res) ->
     ?TRACE_ME2(40, C#cstate.name, close_and_exit, [Res]),
     catch port_close(C#cstate.port),
-    exit(Reason);
-close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
-    ?TRACE_ME2(40, C#cstate.name, close_and_exit, [Error]),
-    Cmd = element(3, Error),
-    Why = element(2, Error),
+    exit(DownReason).
+
+logs_close_and_exit(C, IE) when element(1, IE) =:= internal_error ->
+    ?TRACE_ME2(40, C#cstate.name, close_and_exit, [IE]),
+    {Res, CloseEvent} = error_to_result(C, IE),
+    C2 = flush_port(C),
+    Skip = C2#cstate.actual,
+    SkipEvent = {skip, "\"~s\"", [lux_utils:to_string(Skip)]},
+    clog(C2,[SkipEvent, CloseEvent]),
+    C3 = C2#cstate{expected = undefined},
+    C4 = close_logs(C3),
+    send_reply(C4, C4#cstate.parent, {stop, self(), Res}),
+    port_close_and_exit(C4, shutdown, Res).
+
+error_to_result(C, IE) ->
+    Cmd = element(3, IE),
+    Why = element(2, IE),
     Res = #result{outcome = error,
                   shell_name = C#cstate.name,
                   latest_cmd = Cmd,
@@ -1561,44 +1562,34 @@ close_and_exit(C, Reason, Error) when element(1, Error) =:= internal_error ->
                   extra = undefined,
                   actual = internal_error,
                   rest = C#cstate.actual,
-                  events = lists:reverse(C#cstate.events),
                   warnings = C#cstate.warnings},
-    if
-        Why =:= interpreter_died ->
-            clog(C, close, "~p", [C#cstate.mode]);
-        true ->
-            io:format("\nSHELL INTERNAL ERROR: ~p\n\t~p\n\t~p\n\t~p\n",
-                      [Reason, Error, Res, ?stacktrace()]),
-            clog(C, 'INTERNAL ERROR', "\"~p@~p\"", [Why, Cmd#cmd.lineno])
-    end,
-%%  C2 = opt_late_sync_reply(C#cstate{expected = undefined}),
-    C2 = C#cstate{expected = undefined},
-    C3 = close_logs(C2),
-    send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
-    close_and_exit(C3, Reason, Res).
+    CloseEvent =
+        if
+            Why =:= interpreter_died ->
+                {close, "~p", [C#cstate.mode]};
+            true ->
+                io:format("\nSHELL INTERNAL ERROR:\n\t~p\n\t~p\n\t~p\n",
+                          [IE, Res, ?stacktrace()]),
+                {'INTERNAL ERROR', "\"~p@~p\"", [Why, Cmd#cmd.lineno]}
+        end,
+    {Res, CloseEvent}.
 
-close_logs(#cstate{stdin_log_fd = InFd, stdout_log_fd = OutFd} = C) ->
+close_logs(#cstate{stdin_log_fd = {_,InFd}, stdout_log_fd = {_,OutFd}} = C) ->
     ?TRACE_ME2(40, C#cstate.name, close_logs, []),
-    C2 = flush_port(C),
-    clog_skip(C2, C2#cstate.actual),
-    catch file:close(element(2, InFd)),
-    catch file:close(element(2, OutFd)),
-    C2#cstate{log_fun = closed,
-              event_log_fd = closed, % Leave the log open for other processes
-              stdin_log_fd = closed,
-              stdout_log_fd = closed}.
+    catch file:close(InFd),
+    catch file:close(OutFd),
+    C#cstate{log_fun = closed,
+             event_log_fd  = closed, % Leave the log open for other processes
+             stdin_log_fd  = closed,
+             stdout_log_fd = closed}.
 
-flush_logs(#cstate{event_log_fd = {_,EventFd},
-                   stdin_log_fd = {_,InFd},
-                   stdout_log_fd = {_,OutFd}}) ->
-    file:sync(EventFd),
-    file:sync(InFd),
-    file:sync(OutFd),
-    ok;
-flush_logs(#cstate{event_log_fd = closed,
-                   stdin_log_fd = closed,
-                   stdout_log_fd = closed}) ->
-    ok.
+flush_logs(C) ->
+    Sync = fun({_,Fd}) -> file:sync(Fd);
+              (closed) -> ok
+           end,
+    Sync(C#cstate.event_log_fd),
+    Sync(C#cstate.stdin_log_fd),
+    Sync(C#cstate.stdout_log_fd).
 
 wait_for_down(C, Res) ->
     ?TRACE_ME2(40, C#cstate.name, wait_for_down, []),
@@ -1612,48 +1603,22 @@ wait_for_down(C, Res) ->
             C2 = adjust_stacks(C, From, When, IsRootLoop,
                                NewCmd, PosStack, Fun),
             wait_for_down(C2, Res);
-        {change_mode, From, Mode, Cmd, PosStack}
-          when Mode =:= resume; Mode =:= suspend ->
+        {change_mode, From, Mode, Cmd, PosStack} when Mode =:= resume;
+                                                      Mode =:= suspend ->
             C2 = change_mode(C, From, Mode, Cmd, PosStack),
             wait_for_down(C2, Res);
-        {'DOWN', _, process, Pid, Reason}
-          when Pid =:= C#cstate.parent ->
-            interpreter_down(C, Reason),
-            close_and_exit(C, Reason, Res);
-        {Port, {exit_status, ExitStatus}}
-          when Port =:= C#cstate.port ->
+        {'DOWN', _, process, Pid, DownReason} when Pid =:= C#cstate.parent ->
+            trace_interpreter_down(C, DownReason),
+            port_close_and_exit(C, DownReason, Res);
+        {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C2 = flush_port(C, [{shell_exit, ExitStatus}]),
             wait_for_down(C2, Res);
-        {'EXIT', Port, PosixCode}
-          when Port =:= C#cstate.port,
-               C#cstate.exit_status =/= undefined ->
+        {'EXIT', Port, PosixCode} when Port =:= C#cstate.port ->
             C2 = flush_port(C, [{posix_exit, PosixCode}]),
             wait_for_down(C2, Res)
     end.
 
-save_event(#cstate{latest_cmd = _Cmd, events = Events} = C, Op, Data) ->
-    case Op of
-        recv ->
-            clog(C, Op, "\"~s\"", [lux_utils:to_string(Data)]),
-            show_debug(C, "recv", Data);
-        send ->
-            clog(C, Op, "\"~s\"", [lux_utils:to_string(Data)]),
-            show_debug(C, "send", Data);
-        shell_exit ->
-            clog(C, Op, "~s", [lux_utils:to_string(Data)]),
-            C;
-        posix_exit ->
-            clog(C, Op, "~s", [lux_utils:to_string(Data)]),
-            C;
-        _ ->
-            clog(C, Op, "\"~s\"", [lux_utils:to_string(Data)]),
-            C
-    end,
-    %% [{Cmd#cmd.lineno, Op, Data} | Events].
-    Events.
-
-clog(#cstate{event_log_fd = closed},
-     _Op, _Format, _Args) ->
+clog(#cstate{event_log_fd = closed}, _Events) ->
     ok;
 clog(#cstate{progress = Progress,
              log_fun = LogFun,
@@ -1661,20 +1626,31 @@ clog(#cstate{progress = Progress,
              name = Shell,
              latest_cmd = Cmd,
              emit_timestamp = EmitTimestamp},
-     Op, Format, Args) ->
-    Timestamp =
-        case EmitTimestamp of
-            true  -> lux_utils:timestamp();
-            false -> no_timestamp
-        end,
-    lux_log:write_event(Progress, LogFun, Fd,
-                        Cmd#cmd.lineno, Shell, Op,
-                        Timestamp, Format, Args).
+     Events) ->
+    lux_log:write_events(Progress, LogFun, Fd,
+                         Cmd#cmd.lineno, Shell,
+                         EmitTimestamp, Events).
+
+clog(C, Op, Format, Args) ->
+    clog(C, [{Op, Format, Args}]).
 
 clog_skip(_C, <<>>) ->
     ok;
 clog_skip(C, Skip) ->
     clog(C, skip, "\"~s\"", [lux_utils:to_string(Skip)]).
+
+clog_match(C, Context, Skip, Match, Rest) ->
+    MatchRest =
+        [
+         {match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]},
+         {rest, "~s\"~s\"", [Context, lux_utils:to_string(Rest)]}
+        ],
+    if
+        Skip =:= <<>> ->
+            clog(C, MatchRest);
+        true ->
+            clog(C, [{skip, "\"~s\"", [lux_utils:to_string(Skip)]} | MatchRest])
+    end.
 
 dlog(C, Level, Format, Args) when C#cstate.debug_level >= Level ->
     clog(C, debug, Format, Args);

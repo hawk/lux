@@ -126,9 +126,6 @@
          extra         :: undefined | atom() | binary(),
          actual        :: binary() | atom(),
          rest          :: binary() | atom(),
-         events        :: [{non_neg_integer(),
-                            atom(),
-                            binary() | atom() | string()}],
          warnings      :: [#warning{}]}).
 
 -record(break,
@@ -334,7 +331,6 @@
          timer_started_at        :: undefined | erlang:timestamp(),
          wakeup_ref              :: undefined | #timer_ref{},
          debug_level = 0         :: non_neg_integer(),
-         events = []             :: [tuple()],
          warnings = []           :: [#warning{}],
          emit_timestamp = false  :: boolean()}).
 
