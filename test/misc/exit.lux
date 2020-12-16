@@ -1,0 +1,27 @@
+[doc Test various ways of terminating a shell]
+
+[shell suffocate]
+    !${_CTRL_D_}
+
+[shell suicide]
+    !exit 4
+
+[shell victim]
+    !echo "PRE{$$$$}POST"
+    """?
+    echo.*
+    PRE{(.*)}POST
+    SH-PROMPT:
+    """
+    [global VICTIM=$1]
+
+[shell murderer]
+    !ps ${VICTIM}
+    ?SH-PROMPT:
+
+    !kill -9 ${VICTIM}
+    ?SH-PROMPT:
+    [sleep 3]
+
+    !ps ${VICTIM}
+    ?SH-PROMPT:
