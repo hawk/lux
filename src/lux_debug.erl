@@ -23,8 +23,9 @@
         {n_cmds          :: non_neg_integer(),
          mode            :: background | foreground,
          interpreter_pid :: pid(),
-         shell_pid       :: undfined | pid(),
-         shell_name      :: undfined | string(),
+         shell_pid       :: undefined | pid(),
+         shell_name      :: undefined | string(),
+         shells          :: [{atom(), pid()}],
          prev_cmd        :: string(),
          cmd_state       :: term()}).
 
@@ -65,7 +66,8 @@ init(Ipid, DebugFile) ->
                      mode = background,
                      interpreter_pid=Ipid,
                      prev_cmd = DefaultCmd,
-                     cmd_state=undefined},
+                     cmd_state=undefined,
+                     shells = []},
     case DebugFile of
         undefined ->
             loop(Dstate);
@@ -114,25 +116,24 @@ loop(#dstate{mode=Mode} = Dstate) ->
             loop(Dstate2#dstate{n_cmds=N+1, prev_cmd=CmdStr})
     end.
 
-call(Dstate0, Cmd) when is_list(Cmd) -> % ; is_function(Cmd, 2) ->
+call(Dstate, Cmd) when is_list(Cmd) -> % ; is_function(Cmd, 2) ->
     %% format("DEBUG: ~p\n", [CmdStr]),
-    Ipid = Dstate0#dstate.interpreter_pid,
-    Dstate = flush_replies(Dstate0, Ipid),
-    Dstate#dstate.interpreter_pid !
-        {debug_call, self(), Cmd, Dstate#dstate.cmd_state},
-    wait_for_reply(Dstate, Ipid, 5000).
+    Ipid = Dstate#dstate.interpreter_pid,
+    NewDstate = flush_replies(Dstate, Ipid),
+    Ipid = NewDstate#dstate.interpreter_pid,
+    Ipid ! {debug_call, self(), Cmd, NewDstate#dstate.cmd_state},
+    wait_for_reply(NewDstate, Ipid, 5000).
 
 
 flush_replies(Dstate, Ipid) ->
-    case wait_for_reply(Dstate, Ipid, 0) of
-        flushed ->
-            Dstate;
-        NewDstate ->
-            flush_replies(NewDstate, Ipid)
-    end.
+    wait_for_reply(Dstate, Ipid, 0).
 
 wait_for_reply(Dstate, Ipid, Timeout) ->
     receive
+        {new_shell, _Ipid, Name, Pid} ->
+            NewShells = [{Name, Pid} | Dstate#dstate.shells],
+            NewDstate = Dstate#dstate{shells = NewShells},
+            wait_for_reply(NewDstate, Ipid, Timeout);
         {debug_reply, Ipid, CmdStr, NewCmdState, Dshell} ->
             case Dshell of
                 no_shell ->
@@ -153,25 +154,31 @@ wait_for_reply(Dstate, Ipid, Timeout) ->
     after Timeout ->
             if
                 Timeout =:= 0 ->
-                    flushed;
+                    Dstate;
                 is_integer(Timeout) ->
                     %% Display process info for interpreter and its children
-                    Item = [current_stacktrace, messages],
+                    Items = [current_stacktrace, messages],
+                    NamedPids =
+                        [{lux_debugger, self()},
+                         {lux_interpreter, Ipid} |
+                         Dstate#dstate.shells],
                     Show =
                         fun(Pid) ->
-                                Info = process_info(Pid, Item),
+                                case lists:keyfind(Pid, 2, NamedPids) of
+                                        false       -> Name = undefined;
+                                        {Name,Pid}  -> ok
+                                end,
+                                Info = [{name, Name} |
+                                        process_info(Pid, Items)],
                                 f("Proc info for ~p:\n\t~p\n", [Pid, Info])
                         end,
                     Pids = [P || P <- processes(), P > Ipid],
                     AllPids = [Ipid | Pids],
-                    Dpid = self(),
                     IoList =
                         [
                          "\n<LUX INTERNAL DEBUG BEGIN>\n",
                          f("<WARNING> Debugger timed out after ~p millisecs.\n",
                            [Timeout]),
-                         f("Debugger pid: ~p\n", [Dpid]),
-                         f("Interpreter pid: ~p\n", [Ipid]),
                          [Show(P) || P <- AllPids],
                          "<LUX INTERNAL DEBUG END>\n"
                         ],
@@ -350,7 +357,7 @@ parse_param(I, Type, Val) ->
         binary ->
             ?l2b(Val);
         atom ->
-            list_to_atom(Val);
+            ?l2a(Val);
         existing_atom ->
             list_to_existing_atom(Val);
         integer ->
@@ -1577,8 +1584,8 @@ cmd_trace(I, Args, _CmdState) ->
             cmd_trace(I, [{"action", Action}, {"mode", "CASE"}], _CmdState);
         [{"action", Action}, {"mode", TraceModeUpper}] ->
             TraceModeLower = string:to_lower(TraceModeUpper),
-            TraceMode2 = list_to_atom(TraceModeLower),
-            case list_to_atom(Action) of
+            TraceMode2 = ?l2a(TraceModeLower),
+            case ?l2a(Action) of
                 'START' when TraceMode =:= none ->
                     LogDir = I#istate.case_log_dir,
                     Base = filename:basename(I#istate.orig_file) ++

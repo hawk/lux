@@ -17,6 +17,7 @@
 -define(FF(Format, Args), io_lib:format(Format, Args)).
 -define(b2l(B), binary_to_list(B)).
 -define(b2i(B), binary_to_integer(B)).
+-define(l2a(L), list_to_atom(L)).
 -define(l2b(L), iolist_to_binary(L)).
 -define(i2b(I), integer_to_binary(I)).
 -define(i2l(I), integer_to_list(I)).

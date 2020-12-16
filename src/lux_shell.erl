@@ -46,6 +46,8 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 debug_level = I#istate.debug_level,
                 emit_timestamp = I#istate.emit_timestamp},
     {Pid, Ref} = spawn_monitor(fun() -> init(C, ExtraLogs) end),
+    Dpid = I#istate.debug_pid,
+    Dpid ! {new_shell, self(), Name, Pid},
     receive
         {started, Pid, Logs, NewVarVals} ->
             Shell = #shell{name = Name,
@@ -1204,7 +1206,7 @@ re_run(Actual, MP, Opts, _RegExp) ->
 %%              "\n\tkeep : ~p\n", [Res, Actual]).
 
 pre_r17_fix(Actual, Multi) ->
-    Names = lists:sort([list_to_atom(?b2l(N)) || {N, _, _} <- Multi]),
+    Names = lists:sort([?l2a(?b2l(N)) || {N, _, _} <- Multi]),
     Perms = lux_utils:perms([Re || {_,Re,_} <- Multi]),
     Type = element(2, (element(3, hd(Multi)))#cmd.arg),
     Perms2 = [add_skip(Type, P) || P <- Perms],

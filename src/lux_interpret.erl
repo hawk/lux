@@ -255,8 +255,8 @@ loop(I)
 loop(I) ->
     LoopTimeout = loop_timeout(I),
     receive
-        {debug_call, Pid, DbgCmd, CmdState} ->
-            I2 = lux_debug:eval_cmd(I, Pid, DbgCmd, CmdState),
+        {debug_call, FromPid, DbgCmd, CmdState} ->
+            I2 = lux_debug:eval_cmd(I, FromPid, DbgCmd, CmdState),
             loop(I2);
         {stopped_by_user, Scope} ->
             %% Ordered to stop by user
@@ -1348,18 +1348,21 @@ multisync(I, When, HandleStop)
 wait_for_reply(I, Pids, Expect, Fun, FlushTimeout) ->
     wait_for_reply(I, Pids, Expect, Fun, FlushTimeout, true).
 
-wait_for_reply(I, [Pid | Pids], Expect, Fun, FlushTimeout, HandleStop) ->
+wait_for_reply(I, [Pid|Pids]=AllPids, Expect, Fun, FlushTimeout, HandleStop) ->
     receive
+        {debug_call, FromPid, DbgCmd, CmdState} ->
+            I2 = lux_debug:eval_cmd(I, FromPid, DbgCmd, CmdState),
+            wait_for_reply(I2, AllPids, Expect, Fun, FlushTimeout, HandleStop);
         {Expect, Pid} ->
             wait_for_reply(I, Pids, Expect, Fun, FlushTimeout, HandleStop);
         %%      {Expect, Pid, Expected} when Expect =:= ?EXPECTED_OLD,
         %%                                   Pids =:= [] ->
         %%          Expected;
-        {stop, SomePid, Res} when HandleStop ->
-            I2 = prepare_stop(I, SomePid, Res),
+        {stop, FromPid, Res} when HandleStop ->
+            I2 = prepare_stop(I, FromPid, Res),
             %% Flush spurious message
-            receive {Expect, SomePid} -> ok after 0 -> ok end,
-            Pids2 = [Pid|Pids] -- [SomePid],
+            receive {Expect, FromPid} -> ok after 0 -> ok end,
+            Pids2 = [Pid|Pids] -- [FromPid],
             wait_for_reply(I2, Pids2, Expect, Fun, FlushTimeout, HandleStop);
         {'DOWN', _, process, Pid, Reason} ->
             opt_apply(Fun),

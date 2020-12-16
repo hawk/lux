@@ -125,7 +125,7 @@ ensure_cleanup(_P, [LastCmd | _] = RevCmds) ->
 extract_config(Cmd, _RevFile, _PosStack, Acc) ->
     case Cmd of
         #cmd{type = config, arg = {config, Var, Val}} ->
-            Name = list_to_atom(Var),
+            Name = ?l2a(Var),
             case lists:keyfind(Name, 1, Acc) of
                 false ->
                     [{Name, [Val]} | Acc];

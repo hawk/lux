@@ -271,7 +271,7 @@ reltool_opts(LuxAppDir, Opts, ThisEscript, RA, MA) ->
     AppCondsCommon = [{erts, include}, {crypto, exclude}, {tools, exclude}],
     AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsWx,
     {_, InstallApps} = lists:keyfind("--install_app", 1, Opts),
-    InstallApps2 = [{list_to_atom(A), include} || A <- InstallApps],
+    InstallApps2 = [{?l2a(A), include} || A <- InstallApps],
     AppConds2 = [{A, C} || {A, C} <- AppConds,
                            not lists:keymember(A, 1, InstallApps2)],
     AppConds3 = AppConds2 ++ InstallApps2,

@@ -367,7 +367,7 @@ set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
                 true = lists:member(Val, Atoms),
                 {{ok, setelement(Pos, I, Val)}, U2};
             {atom, _Atoms} when is_list(Val) ->
-                set_config_val(Name, list_to_atom(Val), [Type], Pos, I, U);
+                set_config_val(Name, ?l2a(Val), [Type], Pos, I, U);
             {function, Arity} when is_function(Val, Arity) ->
                 {{ok, setelement(Pos, I, Val)}, U2};
             {integer, infinity, infinity} when is_integer(Val) ->

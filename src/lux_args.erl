@@ -112,7 +112,7 @@ enum_usage(Enum) ->
     "enum(" ++ string:join(Strings, "|") ++ ")".
 
 enum_value(Enum, Val) when is_list(Val) ->
-    enum_value(Enum, list_to_atom(Val));
+    enum_value(Enum, ?l2a(Val));
 enum_value(Enum, Val) when is_atom(Val) ->
     Vals = enum(Enum),
     case lists:member(Val, Vals) of
@@ -417,9 +417,9 @@ validate(Name, Val, Type, Presence) ->
             string when is_list(Val) ->
                 Val;
             binary ->
-                list_to_binary(Val);
+                ?l2b(Val);
             atom ->
-                list_to_atom(Val);
+                ?l2a(Val);
             existing_atom ->
                 list_to_existing_atom(Val);
             integer ->
