@@ -116,7 +116,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
             FileErrStr = file:format_error(InitReason),
             InitErrBin = ?l2b([FlatExec, ": ", FileErrStr]),
             io:format("\n~s\n", [InitErrBin]),
-            clog(C2, error, "INTERNAL LUX ERROR: \"~999999s\" ~999999p",
+            clog(C2, error, "INTERNAL LUX ERROR: \"~999999p\" ~999999p",
                  [FileErrStr, InitEST]),
             stop(C2, error, InitErrBin)
     end.
