@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     char* shellname = getenv("LUX_SHELLNAME");
     char* dbgfile;
     if (logdir) {
-        mkdir(logdir, 0700);
+        mkdir(logdir, 0755);
     } else {
         logdir = getcwd(NULL, 0);
     }
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
         perror("open runpty.dbg failed");
         exit(1);
     } else {
-        if (fchmod(dbgfd, S_IRUSR | S_IWUSR) < 0) {
+        if (fchmod(dbgfd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) < 0) {
             perror("chmod runpty.dbg failed");
             exit(1);
         }
