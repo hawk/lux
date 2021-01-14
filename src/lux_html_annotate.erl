@@ -173,10 +173,10 @@ html_groups(A, SummaryLog, Result, Groups, ConfigSection)
      "<table border=\"1\">\n",
      "  <tr>\n",
      "    <td><strong>Log files:</strong></td>\n",
-     LogFun(RelSummaryLog, "Summary"),
-     LogFun(RelResultLog, "Result"),
-     LogFun(RelConfigLog, "Config"),
-     LogFun(RelTapLog, "TAP"),
+     LogFun(RelSummaryLog, "Summary log"),
+     LogFun(RelResultLog, "Result log"),
+     LogFun(RelConfigLog, "Config log"),
+     LogFun(RelTapLog, "TAP log"),
      "  </tr>\n",
      "</table>\n\n",
      lux_html_utils:html_href("h3", "", "", "#suite_config",
@@ -220,8 +220,8 @@ html_summary_result(A, {result_summary, Summary, Sections}, Groups, IsTmp) ->
                  "    <td><strong>",
                  drop_run_dir_prefix(A, NextScript),
                  "</strong></td>\n",
-                 LogFun(EventLog, "Event"),
-                 LogFun(ConfigLog, "Config"),
+                 LogFun(EventLog, "Event log"),
+                 LogFun(ConfigLog, "Config log"),
                  "  </tr>\n",
                  "</table>\n\n<br\>\n"
                 ]
@@ -613,11 +613,11 @@ html_events(A, EventLog, ConfigLog, Script, Result,
      "\n<h3>", lux_html_utils:html_anchor("logs", "Log files"), ":</h3>\n ",
      "<table border=\"1\">\n",
      "  <tr>\n",
-     LogFun(EventLog, "Event", "text/plain"),
-     LogFun(ConfigLog, "Config", "text/plain"),
+     LogFun(EventLog, "Event log", "text/plain"),
+     LogFun(ConfigLog, "Config log", "text/plain"),
      case filelib:is_dir(ExtraLogs) of
-         true  -> LogFun(ExtraLogs, "Extra", "");
-         false -> "    <td><strong>No extra</strong></td>\n"
+         true  -> LogFun(ExtraLogs, "Extra logs", "");
+         false -> "    <td><strong>No extra logs</strong></td>\n"
      end,
      html_logs(A, Logs),
      "  </tr>\n",
@@ -949,10 +949,12 @@ html_logs(A, [{log, ShellName, Stdin, Stdout} | Logs]) ->
      "\n<tr>\n    ",
      "<td><strong>Shell ", ShellName, "</strong></td>",
      "<td><strong>",
-     lux_html_utils:html_href("", rel_log(A, Stdin), "Stdin", "text/plain"),
+     lux_html_utils:html_href("", rel_log(A, Stdin),
+                              "Stdin log", "text/plain"),
      "</strong></td>",
      "<td><strong>",
-     lux_html_utils:html_href("", rel_log(A, Stdout), "Stdout", "text/plain"),
+     lux_html_utils:html_href("", rel_log(A, Stdout),
+                              "Stdout log", "text/plain"),
      "</strong></td>",
      "\n</tr>\n",
      html_logs(A, Logs)
