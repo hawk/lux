@@ -75,7 +75,7 @@ specs() ->
      {"--suite_timeout",      infinity,    {integer, 0, infinity}, mandatory},
      {"--case_timeout",       5*60*1000,   {integer, 0, infinity}, mandatory},
      {"--flush_timeout",      1000,        {integer, 0, infinity}, mandatory},
-     {"--poll_timeout",       100,         {integer, 0, infinity}, mandatory},
+     {"--poll_timeout",       100,         {integer, -1, infinity},mandatory},
      {"--timeout",            10*1000,     {integer, 0, infinity}, mandatory},
      {"--cleanup_timeout",    100*1000,    {integer, 0, infinity}, mandatory},
      {"--risky_threshold",    0.85,        {float, 0.0, infinity}, mandatory},

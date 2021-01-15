@@ -187,7 +187,7 @@
          suite_timer_ref            :: #timer_ref{},
          case_timeout = 5*?ONE_MIN  :: non_neg_integer() | infinity,
          case_timer_ref             :: #timer_ref{},
-         flush_timeout = 0          :: non_neg_integer(),
+         flush_timeout = 0          :: non_neg_integer(), % 10
          poll_timeout = 0           :: non_neg_integer(), % 100
          default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
          cleanup_timeout = 100*?ONE_SEC :: non_neg_integer() | infinity,

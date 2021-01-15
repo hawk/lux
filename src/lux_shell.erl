@@ -203,7 +203,7 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             stop_relax(C, success, end_of_script,
                        [{'end', "of script", []}]);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
-            do_flush_port(C, C#cstate.poll_timeout, [Data], []);
+            poll_port(C, [Data]);
         ?match_fail ->
             clog(C, recv, "\"~p\"", [?match_fail]),
             show_debug(C, "recv", ?l2b(?a2l(?match_fail))),
@@ -627,7 +627,7 @@ shell_eval(#cstate{name = Name} = C0,
 
 cleanup(C, _Type) ->
     C1 = clear_expected(C, "(cleanup)", suspend),
-    C2 = flush_port(C1),
+    C2 = flush_port(C1, []),
     C3 = match_patterns(C2),
     case C3#cstate.fail of
         undefined -> ok;
@@ -651,7 +651,7 @@ cleanup(C, _Type) ->
     opt_late_sync_reply(C4).
 
 reset_output_buffer(C, Context) ->
-    C2 = flush_port(C),
+    C2 = flush_port(C, []),
     Data = C2#cstate.actual,
     Waste = ?l2b(lists:concat([byte_size(Data), " bytes wasted"])),
     clog(C2, [{reset, "\"~s\"", [lux_utils:to_string(Waste)]},
@@ -1191,47 +1191,69 @@ pre_r17_fix(Actual, [RegExp | RegExps], Opts) ->
 pre_r17_fix(_Actual, [], _Opts) ->
     nomatch.
 
-flush_port(#cstate{flush_timeout = FlushTimeout} = C) ->
-    do_flush_port(C, FlushTimeout, [], []).
+poll_port(#cstate{poll_timeout = PollTimeout} = C, DataAcc) ->
+    do_flush_port(C, PollTimeout, DataAcc, []).
 
 flush_port(#cstate{flush_timeout = FlushTimeout} = C, ExitAcc) ->
     do_flush_port(C, FlushTimeout, [], ExitAcc).
 
 do_flush_port(#cstate{port = Port} = C, VirtualTimeout, DataAcc, ExitAcc) ->
-    RealTimeout = lux_utils:multiply(VirtualTimeout, C#cstate.multiplier),
-    DataAcc4 =
-        case flush_port_data_loop(Port, 0, 0, DataAcc) of
-            {0, DataAcc2} when VirtualTimeout =/= 0 ->
-                {_N, DataAcc3} =
-                    flush_port_data_loop(Port, RealTimeout, 0, DataAcc2),
-                DataAcc3;
-            {_N, DataAcc2} ->
-                DataAcc2
+    Max =
+        case VirtualTimeout of
+            0 ->
+                any;
+            -1 ->
+                one;
+            _ ->
+                RealTimeout = lux_utils:multiply(VirtualTimeout,
+                                                 C#cstate.multiplier),
+                timer:sleep(RealTimeout),
+                any
         end,
-    NewData = erlang:iolist_to_binary(lists:reverse(DataAcc4)),
-    Exits = flush_port_exit_loop(C, RealTimeout, ExitAcc),
+    {NewData, Exits} = flush_port_loop(Port, Max, DataAcc, ExitAcc),
     {C2, Events} = make_exit_events(C, Exits, []),
     clog_recv(C2, NewData, Events).
 
-flush_port_data_loop(Port, Timeout, N, DataAcc) ->
+flush_port_loop(_Port, none, DataAcc, ExitAcc) ->
+    {erlang:iolist_to_binary(lists:reverse(DataAcc)),
+     lists:reverse(ExitAcc)};
+flush_port_loop(Port, Max, DataAcc, ExitAcc) ->
+    NewMax =
+        case Max of
+            one -> none;
+            any -> Max
+        end,
     receive
         {Port, {data, MoreData}} ->
-            flush_port_data_loop(Port, Timeout, N+1, [MoreData | DataAcc])
-    after Timeout ->
-            {N, DataAcc}
+            flush_port_loop(Port, NewMax,
+                            [MoreData | DataAcc], ExitAcc);
+        {Port, {exit_status, ExitStatus}} ->
+            flush_port_loop(Port, NewMax,
+                            DataAcc, [{shell_exit,ExitStatus} | ExitAcc]);
+        {'EXIT', Port, PosixCode} ->
+            flush_port_loop(Port, NewMax,
+                            DataAcc, [{posix_exit, PosixCode} | ExitAcc])
+    after 0 ->
+            flush_port_loop(Port, none, DataAcc, ExitAcc)
     end.
 
-flush_port_exit_loop(Port, Timeout, ExitAcc) ->
-    receive
-        {Port, {exit_status, ExitStatus}} ->
-            flush_port_exit_loop(Port, Timeout,
-                                 [{shell_exit, ExitStatus} | ExitAcc]);
-        {'EXIT', Port, PosixCode} ->
-            flush_port_exit_loop(Port, Timeout,
-                                 [{posix_exit, PosixCode} | ExitAcc])
-    after Timeout ->
-            lists:reverse(ExitAcc)
-    end.
+make_exit_events(C, [Exit | Exits], Events) ->
+    case Exit of
+        {shell_exit, ExitStatus} ->
+            String = "status="++?i2l(ExitStatus),
+            Event = {shell_exit, "\"~s\"", [lux_utils:to_string(String)]},
+            C2 = C#cstate{state_changed = true,
+                          no_more_output = true,
+                          exit_status = ExitStatus};
+        {posix_exit, PosixCode} when C#cstate.exit_status =/= undefined ->
+            String = "code="++?a2l(PosixCode),
+            Event = {posix_exit, "\"~s\"", [lux_utils:to_string(String)]},
+            C2 = C#cstate{state_changed = true,
+                          no_more_output = true}
+    end,
+    make_exit_events(C2, Exits, [Event | Events]);
+make_exit_events(C, [], Events) ->
+    {C, lists:reverse(Events)}.
 
 clog_recv(C, <<>>, PostEvents) when C#cstate.event_log_fd =/= closed ->
     clog(C, PostEvents),
@@ -1263,24 +1285,6 @@ clog_recv(C, NewData, PostEvents) ->
     clog(C, RecvEvents ++ SkipEvents ++ PostEvents),
     C#cstate{state_changed = true,
              actual = KeptData}.
-
-make_exit_events(C, [Exit | Exits], Events) ->
-    case Exit of
-        {shell_exit, ExitStatus} ->
-            String = "status="++?i2l(ExitStatus),
-            Event = {shell_exit, "\"~s\"", [lux_utils:to_string(String)]},
-            C2 = C#cstate{state_changed = true,
-                          no_more_output = true,
-                          exit_status = ExitStatus};
-        {posix_exit, PosixCode} when C#cstate.exit_status =/= undefined ->
-            String = "code="++?a2l(PosixCode),
-            Event = {posix_exit, "\"~s\"", [lux_utils:to_string(String)]},
-            C2 = C#cstate{state_changed = true,
-                          no_more_output = true}
-    end,
-    make_exit_events(C2, Exits, [Event | Events]);
-make_exit_events(C, [], Events) ->
-    {C, lists:reverse(Events)}.
 
 start_timer(#cstate{timer_ref = undefined, match_timeout = Timeout} = C,
             PreEvents) ->
@@ -1428,7 +1432,7 @@ stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual);
             {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
             Rest = C#cstate.actual
     end,
-    C2 = flush_port(C),
+    C2 = flush_port(C, []),
     StopEvent = {stop, "~p", [Outcome]},
     SkipEvents =
         case C2#cstate.actual of
@@ -1546,7 +1550,7 @@ port_close_and_exit(C, DownReason, #result{} = Res) ->
 logs_close_and_exit(C, IE) when element(1, IE) =:= internal_error ->
     ?TRACE_ME2(40, C#cstate.name, close_and_exit, [IE]),
     {Res, CloseEvent} = error_to_result(C, IE),
-    C2 = flush_port(C),
+    C2 = flush_port(C, []),
     Skip = C2#cstate.actual,
     SkipEvent = {skip, "\"~s\"", [lux_utils:to_string(Skip)]},
     clog(C2,[SkipEvent, CloseEvent]),
