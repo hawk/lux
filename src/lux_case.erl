@@ -551,7 +551,14 @@ make_cleanup_fail(I, Reason) ->
             warnings     = I#istate.warnings}.
 
 make_warning_fail(#istate{warnings = Warnings} = I) when Warnings =/= [] ->
-    Reason = ?l2b(lists:concat(["Has ", length(Warnings), " warning(s)"])),
+    N = length(Warnings),
+    Suffix =
+        if
+            N =:= 1 -> "";
+            N > 1   -> "s"
+        end,
+    Reason = ?l2b(lists:concat(["Has ", length(Warnings), " warning", Suffix,
+                                ". No warnings are accepted."])),
     #result{outcome      = fail,
             latest_cmd   = I#istate.latest_cmd,
             pos_stack    = I#istate.pos_stack,

@@ -1,0 +1,44 @@
+[doc Emit warnings for empty multi-command blocks]
+
+[shell empty]
+
+    [progress nolf]
+    ~
+
+    [progress nolf]
+    """~
+    """
+
+    [progress nolf]
+    """~
+
+    """
+
+    [progress lf]
+    """!
+    """
+
+    [progress lf]
+    """!
+
+    """
+
+    [progress regexp]
+    """?
+    """
+
+    [progress template]
+    """??
+    """
+
+    [progress verbatim]
+    """???
+    """
+
+    [progress failpat]
+    """-
+    """
+
+    [progress succpat]
+    """+
+    """

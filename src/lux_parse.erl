@@ -340,16 +340,17 @@ parse(P, Fd, LineNo, Tokens) ->
     case file_next_wrapper(Fd) of
         {line, OrigLine, NewFd, Incr} ->
             Line = lux_utils:strip_leading_whitespaces(OrigLine),
-            parse_cmd(P, NewFd, Line, LineNo, Incr, OrigLine, Tokens);
+            parse_cmd(P, NewFd, Line, LineNo, Incr,
+                      OrigLine, Tokens, false);
         eof = NewFd ->
             {P, NewFd, Tokens}
     end.
 
-parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens) ->
+parse_cmd(P, Fd, <<>>, LineNo, Incr, OrigLine, Tokens, _EmptyBlob) ->
     Token = #cmd{type = comment, lineno = LineNo, orig = OrigLine},
     NextLineNo = LineNo+Incr+1,
     parse(P, Fd, NextLineNo, [Token | Tokens]);
-parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
+parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens, EmptyBlob) ->
     RunMode = P#pstate.mode,
     {Type, SubType, UnStripped} = parse_oper(P, Fd, LineNo, Line),
     Cmd = #cmd{lineno = LineNo,
@@ -366,8 +367,8 @@ parse_cmd(P, Fd, Line, LineNo, Incr, OrigLine, Tokens) ->
         RunMode =:= dump      orelse
         RunMode =:= expand    orelse
         RunMode =:= execute ->
-            Cmd2 = parse_single(Cmd, UnStripped),
-            parse(P, Fd, NextLineNo, [Cmd2 | Tokens]);
+            {P2, Cmd2} = parse_single(P, Cmd, UnStripped, EmptyBlob),
+            parse(P2, Fd, NextLineNo, [Cmd2 | Tokens]);
         RunMode =:= list     orelse
         RunMode =:= list_dir orelse
         RunMode =:= doc ->
@@ -397,26 +398,52 @@ parse_oper(P, Fd, LineNo, OrigLine) ->
                          ": '", QuotedOrigLine, "'"])
     end.
 
-parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
+parse_single(P, #cmd{type = Type, arg = SubType} = Cmd, Data, EmptyBlob) ->
     case Type of
-        send when SubType =:= lf         -> Cmd#cmd{arg =
-                                                        <<Data/binary, "\n">>};
-        send when SubType =:= nolf       -> Cmd#cmd{arg = Data};
-        expect when Data =:= <<>>        -> regexp(Cmd, SubType, reset, single);
-        expect when SubType =:= verbatim -> regexp(Cmd, SubType, Data,  single);
-        expect when SubType =:= template -> regexp(Cmd, SubType, Data,  single);
-        expect when SubType =:= regexp   -> regexp(Cmd, SubType, Data,  multi);
-        expect_add                       -> regexp(Cmd, SubType, Data,  multi);
-        expect_add_strict                -> regexp(Cmd, SubType, Data,  multi);
-        fail when Data =:= <<>>          -> regexp(Cmd, SubType, reset, single);
-        fail                             -> regexp(Cmd, SubType, Data,  single);
-        success when Data =:= <<>>       -> regexp(Cmd, SubType, reset, single);
-        success                          -> regexp(Cmd, SubType, Data,  single);
-        break when Data =:= <<>>         -> regexp(Cmd, SubType, reset, single);
-        break                            -> regexp(Cmd, SubType, Data,  single);
-%%      meta                             -> Cmd;
-%%      multi                            -> Cmd;
-        comment                          -> Cmd
+        send when SubType =:= lf ->
+            P2 = opt_add_empty_multi_warning(P, Cmd, EmptyBlob),
+            {P2, Cmd#cmd{arg = <<Data/binary, "\n">>}};
+        send when SubType =:= nolf ->
+            P2 =
+                if
+                    EmptyBlob ->
+                        opt_add_empty_multi_warning(P, Cmd, true);
+                    Data =:= <<>> ->
+                        opt_add_empty_warning(P, Cmd, "", true);
+                    true ->
+                        P
+                end,
+            {P2, Cmd#cmd{arg = Data}};
+        expect when Data =:= <<>> ->
+            regexp(P, Cmd, SubType, reset, single, EmptyBlob);
+        expect when SubType =:= verbatim ->
+            regexp(P, Cmd, SubType, Data,  single, EmptyBlob);
+        expect when SubType =:= template ->
+            regexp(P, Cmd, SubType, Data,  single, EmptyBlob);
+        expect when SubType =:= regexp ->
+            regexp(P, Cmd, SubType, Data,  multi, EmptyBlob);
+        expect_add ->
+            regexp(P, Cmd, SubType, Data,  multi, EmptyBlob);
+        expect_add_strict ->
+            regexp(P, Cmd, SubType, Data,  multi, EmptyBlob);
+        fail when Data =:= <<>> ->
+            regexp(P, Cmd, SubType, reset, single, EmptyBlob);
+        fail ->
+            regexp(P, Cmd, SubType, Data,  single, EmptyBlob);
+        success when Data =:= <<>> ->
+            regexp(P, Cmd, SubType, reset, single, EmptyBlob);
+        success ->
+            regexp(P, Cmd, SubType, Data,  single, EmptyBlob);
+        break when Data =:= <<>> ->
+            regexp(P, Cmd, SubType, reset, single, EmptyBlob);
+        break ->
+            regexp(P, Cmd, SubType, Data,  single, EmptyBlob);
+%%      meta ->
+%%           {P, Cmd};
+%%      multi ->
+%%           {P; Cmd};
+        comment ->
+            {P, Cmd}
     end.
 
 %% Arg :: reset                               |
@@ -429,17 +456,31 @@ parse_single(#cmd{type = Type, arg = SubType} = Cmd, Data) ->
 %% regexp()      :: binary()
 %% multi()       :: [{Name::binary(), regexp(), AlternateCmd::#cmd{}}]
 
-regexp(#cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper) ->
+regexp(P, #cmd{type = Type} = Cmd, RegExpType, RegExp, RegExpOper, EmptyBlob) ->
     if
         RegExp =:= reset ->
             RegExpOper = single, % Assert
-            Cmd#cmd{arg = reset};
+            P2 = opt_add_empty_multi_warning(P, Cmd, EmptyBlob),
+            {P2, Cmd#cmd{arg = reset}};
         Type =:= expect_add_strict orelse
         Type =:= expect_add ->
             RegExpOper = multi, % Assert
-            Cmd#cmd{type = expect, arg = {RegExpType, Type, RegExp}};
+            {P, Cmd#cmd{type = expect, arg = {RegExpType, Type, RegExp}}};
         true ->
-            Cmd#cmd{arg = {RegExpType, RegExpOper, RegExp}}
+            {P, Cmd#cmd{arg = {RegExpType, RegExpOper, RegExp}}}
+    end.
+
+opt_add_empty_multi_warning(P, Cmd, EmptyBlob) ->
+    opt_add_empty_warning(P, Cmd, "multi-line ", EmptyBlob).
+
+opt_add_empty_warning(P, Cmd, OptMulti, EmptyBlob) ->
+    case EmptyBlob of
+        true ->
+            Type = Cmd#cmd.type,
+            Reason = ?l2b(["Empty ", OptMulti, ?a2l(Type), " command"]),
+            add_warning(P, Cmd, Reason);
+        false ->
+            P
     end.
 
 parse_var(P, Fd, Cmd, Scope, String) ->
@@ -1058,8 +1099,10 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
                         <<MetaChars/binary, Blob/binary, "]">>
                 end,
             MultiLine2 = lux_utils:strip_leading_whitespaces(MultiLine),
+            EmptyBlob = (Blob =:= <<>>),
             {P3, NewFd, Tokens2} =
-                parse_cmd(P2, Fd2, MultiLine2, LastLineNo, 0, OrigLine, Tokens),
+                parse_cmd(P2, Fd2, MultiLine2, LastLineNo,
+                          0, OrigLine, Tokens, EmptyBlob),
             parse(P3, NewFd, LastLineNo, Tokens2)
     end.
 
