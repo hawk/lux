@@ -153,6 +153,7 @@
          file                       :: string(),
          orig_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
+         fail_when_warning = false  :: boolean(),
          warnings                   :: [#warning{}],
          loop_stack = []            :: [#loop{}],
          cleanup_reason = normal    :: fail | success | normal,

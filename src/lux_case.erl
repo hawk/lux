@@ -285,6 +285,8 @@ config_type(Name) ->
             {ok, #istate.unstable_unless, [{std_list, [string]}]};
         skip_skip ->
             {ok, #istate.skip_skip, [{atom, [true, false]}]};
+        fail_when_warning ->
+            {ok, #istate.fail_when_warning, [{atom, [true, false]}]};
         require ->
             {ok, #istate.require, [{std_list, [string]}]};
         case_prefix ->
@@ -488,10 +490,17 @@ handle_done(OldI, NewI0, Docs) ->
     NewI = post_ilog(NewI0#istate{warnings = NewWarnings}, Docs),
     case lists:keyfind('EXIT', 1, Results) of
         false ->
-            case pick_fail(NewI, Results) of
-                false ->
+            R = pick_fail(NewI, Results),
+            IsSuccess = (R =:= false),
+            if
+                IsSuccess,
+                NewWarnings =/= [],
+                NewI#istate.fail_when_warning ->
+                    WarnR = make_warning_fail(NewI),
+                    print_fail(OldI, NewI, File, Results, WarnR);
+                IsSuccess ->
                     print_success(NewI, File);
-                R ->
+                not IsSuccess ->
                     print_fail(OldI, NewI, File, Results, R)
             end;
         {'EXIT', Reason} ->
@@ -518,7 +527,7 @@ pick_fail(NewI, Results) ->
                                 Reason =:= success ->
                             false;
                         [] ->
-                            cleanup_fail(NewI, Reason);
+                            make_cleanup_fail(NewI, Reason);
                         [R | _] ->
                             R
                     end;
@@ -529,19 +538,30 @@ pick_fail(NewI, Results) ->
             R
     end.
 
-cleanup_fail(I, Reason) ->
-    LatestCmd = I#istate.latest_cmd,
-    PosStack = I#istate.pos_stack,
+make_cleanup_fail(I, Reason) ->
     #result{outcome      = fail,
-            latest_cmd   = LatestCmd,
-            pos_stack    = PosStack,
+            latest_cmd   = I#istate.latest_cmd,
+            pos_stack    = I#istate.pos_stack,
             shell_name   = I#istate.active_name,
             expected_tag = ?EXPECTED_OLD,
             expected     = success,
             extra        = undefined,
             actual       = Reason,
             rest         = fail,
-            warnings     = []}.
+            warnings     = I#istate.warnings}.
+
+make_warning_fail(#istate{warnings = Warnings} = I) when Warnings =/= [] ->
+    Reason = ?l2b(lists:concat(["Has ", length(Warnings), " warning(s)"])),
+    #result{outcome      = fail,
+            latest_cmd   = I#istate.latest_cmd,
+            pos_stack    = I#istate.pos_stack,
+            shell_name   = I#istate.active_name,
+            expected_tag = ?EXPECTED_OLD,
+            expected     = success,
+            extra        = undefined,
+            actual       = Reason,
+            rest         = fail,
+            warnings     = Warnings}.
 
 print_success(I, File) ->
     LatestCmd = I#istate.latest_cmd,
@@ -586,7 +606,8 @@ print_fail(OldI0, NewI, File, Results,
     print_warnings(NewI, RunWarnings, UnstableWarnings),
     {Outcome, ResStr} =
         if
-            UnstableWarnings =/= [] ->
+            UnstableWarnings =/= [] andalso
+            not NewI#istate.fail_when_warning ->
                 {warning,
                  double_ilog(OldI, "~sWARNING at ~s in shell ~s\n",
                              [?TAG("result"), FullLineNo, ShellName])
@@ -801,6 +822,7 @@ user_config_keys() ->
      unstable_unless,
      unstable,
      skip_skip,
+     fail_when_warning,
      require,
      case_prefix,
      progress,
