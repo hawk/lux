@@ -312,13 +312,17 @@ config_type(Name) ->
         flush_timeout ->
             {ok, #istate.flush_timeout, [{integer, 0, infinity}]};
         poll_timeout ->
-            {ok, #istate.poll_timeout, [{integer, 0, infinity}]};
+            {ok, #istate.poll_timeout, [{integer, -1, infinity}]};
         timeout ->
             {ok, #istate.default_timeout, [{integer, 0, infinity},
                                            {atom, [infinity]}]};
         cleanup_timeout ->
             {ok, #istate.cleanup_timeout, [{integer, 0, infinity},
                                            {atom, [infinity]}]};
+        risky_threshold ->
+            {ok, #istate.risky_threshold, [{float, 0.0, infinity}]};
+        sloppy_threshold ->
+            {ok, #istate.sloppy_threshold, [{float, 0.0, infinity}]};
         newshell ->
             {ok, #istate.newshell, [{atom, [false, true]}]};
         shell_wrapper ->
@@ -384,6 +388,22 @@ set_config_val(Name, Val, [Type | Types], Pos, I, U) ->
                 {{ok, setelement(Pos, I, Val)}, U2};
             {integer, _Min, _Max} when is_list(Val) ->
                 set_config_val(Name, list_to_integer(Val), [Type], Pos, I, U);
+
+            {float, infinity, infinity} when is_float(Val) ->
+                {{ok, setelement(Pos, I, Val)}, U2};
+            {float, infinity, Max}
+              when is_float(Val), is_float(Max), Val =< Max ->
+                {{ok, setelement(Pos, I, Val)}, U2};
+            {float, Min, infinity}
+              when is_float(Val), is_float(Min), Val >= Min ->
+                {{ok, setelement(Pos, I, Val)}, U2};
+            {float, Min, Max}
+              when is_float(Val), is_float(Min), is_float(Max),
+                   Val >= Min, Val =< Max ->
+                {{ok, setelement(Pos, I, Val)}, U2};
+            {float, _Min, _Max} when is_list(Val) ->
+                set_config_val(Name, list_to_float(Val), [Type], Pos, I, U);
+
             {std_list, SubTypes} when is_list(SubTypes) ->
                 append_config_val(Name, Val, append, SubTypes, Pos, I, U);
             {reset_list, SubTypes} when is_list(SubTypes) ->
@@ -791,6 +811,8 @@ user_config_keys() ->
      poll_timeout,
      timeout,
      cleanup_timeout,
+     risky_threshold,
+     sloppy_threshold,
      newshell,
      shell_wrapper,
      shell_cmd,

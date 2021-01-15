@@ -24,7 +24,7 @@
 -include("lux.hrl").
 
 -define(SUMMARY_LOG_VERSION, <<"0.3">>).
--define(EVENT_LOG_VERSION,   <<"0.6">>).
+-define(EVENT_LOG_VERSION,   <<"0.7">>).
 -define(CONFIG_LOG_VERSION,  <<"0.1">>).
 -define(RESULT_LOG_VERSION,  <<"0.1">>).
 
@@ -708,6 +708,9 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
         {ok, ?EVENT_LOG_VERSION, Sections} ->
             %% Latest version
             do_scan_events(EventLog, Sections, NewWWW);
+        {ok, <<"0.6">>, Sections} ->
+            %% Prev version with old case_timeout format
+            do_scan_events(EventLog, Sections, NewWWW);
         {ok, <<"0.5">>, Sections} ->
             %% Prev version with old case_timeout format
             do_scan_events(EventLog, Sections, NewWWW);
@@ -1048,8 +1051,8 @@ format_calls([H|T], Acc) ->
 %% new timer
 %% ---------
 %% started (10 seconds * 1.000 multiplier)
-%% canceled (after 552 micro seconds)
-%% failed (after 10000764 micro seconds)
+%% canceled (after 552 microseconds)
+%% failed (after 10000764 microseconds)
 %% ---------
 %% old timer
 %% ---------
@@ -1070,10 +1073,14 @@ parse_timer(Data) ->
             {started, CeiledSecs * ?ONE_SEC_MICROS};
         ["canceled", "after", Secs, "seconds"] ->
             {canceled, list_to_integer(Secs) * ?ONE_SEC_MICROS};
+        ["canceled", "after", MicroSecs, "microseconds"] ->
+            {canceled, list_to_integer(MicroSecs)};
         ["canceled", "after", MicroSecs, "micro", "seconds"] ->
             {canceled, list_to_integer(MicroSecs)};
         ["failed", "after", Secs, "seconds"] ->
             {failed, list_to_integer(Secs) * ?ONE_SEC_MICROS};
+        ["failed", "after", MicroSecs, "microseconds"] ->
+            {failed, list_to_integer(MicroSecs)};
         ["failed", "after", MicroSecs, "micro", "seconds"] ->
             {failed, list_to_integer(MicroSecs)}
     end.
@@ -1408,8 +1415,8 @@ format_val_choice(Tag, Val, [Type | Types]) ->
         _Class:_Reason ->
             format_val_choice(Tag, Val, Types)
     end;
-format_val_choice(Tag, Val, []) ->
-    [lists:flatten(?FF("~s~w\n", [?TAG(Tag), Val]))].
+format_val_choice(_Tag, Val, []) ->
+    [lists:flatten(?FF("~w\n", [Val]))].
 
 try_format_val(_Tag, Val = undefined, _Type) ->
     [?a2l(Val)];
@@ -1424,6 +1431,11 @@ try_format_val(Tag, Val, Type) ->
         {integer, _Min, _Max} when is_integer(Val) ->
             [?i2l(Val)];
         {integer, _Min, _Max} when Val =:= infinity ->
+            [?a2l(Val)];
+        {float, _Min, _Max} when is_float(Val) ->
+            IoList = ?FF("~f", [Val]),
+            [string:strip(lists:flatten(IoList), right, $0)];
+        {float, _Min, _Max} when Val =:= infinity ->
             [?a2l(Val)];
         {std_list, SubTypes} ->
             [hd(format_val_choice(Tag, V, SubTypes)) || V <- Val];

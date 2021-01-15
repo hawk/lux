@@ -34,8 +34,8 @@
 -define(success_pattern_matched, "success pattern matched ").
 -define(loop_break_matched, "loop break pattern matched ").
 -define(loop_break_mismatch,"Loop ended without match of break pattern ").
--define(HIGH_TIMER_THRESHOLD, 0.85).
--define(LOW_TIMER_THRESHOLD, 0.000000001).
+-define(DEFAULT_RISKY_THRESHOLD, 0.85).
+-define(DEFAULT_SLOPPY_THRESHOLD, 0.000000001).
 -define(HISTORY_LOG_BASE, "lux_history").
 -define(HTML_EXT, ".html").
 -define(SUITE_SUMMARY_LOG, "lux_summary.log").
@@ -179,15 +179,19 @@
          summary_log_fd             :: file:io_device(),
          logs = []                  :: [{string(), string(), string()}],
          tail_status = []           :: [{string(), string()}],
+         start_time                 :: erlang:timestamp(),
+         emit_timestamp = false     :: boolean(),
          multiplier = ?ONE_SEC          :: non_neg_integer(),
          suite_timeout = infinity   :: non_neg_integer() | infinity,
+         suite_timer_ref            :: #timer_ref{},
          case_timeout = 5*?ONE_MIN  :: non_neg_integer() | infinity,
          case_timer_ref             :: #timer_ref{},
-         suite_timer_ref            :: #timer_ref{},
          flush_timeout = 0          :: non_neg_integer(),
          poll_timeout = 0           :: non_neg_integer(), % 100
          default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
          cleanup_timeout = 100*?ONE_SEC :: non_neg_integer() | infinity,
+         risky_threshold  = ?DEFAULT_RISKY_THRESHOLD  :: float() | infinity,
+         sloppy_threshold = ?DEFAULT_SLOPPY_THRESHOLD :: float() | infinity,
          newshell = false           :: boolean(),
          shell_wrapper              :: undefined | string(),
          shell_cmd = "/bin/sh"      :: string(),
@@ -219,8 +223,6 @@
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
          stopped_by_user            :: undefined | 'case' | suite,
-         start_time                 :: erlang:timestamp(),
-         emit_timestamp = false     :: boolean(),
          escript_mod                :: atom()}).
 
 -record(run,
@@ -302,12 +304,18 @@
          event_log_fd            :: {true, file:io_device()},
          stdin_log_fd            :: {false, file:io_device()},
          stdout_log_fd           :: {false, file:io_device()},
+         emit_timestamp          :: boolean(),
          multiplier              :: non_neg_integer(),
-         poll_timeout            :: non_neg_integer(),
-         flush_timeout           :: non_neg_integer(),
-         match_timeout           :: non_neg_integer() | infinity,
          suite_timeout           :: non_neg_integer() | infinity,
          case_timeout            :: non_neg_integer() | infinity,
+         flush_timeout           :: non_neg_integer(),
+         poll_timeout            :: non_neg_integer(),
+         match_timeout           :: non_neg_integer() | infinity,
+         timer_ref               :: undefined | #timer_ref{},
+         timer_started_at        :: undefined | erlang:timestamp(),
+         wakeup_ref              :: undefined | #timer_ref{},
+         risky_threshold         :: float() | infinity,
+         sloppy_threshold        :: float() | infinity,
          shell_wrapper           :: undefined | string(),
          shell_cmd               :: string(),
          shell_args              :: [string()],
@@ -327,12 +335,8 @@
          no_more_input = false   :: boolean(),
          no_more_output = false  :: boolean(),
          exit_status             :: integer(),
-         timer_ref               :: undefined | #timer_ref{},
-         timer_started_at        :: undefined | erlang:timestamp(),
-         wakeup_ref              :: undefined | #timer_ref{},
          debug_level = 0         :: non_neg_integer(),
-         warnings = []           :: [#warning{}],
-         emit_timestamp = false  :: boolean()}).
+         warnings = []           :: [#warning{}]}).
 
 -record(rstate,
         {files                      :: [string()],

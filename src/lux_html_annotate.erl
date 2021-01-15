@@ -376,7 +376,8 @@ annotate_event_log(#astate{log_file=EventLog} = A, WWW)
                 Result = lux_log:parse_result(ResultBins),
                 {Annotated, Files} = interleave_code(A3, Events, Script),
                 Html = html_events(A3, EventLog2, ConfigLog, Script, Result,
-                                   Timers, Files, Logs, Annotated, ConfigBins),
+                                   Timers, Files, Logs, Annotated,
+                                   ConfigBins, ConfigProps),
                 {{ok, CsvBin, Html}, NewWWW};
             {error, _File, _ReasonStr} = Error ->
                 {Error, NewWWW}
@@ -574,7 +575,8 @@ do_pick_code(_F, Lines, CodeLineNo, _LineNo, _Flush, Acc) ->
 %% Return event log as HTML
 
 html_events(A, EventLog, ConfigLog, Script, Result,
-            Timers, Files, Logs, Annotated, ConfigBins)
+            Timers, Files, Logs, Annotated,
+            ConfigBins, ConfigProps)
   when is_list(EventLog), is_list(ConfigLog), is_list(Script) ->
     EventLogDir = A#astate.new_log_dir,
     EventLogBase = lux_utils:join(EventLogDir, filename:basename(Script)),
@@ -598,6 +600,8 @@ html_events(A, EventLog, ConfigLog, Script, Result,
         end,
     RelEventLogDir = filename:split(drop_run_log_prefix(A, EventLogDir)),
     RelSummaryLog = dotdot(RelEventLogDir, ?SUITE_SUMMARY_LOG ++ ".html"),
+    RiskyThreshold = pick_risky_prop(ConfigProps),
+    SloppyThreshold = pick_sloppy_prop(ConfigProps),
     [
      lux_html_utils:html_header(["Lux event log (", Dir, ")"]),
      "\n", lux_html_utils:html_href("h2", "", "", "#annotate", PrefixScript),
@@ -638,7 +642,7 @@ html_events(A, EventLog, ConfigLog, Script, Result,
                               "Macros"),
      lux_html_utils:html_href("h4", "", "", "#macro_accum_stats",
                               "Accumulated per macro"),
-     html_stats(Timers),
+     html_stats(Timers, RiskyThreshold, SloppyThreshold),
      lux_html_utils:html_anchor("h2", "", "config", "Script configuration:"),
      html_config(ConfigBins),
      lux_html_utils:html_footer()
@@ -650,31 +654,32 @@ dotdot(Path, Base) ->
     DotDots = filename:join([".." || _ <- Path]),
     filename:join([DotDots, Base]).
 
-html_stats(Timers) ->
+html_stats(Timers, RiskyThreshold, SloppyThreshold) ->
     {ShellSplit, ExactMacroSplit, AccumMacroSplit} =
         lux_html_utils:split_timers(Timers),
     [
      lux_html_utils:html_anchor("h3", "", "shell_stats",
                                 "Statistics per shell"),
-     html_timers("Shell", ShellSplit),
+     html_timers("Shell", ShellSplit, RiskyThreshold, SloppyThreshold),
      lux_html_utils:html_anchor("h3", "", "macro_exact_stats",
                                 "Statistics per macro"),
-     html_timers("Macro", ExactMacroSplit),
+     html_timers("Macro", ExactMacroSplit, RiskyThreshold, SloppyThreshold),
      lux_html_utils:html_anchor("h3", "", "macro_accum_stats",
                                 "Statistics accumulated per macro"),
-     html_timers("Macro", AccumMacroSplit)
+     html_timers("Macro", AccumMacroSplit, RiskyThreshold, SloppyThreshold)
     ].
 
-html_timers(Label, {Total, SplitSums}) ->
+html_timers(Label, {Total, SplitSums}, RiskyThreshold, SloppyThreshold) ->
     [
      "<table border=\"1\">\n",
-     html_timer_row(["<strong>", Label, "</strong>"], Total, [], Total),
-     [html_timer_row(Tag, Sum, List, Total) ||
+     html_timer_row(["<strong>", Label, "</strong>"], Total, [], Total,
+                    RiskyThreshold, SloppyThreshold),
+     [html_timer_row(Tag, Sum, List, Total, RiskyThreshold, SloppyThreshold) ||
          {Tag, Sum, List} <- SplitSums],
      "</table>\n\n"
     ].
 
-html_timer_row(Label, Sum, List, Total) ->
+html_timer_row(Label, Sum, List, Total, RiskyThreshold, SloppyThreshold) ->
     [
      "  <tr>\n",
      "    <td>",
@@ -746,7 +751,10 @@ html_timer_row(Label, Sum, List, Total) ->
                 T#timer.status =/= matched ->
                     html_td([?i2l((Elapsed*100) div Max), "%"],
                             fail, "right", "");
-                Elapsed > trunc(Max * ?HIGH_TIMER_THRESHOLD) ->
+                Elapsed > trunc(Max * RiskyThreshold) ->
+                    html_td([?i2l((Elapsed*100) div Max), "%"],
+                            warning, "right", "");
+                Elapsed < trunc(Max * SloppyThreshold) ->
                     html_td([?i2l((Elapsed*100) div Max), "%"],
                             warning, "right", "");
                 true ->
@@ -1151,6 +1159,18 @@ pick_log_dir(ConfigProps) ->
 
 pick_time_prop(Tag, ConfigProps) ->
     ?b2l(lux_log:find_config(Tag, ConfigProps, ?DEFAULT_TIME)).
+
+pick_risky_prop(ConfigProps) ->
+    case lux_log:find_config(risky_threshold, ConfigProps, false) of
+        false -> ?DEFAULT_RISKY_THRESHOLD;
+        Bin  -> ?b2l(Bin)
+    end.
+
+pick_sloppy_prop(ConfigProps) ->
+    case lux_log:find_config(sloppy_threshold, ConfigProps, false) of
+        false -> ?DEFAULT_SLOPPY_THRESHOLD;
+        Bin  -> ?b2l(Bin)
+    end.
 
 pick_dir_prop(Tag, ConfigProps) ->
     case lux_log:find_config(Tag, ConfigProps, undefined) of
