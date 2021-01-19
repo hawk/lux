@@ -228,7 +228,7 @@
 
 -record(run,
         {test = ?DEFAULT_SUITE
-                      :: binary(),              % [prefix "::"] suite [":" case]
+                       :: binary(),             % [prefix "::"] suite [":" case]
          result = fail :: success | warning | skip | fail,
          warnings = undefined :: undefined | [binary()],
          id = ?DEFAULT_RUN
@@ -375,6 +375,7 @@
          user_args = []             :: [{atom(), term()}], % Command line opts
          file_args = []             :: [{atom(), term()}], % Script opts
          config_args = []           :: [{atom(), term()}], % Arch spec opts
+         common_args = []           :: [{atom(), term()}], % Non-arch spec opts
          default_args = []          :: [{atom(), term()}], % Default opts
          builtin_vars = lux_utils:builtin_vars()
                                     :: [string()], % ["name=val"]

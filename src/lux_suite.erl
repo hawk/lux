@@ -900,13 +900,28 @@ parse_config(R) ->
     AbsConfigDir = lux_utils:normalize_filename(RelConfigDir),
     check_file({config_dir, AbsConfigDir}),
 
+    %% Common opts
+    AbsCommonFile = filename:join([AbsConfigDir, DefaultBase]),
+    case filelib:is_regular(AbsCommonFile) of
+        true ->
+            {CommonOpts, CommonWarnings} = parse_config_file(R2, AbsCommonFile),
+            CommonArgs = opts_to_args(CommonOpts, []),
+            CommonData = [{'common file', [string], AbsCommonFile}] ++
+                CommonArgs;
+        false ->
+            CommonArgs = [],
+            CommonData = [],
+            CommonWarnings = []
+    end,
+    R3 = R2#rstate{common_args = CommonArgs},
+
     %% Arch spec opts
     ActualConfigName = config_name(),
     DefaultData =
         builtins(R, ActualConfigName) ++
-        [{'default file', [string], DefaultFile}] ++ DefaultArgs,
+        [{'default file', [string], DefaultFile}] ++ DefaultArgs ++ CommonData,
     {ConfigName, AbsConfigFile} =
-        config_file(R2, AbsConfigDir, R2#rstate.config_name, ActualConfigName),
+        config_file(R3, AbsConfigDir, R2#rstate.config_name, ActualConfigName),
     if
         AbsConfigFile =/= DefaultFile ->
             {ConfigOpts, ConfigWarnings} = parse_config_file(R2, AbsConfigFile),
@@ -918,14 +933,14 @@ parse_config(R) ->
             ConfigData = [],
             ConfigWarnings = []
         end,
-    NewWarnings = DefaultWarnings ++ ConfigWarnings,
+    NewWarnings = DefaultWarnings ++ CommonWarnings ++ ConfigWarnings,
     AllWarnings = R#rstate.warnings ++ NewWarnings,
-    R3 = R2#rstate{config_name = ConfigName,
+    R4 = R3#rstate{config_name = ConfigName,
                    config_dir  = AbsConfigDir,
                    config_file = AbsConfigFile,
                    config_args = ConfigArgs,
                    warnings    = AllWarnings},
-    {DefaultData ++ ConfigData, R3}.
+    {DefaultData ++ ConfigData, R4}.
 
 builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
@@ -1107,8 +1122,9 @@ args_dicts(#rstate{internal_args = I,
                    user_args = U,
                    file_args = F,
                    config_args = C,
+                   common_args = M,
                    default_args = D}) ->
-    [I, U, F, C, D].
+    [I, U, F, C, M, D].
 
 opts_to_args(KeyVals, Acc) ->
     do_opts_to_args(KeyVals, Acc, []).
