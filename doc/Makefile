@@ -27,6 +27,8 @@ CHAPTERS= \
 	logs \
 	$(GEN_DBG_CMDS) \
 	examples \
+	hardening \
+	warnings \
 	../INSTALL \
 	../AUTHORS \
 	references

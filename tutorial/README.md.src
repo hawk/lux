@@ -142,7 +142,7 @@ and test cases which only should be run on certain architectures. If
 some machine is very slow the `multiplier` can be set to something
 else than 1000 which is the default. The match timeout (in seconds) is
 multiplied with this setting to compute the actual timeout to get
-milli seconds which is used internally.
+milliseconds which is used internally.
 
 Here you can find a couple of architecture specific examples:
 

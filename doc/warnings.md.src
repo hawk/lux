@@ -1,0 +1,245 @@
+Warnings
+========
+
+Lux emits various warnings. Some are built-in and others are
+configurable. Some are emitted during validation and others during
+execution.
+
+Here follows a few configuration pararamenters that may be useful in
+this context:
+
+**--fail\_when\_warning**  
+is used to make a run fail if there are any warnings.
+
+**--mode=validate**  
+is used to validate the scripts and display some warnings. The scripts
+are not executed.
+
+**--skip_skip**  
+causes all skip statements to be ignored. The skip statements are
+mainly used to handle architecture specific quirks and are not really
+applicable during validation. So if you want validation of all scripts
+regardless of their skip settings you may need to use `--skip_skip`.
+
+**--mode=dump**  
+displays the internal form of the main script and its include files as
+well as warnings.
+
+**--mode=expand**  
+expands the source code of the script and its include files, this
+setting may help you to locate where macros and stuff are defined.
+
+Warnings emitted during validation
+----------------------------------
+
+**Warning: Empty multi-line XXX command**  
+
+`XXX` denotes a type of command, such as `send`, `expect`, `fail` etc.
+
+Writing an empty multi-line command like
+
+        """!
+        """
+
+or
+
+        """!
+
+        """
+
+can be very confusing as it may not be obvious to everyone that both
+those constructions are equivalent to
+
+        !
+
+which means that only one single newline is sent. Use the short form
+`!` of the command for clarity. An even worse use of empty multi-line
+commands is
+
+
+        """?
+        """
+
+and
+
+        """?
+
+        """
+
+which is equivalent to
+
+        ?
+
+**But that is a totally different command!** What looks like an empty
+expect command is in fact a command which empties the output streams
+(`stdout`, `stderr`). Already received output is discarded. If this is
+the intended behaviour it should definitely be rewritten to use the
+short form `?` of the command for clarity. Avoiding this (mis)feature
+is however the best solution. At a first look it seems more useful
+than it is. It often causes unexpected race patterns.
+
+**Warning: Empty send command**  
+
+As you probably have concluded, both
+
+
+        """~
+        """
+
+and
+
+        """~
+
+        """
+
+are equivalent to
+
+        ~
+
+which effectively is a no-op, which most likely is unintended. The
+latter is reported as this particular warning, while the first two are
+reported as a `*Warning: Empty multi-line send command` warning.
+
+**Warning: Macro name contains whitespace**  
+
+The whitespaces should be removed from the macro name in order to
+avoid confusion with other macros.
+
+**Warning: Trailing whitespaces**  
+
+The command ends with whitespaces which may be very confusing as the
+whitespaces are hard to see.
+
+**Warning: Missing summary doc (disabled for now)**  
+
+All scripts should document their purpose. This is done with the
+`[doc]` statement. This warning is displayed when there is no `doc`
+statement in the beginning of the script. The statement can be a
+single line `doc` statement or a multi-line `[doc]` ... `[enddoc]`
+block.
+
+This particular warning is disabled for now.
+
+**Warning: Empty doc text**  
+
+This warns for a `[doc ]` statement only containing whitespaces. Write
+a proper documentation or remove the statement.
+
+**Warning: Missing summary line**  
+
+This is a warning only emitted for multi-line documentation with
+`[doc]` ... `[enddoc]` blocks.
+
+The first line in the documentation block is intended to be a short
+catchy summary line. Add that line or use the short form of the
+command.
+
+**Warning: Empty line expected after summary line**  
+
+This is a warning only emitted for multi-line documentation with
+`[doc]` ... `[enddoc]` blocks.
+
+The second line in the documentation block is intended to be an empty
+line separating the first catchy summary line from the more detailed
+documentation.  Add that line and more detailed documentation or use
+the short form of the command.
+
+**Warning: More documentation lines expected after empty line**  
+
+This is a warning only emitted for multi-line documentation with
+`[doc]` ... `[enddoc]` blocks.
+
+Following the second line in the documentation block meaty detailed
+documentation is expected. Write some or use the short form of the
+command.
+
+Warnings emitted during execution
+---------------------------------
+
+All warnings detected during validation may also be emitted during
+execution.
+
+**Warning: Infinite timer**  
+
+There is no timeout set at all. The `suite_timeout`, the
+`case_timeout` and the match timeout are all set to `infinity`. This
+means that the script may run forever. Set an explicit timeout to get
+a decent behaviour.
+
+**Warning: case\_timeout > suite\_timeout**  
+
+The `case_timeout` is greater than the `suite_timeout`. Adjust the
+timeouts.
+
+**Warning: Match timeout > test case\_timeout**  
+
+The match timeout is greater than the `case_timeout`. Adjust the
+timeouts.
+
+**Warning: Match timeout > test suite\_timeout**  
+
+The match timeout is greater than the `suite_timeout`. Adjust the
+timeouts.
+
+**Warning: Risky timer XXX % of max**  
+
+The timer is near to time out. It used `XXX` percent of the max
+value. Increase the timeout to avoid intermittent failures.
+
+By default the threshold is 85%, but it can be configured to something
+else than
+
+        --risky_threshold=0.85
+
+**Warning: Sloppy timer < XXX ppb of max**  
+
+The timer is insanely large. Only a `XXX` fraction of the timer was
+used. The timer is very likely to be over-dimensioned. If the duration
+of something for example fluctuates between one and one million there
+are something that is strange. Very large timers may cause unwanted
+side effects. Such as Jenkins killing the job. Or that a failure takes
+unreasonable long time to wait for when running manually etc.
+
+By default the threshold is 1 part-per billion (ppb), but it can be
+configured to something else than
+
+        --sloppy_threshold=0.000000001
+
+**Warning: FAIL at XXX in shell YYY**  
+
+The script fails at line `XXX`, but it **also** fails during
+`[cleanup]`. The fail in the cleanup is the one that is visible in the
+result of the script. The previous fail at `XXX` is somewhat hidden
+and only visible as this warning. (Besides in the nitty gritty details
+of the event log.) The reason for giving the cleanup fail precedence
+over a "normal" fail is that bugs in the cleanup can cause severe
+problems in the test environment with subsequent scripts failing.
+There is good hygiene to ensure the cleanup code to be rock solid.
+
+**Warning: Fail but UNSTABLE as variable XXX is set**  
+
+This test case fails. But it does also have a `[config unstable=XXX]`
+statement causing the fail to be transformed into a warning. This
+construct is intended to be used for buggy scripts which fails
+intermittently. It can also be used during development where you want
+the script to be run even though it is not fully functional
+yet.
+
+**Warning: Fail but UNSTABLE as variable XXX is not set**  
+
+This test case fails. But it does also have a `[config unstable_unless=XXX]`
+statement causing the fail to be transformed into a warning. This
+construct is intended to be used for buggy scripts which fails
+intermittently. It can also be used during development where you want
+the script to be run even though it is not fully functional
+yet.
+
+**Warning: Variable name contains whitespace**  
+
+The whitespaces should be removed from the variable name in order to
+avoid confusion with other variables.
+
+**Warning: Shell name contains whitespace**  
+
+The whitespaces should be removed from the shell name in order to
+avoid confusion with other shells.

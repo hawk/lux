@@ -88,7 +88,7 @@ of reporting a failed test case as failure it is reported as a
 warning.
 
 Here are few examples of a few config settings which may be useful in
-a hetrogenous lab environment:
+a heterogeneous lab environment:
 
 One config file `.../lux_config/Linux-i686.luxcfg`
 

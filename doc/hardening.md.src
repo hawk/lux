@@ -1,0 +1,201 @@
+Hardening test cases
+====================
+
+Here follows some advices to make the test cases more reliable. In
+general we want to avoid race conditions and intermittent failures. We
+do also want our test cases to not introduce problems for other test
+cases.
+
+**?**  
+
+Remove all usage of empty `?` commands. This command empties the
+output streams (`stdout`, `stderr`). Already received output is
+discarded. This is a **very error prone** command which easily may
+cause race conditions and intermittent fails. The command is kept for
+backwards compatibility but should really not be used. It is a very
+good candidate for deprecation.
+
+Do also look out for unintended emtying of the output streams. Ensure
+that there are no `Empty multi-line expect command` warnings. E.g.
+
+        """?
+
+        """
+
+is such an occurrence.
+
+**[sleep XXX]**  
+
+Remove all usage of sleep commands. This is a **very error prone**
+command which easily may cause race conditions and intermittent
+fails. In rare situations it may be valid to sleep a while to ensure
+proper timing. But it should **never** be used as a safety action when
+it is hard to find proper synchronization points. Such usage is error
+prone.
+
+**Prompt synchronization**  
+
+Always match on prompts, e.g. `?SH-PROMPT:`. Especially when multiple
+commands are executed it is important to have well defined
+synchronization points to avoid sending input when the system under
+test not is ready for it yet. It is very easy to end up with
+intermittent problems when not matching on all prompts. Further it can
+be very confusing when performing post mortem analysis of failing
+scripts, possibly comparing successful runs with failing dito.
+
+It may even be the case that different environments might have so
+different properties that a success/failure on one platform can be a
+failure/success on another and that missing prompt synchronisation is
+the cause for this.
+
+**Protect the stdin**  
+
+Some commands sent to the system under test may read from `stdin`. To
+suppress this behaviour the `/dev/null` can be piped to their `stdin`
+to take care of that. The Java build system `ant` is known for this
+unwanted behaviour. It can be extremely frustrating to find out that
+this is the problem as it sometimes may work if you are lucky with the
+timing. Often this problem occurs in conjunction with poor
+synchronization points. Proper matching of prompts (mentioned above)
+can avoid this problem altogether, making the tests more robust
+avoiding intermittent race condition related problems.
+
+An example. Assume the following script where we use `make` to compile
+Java code using the `ant` tool
+
+        !make
+        !ls
+        ?SH-PROMPT:
+
+The infamous `ant` tool will consume characters written to its
+`stdin`. If the characters `ls` are sent to the shell port after `ant`
+is done it will be the shell that reads and executes `ls`. This is
+what we intended. But if Lux sends `ls` while `ant` still is executing
+it will be `ant` that reads those characters and no `ls` will be sent
+to the shell. So depending on the timing, the script may do what is
+intended, or not. In order to fix this race condition we can re-write
+the script as
+
+        !make < /dev/stdin
+        !ls
+        ?SH-PROMPT:
+
+ensuring `ant` to not read anything from `stdin` at all. An even more
+robust solution is to also match the prompt after `make`
+
+        !make < /dev/stdin
+        ?SH-PROMPT:
+        !ls
+        ?SH-PROMPT:
+
+**Fix all timer related warnings**  
+
+Once all timers have been adjusted to get rid of the timer related
+warnings it is time to harden the script even further by setting some
+configuration parameters to more challanging values. For example
+
+        --risky_threshold=0.60
+        --sloppy_threshold=0.000001
+
+**Change the timing of the scripts**  
+
+Use the `--flush_timeout` to cause test cases with active
+fail_patterns to fail when the `[cleanup]` section is entered. The
+effect is similar to adding a `[sleep XXX]` just before `[cleanup]`.
+Default is `--flush_timeout=0`. Start with `--flush_timeout=100` to
+ultimately use `--flush_timeout=1000`. The `--flush_timeout` is used
+to control how long Lux should wait for more output before
+(automatically) resetting the fail pattern when entering zombie
+mode. Resetting the fail pattern implies a final try to match the
+pattern before it is actually reset. Besides finding out poorly
+written scripts it may be useful with a long(er) setting to see more
+output during post mortem analysis.
+
+The `--poll_timeout` controls how long Lux should wait for more output
+from a shell. Shells produces output in many small chunks. When the
+first chunk is received Lux looks for consecutive chunks merging them
+together into a bigger chunk before trying to match the new
+data. Using a `--poll_timeout` bigger than 0 (milliseconds) increases
+the receive window causing more data to be collected before trying to
+match the regexps. This typically can cause scripts with poor
+synchronization points to fail.
+
+Default is `--poll_timeout=0`. It reasonable to try with
+`--poll_timeout=10` and when the scripts are adjusted to cope with
+this setting it may be time to use the more challanging value`
+--poll_timeout=100`.
+
+The special value `--poll_timeout=-1` causes Lux to not wait for
+consecutive chunks at all before trying to match the regexps. After an
+unsuccessful match Lux is looking for next small chunk of data. This
+setting may catch open ended regexps, i.e. regexps ending with a
+variable sized pattern (such as `.*`). An open ended regexp will in
+some runs match more data than in others. This can cause strange
+intermittent problems.
+
+**[cleanup]**  
+
+It is good hygiene to ensure that each test case does not affect the
+outcome of other test cases. Respect your collegues by not making your
+test cases to cause theirs to fail.
+
+Use the `[cleanup]` section to cleanup side-effects that may affect
+consecutive test cases.
+
+It is safe to assume that the cleanup code always is run. If there is
+a need to abort a run do never use control-c to abort. Enter the
+command `q` or `quit` in the Lux debugger instead to abort the test
+case in a controlled manner by executing the cleanup code. `q s` or
+`quit suite` may be used to safely abort all test cases int the suite.
+
+In order to be able to perform post mortem analysis some side effects
+needs to be kept. But ensure that these do not affect subsequent test
+cases. A god praxis is to copy logs, and what not, to the directory
+named in the environment variable `LUX_EXTRA_LOGS`. Each test case gets
+its unique directory path in the variable. Your script needs to create
+the directory if it is needed. The extra logs are kept among the other
+Lux logs.
+
+Do also run test cases multiple times without any `make clean` in
+between. This is to ensure that possible resets in the beginning of
+the test case works as intended. It can be very confusing to run
+other peoples test cases when they only work once.
+
+**[newshell Name]**  
+Using the `[newshell Name]` command instead of `[shell Name]` when
+creating a new shell can avoid the common pitfall of misspelling a
+shell name. `[shell MisspelledName]` will just go ahead and create
+yet another shell even if it was unintended. Using **--newshell** will
+require all shells to be created with `newshell` and `shell` can only
+be used to switch to an already existing shell.
+
+It may not be realistic to change all your existing scripts to use
+`newshell`, but you can at least use it for all new scripts.
+
+**Compensate for timing differences of heterogeneous hardware**  
+
+The `--multiplier` setting is intended to be used to handle the
+problem with heterogeneous hardware where some machines are faster than
+others. The `[timeout XXX]` used in the scripts can work well on one
+machine but cause the script to fail on another. Instead of boosting
+the timeout for all machines the `--multiplier` can be used. By
+default it is set to 1000 meaning that `[timeout 42]` actually is 42
+seconds. Perhaps it is easier to think in milliseconds. 42 means
+42\*1000=42000 milliseconds. By changing the multiplier to a higher
+value, such as 3000, will cause Lux to use longer timeouts. E.g.
+42\*3000=126000 milliseconds.
+
+This should be done in the architecture specific `.luxcfg` config
+files or in a host specific `.luxcfg` config file. By doing this there
+will be adapted timers per architecture or per host.
+
+**[config unstable=XXX]**  
+**[config unstable_unless=XXX]**  
+
+Respect your collegues by withdrawing your intermittently failing test
+cases from the test results of the group. Use these constructs to mark
+those test cases as unstable. They will then be run but only cause a
+warning if they fail.
+
+        [config unstable=XXX]
+        [config unstable_unless=XXX]

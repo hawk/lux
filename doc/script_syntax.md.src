@@ -80,7 +80,7 @@ Such as ABC, ACB, BAC, BCA, CAB and CBA. It can be achieved by
 the relatively simple regexp `?(ABC)|(ACB)|(BAC)|(BCA)|CAB)|(CBA)`.
 But with larger regexps, possibly spanning multiple lines, it
 can be quite complex to just write the regexps. Performing the
-post mortem analyzis to determine which sub-pattern that is
+post mortem analysis to determine which sub-pattern that is
 matching which part of the output will be even worse. In the
 following example `?+` is used to register a sub-pattern and `?`
 evaluates the permutations of all sub-patterns (including the one
@@ -202,7 +202,7 @@ premature success it will be set to `fail` or `success` respectively.
 This can for example be used if you want to save the contents of
 error logs, core dumps etc. in case of failure. Textual logs can
 simply be written to `stdout` in order to be easily accessible in
-the post mortem analyzis. For the purpose of saving binary files
+the post mortem analysis. For the purpose of saving binary files
 the **environment variable** `LUX_EXTRA_LOGS` may be used. It
 refers to a log directory name unique for each test case. The
 directory is however not automatically created. It must be created

@@ -5,9 +5,9 @@ Configuration parameters
 
 Exit status is 0 if all test cases are successful and 1 otherwise.
 
-Configuration parameters can be given as command line options, as
-`[config Var=Value]` statements in a script or in a **architecture
-specific file**.
+Configuration parameters can be given as command line options
+`--Var=Val`, as `[config Var=Value]` statements in a script or in a
+**architecture specific file**.
 
 An `architecture specific file` is a file with configuration
 statements only valid for a certain architecture/platform/system.
@@ -43,15 +43,22 @@ be used interactively.
 3. Command line parameters from `LUX_SYSTEM_FLAGS` environment
 variable. To be used by makefiles, scripts etc.
 
-4. Test case specific configuration settings
+4. Test case specific configuration settings.
 
-5. Architecture specific configuration settings
+5. Architecture specific configuration settings from a `.luxcfg` file
+on the `--config_dir` directory. See `--config_name` about the naming
+convention.
 
-6. Site local default configuration settings defined in `lux/priv/luxcfg`
+6. Non-architecture specific configuration settings defined in a file
+named `luxcfg` on the `--config_dir` directory.
 
-7. Environment variables are converted to `[config var=val]`
+7. Site local default configuration settings defined in a file named
+`luxcfg` on the `lux/priv` directory.
 
-8. Hardcoded built-in default values
+8. Environment variables automatically converted to `[config var=val]`
+settings..
+
+9. Hardcoded built-in default values.
 
 Test case control
 -----------------
@@ -116,17 +123,17 @@ given. Defaults to `.*.lux$`.
 Overrides environment variable settings. Each entry must be of the
 form `var=value`.
 
-**--config_name ConfigName**  
+**--config\_name ConfigName**  
 Normally Lux figures out which system software/hardware it runs on,
 but it can explicitly be overridden with the `ConfigName` option. The
 `ConfigName` is used to read system architecture specific configuration
 parameters from a file named `ConfigName.luxcfg`. By default `ConfigName`
  is obtained from `uname -sm` where `ConfigName` is set to `Kernel-Machine`.
 This behavior can be overridden by adding a file named after the name of
-the host (`hostname.luxcfg`) on the `ConfigDir` directory. 
+the host (`hostname.luxcfg`) on the `ConfigDir` directory.
 
 **--config\_dir ConfigDir**  
-A directory where architecture specific connfiguration files may
+A directory where architecture specific configuration files may
 reside. The format of the architecture specific files a subset of the
 script format. Only `[config var=value]` statements are extracted from
 the architecture specific file. The config settings in the
@@ -134,6 +141,9 @@ architecture specific file may be overridden by config settings in the
 script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called `priv` in the `Lux` application.
+
+Non-architecture settings can be put in a file named `luxcfg`. But
+those will be overridden by the architecture specific settings.
 
 **--hostname Hostname**  
 The `Hostname` overrides the hostname obtained from the operating
@@ -209,6 +219,10 @@ Skip unstable test cases. See `--unstable` and `--unstable_unless`.
 Forces Lux to not care about `--skip` and `--skip_unless` settings.
 Overrides `--skip_unstable`.
 
+**--fail\_when\_warning**  
+**--fail\_when\_warning=true**  
+Forces Lux to fail if there are any warnings.
+
 Log control
 -----------
 
@@ -252,37 +266,41 @@ the context for the test case(s), such as subsystem or test suite.
 Timeouts
 --------
 
+**--multiplier Multiplier**  
+In order to be able to run the tests on very slow hardware, there is a
+concept of a `Multiplier`. Each time a timer is initiated (except
+sleep) its value is multiplied with the `Multiplier` value.
+`Multiplier` is an integer and defaults to `1000`, meaning that
+`[timeout 10]` actually is 10 seconds. The timeout value 10 is
+multiplied with the multiplier value 1000. Perhaps it is easier to
+think in milliseconds. 10 means 10*1000=10000 milliseconds. By
+changing the multiplier to a higher value, such as 3000, it will cause
+Lux to use longer timeouts. E.g. 10*3000=30000 milliseconds.
+`--multiplier` is intended to be set in architecture/host specific
+files to provide different settings on different systems.
+
 **--timeout Timeout**  
 The script expects the shell output to match given
 [regular expression][]s. But the output must be received within a
 given time limit. The `Timeout` specifies how long it will wait before
-the script fails. The `Timeout` defaults to `10000` milli seconds
+the script fails. The `Timeout` defaults to `10000` milliseconds
 (`10` seconds). This `Timeout` can be overridden by the statement
 `[timeout Timeout]` in the script itself.
 
 **--cleanup\_timeout CleanupTimeout**  
 When the script reaches the `[cleanup]` marker, the ordinary
 `Timeout` will be set to `CleanupTimeout`. The `CleanupTimeout`
-defaults to `100000` milli seconds (`100` seconds).
-
-**--multiplier Multiplier**  
-In order to be able to run the tests on very slow hardware,
-the `Multiplier` can be used. Each time a timer is initiated
-(except sleep) its value is multiplied with the `Multiplier`
-value. `Multiplier` is an integer and defaults to `1000`. For
-example, by setting the `Multiplier` to `2000` all timeouts will
-be doubled. `--multiplier` is intended to be set in architecture
-specific files to provide different settings on different systems.
+defaults to `100000` milliseconds (`100` seconds).
 
 **--suite\_timeout SuiteTimeout**  
 If the duration of the execution exceeds the `SuiteTimeout`, it
 is aborted. The `SuiteTimeout` defaults to `infinity`, but can
-be any positive integer value in the unit of milli seconds.
+be any positive integer value in the unit of milliseconds.
 
 **--case\_timeout CaseTimeout**  
 If the the duration of a single test case exceeds the
 `CaseTimeout`, it is aborted. It can be any positive integer
-value in the unit of milli seconds or `infinity`. The default
+value in the unit of milliseconds or `infinity`. The default
 is `300000` (5 minutes).
 
 **--flush\_timeout FlushTimeout**  
@@ -292,15 +310,31 @@ All output from a shell is buffered and matched against
 the script. When this is done, the engine first waits a while
 before it discards the output. How long it waits is controlled
 by `FlushTimeout`. It defaults to `0`. If you want to experiment
-with it, `1000` milli seconds (1 second) can be a resonable value.
+with it, `1000` milliseconds (1 second) can be a resonable value.
 
 **--poll\_timeout PollTimeout**  
 An experimental timeout setting.
 When the Lux engine receives output from a shell it will
-wait in `PollTimeout` milli seconds for more output before it
+wait in `PollTimeout` milliseconds for more output before it
 tries to match it against any [regular expression][]s. It defaults
-to `0`. If you want to experiment with it, `100` milli seconds
+to `0`. If you want to experiment with it, `100` milliseconds
 (1/10 second) can be a resonable value.
+
+**--risky\_threshold RiskyThreshold**  
+An experimental timeout setting.
+By default Lux warns for risky timers, i.e. timers that are close
+to timeout. This may cause intermittent failures in future runs. By
+default it is set to `0.85` which means that 85% of the timer was
+used.
+
+**--sloppy\_threshold RiskyThreshold**  
+An experimental timeout setting.
+By default Lux warns for sloppy timers, i.e. timers where only a very
+small part of the timer is used. This may cause secondary problems,
+e.g. test run abortions by Jenkins or similar systems. Such timers are
+also rather inconvenient to debug as they may take hours to time out.
+By default it is set to `0.000000001` which means that only 1 ppb
+(parts per billion) of the timer was used, or less.
 
 History control
 ---------------
