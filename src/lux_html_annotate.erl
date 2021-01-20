@@ -1093,6 +1093,7 @@ html_opt_div(Op, Data) ->
         <<"expect">> -> html_div(Op, Html);
         <<"skip">>   -> html_div(Op, Html);
         <<"match">>  -> html_div(Op, Html);
+        <<"rest">>   -> html_div(Op, Html);
         _            -> lux_html_utils:html_quote(Html)
     end.
 
