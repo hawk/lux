@@ -57,12 +57,13 @@ init(I) ->
                 true ->
                     I3
             end,
-        I6 = loop(I5),
-        stop(I6),
-        I7 = check_risky_timer(I6, "case_timeout", CaseRef),
-        I8 = check_risky_timer(I7, "suite_timeout", SuiteRef),
+        I6 = check_infinite_timers(I5),
+        I7 = loop(I6),
+        stop(I7),
+        I8 = check_risky_timer(I7, "case_timeout", CaseRef),
+        I9 = check_risky_timer(I8, "suite_timeout", SuiteRef),
         lux_utils:cancel_timer(CaseRef),
-        {ok, I8}
+        {ok, I9}
     catch
         throw:{error, Reason, IA} ->
             stop(IA),
@@ -73,6 +74,16 @@ init(I) ->
                       [ErrBin, EST]),
         stop(IB),
         {error, ErrBin, IB}
+    end.
+
+check_infinite_timers(I) ->
+    if
+        I#istate.default_timeout =:= infinity,
+        I#istate.suite_timeout =:= infinity;
+        I#istate.case_timeout =:= infinity ->
+            add_warning(I, "Infinite timer");
+        true ->
+            I
     end.
 
 stop(I) ->

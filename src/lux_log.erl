@@ -935,7 +935,9 @@ do_extract_timers([E | Events], Start, Send, Case, Calls, Nums, Acc) ->
                                 is_integer(LeftMillis) ->
                                     MaxTime - LeftMillis;
                                 is_integer(Case#timer.elapsed_time) ->
-                                    Case#timer.elapsed_time
+                                    Case#timer.elapsed_time;
+                                MaxTime =:= infinity ->
+                                    undefined
                             end,
                         Status =
                             if
