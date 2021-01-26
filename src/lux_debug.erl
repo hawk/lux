@@ -302,6 +302,7 @@ ambiguous(DS, Orig, NamedCmds) ->
         end,
     lists:flatten(["Available commands: ", Orig, "\n",
                    "-------------------\n",
+                   "\n",
                    DeepList,
                    OptSubCmds]).
 
@@ -615,6 +616,7 @@ format_shell_sub_cmds() ->
                          NamedCmds),
     lists:flatten(["Sub commands for \"shell\":\n",
                    "-------------------------\n",
+                   "\n",
                    DeepList]).
 
 shell_sub_cmds() ->
@@ -628,6 +630,7 @@ shell_sub_cmds() ->
 intro_help() ->
     "Debugger for Lux scripts\n"
     "========================\n"
+    "\n"
     "When `lux` is started with the `--debug` option, the debugger\n"
     "will attach to the script before its execution has started. An\n"
     "optional file with saved commands may be processed at this stage.\n"
@@ -647,11 +650,13 @@ intro_help() ->
 param_help() ->
     "Available parameters:\n"
     "---------------------\n"
+    "\n"
     "* lineno - lineno in source file\n\n".
 
 lineno_help() ->
     "lineno parameter\n"
     "----------------\n"
+    "\n"
     "Several commands has a lineno as parameter. It is a string which\n"
     "is divided in several components. The components are separated\n"
     "with a colon and are used to refer to line numbers in include\n"
