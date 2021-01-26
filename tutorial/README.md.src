@@ -168,9 +168,9 @@ History of test run results
 
 #include <tutorial/chatty/test/infra/Makefile>
 
-#eval-silent cd tutorial/chatty/test/infra && make history_demo_multi_hosts
-#eval-silent cd tutorial/chatty/test/infra && rm history_demo_multi_hosts/lux_history*
-#eval-include cd tutorial/chatty/test/infra && lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs
+#eval-silent cd tutorial/chatty/test/infra && make history_demo_multi_host
+#eval-silent cd tutorial/chatty/test/infra && rm -f history_demo_multi_host/lux_history*
+#eval-include cd tutorial/chatty/test/infra && lux --history history_demo_multi_host history_demo_multi_host/run_logs
 
 Walkthru history_demo_multi_host/lux_history.html
 
