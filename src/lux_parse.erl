@@ -790,10 +790,13 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "macro " ++ Head ->
             case string:tokens(Head, " ") of
                 [Name | ArgNames] ->
+                    Prefix = lists:takewhile(fun(C) -> C =:= ?SPACE end, Head),
                     P2 =
-                        case lists:member(?SPACE , Name) of
+                        case lists:member(?SPACE , Name) orelse
+                            Prefix =/= "" of
                             true ->
-                                add_warning(P, Cmd, ["Macro name \"", Name,
+                                add_warning(P, Cmd, ["Macro name \"",
+                                                     Prefix, Name,
                                                      "\" contains whitespace"]);
                             false ->
                                 P
