@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.4.1 - 2020-11-30</p>
+<p>Version 2.5 - 2021-01-28</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -19,6 +19,8 @@
 <li><a href="#logs">Logs</a></li>
 <li><a href="#debug_cmds">Debugger for Lux scripts</a></li>
 <li><a href="#examples">Examples</a></li>
+<li><a href="#hardening">Hardening test cases</a></li>
+<li><a href="#warnings">Warnings</a></li>
 <li><a href="#../INSTALL">Installation</a></li>
 <li><a href="#../AUTHORS">Original author</a></li>
 <li><a href="#references">References</a></li>
@@ -287,50 +289,93 @@ Hopefully the test code is self-explanatory.</p>
 
 <blockquote>
 <pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; lux .
-summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_21_982342/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_48_20_365342/lux_summary.log
 test case         : a_simple_server.lux
-progress          : ..:..:.:..:..:.:..:.:..:.:....:.:.:..14?:?:?:?:?..:.:..:.:..:....
-result            : SUCCESS
-test case         : async_startup_fail.lux
-progress          : ..:..:.:..:..:.:..:.:.:....:.:.:..:.:..:..:.:..:..:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.25????25..
-result            : FAIL at 25 in shell hawk
+progress          : ..:..:.:..:..:.:..:..:.:....:.:.:.13????13
+result            : FAIL at 13 in shell server
 expected*
-Trying to join the mytopic chat room...
-Welcome to the chat room mytopic!a!!
-Enter text and press enter. Exit chat with \^d.
-
-hawk&gt;
+Starting server
 actual match_timeout
-erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt opic
-Trying to join the mytopic chat room...
-&lt;ERROR&gt; Failed to join 'mytopic@HMATTSSO-M-74JD'. Is the server started?
-{"init terminating in do_boot",shutdown}
-init terminating in do_boot (shutdown)
-SH-PROMPT:
+chatty:server().
+** exception error: undefined function chatty:server/0
+(server@HMATTSSO-M-74JD)2&gt; 
 diff
-+ erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt 
-+ opic
-  Trying to join the mytopic chat room...
-- Welcome to the chat room mytopic!a!!
-- Enter text and press enter. Exit chat with \^d.
-- 
-- hawk&gt;
-+ &lt;ERROR&gt; Failed to join 'mytopic@HMATTSSO-M-74JD'. Is the server started?
-+ {"init terminating in do_boot",shutdown}
-+ init terminating in do_boot (shutdown)
-+ SH-PROMPT:
+- Starting server
++ chatty:server().
++ ** exception error: undefined function chatty:server/0
++ (server@HMATTSSO-M-74JD)2&gt; 
+
+test case         : async_startup_fail.lux
+progress          : ..:..:..:..:.:..:.:.:.:.:.:.9????9
+result            : FAIL at 9 in shell server
+expected*
+Starting server
+actual match_timeout
+erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
+Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+
+"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
+Eshell V10.7.2.7  (abort with ^G)
+(mytopic@HMATTSSO-M-74JD)1&gt; SH-PROMPT:
+diff
+- Starting server
++ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
++ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
++ 
++ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
++ Eshell V10.7.2.7  (abort with ^G)
++ (mytopic@HMATTSSO-M-74JD)1&gt; SH-PROMPT:
 
 test case         : sync_startup.lux
-progress          : ..:..:.:..:..:.:..:.:.:..:.:.:.:....:..:.:..:..:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:.:.::......:.:.:.....:............
-result            : SUCCESS
+progress          : ..:..:.:...:.:..:.:.:.:.:.:.:.8????8
+result            : FAIL at 8 in shell server
+expected*
+Starting server
+actual match_timeout
+erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
+Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+
+"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
+Eshell V10.7.2.7  (abort with ^G)
+(mytopic@HMATTSSO-M-74JD)1&gt; SH-PROMPT:
+diff
+- Starting server
++ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
++ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
++ 
++ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
++ Eshell V10.7.2.7  (abort with ^G)
++ (mytopic@HMATTSSO-M-74JD)1&gt; SH-PROMPT:
+
 test case         : sync_startup_cleanup.lux
-progress          : ()..:..:.:..:...:.:..:.:.:..:.:.:.:....:..:.:...:.:..:....:..:.:..:..:.:..:.:.:....:..:.:..:..:.:..:.:..:.:....:.:.:.::..c..........:..:.:..:.(.:..:.:.)(.:.:..:.:.)((.:..:.:.:.:.:.)(.:.:...))((.:..:.:.:.:.:.:.)(.:.:...))
-result            : SUCCESS
-successful        : 3
-failed            : 1
-async_startup_fail.lux:25 - match_timeout
+progress          : ()..:..:.:..:...:.:..:.:.:.:.:.:.:.12????12C..:..:.:..(.:.:..:.)(.:..:.:.)((.:..:.:.:.:.:.:.:.:.)(.:.:...))
+result            : FAIL at 12 in shell server
+expected*
+Starting server
+actual match_timeout
+erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
+Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+
+"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
+Eshell V10.7.2.7  (abort with ^G)
+(mytopic@HMATTSSO-M-74JD)1&gt; SH-PROMPT:
+diff
+- Starting server
++ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
++ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
++ 
++ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
++ Eshell V10.7.2.7  (abort with ^G)
++ (mytopic@HMATTSSO-M-74JD)1&gt; SH-PROMPT:
+
+successful        : 0
+failed            : 4
+a_simple_server.lux:13 - match_timeout
+async_startup_fail.lux:9 - match_timeout
+sync_startup.lux:8 - match_timeout
+sync_startup_cleanup.lux:12 - match_timeout
 summary           : FAIL
-file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_21_982342/lux_summary.log.html
+file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_48_20_365342/lux_summary.log.html
 .../lux&gt; echo $?
 1
 </code></pre>
@@ -520,7 +565,7 @@ at <code>lux_logs/latest_run</code>. With this command you get a list of all log
 
 <blockquote>
 <pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; ls -ld lux_logs/latest_run
-lrwxr-xr-x 1 hmattsso staff 30 May 25 14:51 lux_logs/latest_run -&gt; run_2020_05_25_12_51_21_982342
+lrwxr-xr-x 1 hmattsso staff 30 Jan 27 22:48 lux_logs/latest_run -&gt; run_2021_01_27_21_48_20_365342
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -535,35 +580,24 @@ lux_logs/latest_run/sync_startup.lux.event.log
 lux_logs/latest_run/sync_startup.lux.event.log.html
 lux_logs/latest_run/sync_startup_cleanup.lux.cleanup.stdin.log
 lux_logs/latest_run/a_simple_server.lux.server.stdout.log
-lux_logs/latest_run/sync_startup.lux.hawk.stdout.log
-lux_logs/latest_run/async_startup_fail.lux.hawk.stdin.log
 lux_logs/latest_run/async_startup_fail.lux.event.log.html
-lux_logs/latest_run/async_startup_fail.lux.hawk.stdout.log
 lux_logs/latest_run/async_startup_fail.lux.event.log.csv
 lux_logs/latest_run/sync_startup_cleanup.lux.server.stdout.log
-lux_logs/latest_run/sync_startup.lux.hawk.stdin.log
 lux_logs/latest_run/lux_summary.log.html
 lux_logs/latest_run/async_startup_fail.lux.config.log
-lux_logs/latest_run/sync_startup_cleanup.lux.cons.stdin.log
-lux_logs/latest_run/sync_startup_cleanup.lux.server-log.stdout.log
 lux_logs/latest_run/sync_startup_cleanup.lux.extra.logs
-lux_logs/latest_run/sync_startup_cleanup.lux.extra.logs/chatty_mytopic.log
 lux_logs/latest_run/sync_startup.lux.orig
 lux_logs/latest_run/sync_startup_cleanup.lux.event.log.csv
 lux_logs/latest_run/sync_startup_cleanup.lux.cleanup.stdout.log
 lux_logs/latest_run/sync_startup_cleanup.lux.event.log
 lux_logs/latest_run/sync_startup.lux.config.log
-lux_logs/latest_run/sync_startup_cleanup.lux.hawk.stdout.log
-lux_logs/latest_run/sync_startup.lux.server-log.stdin.log
 lux_logs/latest_run/a_simple_server.lux.event.log.html
 lux_logs/latest_run/async_startup_fail.lux.server.stdout.log
 lux_logs/latest_run/sync_startup.lux.server.stdin.log
 lux_logs/latest_run/a_simple_server.lux.orig
 lux_logs/latest_run/async_startup_fail.lux.event.log
 lux_logs/latest_run/sync_startup_cleanup.lux.orig
-lux_logs/latest_run/sync_startup_cleanup.lux.hawk.stdin.log
 lux_logs/latest_run/sync_startup_cleanup.lux.server.stdin.log
-lux_logs/latest_run/sync_startup_cleanup.lux.server-log.stdin.log
 lux_logs/latest_run/a_simple_server.lux.event.log.csv
 lux_logs/latest_run/sync_startup_cleanup.lux.config.log
 lux_logs/latest_run/Users
@@ -576,8 +610,6 @@ lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial/support/luxinc
 lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial/support/luxinc/macros.luxinc.orig
 lux_logs/latest_run/lux_config.log
 lux_logs/latest_run/async_startup_fail.lux.server.stdin.log
-lux_logs/latest_run/sync_startup.lux.cons.stdout.log
-lux_logs/latest_run/sync_startup.lux.server-log.stdout.log
 lux_logs/latest_run/sync_startup_cleanup.lux.event.log.html
 lux_logs/latest_run/lux_result.log
 lux_logs/latest_run/async_startup_fail.lux.orig
@@ -585,11 +617,9 @@ lux_logs/latest_run/lux_summary.log
 lux_logs/latest_run/sync_startup.lux.server.stdout.log
 lux_logs/latest_run/a_simple_server.lux.config.log
 lux_logs/latest_run/sync_startup.lux.event.log.csv
-lux_logs/latest_run/sync_startup_cleanup.lux.cons.stdout.log
 lux_logs/latest_run/a_simple_server.lux.event.log
 lux_logs/latest_run/a_simple_server.lux.server.stdin.log
 lux_logs/latest_run/lux.tap
-lux_logs/latest_run/sync_startup.lux.cons.stdin.log
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -636,132 +666,114 @@ use the <code>--progress=verbose</code> flag or <code>-v</code> for short:</p>
 
 <blockquote>
 <pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; lux -v a_simple_server.lux
-summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_45_673239/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_49_01_845676/lux_summary.log
 test case         : a_simple_server.lux
-event log         : 0.5
+event log         : 0.7
 /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/a_simple_server.lux
-14:51:45.751309 lux(0): start_time "2020-05-25 14:51:45.735757"
-14:51:45.751477 lux(0): suite_timeout infinity
-14:51:45.751561 lux(0): case_timeout 300000000 micros
-14:51:45.752648 lux(1): doc "Demo a simple single shell test case"
-14:51:45.754795 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
-14:51:45.755352 server(4): expected* ".+"
-14:51:45.755434 server(4): timer started (10 seconds * 1.000 multiplier)
-14:51:45.762018 server(4): recv "\e[?1034hsh-3.2$ "
-14:51:45.762109 server(4): timer canceled (after 6572 micro seconds)
-14:51:45.762202 server(4): match "\e[?1034hsh-3.2$ "
-14:51:45.762362 server(4): send "export PS1=SH-PROMPT:
+22:49:01.939867 lux(0): start_time "2021-01-27 22:49:01.926920"
+22:49:01.940191 lux(0): suite_timeout infinity
+22:49:01.940265 lux(0): case_timeout 300000000 micros left (300 seconds * 1.000 multiplier)
+22:49:01.941290 lux(1): doc "Demo a simple single shell test case"
+22:49:01.943903 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
+22:49:01.944482 server(4): expected* ".+"
+22:49:01.944482 server(4): timer started (10 seconds * 1.000 multiplier)
+22:49:01.951484 server(4): recv "\e[?1034hsh-3.2$ "
+22:49:01.951601 server(4): timer canceled (after 6999 microseconds)
+22:49:01.951691 server(4): match "\e[?1034hsh-3.2$ "
+22:49:01.951691 server(4): rest ""
+22:49:01.951899 server(4): send "export PS1=SH-PROMPT:
   "
-14:51:45.762512 server(4): expected* "^SH-PROMPT:"
-14:51:45.762597 server(4): timer started (10 seconds * 1.000 multiplier)
-14:51:45.762721 server(4): recv "export PS1=SH-PROMPT:
+22:49:01.952119 server(4): recv "expor"
+22:49:01.952205 server(4): expected* "^SH-PROMPT:"
+22:49:01.952205 server(4): timer started (10 seconds * 1.000 multiplier)
+22:49:01.952349 server(4): recv "t PS1=SH-PROMPT:
   SH-PROMPT:"
-14:51:45.762805 server(4): timer canceled (after 107 micro seconds)
-14:51:45.762878 server(4): skip "export PS1=SH-PROMPT:
+22:49:01.952424 server(4): timer canceled (after 98 microseconds)
+22:49:01.952546 server(4): skip "export PS1=SH-PROMPT:
   "
-14:51:45.762938 server(4): match "SH-PROMPT:"
-14:51:45.763125 server(6): send "erl -sname server -pa ../../../chatty/ebin
+22:49:01.952546 server(4): match "SH-PROMPT:"
+22:49:01.952546 server(4): rest ""
+22:49:01.952817 server(6): send "erl -sname server -pa ../../../chatty/ebin
   "
-14:51:45.763300 server(6): recv "erl -sname"
-14:51:45.763519 server(6): recv " server -pa ../../../chatty/ebin
+22:49:01.952965 server(6): recv "er"
+22:49:01.953103 server(6): recv "l -sname server -pa ../../../cha"
+22:49:01.953175 server(8): expected* "Erlang/OTP"
+22:49:01.953175 server(8): timer started (10 seconds * 1.000 multiplier)
+22:49:01.953337 server(8): recv "tty/ebin
   "
-14:51:45.763633 server(8): expected* "Erlang/OTP"
-14:51:45.763738 server(8): timer started (10 seconds * 1.000 multiplier)
-14:51:45.853070 server(8): recv "Erlang/OTP 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
+22:49:02.051858 server(8): recv "Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 
   "
-14:51:45.853235 server(8): timer canceled (after 89398 micro seconds)
-14:51:45.853347 server(8): skip "erl -sname server -pa ../../../chatty/ebin
+22:49:02.052036 server(8): timer canceled (after 98745 microseconds)
+22:49:02.052167 server(8): skip "erl -sname server -pa ../../../chatty/ebin
   "
-14:51:45.853445 server(8): match "Erlang/OTP"
-14:51:45.853735 server(9): expected* "Eshell"
-14:51:45.853826 server(9): timer started (10 seconds * 1.000 multiplier)
-14:51:45.969904 server(9): recv "Eshell V10.7.1  (abort with ^G)
-  "
-14:51:45.970076 server(9): timer canceled (after 116154 micro seconds)
-14:51:45.970194 server(9): skip " 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
+22:49:02.052167 server(8): match "Erlang/OTP"
+22:49:02.052167 server(8): rest " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 
   "
-14:51:45.970304 server(9): match "Eshell"
-14:51:45.970402 server(9): recv "(server@HMATTSSO-M-74JD)1&gt; "
-14:51:45.970610 server(10): expected* "&gt; "
-14:51:45.970700 server(10): timer started (10 seconds * 1.000 multiplier)
-14:51:45.970805 server(10): timer canceled (after 7 micro seconds)
-14:51:45.970895 server(10): skip " V10.7.1  (abort with ^G)
+22:49:02.052679 server(9): expected* "Eshell"
+22:49:02.052679 server(9): timer started (10 seconds * 1.000 multiplier)
+22:49:02.173255 server(9): recv "Eshell V10.7.2.7  (abort with ^G)
+  "
+22:49:02.173452 server(9): timer canceled (after 120632 microseconds)
+22:49:02.173626 server(9): skip " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+
+  "
+22:49:02.173626 server(9): match "Eshell"
+22:49:02.173626 server(9): rest " V10.7.2.7  (abort with ^G)
+  "
+22:49:02.173887 server(9): recv "(server@HMATTSSO-M-74JD)1&gt; "
+22:49:02.174210 server(10): expected* "&gt; "
+22:49:02.174210 server(10): timer started (10 seconds * 1.000 multiplier)
+22:49:02.174410 server(10): timer canceled (after 10 microseconds)
+22:49:02.174584 server(10): skip " V10.7.2.7  (abort with ^G)
   (server@HMATTSSO-M-74JD)1"
-14:51:45.970975 server(10): match "&gt; "
-14:51:45.971212 server(12): send "chatty:server().
+22:49:02.174584 server(10): match "&gt; "
+22:49:02.174584 server(10): rest ""
+22:49:02.175135 server(12): send "chatty:server().
   "
-14:51:45.971421 server(13): expected* "Starting server"
-14:51:45.971528 server(13): timer started (10 seconds * 1.000 multiplier)
-14:51:45.984308 server(13): recv "chatty:server()."
-14:51:45.984496 server(13): recv "
+22:49:02.175439 server(13): expected* "Starting server"
+22:49:02.175439 server(13): timer started (10 seconds * 1.000 multiplier)
+22:49:02.193525 server(13): recv "chatty:server("
+22:49:02.193770 server(13): recv ").
   "
-14:51:45.988087 server(13): recv "Starting server server...
+22:49:02.199710 server(13): recv "** exception error: undefined function chatty:server/0
   "
-14:51:45.988197 server(13): timer canceled (after 16557 micro seconds)
-14:51:45.988317 server(13): skip "chatty:server().
-  "
-14:51:45.988410 server(13): match "Starting server"
-14:51:45.988685 server(14): expected* "&gt; "
-14:51:45.988783 server(14): timer started (10 seconds * 1.000 multiplier)
-14:51:48.989253 server(14): recv "Trying to open log file chatty_server.log..."
-14:51:48.989581 server(14): recv "ok.
-  "
-14:51:48.992272 server(14): recv "&lt;0.87.0&gt;"
-14:51:48.992540 server(14): recv "
+22:49:02.200208 server(13): recv "(server@HMATTSSO-M-74JD)2&gt; "
+22:49:12.175905 server(13): recv "match_timeout"
+22:49:12.176699 server(13): timer failed (after 10000654 microseconds)
+22:49:12.176699 server(13): stop fail
+22:49:12.176699 server(13): skip "chatty:server().
+  ** exception error: undefined function chatty:server/0
   (server@HMATTSSO-M-74JD)2&gt; "
-14:51:48.992710 server(14): timer canceled (after 3003799 micro seconds)
-14:51:48.992888 server(14): skip " server...
-  Trying to open log file chatty_server.log...ok.
-  &lt;0.87.0&gt;
-  (server@HMATTSSO-M-74JD)2"
-14:51:48.993076 server(14): match "&gt; "
-14:51:48.993614 server(16): send "halt(3).
-  "
-14:51:48.993930 server(17): expected* "SH-PROMPT:"
-14:51:48.994094 server(17): timer started (10 seconds * 1.000 multiplier)
-14:51:48.994399 server(17): recv "halt(3).
-  "
-14:51:48.998336 server(17): recv "SH-PROMPT:"
-14:51:48.998466 server(17): timer canceled (after 4154 micro seconds)
-14:51:48.998609 server(17): skip "halt(3).
-  "
-14:51:48.998737 server(17): match "SH-PROMPT:"
-14:51:48.999066 server(19): send "echo "===$?==="
-  "
-14:51:48.999294 server(19): recv "echo "
-14:51:48.999514 server(19): recv ""===$?==="
-  ===3===
-  "
-14:51:48.999607 server(20): expected* "===3==="
-14:51:48.999706 server(20): timer started (10 seconds * 1.000 multiplier)
-14:51:48.999841 server(20): timer canceled (after 10 micro seconds)
-14:51:48.999962 server(20): skip "echo "===$?==="
-  "
-14:51:49.000062 server(20): match "===3==="
-14:51:49.000217 server(20): recv "SH-PROMPT:"
-14:51:49.000364 server(21): expected* "SH-PROMPT:"
-14:51:49.000437 server(21): timer started (10 seconds * 1.000 multiplier)
-14:51:49.000547 server(21): timer canceled (after 9 micro seconds)
-14:51:49.000626 server(21): skip "
-  "
-14:51:49.000695 server(21): match "SH-PROMPT:"
-14:51:49.000912 server(22): no_cleanup
-14:51:49.001003 server(22): inactivate after zombify
-14:51:49.001097 server(22): end of script
-14:51:49.001192 server(22): stop success
-14:51:49.001347 server(22): where 22"
-14:51:49.001448 server(22): stack "a_simple_server.lux:22" no_cleanup 
-14:51:49.001544 lux(0): case_timeout 296750000 micros
-14:51:49.001622 lux(0): suite_timeout infinity
-14:51:49.001712 lux(0): end_time "2020-05-25 14:51:49.001703"
-result            : SUCCESS
-successful        : 1
-summary           : SUCCESS
-file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2020_05_25_12_51_45_673239/lux_summary.log.html
+22:49:12.176699 server(13): where "13"
+22:49:12.176699 server(13): stack "a_simple_server.lux:13" expect 
+22:49:12.177250 server(13): inactivate after delete
+22:49:12.177432 lux(13): goto cleanup
+22:49:12.177788 lux(22): no_cleanup
+22:49:12.178060 lux(0): case_timeout 289762000 micros left (289 seconds * 1.000 multiplier)
+22:49:12.178355 lux(0): suite_timeout infinity
+22:49:12.178572 lux(0): end_time "2021-01-27 22:49:12.178550"
+result            : FAIL at 13 in shell server
+expected*
+Starting server
+actual match_timeout
+chatty:server().
+** exception error: undefined function chatty:server/0
+(server@HMATTSSO-M-74JD)2&gt; 
+diff
+- Starting server
++ chatty:server().
++ ** exception error: undefined function chatty:server/0
++ (server@HMATTSSO-M-74JD)2&gt; 
+
+successful        : 0
+failed            : 1
+a_simple_server.lux:13 - match_timeout
+summary           : FAIL
+file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_49_01_845676/lux_summary.log.html
 .../lux&gt; echo $?
-0
+1
 </code></pre>
 </blockquote>
 
@@ -780,8 +792,6 @@ run of a test case.</p>
 export PS1=SH-PROMPT:
 erl -sname server -pa ../../../chatty/ebin
 chatty:server().
-halt(3).
-echo "===$?==="
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -793,18 +803,13 @@ echo "===$?==="
 <pre><code>.../lux&gt; cd tutorial/chatty/test/intro &amp;&amp; cat lux_logs/latest_run/a_simple_server.lux.server.stdout.log
 [?1034hsh-3.2$ export PS1=SH-PROMPT:
 SH-PROMPT:erl -sname server -pa ../../../chatty/ebin
-Erlang/OTP 22 [erts-10.7.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe] [dtrace]
+Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 
-Eshell V10.7.1  (abort with ^G)
+Eshell V10.7.2.7  (abort with ^G)
 (server@HMATTSSO-M-74JD)1&gt; chatty:server().
-Starting server server...
-Trying to open log file chatty_server.log...ok.
-&lt;0.87.0&gt;
-(server@HMATTSSO-M-74JD)2&gt; halt(3).
-SH-PROMPT:echo "===$?==="
-===3===
+** exception error: undefined function chatty:server/0
 .../lux&gt; echo $?
-SH-PROMPT:0
+(server@HMATTSSO-M-74JD)2&gt; 0
 </code></pre>
 </blockquote>
 
@@ -846,13 +851,6 @@ command. Try these commands out and see what happens:</p>
 rm -rf tmp_logs
 lux -d --log_dir=tmp_logs a_simple_server.lux
 c 15
-shell server
-!im().
-?
-n
-t
-help quit
-c
 </code></pre>
 </blockquote>
 
@@ -886,105 +884,7 @@ c 15
 Set temporary breakpoint at "a_simple_server.lux:15"
 
 Continue to run from "a_simple_server.lux:1"
-..:..:.:..:..:.:..:.:..:.:....:.:..:.:.:.:.
-Break at "a_simple_server.lux:15"
-
-File a_simple_server.lux:
-13:     ?Starting server
-14:     ?&gt; 
-15&gt; 
-16:     !halt(3).
-17:     ?SH-PROMPT:
-18: 
-19:     !echo "===$?==="
-20:     ?===3===
-21:     ?SH-PROMPT:
-22: 
-22: 
-shell server
-
-Connect to shell "server" in background mode.
-!im().
-
-Send data to shell "server".
-
-server(send): im().
-server(send): 
-
-server(recv): im().
-server(recv): 
-?
-
-Reset output buffer for shell "server".
-n
-
-File a_simple_server.lux:
-16&gt;     !halt(3).
-t
-Log files at tmp_logs/.:
-
-*  1 lux_config.log
-*  2 lux_summary.log.tmp
-*  3 lux_result.log
-*  4 a_simple_server.lux.config.log
-*  5 a_simple_server.lux.event.log
-*  6 a_simple_server.lux.server.stdin.log
-*  7 a_simple_server.lux.server.stdout.log
-
-Last 10 (57..66) lines of log file: a_simple_server.lux.event.log
-
-14:51:53.836465 server(14): recv "ok.\r\n"
-14:51:53.838801 server(14): recv "&lt;0.87.0&gt;\r\n"
-14:51:53.839047 server(14): recv "(server@HMATTSSO-M-74JD)2&gt; "
-14:51:53.839192 server(14): timer canceled (after 3003357 micro seconds)
-14:51:53.839285 server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n&lt;0.87.0&gt;\r\n(server@HMATTSSO-M-74JD)2"
-14:51:53.839387 server(14): match "&gt; "
-14:51:53.845701 server(14): send "im().\n"
-14:51:54.346534 server(14): recv "im().\r\n"
-14:51:54.347532 server(14): reset "7 bytes wasted"
-14:51:54.347621 server(14): output reset 7 bytes
-
-help quit
-
-quit \[scope\]
---------------
-
-Quit a single test case or the entire test suite
-in a controlled manner. Runs cleanup if applicable.
-
-**Parameters:**  
-
-* scope - scope of exit; enum(case|suite)  
-
-c
-
-Continue to run from "a_simple_server.lux:16"
-
-server(send): halt(3).
-server(send): 
-
-server(recv): &lt;0.90.0&gt;
-server(recv): 
-
-server(recv): (server@HMATTSSO-M-74JD)3&gt; halt(3).
-server(recv): 
-
-server(recv): SH-PROMPT:
-
-server(send): echo "===$?==="
-server(send): 
-
-server(recv): ech
-
-server(recv): o "===$?==="
-server(recv): ===3===
-server(recv): SH-PROMPT:
-.
-Cleanup. Turn existing shells into zombies.
-
-Disconnect from shell "server".
-.
-result            : SUCCESS
+..:..:.:..:..:.:..:..:.:....:.:.:.13???
 </code></pre>
 </blockquote>
 
@@ -1004,7 +904,7 @@ and test cases which only should be run on certain architectures. If
 some machine is very slow the <code>multiplier</code> can be set to something
 else than 1000 which is the default. The match timeout (in seconds) is
 multiplied with this setting to compute the actual timeout to get
-milli seconds which is used internally.</p>
+milliseconds which is used internally.</p>
 
 <p>Here you can find a couple of architecture specific examples:</p>
 
@@ -1177,23 +1077,20 @@ lux --history ${@} ${@}/run_logs
 </code></pre>
 </blockquote>
 
-<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; make history_demo_multi_hosts</code></p>
+<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; make history_demo_multi_host</code></p>
 
-<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; rm history_demo_multi_hosts/lux_history*</code></p>
+<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; rm -f history_demo_multi_host/lux_history*</code></p>
 
-<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs</code></p>
+<p>Evaluate <code>cd tutorial/chatty/test/infra &amp;&amp; lux --history history_demo_multi_host history_demo_multi_host/run_logs</code></p>
 
 <blockquote>
-<pre><code>.../lux&gt; cd tutorial/chatty/test/infra &amp;&amp; lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs
-Invoke: /Users/hmattsso/dev/lux/bin/lux --history history_demo_multi_hosts history_demo_multi_hosts/run_logs
+<pre><code>.../lux&gt; cd tutorial/chatty/test/infra &amp;&amp; lux --history history_demo_multi_host history_demo_multi_host/run_logs
+Invoke: /Users/hmattsso/dev/lux/bin/lux --history history_demo_multi_host history_demo_multi_host/run_logs
 Assembling history of logs from...
-history_demo_multi_hosts/run_logs
-HTML LUX WARNING: history_demo_multi_hosts/run_logs: No new runs
-Wrote 268 bytes in run cache to file history_demo_multi_hosts/lux_history.cache
-Analyzed 1 test runs with 0 test cases (1 errors)
-Skip empty file: history_demo_multi_hosts/lux_history_config_no_config.html
-...ok
-file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_demo_multi_hosts/lux_history.html
+history_demo_multi_host/run_logs...........................
+Wrote 2441 bytes in run cache to file history_demo_multi_host/lux_history.cache
+Analyzed 27 test runs with 135 test cases (0 errors)...ok
+file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_demo_multi_host/lux_history.html
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -1449,7 +1346,7 @@ Such as ABC, ACB, BAC, BCA, CAB and CBA. It can be achieved by
 the relatively simple regexp <code>?(ABC)|(ACB)|(BAC)|(BCA)|CAB)|(CBA)</code>.
 But with larger regexps, possibly spanning multiple lines, it
 can be quite complex to just write the regexps. Performing the
-post mortem analyzis to determine which sub-pattern that is
+post mortem analysis to determine which sub-pattern that is
 matching which part of the output will be even worse. In the
 following example <code>?+</code> is used to register a sub-pattern and <code>?</code>
 evaluates the permutations of all sub-patterns (including the one
@@ -1572,7 +1469,7 @@ premature success it will be set to <code>fail</code> or <code>success</code> re
 This can for example be used if you want to save the contents of
 error logs, core dumps etc. in case of failure. Textual logs can
 simply be written to <code>stdout</code> in order to be easily accessible in
-the post mortem analyzis. For the purpose of saving binary files
+the post mortem analysis. For the purpose of saving binary files
 the <strong>environment variable</strong> <code>LUX_EXTRA_LOGS</code> may be used. It
 refers to a log directory name unique for each test case. The
 directory is however not automatically created. It must be created
@@ -1919,9 +1816,9 @@ test:</p>
 
 <p>Exit status is 0 if all test cases are successful and 1 otherwise.</p>
 
-<p>Configuration parameters can be given as command line options, as
-<code>[config Var=Value]</code> statements in a script or in a <strong>architecture
-specific file</strong>.</p>
+<p>Configuration parameters can be given as command line options
+<code>--Var=Val</code>, as <code>[config Var=Value]</code> statements in a script or in a
+<strong>architecture specific file</strong>.</p>
 
 <p>An <code>architecture specific file</code> is a file with configuration
 statements only valid for a certain architecture/platform/system.
@@ -1955,11 +1852,17 @@ following order:</p>
 be used interactively.</p></li>
 <li><p>Command line parameters from <code>LUX_SYSTEM_FLAGS</code> environment
 variable. To be used by makefiles, scripts etc.</p></li>
-<li><p>Test case specific configuration settings</p></li>
-<li><p>Architecture specific configuration settings</p></li>
-<li><p>Site local default configuration settings defined in <code>lux/priv/luxcfg</code></p></li>
-<li><p>Environment variables are converted to <code>[config var=val]</code></p></li>
-<li><p>Hardcoded built-in default values</p></li>
+<li><p>Test case specific configuration settings.</p></li>
+<li><p>Architecture specific configuration settings from a <code>.luxcfg</code> file
+on the <code>--config_dir</code> directory. See <code>--config_name</code> about the naming
+convention.</p></li>
+<li><p>Non-architecture specific configuration settings defined in a file
+named <code>luxcfg</code> on the <code>--config_dir</code> directory.</p></li>
+<li><p>Site local default configuration settings defined in a file named
+<code>luxcfg</code> on the <code>lux/priv</code> directory.</p></li>
+<li><p>Environment variables automatically converted to <code>[config var=val]</code>
+settings..</p></li>
+<li><p>Hardcoded built-in default values.</p></li>
 </ol>
 
 <h2>Test case control</h2>
@@ -2034,10 +1937,10 @@ but it can explicitly be overridden with the <code>ConfigName</code> option. The
 parameters from a file named <code>ConfigName.luxcfg</code>. By default <code>ConfigName</code>
  is obtained from <code>uname -sm</code> where <code>ConfigName</code> is set to <code>Kernel-Machine</code>.
 This behavior can be overridden by adding a file named after the name of
-the host (<code>hostname.luxcfg</code>) on the <code>ConfigDir</code> directory. </p>
+the host (<code>hostname.luxcfg</code>) on the <code>ConfigDir</code> directory.</p>
 
 <p><strong>--config_dir ConfigDir</strong> <br />
-A directory where architecture specific connfiguration files may
+A directory where architecture specific configuration files may
 reside. The format of the architecture specific files a subset of the
 script format. Only <code>[config var=value]</code> statements are extracted from
 the architecture specific file. The config settings in the
@@ -2045,6 +1948,9 @@ architecture specific file may be overridden by config settings in the
 script files. Config settings in script files may be overridden by
 command line options. Architecture specific files are by default
 located in the subdirectory called <code>priv</code> in the <code>Lux</code> application.</p>
+
+<p>Non-architecture settings can be put in a file named <code>luxcfg</code>. But
+those will be overridden by the architecture specific settings.</p>
 
 <p><strong>--hostname Hostname</strong> <br />
 The <code>Hostname</code> overrides the hostname obtained from the operating
@@ -2120,6 +2026,10 @@ Skip unstable test cases. See <code>--unstable</code> and <code>--unstable_unles
 Forces Lux to not care about <code>--skip</code> and <code>--skip_unless</code> settings.
 Overrides <code>--skip_unstable</code>.</p>
 
+<p><strong>--fail_when_warning</strong> <br />
+<strong>--fail_when_warning=true</strong> <br />
+Forces Lux to fail if there are any warnings.</p>
+
 <h2>Log control</h2>
 
 <p><strong>--log_dir LogDir</strong> <br />
@@ -2162,37 +2072,41 @@ the context for the test case(s), such as subsystem or test suite.</p>
 
 <h2>Timeouts</h2>
 
+<p><strong>--multiplier Multiplier</strong> <br />
+In order to be able to run the tests on very slow hardware, there is a
+concept of a <code>Multiplier</code>. Each time a timer is initiated (except
+sleep) its value is multiplied with the <code>Multiplier</code> value.
+<code>Multiplier</code> is an integer and defaults to <code>1000</code>, meaning that
+<code>[timeout 10]</code> actually is 10 seconds. The timeout value 10 is
+multiplied with the multiplier value 1000. Perhaps it is easier to
+think in milliseconds. 10 means 10<em>1000=10000 milliseconds. By
+changing the multiplier to a higher value, such as 3000, it will cause
+Lux to use longer timeouts. E.g. 10</em>3000=30000 milliseconds.
+<code>--multiplier</code> is intended to be set in architecture/host specific
+files to provide different settings on different systems.</p>
+
 <p><strong>--timeout Timeout</strong> <br />
 The script expects the shell output to match given
 <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s. But the output must be received within a
 given time limit. The <code>Timeout</code> specifies how long it will wait before
-the script fails. The <code>Timeout</code> defaults to <code>10000</code> milli seconds
+the script fails. The <code>Timeout</code> defaults to <code>10000</code> milliseconds
 (<code>10</code> seconds). This <code>Timeout</code> can be overridden by the statement
 <code>[timeout Timeout]</code> in the script itself.</p>
 
 <p><strong>--cleanup_timeout CleanupTimeout</strong> <br />
 When the script reaches the <code>[cleanup]</code> marker, the ordinary
 <code>Timeout</code> will be set to <code>CleanupTimeout</code>. The <code>CleanupTimeout</code>
-defaults to <code>100000</code> milli seconds (<code>100</code> seconds).</p>
-
-<p><strong>--multiplier Multiplier</strong> <br />
-In order to be able to run the tests on very slow hardware,
-the <code>Multiplier</code> can be used. Each time a timer is initiated
-(except sleep) its value is multiplied with the <code>Multiplier</code>
-value. <code>Multiplier</code> is an integer and defaults to <code>1000</code>. For
-example, by setting the <code>Multiplier</code> to <code>2000</code> all timeouts will
-be doubled. <code>--multiplier</code> is intended to be set in architecture
-specific files to provide different settings on different systems.</p>
+defaults to <code>100000</code> milliseconds (<code>100</code> seconds).</p>
 
 <p><strong>--suite_timeout SuiteTimeout</strong> <br />
 If the duration of the execution exceeds the <code>SuiteTimeout</code>, it
 is aborted. The <code>SuiteTimeout</code> defaults to <code>infinity</code>, but can
-be any positive integer value in the unit of milli seconds.</p>
+be any positive integer value in the unit of milliseconds.</p>
 
 <p><strong>--case_timeout CaseTimeout</strong> <br />
 If the the duration of a single test case exceeds the
 <code>CaseTimeout</code>, it is aborted. It can be any positive integer
-value in the unit of milli seconds or <code>infinity</code>. The default
+value in the unit of milliseconds or <code>infinity</code>. The default
 is <code>300000</code> (5 minutes).</p>
 
 <p><strong>--flush_timeout FlushTimeout</strong> <br />
@@ -2202,15 +2116,31 @@ All output from a shell is buffered and matched against
 the script. When this is done, the engine first waits a while
 before it discards the output. How long it waits is controlled
 by <code>FlushTimeout</code>. It defaults to <code>0</code>. If you want to experiment
-with it, <code>1000</code> milli seconds (1 second) can be a resonable value.</p>
+with it, <code>1000</code> milliseconds (1 second) can be a resonable value.</p>
 
 <p><strong>--poll_timeout PollTimeout</strong> <br />
 An experimental timeout setting.
 When the Lux engine receives output from a shell it will
-wait in <code>PollTimeout</code> milli seconds for more output before it
+wait in <code>PollTimeout</code> milliseconds for more output before it
 tries to match it against any <a href="http://www.erlang.org/doc/man/re.html#regexp_syntax" title="Erlang style regular expressions (re)">regular expression</a>s. It defaults
-to <code>0</code>. If you want to experiment with it, <code>100</code> milli seconds
+to <code>0</code>. If you want to experiment with it, <code>100</code> milliseconds
 (1/10 second) can be a resonable value.</p>
+
+<p><strong>--risky_threshold RiskyThreshold</strong> <br />
+An experimental timeout setting.
+By default Lux warns for risky timers, i.e. timers that are close
+to timeout. This may cause intermittent failures in future runs. By
+default it is set to <code>0.85</code> which means that 85% of the timer was
+used.</p>
+
+<p><strong>--sloppy_threshold RiskyThreshold</strong> <br />
+An experimental timeout setting.
+By default Lux warns for sloppy timers, i.e. timers where only a very
+small part of the timer is used. This may cause secondary problems,
+e.g. test run abortions by Jenkins or similar systems. Such timers are
+also rather inconvenient to debug as they may take hours to time out.
+By default it is set to <code>0.000000001</code> which means that only 1 ppb
+(parts per billion) of the timer was used, or less.</p>
 
 <h2>History control</h2>
 
@@ -2883,7 +2813,7 @@ of reporting a failed test case as failure it is reported as a
 warning.</p>
 
 <p>Here are few examples of a few config settings which may be useful in
-a hetrogenous lab environment:</p>
+a heterogeneous lab environment:</p>
 
 <p>One config file <code>.../lux_config/Linux-i686.luxcfg</code></p>
 
@@ -2965,12 +2895,12 @@ a hetrogenous lab environment:</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_05_25_12_53_57_493436/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2021_01_28_13_52_55_982638/lux_summary.log
 test case         : examples/calc.lux
-progress          : ..:..:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:...:.:.:..(.:.:.:...)..(.:.:..:..)(....:.:.:..:...)(.:..:..)..(.:.:..:..)......:.:..........
+progress          : ..:...:.:...:..:.:....:..:.:..:..(....:..:.:.:...)(.:.:...)...:..:.:...(.:.:...)..(.:.:...)(....:.:..:...)(.:..:..)..(.:.:...)......:.:.........
 result            : SUCCESS
 test case         : examples/fail.lux
-progress          : ..:..:.:..:...:..:.:...:.:.:....:.:...32C..:..:.:..:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+progress          : ..:..:.:..:...:..:.:...:.:.:....:.:...32C..:..:.:..:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 result            : FAIL at 32 in shell calculator
 expected*
 19
@@ -2987,13 +2917,13 @@ diff
 + 4&gt; 
 
 test case         : examples/intro.lux
-progress          : ..:..:.:..:..:.:.:.....:..:.:...:.:..:..:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
+progress          : ..:..:.:...:.:.....:..:.:...:.:..:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:...:.:..:..:.:..
 result            : SUCCESS
 test case         : examples/loop.lux
-progress          : ..:..:.:..:.((.:.:..:.)(.:..:.)(.:..:.))((.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.)(.:.:..))((.:.:..)(.:.:..)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.))...:..:.:..:..:.:..:..:..:...:..:.:..((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:..z)(:.z..i=4..:..:.:.:).)c........:..:.:..:..:.:..:.
+progress          : ..:..:.:..:.((.:.:..:.)(.:.:..)(.:..:.))((.:..:.)(.:..:.:.)(.:..:.)(.:.:..)(.:.:..:.))((.:..:.)(.:.:..:.)(.:..:.:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.))...:..:.:..:..:.:..:..:.:..:...:..:.:..((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:.:..:.:.)).c........:..:.:..:..:.:..:.
 result            : SUCCESS
 test case         : examples/loop_fail.lux
-progress          : ..:..:..:.((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+progress          : ..:..:.:..((.i=1..:.:...z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 result            : FAIL at 5 in shell break
 expected*
 
@@ -3003,7 +2933,8 @@ diff
 
 
 test case         : examples/require_fail.lux
-result            : FAIL as required variable MAKE is not set
+progress          : ..:..:.:...:.:c.....:.:.:..:.:...:.:.
+result            : SUCCESS
 test case         : examples/skip.lux
 result            : SKIP as variable TEST_SUNOS is not set
 test case         : examples/unstable_warn.lux
@@ -3022,24 +2953,485 @@ test case         : examples/warning.lux
 progress          : W
 warning           : 3: Trailing whitespaces
 result            : WARNING
-successful        : 3
+successful        : 4
 skipped           : 1
 examples/skip.lux:6
 warnings          : 2
 examples/unstable_warn.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
 examples/warning.lux:3 - Trailing whitespaces
-failed            : 3
+failed            : 2
 examples/fail.lux:32 - match_timeout
 examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
-examples/require_fail.lux:3 - FAIL as required variable MAKE is not set
 summary           : FAIL
-file:///Users/hmattsso/dev/lux/lux_logs/run_2020_05_25_12_53_57_493436/lux_summary.log.html
+file:///Users/hmattsso/dev/lux/lux_logs/run_2021_01_28_13_52_55_982638/lux_summary.log.html
 .../lux&gt; echo $?
 1
 </code></pre>
 </blockquote>
 
-<p><a name="../INSTALL"/></p>
+<p><a name="hardening"/></p>
+
+<h1>Hardening test cases</h1>
+
+<p>Here follows some advices to make the test cases more reliable. In
+general we want to avoid race conditions and intermittent failures. We
+do also want our test cases to not introduce problems for other test
+cases.</p>
+
+<p><strong>?</strong>  </p>
+
+<p>Remove all usage of empty <code>?</code> commands. This command empties the
+output streams (<code>stdout</code>, <code>stderr</code>). Already received output is
+discarded. This is a <strong>very error prone</strong> command which easily may
+cause race conditions and intermittent fails. The command is kept for
+backwards compatibility but should really not be used. It is a very
+good candidate for deprecation.</p>
+
+<p>Do also look out for unintended emtying of the output streams. Ensure
+that there are no <code>Empty multi-line expect command</code> warnings. E.g.</p>
+
+<pre><code>    """?
+
+    """
+</code></pre>
+
+<p>is such an occurrence.</p>
+
+<p><strong>[sleep XXX]</strong>  </p>
+
+<p>Remove all usage of sleep commands. This is a <strong>very error prone</strong>
+command which easily may cause race conditions and intermittent
+fails. In rare situations it may be valid to sleep a while to ensure
+proper timing. But it should <strong>never</strong> be used as a safety action when
+it is hard to find proper synchronization points. Such usage is error
+prone.</p>
+
+<p><strong>Prompt synchronization</strong>  </p>
+
+<p>Always match on prompts, e.g. <code>?SH-PROMPT:</code>. Especially when multiple
+commands are executed it is important to have well defined
+synchronization points to avoid sending input when the system under
+test not is ready for it yet. It is very easy to end up with
+intermittent problems when not matching on all prompts. Further it can
+be very confusing when performing post mortem analysis of failing
+scripts, possibly comparing successful runs with failing dito.</p>
+
+<p>It may even be the case that different environments might have so
+different properties that a success/failure on one platform can be a
+failure/success on another and that missing prompt synchronisation is
+the cause for this.</p>
+
+<p><strong>Protect the stdin</strong>  </p>
+
+<p>Some commands sent to the system under test may read from <code>stdin</code>. To
+suppress this behaviour the <code>/dev/null</code> can be piped to their <code>stdin</code>
+to take care of that. The Java build system <code>ant</code> is known for this
+unwanted behaviour. It can be extremely frustrating to find out that
+this is the problem as it sometimes may work if you are lucky with the
+timing. Often this problem occurs in conjunction with poor
+synchronization points. Proper matching of prompts (mentioned above)
+can avoid this problem altogether, making the tests more robust
+avoiding intermittent race condition related problems.</p>
+
+<p>An example. Assume the following script where we use <code>make</code> to compile
+Java code using the <code>ant</code> tool</p>
+
+<pre><code>    !make
+    !ls
+    ?SH-PROMPT:
+</code></pre>
+
+<p>The infamous <code>ant</code> tool will consume characters written to its
+<code>stdin</code>. If the characters <code>ls</code> are sent to the shell port after <code>ant</code>
+is done it will be the shell that reads and executes <code>ls</code>. This is
+what we intended. But if Lux sends <code>ls</code> while <code>ant</code> still is executing
+it will be <code>ant</code> that reads those characters and no <code>ls</code> will be sent
+to the shell. So depending on the timing, the script may do what is
+intended, or not. In order to fix this race condition we can re-write
+the script as</p>
+
+<pre><code>    !make &lt; /dev/stdin
+    !ls
+    ?SH-PROMPT:
+</code></pre>
+
+<p>ensuring <code>ant</code> to not read anything from <code>stdin</code> at all. An even more
+robust solution is to also match the prompt after <code>make</code></p>
+
+<pre><code>    !make &lt; /dev/stdin
+    ?SH-PROMPT:
+    !ls
+    ?SH-PROMPT:
+</code></pre>
+
+<p><strong>Fix all timer related warnings</strong>  </p>
+
+<p>Once all timers have been adjusted to get rid of the timer related
+warnings it is time to harden the script even further by setting some
+configuration parameters to more challanging values. For example</p>
+
+<pre><code>    --risky_threshold=0.60
+    --sloppy_threshold=0.000001
+</code></pre>
+
+<p><strong>Change the timing of the scripts</strong>  </p>
+
+<p>Use the <code>--flush_timeout</code> to cause test cases with active
+fail_patterns to fail when the <code>[cleanup]</code> section is entered. The
+effect is similar to adding a <code>[sleep XXX]</code> just before <code>[cleanup]</code>.
+Default is <code>--flush_timeout=0</code>. Start with <code>--flush_timeout=100</code> to
+ultimately use <code>--flush_timeout=1000</code>. The <code>--flush_timeout</code> is used
+to control how long Lux should wait for more output before
+(automatically) resetting the fail pattern when entering zombie
+mode. Resetting the fail pattern implies a final try to match the
+pattern before it is actually reset. Besides finding out poorly
+written scripts it may be useful with a long(er) setting to see more
+output during post mortem analysis.</p>
+
+<p>The <code>--poll_timeout</code> controls how long Lux should wait for more output
+from a shell. Shells produces output in many small chunks. When the
+first chunk is received Lux looks for consecutive chunks merging them
+together into a bigger chunk before trying to match the new
+data. Using a <code>--poll_timeout</code> bigger than 0 (milliseconds) increases
+the receive window causing more data to be collected before trying to
+match the regexps. This typically can cause scripts with poor
+synchronization points to fail.</p>
+
+<p>Default is <code>--poll_timeout=0</code>. It reasonable to try with
+<code>--poll_timeout=10</code> and when the scripts are adjusted to cope with
+this setting it may be time to use the more challanging value<code>
+--poll_timeout=100</code>.</p>
+
+<p>The special value <code>--poll_timeout=-1</code> causes Lux to not wait for
+consecutive chunks at all before trying to match the regexps. After an
+unsuccessful match Lux is looking for next small chunk of data. This
+setting may catch open ended regexps, i.e. regexps ending with a
+variable sized pattern (such as <code>.*</code>). An open ended regexp will in
+some runs match more data than in others. This can cause strange
+intermittent problems.</p>
+
+<p><strong>[cleanup]</strong>  </p>
+
+<p>It is good hygiene to ensure that each test case does not affect the
+outcome of other test cases. Respect your collegues by not making your
+test cases to cause theirs to fail.</p>
+
+<p>Use the <code>[cleanup]</code> section to cleanup side-effects that may affect
+consecutive test cases.</p>
+
+<p>It is safe to assume that the cleanup code always is run. If there is
+a need to abort a run do never use control-c to abort. Enter the
+command <code>q</code> or <code>quit</code> in the Lux debugger instead to abort the test
+case in a controlled manner by executing the cleanup code. <code>q s</code> or
+<code>quit suite</code> may be used to safely abort all test cases int the suite.</p>
+
+<p>In order to be able to perform post mortem analysis some side effects
+needs to be kept. But ensure that these do not affect subsequent test
+cases. A god praxis is to copy logs, and what not, to the directory
+named in the environment variable <code>LUX_EXTRA_LOGS</code>. Each test case gets
+its unique directory path in the variable. Your script needs to create
+the directory if it is needed. The extra logs are kept among the other
+Lux logs.</p>
+
+<p>Do also run test cases multiple times without any <code>make clean</code> in
+between. This is to ensure that possible resets in the beginning of
+the test case works as intended. It can be very confusing to run
+other peoples test cases when they only work once.</p>
+
+<p><strong>[newshell Name]</strong> <br />
+Using the <code>[newshell Name]</code> command instead of <code>[shell Name]</code> when
+creating a new shell can avoid the common pitfall of misspelling a
+shell name. <code>[shell MisspelledName]</code> will just go ahead and create
+yet another shell even if it was unintended. Using <strong>--newshell</strong> will
+require all shells to be created with <code>newshell</code> and <code>shell</code> can only
+be used to switch to an already existing shell.</p>
+
+<p>It may not be realistic to change all your existing scripts to use
+<code>newshell</code>, but you can at least use it for all new scripts.</p>
+
+<p><strong>Compensate for timing differences of heterogeneous hardware</strong>  </p>
+
+<p>The <code>--multiplier</code> setting is intended to be used to handle the
+problem with heterogeneous hardware where some machines are faster than
+others. The <code>[timeout XXX]</code> used in the scripts can work well on one
+machine but cause the script to fail on another. Instead of boosting
+the timeout for all machines the <code>--multiplier</code> can be used. By
+default it is set to 1000 meaning that <code>[timeout 42]</code> actually is 42
+seconds. Perhaps it is easier to think in milliseconds. 42 means
+42*1000=42000 milliseconds. By changing the multiplier to a higher
+value, such as 3000, will cause Lux to use longer timeouts. E.g.
+42*3000=126000 milliseconds.</p>
+
+<p>This should be done in the architecture specific <code>.luxcfg</code> config
+files or in a host specific <code>.luxcfg</code> config file. By doing this there
+will be adapted timers per architecture or per host.</p>
+
+<p><strong>[config unstable=XXX]</strong> <br />
+<strong>[config unstable_unless=XXX]</strong>  </p>
+
+<p>Respect your collegues by withdrawing your intermittently failing test
+cases from the test results of the group. Use these constructs to mark
+those test cases as unstable. They will then be run but only cause a
+warning if they fail.</p>
+
+<pre><code>    [config unstable=XXX]
+    [config unstable_unless=XXX]
+</code></pre>
+
+<p><a name="warnings"/></p>
+
+<h1>Warnings</h1>
+
+<p>Lux emits various warnings. Some are built-in and others are
+configurable. Some are emitted during validation and others during
+execution.</p>
+
+<p>Here follows a few configuration pararamenters that may be useful in
+this context:</p>
+
+<p><strong>--fail_when_warning</strong> <br />
+is used to make a run fail if there are any warnings.</p>
+
+<p><strong>--mode=validate</strong> <br />
+is used to validate the scripts and display some warnings. The scripts
+are not executed.</p>
+
+<p><strong>--skip_skip</strong> <br />
+causes all skip statements to be ignored. The skip statements are
+mainly used to handle architecture specific quirks and are not really
+applicable during validation. So if you want validation of all scripts
+regardless of their skip settings you may need to use <code>--skip_skip</code>.</p>
+
+<p><strong>--mode=dump</strong> <br />
+displays the internal form of the main script and its include files as
+well as warnings.</p>
+
+<p><strong>--mode=expand</strong> <br />
+expands the source code of the script and its include files, this
+setting may help you to locate where macros and stuff are defined.</p>
+
+<h2>Warnings emitted during validation</h2>
+
+<p><strong>Warning: Empty multi-line XXX command</strong>  </p>
+
+<p><code>XXX</code> denotes a type of command, such as <code>send</code>, <code>expect</code>, <code>fail</code> etc.</p>
+
+<p>Writing an empty multi-line command like</p>
+
+<pre><code>    """!
+    """
+</code></pre>
+
+<p>or</p>
+
+<pre><code>    """!
+
+    """
+</code></pre>
+
+<p>can be very confusing as it may not be obvious to everyone that both
+those constructions are equivalent to</p>
+
+<pre><code>    !
+</code></pre>
+
+<p>which means that only one single newline is sent. Use the short form
+<code>!</code> of the command for clarity. An even worse use of empty multi-line
+commands is</p>
+
+<pre><code>    """?
+    """
+</code></pre>
+
+<p>and</p>
+
+<pre><code>    """?
+
+    """
+</code></pre>
+
+<p>which is equivalent to</p>
+
+<pre><code>    ?
+</code></pre>
+
+<p><strong>But that is a totally different command!</strong> What looks like an empty
+expect command is in fact a command which empties the output streams
+(<code>stdout</code>, <code>stderr</code>). Already received output is discarded. If this is
+the intended behaviour it should definitely be rewritten to use the
+short form <code>?</code> of the command for clarity. Avoiding this (mis)feature
+is however the best solution. At a first look it seems more useful
+than it is. It often causes unexpected race patterns.</p>
+
+<p><strong>Warning: Empty send command</strong>  </p>
+
+<p>As you probably have concluded, both</p>
+
+<pre><code>    """~
+    """
+</code></pre>
+
+<p>and</p>
+
+<pre><code>    """~
+
+    """
+</code></pre>
+
+<p>are equivalent to</p>
+
+<pre><code>    ~
+</code></pre>
+
+<p>which effectively is a no-op, which most likely is unintended. The
+latter is reported as this particular warning, while the first two are
+reported as a <code>*Warning: Empty multi-line send command</code> warning.</p>
+
+<p><strong>Warning: Macro name contains whitespace</strong>  </p>
+
+<p>The whitespaces should be removed from the macro name in order to
+avoid confusion with other macros.</p>
+
+<p><strong>Warning: Trailing whitespaces</strong>  </p>
+
+<p>The command ends with whitespaces which may be very confusing as the
+whitespaces are hard to see.</p>
+
+<p><strong>Warning: Missing summary doc (disabled for now)</strong>  </p>
+
+<p>All scripts should document their purpose. This is done with the
+<code>[doc]</code> statement. This warning is displayed when there is no <code>doc</code>
+statement in the beginning of the script. The statement can be a
+single line <code>doc</code> statement or a multi-line <code>[doc]</code> ... <code>[enddoc]</code>
+block.</p>
+
+<p>This particular warning is disabled for now.</p>
+
+<p><strong>Warning: Empty doc text</strong>  </p>
+
+<p>This warns for a <code>[doc ]</code> statement only containing whitespaces. Write
+a proper documentation or remove the statement.</p>
+
+<p><strong>Warning: Missing summary line</strong>  </p>
+
+<p>This is a warning only emitted for multi-line documentation with
+<code>[doc]</code> ... <code>[enddoc]</code> blocks.</p>
+
+<p>The first line in the documentation block is intended to be a short
+catchy summary line. Add that line or use the short form of the
+command.</p>
+
+<p><strong>Warning: Empty line expected after summary line</strong>  </p>
+
+<p>This is a warning only emitted for multi-line documentation with
+<code>[doc]</code> ... <code>[enddoc]</code> blocks.</p>
+
+<p>The second line in the documentation block is intended to be an empty
+line separating the first catchy summary line from the more detailed
+documentation.  Add that line and more detailed documentation or use
+the short form of the command.</p>
+
+<p><strong>Warning: More documentation lines expected after empty line</strong>  </p>
+
+<p>This is a warning only emitted for multi-line documentation with
+<code>[doc]</code> ... <code>[enddoc]</code> blocks.</p>
+
+<p>Following the second line in the documentation block meaty detailed
+documentation is expected. Write some or use the short form of the
+command.</p>
+
+<h2>Warnings emitted during execution</h2>
+
+<p>All warnings detected during validation may also be emitted during
+execution.</p>
+
+<p><strong>Warning: Infinite timer</strong>  </p>
+
+<p>There is no timeout set at all. The <code>suite_timeout</code>, the
+<code>case_timeout</code> and the match timeout are all set to <code>infinity</code>. This
+means that the script may run forever. Set an explicit timeout to get
+a decent behaviour.</p>
+
+<p><strong>Warning: case_timeout > suite_timeout</strong>  </p>
+
+<p>The <code>case_timeout</code> is greater than the <code>suite_timeout</code>. Adjust the
+timeouts.</p>
+
+<p><strong>Warning: Match timeout > test case_timeout</strong>  </p>
+
+<p>The match timeout is greater than the <code>case_timeout</code>. Adjust the
+timeouts.</p>
+
+<p><strong>Warning: Match timeout > test suite_timeout</strong>  </p>
+
+<p>The match timeout is greater than the <code>suite_timeout</code>. Adjust the
+timeouts.</p>
+
+<p><strong>Warning: Risky timer XXX % of max</strong>  </p>
+
+<p>The timer is near to time out. It used <code>XXX</code> percent of the max
+value. Increase the timeout to avoid intermittent failures.</p>
+
+<p>By default the threshold is 85%, but it can be configured to something
+else than</p>
+
+<pre><code>    --risky_threshold=0.85
+</code></pre>
+
+<p><strong>Warning: Sloppy timer &lt; XXX ppb of max</strong>  </p>
+
+<p>The timer is insanely large. Only a <code>XXX</code> fraction of the timer was
+used. The timer is very likely to be over-dimensioned. If the duration
+of something for example fluctuates between one and one million there
+are something that is strange. Very large timers may cause unwanted
+side effects. Such as Jenkins killing the job. Or that a failure takes
+unreasonable long time to wait for when running manually etc.</p>
+
+<p>By default the threshold is 1 part-per billion (ppb), but it can be
+configured to something else than</p>
+
+<pre><code>    --sloppy_threshold=0.000000001
+</code></pre>
+
+<p><strong>Warning: FAIL at XXX in shell YYY</strong>  </p>
+
+<p>The script fails at line <code>XXX</code>, but it <strong>also</strong> fails during
+<code>[cleanup]</code>. The fail in the cleanup is the one that is visible in the
+result of the script. The previous fail at <code>XXX</code> is somewhat hidden
+and only visible as this warning. (Besides in the nitty gritty details
+of the event log.) The reason for giving the cleanup fail precedence
+over a "normal" fail is that bugs in the cleanup can cause severe
+problems in the test environment with subsequent scripts failing.
+There is good hygiene to ensure the cleanup code to be rock solid.</p>
+
+<p><strong>Warning: Fail but UNSTABLE as variable XXX is set</strong>  </p>
+
+<p>This test case fails. But it does also have a <code>[config unstable=XXX]</code>
+statement causing the fail to be transformed into a warning. This
+construct is intended to be used for buggy scripts which fails
+intermittently. It can also be used during development where you want
+the script to be run even though it is not fully functional
+yet.</p>
+
+<p><strong>Warning: Fail but UNSTABLE as variable XXX is not set</strong>  </p>
+
+<p>This test case fails. But it does also have a <code>[config unstable_unless=XXX]</code>
+statement causing the fail to be transformed into a warning. This
+construct is intended to be used for buggy scripts which fails
+intermittently. It can also be used during development where you want
+the script to be run even though it is not fully functional
+yet.</p>
+
+<p><strong>Warning: Variable name contains whitespace</strong>  </p>
+
+<p>The whitespaces should be removed from the variable name in order to
+avoid confusion with other variables.</p>
+
+<p><strong>Warning: Shell name contains whitespace</strong>  </p>
+
+<p>The whitespaces should be removed from the shell name in order to
+avoid confusion with other shells.
+<a name="../INSTALL"/></p>
 
 <h1>Installation</h1>
 
