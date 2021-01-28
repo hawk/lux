@@ -395,7 +395,7 @@ errors(Errors) ->
     ].
 
 extract_failed_runs(T) ->
-    IsFail = fun(Row) -> not is_success_res(Row#row.res) end,
+    IsFail = fun(#row{res = RowRes}) -> not is_success_res(RowRes) end,
     FailedRows = lists:takewhile(IsFail, T#table.rows),
     SortedFailedRows = lists:keysort(#row.test, FailedRows),
     SortedSplitTests = lists:keysort(1, T#table.split_tests),
@@ -609,17 +609,25 @@ gen_row(AbsHtmlDir, Test, TestRuns, RevSplitIds,
         gen_cells(AbsHtmlDir, Test, RevTestRuns, RevSplitIds,
                   MultiBranch, TagDict, Select, Suppress,
                   HostMap, [], no_data),
-    case is_success_res(RowRes) of
-        true when Suppress =:= suppress_any_success ->
+    IsSuccess = is_success_res(RowRes),
+    if
+        IsSuccess andalso
+        Suppress =:= suppress_any_success ->
             false;
-        _ ->
+        true ->
             IoList =
-                [
-                 "    <tr>\n",
-                 html_td(Test, RowRes, "left", ""),
-                 [C#cell.iolist || C <- Cells],
-                 "    </tr>\n"
-                ],
+                if
+                    RowRes =:= warning,
+                    Suppress =:= suppress_any_success ->
+                        [];
+                    true ->
+                        [
+                         "    <tr>\n",
+                         html_td(Test, RowRes, "left", ""),
+                         [C#cell.iolist || C <- Cells],
+                         "    </tr>\n"
+                        ]
+                end,
             Row =
                 #row{res = RowRes,
                      test = Test,
@@ -825,7 +833,7 @@ gen_warnings(AbsHtmlDir, #table{rows = Rows}) ->
                          "    <tr>\n"
                         ]
                 end,
-            TextCalc = lists:concat([FailN, "(", WarnN, ")"]),
+            TextCalc = lists:concat([FailN, " (", WarnN, ")"]),
             ?l2b([
                   "<p/>",
                   "<a name=\"warnings\"/>\n",
