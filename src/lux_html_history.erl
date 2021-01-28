@@ -26,6 +26,12 @@
          select   :: select(),
          runs     :: [#run{}]}).
 
+-record(hwarning,
+        {type   :: binary(),
+         reason :: binary(),
+         lineno :: lineno(),
+         run    :: #run{}}).
+
 generate(PrefixedSources, RelHtmlDir, Opts0) ->
     io:format("Invoke: ~s\n",
               [string:join(init:get_plain_arguments(), " ")]),
@@ -494,8 +500,11 @@ gen_table(AbsHtmlDir, MultiBranch, Page, TagDict) ->
               "  </table>\n"
              ]),
     %% TIME: io:format("DONE  ~p \t~p\n", [time(), Title]),
-    #table{res=TableRes, rows=SortedRows,
-           iolist=TableIoList, split_tests=SplitTests}.
+
+    #table{res=TableRes,
+           rows=SortedRows,
+           iolist=TableIoList,
+           split_tests=SplitTests}.
 
 keysort_prio(Pos, List) ->
     Fun =
@@ -708,23 +717,7 @@ gen_cell(AbsHtmlDir, Test, Run, _TagDict, MultiBranch, HostMap) ->
     FailN = length([fail || CR <- Run#run.runs,
                             CR#run.result =:= fail]),
     FailCount = lists:concat([FailN, " (", RunN, ")"]),
-    Text =
-        case Run#run.log of
-            ?DEFAULT_LOG ->
-                FailCount;
-            OldLog ->
-                NewLog =
-                    case lux_utils:is_url(AbsHtmlDir) of
-                        true ->
-                            lux_utils:join(AbsHtmlDir, OldLog);
-                        false ->
-                            {ok, Cwd} = file:get_cwd(),
-                            NewLogDir = Run#run.new_log_dir,
-                            TmpLog = filename:join([Cwd, NewLogDir, OldLog]),
-                            lux_utils:drop_prefix(AbsHtmlDir, TmpLog)
-                    end,
-                lux_html_utils:html_href([NewLog, ".html"], FailCount)
-        end,
+    Text = gen_log_link(AbsHtmlDir, Run, FailCount),
     OrigRes =
         case RunN of
             0 -> none;
@@ -769,6 +762,24 @@ gen_cell(AbsHtmlDir, Test, Run, _TagDict, MultiBranch, HostMap) ->
                  iolist=?l2b(Td)},
     {Cell, NewHostMap}.
 
+gen_log_link(AbsHtmlDir, Run, Slogan) ->
+    case Run#run.log of
+        ?DEFAULT_LOG ->
+            Slogan;
+        OldLog ->
+            NewLog =
+                case lux_utils:is_url(AbsHtmlDir) of
+                    true ->
+                        lux_utils:join(AbsHtmlDir, OldLog);
+                    false ->
+                        {ok, Cwd} = file:get_cwd(),
+                        NewLogDir = Run#run.new_log_dir,
+                        TmpLog = filename:join([Cwd, NewLogDir, OldLog]),
+                        lux_utils:drop_prefix(AbsHtmlDir, TmpLog)
+                end,
+            lux_html_utils:html_href([NewLog, ".html"], Slogan)
+    end.
+
 gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict) ->
     AbsHtmlDir = lux_utils:normalize_filename(RelHtmlDir),
     SuiteP = CurrP#page{title = "All test suites"},
@@ -780,11 +791,118 @@ gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict) ->
                        select   = select_latest,
                        runs     = CaseRuns},
     CaseT = gen_table(AbsHtmlDir, MultiBranch, CaseP, TagDict),
-    {CurrP, SuiteT, CaseT}.
+    WarnIoList = gen_warnings(AbsHtmlDir, CaseT),
+    {CurrP, SuiteT, CaseT, WarnIoList}.
+
+gen_warnings(AbsHtmlDir, #table{rows = Rows}) ->
+    Latest = [(hd(Row#row.cells))#cell.run  || Row <- Rows],
+    HistWarns = lists:flatten([parse_warnings(R) || R <- Latest,
+                                                    R =/= undefined]),
+    case length(HistWarns) of
+        0 ->
+            <<>>;
+        WarnN ->
+            WarnPrio = lux_utils:summary_prio(warning),
+            Count = fun(#hwarning{run = Run}, Acc) ->
+                            case lux_utils:summary_prio(Run#run.result) of
+                                Prio when Prio > WarnPrio -> Acc + 1;
+                                _                         -> Acc
+                            end
+                    end,
+            FailN = lists:foldl(Count, 0, HistWarns),
+            SplitWarns = lists:keysort(1, keysplit(#hwarning.type, HistWarns)),
+            Content = lists:flatten([gen_warning_type(AbsHtmlDir, SW) ||
+                                        SW <- SplitWarns]),
+            GenRow =
+                fun({Type, Test, LineNo, Desc, Res})
+                      when is_atom(Res) ->
+                        [
+                         "    <tr>\n"
+                         "        ", html_td(Type,   warning, "left", ""),
+                         "        ", html_td(Test,   Res,     "left", ""),
+                         "        ", html_td(LineNo, warning, "left", ""),
+                         "        ", html_td(Desc,   warning, "left", ""),
+                         "    <tr>\n"
+                        ]
+                end,
+            TextCalc = lists:concat([FailN, "(", WarnN, ")"]),
+            ?l2b([
+                  "<p/>",
+                  "<a name=\"warnings\"/>\n",
+                  "  <table border=\"1\">\n",
+                  GenRow({["<strong>Warnings from latest run ",
+                           TextCalc,"</strong>"],
+                          "<strong>Test case</strong>",
+                          "<strong>LineNo</strong>",
+                          "<strong>Description</strong>",
+                          warning}),
+                  lists:map(GenRow, Content),
+                  "  </table>\n"
+                 ])
+    end.
+
+gen_warning_type(AbsHtmlDir, {Type, HistWarns}) ->
+    Header = {Type, "", "", "", warning},
+    Rows = [gen_warning(AbsHtmlDir, HW) || HW <- HistWarns],
+    [Header | Rows].
+
+gen_warning(AbsHtmlDir,
+            #hwarning{reason = Reason,
+                      lineno = LineNo,
+                      run    = Run}) ->
+    Test = Run#run.test,
+    Link = gen_log_link(AbsHtmlDir, Run, Test),
+    Res = Run#run.result,
+    {"", Link, LineNo, Reason, Res}.
+
+parse_warnings(R) ->
+    Parse =
+        fun([LineNo, Reason]) ->
+                Type = classify_warning(Reason),
+                #hwarning{type = Type,
+                          reason = Reason,
+                          lineno = LineNo,
+                          run = R}
+        end,
+    lists:map(Parse, R#run.warnings).
+
+classify_warning(Text) ->
+    Replacements =
+        [
+         {<<"FAIL at line \\S+ ">>,   <<"FAIL at line XXX ">>},
+         {<<"in shell \\S+">>,        <<"in shell YYY">>},
+         {<<"as variable \\S+ is ">>, <<"as variable XXX is ">>},
+         {<<"Risky timer \\S+ ">>,    <<"Risky timer XXX ">>},
+         {<<"Sloppy timer < \\S+ ">>, <<"Sloppy timer < XXX ">>}
+        ],
+    Opts = [{return, binary}],
+    Replace = fun({From, To}, Acc) -> re:replace(Acc, From, To, Opts) end,
+    lists:foldl(Replace, Text, Replacements).
+
+%% FAIL at XXX in shell YYY
+%% Fail but UNSTABLE as variable XXX is not set
+%% Fail but UNSTABLE as variable XXX is set
+%% Risky timer XXX % of max
+%% Sloppy timer < XXX ppb of max
+%%
+%% Empty doc text
+%% Empty line expected after summary line
+%% Empty multi-line XXX command
+%% Empty send command
+%% Infinite timer
+%% Macro name contains whitespace
+%% Match timeout > test case_timeout
+%% Match timeout > test suite_timeout
+%% Missing summary doc (disabled for now)
+%% Missing summary line
+%% Shell name contains whitespace
+%% Trailing whitespaces
+%% Variable name contains whitespace
+%% case_timeout > suite_timeout
 
 write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
            TagDict, Errors, Footer) ->
-    {CurrP, SuiteT, CaseT} = CurrG,
+    {CurrP, SuiteT, CaseT, OptWarn} = CurrG,
     Header = header(RelHtmlDir, MultiBranch, AllRuns,
                     CurrG, AllG, TagDict, Errors),
     PageIoList =
@@ -806,7 +924,8 @@ write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
                           "";
                       true ->
                           [
-                           CaseT#table.iolist
+                           CaseT#table.iolist,
+                           OptWarn
                           ]
                   end
                  ]
@@ -824,7 +943,7 @@ write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
     end.
 
 header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG, TagDict, Errors) ->
-    {CurrP, SuiteT, CaseT} = CurrG,
+    {CurrP, SuiteT, CaseT, WarnIoList} = CurrG,
     PageName = string:join(page_name(CurrP), " "),
     case lists:keysort(#run.repos_rev, AllRuns) of
         [] ->
@@ -875,15 +994,37 @@ header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG, TagDict, Errors) ->
          lux_html_utils:html_href(full_anchor(overview, CurrP, TagDict),
                                   "Overview"),
          "</h3>\n",
-         "<h3>",
          if
              CaseT#table.res =:= no_data ->
-                 "<strong>No failing test cases</strong>";
+                 [
+                  "<h3>",
+                  "<strong>No failing test cases</strong>",
+                  "</h3>\n"
+                 ];
              true ->
-                 lux_html_utils:html_href("#failing_test_cases",
-                                          "Still failing test cases")
+                 [
+                  "<h3>",
+                  lux_html_utils:html_href("#failing_test_cases",
+                                           "Still failing test cases"),
+                  "</h3>\n"
+                 ]
          end,
-         "</h3>\n\n"
+         if
+             WarnIoList =:= <<>> ->
+                 [
+                  "<h3>",
+                  "<strong>No warnings</strong>",
+                  "</h3>\n"
+                 ];
+             true ->
+                 [
+                  "<h3>",
+                  lux_html_utils:html_href("#warnings",
+                                           "Warnings from latest run"),
+                  "</h3>\n"
+                 ]
+         end,
+         "\n"
         ],
     HostConfigFun =
         fun(Type, Title) ->

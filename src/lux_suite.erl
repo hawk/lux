@@ -1348,12 +1348,14 @@ tap_comment(TAP, {Outcome, _File, FullLineNo, Details}) ->
     tap_comment(TAP, Outcome, _File, FullLineNo, Details).
 
 tap_comment(TAP, Outcome, _File, FullLineNo, Details) ->
-    W = ?b2l(?l2b([string:to_upper(?a2l(Outcome)), " at line ", FullLineNo])),
+    Prefix = ?b2l(?l2b([string:to_upper(?a2l(Outcome)),
+                        " at line ", FullLineNo])),
     case binary:split(Details, <<"\n">>, [global]) of
         [Single] ->
-            ok = lux_tap:diag(TAP, W ++ " - " ++ ?b2l(Single));
+            ok = lux_tap:diag(TAP, Prefix ++ " - " ++ ?b2l(Single));
         Multiline ->
-            ok = lux_tap:diag(TAP, W),
+            ok = lux_tap:diag(TAP, Prefix ++ " - FAIL at line " ++
+                                  FullLineNo ++ " in shell ZZZ"),
             [lux_tap:diag(TAP, ?b2l(D)) || D <- Multiline]
     end.
 
