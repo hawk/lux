@@ -1250,7 +1250,11 @@ parse_result(RawResult) ->
                 {warning, RawLineNo, ShellName,
                  ExpectedTag, Expected3,
                  Actual, Details3};
-            <<"FAIL at ", FailBin/binary>> ->
+            <<"FAIL at ", FailBin0/binary>> ->
+                case FailBin0 of
+                    <<"line ", FailBin/binary>> -> ok;
+                    FailBin                     -> ok
+                end,
                 [TagBin = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
                 ExpectedTag = list_to_existing_atom(?b2l(TagBin)),

@@ -616,12 +616,12 @@ print_fail(OldI0, NewI, File, Results,
             UnstableWarnings =/= [] andalso
             not NewI#istate.fail_when_warning ->
                 {warning,
-                 double_ilog(OldI, "~sWARNING at ~s in shell ~s\n",
+                 double_ilog(OldI, "~sWARNING at line ~s in shell ~s\n",
                              [?TAG("result"), FullLineNo, ShellName])
                 };
             true ->
                 {fail,
-                 double_ilog(OldI, "~sFAIL at ~s in shell ~s\n",
+                 double_ilog(OldI, "~sFAIL at line ~s in shell ~s\n",
                              [?TAG("result"), FullLineNo, ShellName])
                 }
         end,
@@ -693,7 +693,7 @@ hidden_warning(I,
                        actual       = _Actual,
                        rest         = _Rest}) ->
     FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
-    FailIoList = lists:concat(["FAIL at ", FullLineNo,
+    FailIoList = lists:concat(["FAIL at line ", FullLineNo,
                                " in shell ", ShellName]),
     W = lux_utils:make_warning(File, FullLineNo, FailIoList),
     progress_warnings(I, [W]),

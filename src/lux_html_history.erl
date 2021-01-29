@@ -874,39 +874,44 @@ parse_warnings(R) ->
         end,
     lists:map(Parse, R#run.warnings).
 
+%% Needs to be normalized:
+%%     FAIL at line XXX in shell YYY
+%%     Fail but UNSTABLE as variable XXX is not set
+%%     Fail but UNSTABLE as variable XXX is set
+%%     Risky timer XXX % of max
+%%     Sloppy timer < XXX ppb of max
+%%     Macro name XXX contains whitespace
+%%     Shell name XXX contains whitespace
+%%     Variable name XXX contains whitespace
+%%
+%% Good enoough:
+%%
+%%     Empty doc text
+%%     Empty line expected after summary line
+%%     Empty multi-line XXX command
+%%     Empty send command
+%%     Infinite timer
+%%     Match timeout > test case_timeout
+%%     Match timeout > test suite_timeout
+%%     Missing summary doc (disabled for now)
+%%     Missing summary line
+%%     Trailing whitespaces
+%%     case_timeout > suite_timeout
+
 classify_warning(Text) ->
     Replacements =
         [
-         {<<"FAIL at line \\S+ ">>,   <<"FAIL at line XXX ">>},
-         {<<"in shell \\S+">>,        <<"in shell YYY">>},
-         {<<"as variable \\S+ is ">>, <<"as variable XXX is ">>},
-         {<<"Risky timer \\S+ ">>,    <<"Risky timer XXX ">>},
-         {<<"Sloppy timer < \\S+ ">>, <<"Sloppy timer < XXX ">>}
+         {<<"at line \\S+ in shell \\S+">>, <<"at line XXX in shell YYY">>},
+         {<<"at \\S+ in shell \\S+">>,      <<"at line XXX in shell YYY">>},
+         {<<"in shell \\S+">>,              <<"in shell YYY">>},
+         {<<"as variable \\S+ is">>,        <<"as variable XXX is">>},
+         {<<"name \".*\" contains">>,       <<"name XXX contains">>},
+         {<<"Risky timer \\S+">>,           <<"Risky timer XXX">>},
+         {<<"Sloppy timer < \\S+">>,        <<"Sloppy timer < XXX">>}
         ],
     Opts = [{return, binary}],
     Replace = fun({From, To}, Acc) -> re:replace(Acc, From, To, Opts) end,
     lists:foldl(Replace, Text, Replacements).
-
-%% FAIL at XXX in shell YYY
-%% Fail but UNSTABLE as variable XXX is not set
-%% Fail but UNSTABLE as variable XXX is set
-%% Risky timer XXX % of max
-%% Sloppy timer < XXX ppb of max
-%%
-%% Empty doc text
-%% Empty line expected after summary line
-%% Empty multi-line XXX command
-%% Empty send command
-%% Infinite timer
-%% Macro name contains whitespace
-%% Match timeout > test case_timeout
-%% Match timeout > test suite_timeout
-%% Missing summary doc (disabled for now)
-%% Missing summary line
-%% Shell name contains whitespace
-%% Trailing whitespaces
-%% Variable name contains whitespace
-%% case_timeout > suite_timeout
 
 write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
            TagDict, Errors, Footer) ->

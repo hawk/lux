@@ -100,7 +100,7 @@ which effectively is a no-op, which most likely is unintended. The
 latter is reported as this particular warning, while the first two are
 reported as a `*Warning: Empty multi-line send command` warning.
 
-**Warning: Macro name contains whitespace**  
+**Warning: Macro name XXX contains whitespace**  
 
 The whitespaces should be removed from the macro name in order to
 avoid confusion with other macros.
@@ -234,12 +234,12 @@ intermittently. It can also be used during development where you want
 the script to be run even though it is not fully functional
 yet.
 
-**Warning: Variable name contains whitespace**  
+**Warning: Variable name XXX contains whitespace**  
 
 The whitespaces should be removed from the variable name in order to
 avoid confusion with other variables.
 
-**Warning: Shell name contains whitespace**  
+**Warning: Shell name XXX contains whitespace**  
 
 The whitespaces should be removed from the shell name in order to
 avoid confusion with other shells.
