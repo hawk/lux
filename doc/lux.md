@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.5 - 2021-01-28
+Version 2.5.1 - 2021-01-31
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -278,10 +278,10 @@ Hopefully the test code is self-explanatory.
 Evaluate `cd tutorial/chatty/test/intro && lux .`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux .
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_48_20_365342/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_03_24_49420/lux_summary.log
 >     test case         : a_simple_server.lux
->     progress          : ..:..:.:..:..:.:..:..:.:....:.:.:.13????13
->     result            : FAIL at 13 in shell server
+>     progress          : ..:..:..:..:.:..:.:..:.:....:.:.:.13????13
+>     result            : FAIL at line 13 in shell server
 >     expected*
 >     	Starting server
 >     actual match_timeout
@@ -295,8 +295,8 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	+ (server@HMATTSSO-M-74JD)2> 
 >     	
 >     test case         : async_startup_fail.lux
->     progress          : ..:..:..:..:.:..:.:.:.:.:.:.9????9
->     result            : FAIL at 9 in shell server
+>     progress          : ..:..:.:...:.:..:.:.:.:.:.:.:.9????9
+>     result            : FAIL at line 9 in shell server
 >     expected*
 >     	Starting server
 >     actual match_timeout
@@ -316,8 +316,8 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	+ (mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
 >     	
 >     test case         : sync_startup.lux
->     progress          : ..:..:.:...:.:..:.:.:.:.:.:.:.8????8
->     result            : FAIL at 8 in shell server
+>     progress          : ..:..:.:...:.:..:.:.:.:.:.8????8
+>     result            : FAIL at line 8 in shell server
 >     expected*
 >     	Starting server
 >     actual match_timeout
@@ -325,20 +325,18 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 >     	
 >     	"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
->     	Eshell V10.7.2.7  (abort with ^G)
->     	(mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
+>     	SH-PROMPT:
 >     diff
 >     	- Starting server
 >     	+ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
 >     	+ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 >     	+ 
 >     	+ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
->     	+ Eshell V10.7.2.7  (abort with ^G)
->     	+ (mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
+>     	+ SH-PROMPT:
 >     	
 >     test case         : sync_startup_cleanup.lux
->     progress          : ()..:..:.:..:...:.:..:.:.:.:.:.:.:.12????12C..:..:.:..(.:.:..:.)(.:..:.:.)((.:..:.:.:.:.:.:.:.:.)(.:.:...))
->     result            : FAIL at 12 in shell server
+>     progress          : ()..:..:.:..:...:.:..:.:.:.:.:.:.:.12????12C..:..:.:..:.(.:.:..:.)(.:..:.:.)((.:..:.:.:.:.:.)(.:.:...))
+>     result            : FAIL at line 12 in shell server
 >     expected*
 >     	Starting server
 >     actual match_timeout
@@ -364,7 +362,7 @@ Evaluate `cd tutorial/chatty/test/intro && lux .`
 >     	sync_startup.lux:8 - match_timeout
 >     	sync_startup_cleanup.lux:12 - match_timeout
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_48_20_365342/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_03_24_49420/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -545,7 +543,7 @@ at `lux_logs/latest_run`. With this command you get a list of all logs:
 Evaluate `cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run`
 
 >     .../lux> cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run
->     lrwxr-xr-x 1 hmattsso staff 30 Jan 27 22:48 lux_logs/latest_run -> run_2021_01_27_21_48_20_365342
+>     lrwxr-xr-x 1 hmattsso staff 29 Jan 31 18:03 lux_logs/latest_run -> run_2021_01_31_17_03_24_49420
 >     .../lux> echo $?
 >     0
 
@@ -634,95 +632,95 @@ use the `--progress=verbose` flag or `-v` for short:
 Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux -v a_simple_server.lux
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_49_01_845676/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_04_06_55344/lux_summary.log
 >     test case         : a_simple_server.lux
 >     event log         : 0.7
 >     /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/a_simple_server.lux
->     22:49:01.939867 lux(0): start_time "2021-01-27 22:49:01.926920"
->     22:49:01.940191 lux(0): suite_timeout infinity
->     22:49:01.940265 lux(0): case_timeout 300000000 micros left (300 seconds * 1.000 multiplier)
->     22:49:01.941290 lux(1): doc "Demo a simple single shell test case"
->     22:49:01.943903 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
->     22:49:01.944482 server(4): expected* ".+"
->     22:49:01.944482 server(4): timer started (10 seconds * 1.000 multiplier)
->     22:49:01.951484 server(4): recv "\e[?1034hsh-3.2$ "
->     22:49:01.951601 server(4): timer canceled (after 6999 microseconds)
->     22:49:01.951691 server(4): match "\e[?1034hsh-3.2$ "
->     22:49:01.951691 server(4): rest ""
->     22:49:01.951899 server(4): send "export PS1=SH-PROMPT:
+>     18:04:06.168665 lux(0): start_time "2021-01-31 18:04:06.149388"
+>     18:04:06.169224 lux(0): suite_timeout infinity
+>     18:04:06.169407 lux(0): case_timeout 300000000 micros left (300 seconds * 1.000 multiplier)
+>     18:04:06.171947 lux(1): doc "Demo a simple single shell test case"
+>     18:04:06.176075 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
+>     18:04:06.177053 server(4): expected* ".+"
+>     18:04:06.177053 server(4): timer started (10 seconds * 1.000 multiplier)
+>     18:04:06.187425 server(4): recv "\e[?1034hsh-3.2$ "
+>     18:04:06.187613 server(4): timer canceled (after 10320 microseconds)
+>     18:04:06.187768 server(4): match "\e[?1034hsh-3.2$ "
+>     18:04:06.187768 server(4): rest ""
+>     18:04:06.188075 server(4): send "export PS1=SH-PROMPT:
 >         "
->     22:49:01.952119 server(4): recv "expor"
->     22:49:01.952205 server(4): expected* "^SH-PROMPT:"
->     22:49:01.952205 server(4): timer started (10 seconds * 1.000 multiplier)
->     22:49:01.952349 server(4): recv "t PS1=SH-PROMPT:
->         SH-PROMPT:"
->     22:49:01.952424 server(4): timer canceled (after 98 microseconds)
->     22:49:01.952546 server(4): skip "export PS1=SH-PROMPT:
+>     18:04:06.188383 server(4): recv "export "
+>     18:04:06.188511 server(4): recv "PS1=SH-PROMPT:
 >         "
->     22:49:01.952546 server(4): match "SH-PROMPT:"
->     22:49:01.952546 server(4): rest ""
->     22:49:01.952817 server(6): send "erl -sname server -pa ../../../chatty/ebin
+>     18:04:06.188640 server(4): expected* "^SH-PROMPT:"
+>     18:04:06.188640 server(4): timer started (10 seconds * 1.000 multiplier)
+>     18:04:06.188833 server(4): recv "SH-PROMPT:"
+>     18:04:06.188943 server(4): timer canceled (after 137 microseconds)
+>     18:04:06.189080 server(4): skip "export PS1=SH-PROMPT:
 >         "
->     22:49:01.952965 server(6): recv "er"
->     22:49:01.953103 server(6): recv "l -sname server -pa ../../../cha"
->     22:49:01.953175 server(8): expected* "Erlang/OTP"
->     22:49:01.953175 server(8): timer started (10 seconds * 1.000 multiplier)
->     22:49:01.953337 server(8): recv "tty/ebin
+>     18:04:06.189080 server(4): match "SH-PROMPT:"
+>     18:04:06.189080 server(4): rest ""
+>     18:04:06.189543 server(6): send "erl -sname server -pa ../../../chatty/ebin
 >         "
->     22:49:02.051858 server(8): recv "Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     18:04:06.189829 server(6): recv "erl "
+>     18:04:06.190109 server(6): recv "-sname server -pa ../../../chatty/ebin
+>         "
+>     18:04:06.190232 server(8): expected* "Erlang/OTP"
+>     18:04:06.190232 server(8): timer started (10 seconds * 1.000 multiplier)
+>     18:04:06.340437 server(8): recv "Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 >         
 >         "
->     22:49:02.052036 server(8): timer canceled (after 98745 microseconds)
->     22:49:02.052167 server(8): skip "erl -sname server -pa ../../../chatty/ebin
+>     18:04:06.340665 server(8): timer canceled (after 150252 microseconds)
+>     18:04:06.340829 server(8): skip "erl -sname server -pa ../../../chatty/ebin
 >         "
->     22:49:02.052167 server(8): match "Erlang/OTP"
->     22:49:02.052167 server(8): rest " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     18:04:06.340829 server(8): match "Erlang/OTP"
+>     18:04:06.340829 server(8): rest " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 >         
 >         "
->     22:49:02.052679 server(9): expected* "Eshell"
->     22:49:02.052679 server(9): timer started (10 seconds * 1.000 multiplier)
->     22:49:02.173255 server(9): recv "Eshell V10.7.2.7  (abort with ^G)
+>     18:04:06.341453 server(9): expected* "Eshell"
+>     18:04:06.341453 server(9): timer started (10 seconds * 1.000 multiplier)
+>     18:04:06.461122 server(9): recv "Eshell V10.7.2.7  (abort with ^G)
 >         "
->     22:49:02.173452 server(9): timer canceled (after 120632 microseconds)
->     22:49:02.173626 server(9): skip " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     18:04:06.461287 server(9): timer canceled (after 119621 microseconds)
+>     18:04:06.461497 server(9): skip " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
 >         
 >         "
->     22:49:02.173626 server(9): match "Eshell"
->     22:49:02.173626 server(9): rest " V10.7.2.7  (abort with ^G)
+>     18:04:06.461497 server(9): match "Eshell"
+>     18:04:06.461497 server(9): rest " V10.7.2.7  (abort with ^G)
 >         "
->     22:49:02.173887 server(9): recv "(server@HMATTSSO-M-74JD)1> "
->     22:49:02.174210 server(10): expected* "> "
->     22:49:02.174210 server(10): timer started (10 seconds * 1.000 multiplier)
->     22:49:02.174410 server(10): timer canceled (after 10 microseconds)
->     22:49:02.174584 server(10): skip " V10.7.2.7  (abort with ^G)
+>     18:04:06.461802 server(9): recv "(server@HMATTSSO-M-74JD)1> "
+>     18:04:06.462137 server(10): expected* "> "
+>     18:04:06.462137 server(10): timer started (10 seconds * 1.000 multiplier)
+>     18:04:06.462378 server(10): timer canceled (after 9 microseconds)
+>     18:04:06.462527 server(10): skip " V10.7.2.7  (abort with ^G)
 >         (server@HMATTSSO-M-74JD)1"
->     22:49:02.174584 server(10): match "> "
->     22:49:02.174584 server(10): rest ""
->     22:49:02.175135 server(12): send "chatty:server().
+>     18:04:06.462527 server(10): match "> "
+>     18:04:06.462527 server(10): rest ""
+>     18:04:06.463079 server(12): send "chatty:server().
 >         "
->     22:49:02.175439 server(13): expected* "Starting server"
->     22:49:02.175439 server(13): timer started (10 seconds * 1.000 multiplier)
->     22:49:02.193525 server(13): recv "chatty:server("
->     22:49:02.193770 server(13): recv ").
+>     18:04:06.463387 server(13): expected* "Starting server"
+>     18:04:06.463387 server(13): timer started (10 seconds * 1.000 multiplier)
+>     18:04:06.485231 server(13): recv "chatty:server("
+>     18:04:06.486064 server(13): recv ").
 >         "
->     22:49:02.199710 server(13): recv "** exception error: undefined function chatty:server/0
+>     18:04:06.492812 server(13): recv "** exception error: undefined function chatty:server/0
 >         "
->     22:49:02.200208 server(13): recv "(server@HMATTSSO-M-74JD)2> "
->     22:49:12.175905 server(13): recv "match_timeout"
->     22:49:12.176699 server(13): timer failed (after 10000654 microseconds)
->     22:49:12.176699 server(13): stop fail
->     22:49:12.176699 server(13): skip "chatty:server().
+>     18:04:06.493037 server(13): recv "(server@HMATTSSO-M-74JD)2> "
+>     18:04:16.464507 server(13): recv "match_timeout"
+>     18:04:16.465070 server(13): timer failed (after 10001243 microseconds)
+>     18:04:16.465070 server(13): stop fail
+>     18:04:16.465070 server(13): skip "chatty:server().
 >         ** exception error: undefined function chatty:server/0
 >         (server@HMATTSSO-M-74JD)2> "
->     22:49:12.176699 server(13): where "13"
->     22:49:12.176699 server(13): stack "a_simple_server.lux:13" expect 
->     22:49:12.177250 server(13): inactivate after delete
->     22:49:12.177432 lux(13): goto cleanup
->     22:49:12.177788 lux(22): no_cleanup
->     22:49:12.178060 lux(0): case_timeout 289762000 micros left (289 seconds * 1.000 multiplier)
->     22:49:12.178355 lux(0): suite_timeout infinity
->     22:49:12.178572 lux(0): end_time "2021-01-27 22:49:12.178550"
->     result            : FAIL at 13 in shell server
+>     18:04:16.465070 server(13): where "13"
+>     18:04:16.465070 server(13): stack "a_simple_server.lux:13" expect 
+>     18:04:16.465323 server(13): inactivate after delete
+>     18:04:16.465390 lux(13): goto cleanup
+>     18:04:16.465550 lux(22): no_cleanup
+>     18:04:16.465627 lux(0): case_timeout 289703000 micros left (289 seconds * 1.000 multiplier)
+>     18:04:16.465696 lux(0): suite_timeout infinity
+>     18:04:16.465796 lux(0): end_time "2021-01-31 18:04:16.465788"
+>     result            : FAIL at line 13 in shell server
 >     expected*
 >     	Starting server
 >     actual match_timeout
@@ -739,7 +737,7 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 >     failed            : 1
 >     	a_simple_server.lux:13 - match_timeout
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_27_21_49_01_845676/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_04_06_55344/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -837,7 +835,7 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     Set temporary breakpoint at "a_simple_server.lux:15"
 >     
 >     Continue to run from "a_simple_server.lux:1"
->     ..:..:.:..:..:.:..:..:.:....:.:.:.13???
+>     ..:..:.:..:..:.:..:..:.:....:.:.13???
 
 Infra-structure support
 -----------------------
@@ -1029,7 +1027,7 @@ Evaluate `cd tutorial/chatty/test/infra && lux --history history_demo_multi_host
 >     Invoke: /Users/hmattsso/dev/lux/bin/lux --history history_demo_multi_host history_demo_multi_host/run_logs
 >     Assembling history of logs from...
 >     	history_demo_multi_host/run_logs...........................
->     Wrote 2441 bytes in run cache to file history_demo_multi_host/lux_history.cache
+>     Wrote 2469 bytes in run cache to file history_demo_multi_host/lux_history.cache
 >     Analyzed 27 test runs with 135 test cases (0 errors)...ok
 >     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_demo_multi_host/lux_history.html
 >     .../lux> echo $?
@@ -2773,13 +2771,13 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2021_01_28_13_52_55_982638/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2021_01_31_17_07_16_173451/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:...:.:...:..:.:....:..:.:..:..(....:..:.:.:...)(.:.:...)...:..:.:...(.:.:...)..(.:.:...)(....:.:..:...)(.:..:..)..(.:.:...)......:.:.........
+>     progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:..:..)..(.:.:...)(....:.:..:...)(.:.:..:..)..(.:..:..)......:.:.........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:.:..:...:..:.:...:.:.:....:.:...32C..:..:.:..:..:.:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.
->     result            : FAIL at 32 in shell calculator
+>     progress          : ..:..:.:..:...:..:.:...:.:.:....:.:...32C..:..:.:....:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     result            : FAIL at line 32 in shell calculator
 >     expected*
 >     	19
 >     actual match_timeout
@@ -2795,14 +2793,14 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:.:...:.:.....:..:.:...:.:..:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:...:.:..:..:.:..
+>     progress          : ..:..:.:...:.:.:.....:..:.:..:..:.:..:.:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:.:..:.)(.:.:..)(.:..:.))((.:..:.)(.:..:.:.)(.:..:.)(.:.:..)(.:.:..:.))((.:..:.)(.:.:..:.)(.:..:.:.)(.:..:.)(.:..:.)(.:.:..:.)(.:..:.)(.:..:.))...:..:.:..:..:.:..:..:.:..:...:..:.:..((.i=1..:.:..:.:..z)(z..i=2..:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:.:..:.:.)).c........:..:.:..:..:.:..:.
+>     progress          : ..:..:.:..:.((.:.:..)(.:.:..:.)(.:..:.))((.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:...:.:..:..:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2...:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:.)).c........:..:.:...:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..((.i=1..:.:...z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
->     result            : FAIL at 5 in shell break
+>     progress          : ..:..:.:..((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+>     result            : FAIL at line 5 in shell break
 >     expected*
 >     	
 >     actual Loop ended without match of break pattern "THIS WILL NEVER MATCH"
@@ -2811,14 +2809,14 @@ Evaluate `lux examples`
 >     	  
 >     	
 >     test case         : examples/require_fail.lux
->     progress          : ..:..:.:...:.:c.....:.:.:..:.:...:.:.
+>     progress          : ..:..:.:..:..:.:c.....:.:.:..:..:..:.
 >     result            : SUCCESS
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable_warn.lux
->     progress          : ..:..:.:.....7
+>     progress          : ..:..:.:..:....7
 >     warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
->     result            : WARNING at 7 in shell foo
+>     result            : WARNING at line 7 in shell foo
 >     expected*
 >     	bar
 >     actual match_timeout
@@ -2841,7 +2839,7 @@ Evaluate `lux examples`
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2021_01_28_13_52_55_982638/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2021_01_31_17_07_16_173451/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -3152,7 +3150,7 @@ which effectively is a no-op, which most likely is unintended. The
 latter is reported as this particular warning, while the first two are
 reported as a `*Warning: Empty multi-line send command` warning.
 
-**Warning: Macro name contains whitespace**  
+**Warning: Macro name XXX contains whitespace**  
 
 The whitespaces should be removed from the macro name in order to
 avoid confusion with other macros.
@@ -3286,12 +3284,12 @@ intermittently. It can also be used during development where you want
 the script to be run even though it is not fully functional
 yet.
 
-**Warning: Variable name contains whitespace**  
+**Warning: Variable name XXX contains whitespace**  
 
 The whitespaces should be removed from the variable name in order to
 avoid confusion with other variables.
 
-**Warning: Shell name contains whitespace**  
+**Warning: Shell name XXX contains whitespace**  
 
 The whitespaces should be removed from the shell name in order to
 avoid confusion with other shells.
