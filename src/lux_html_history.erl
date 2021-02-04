@@ -906,7 +906,7 @@ classify_warning(Text) ->
          {<<"in shell \\S+">>,              <<"in shell YYY">>},
          {<<"as variable \\S+ is">>,        <<"as variable XXX is">>},
          {<<"name \".*\" contains">>,       <<"name XXX contains">>},
-         {<<"Risky timer \\S+">>,           <<"Risky timer XXX">>},
+         {<<"Risky timer > \\S+%">>,        <<"Risky timer > XXX%">>},
          {<<"Sloppy timer < \\S+">>,        <<"Sloppy timer < XXX">>}
         ],
     Opts = [{return, binary}],
