@@ -426,7 +426,7 @@ assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     logs_close_and_exit(C, IE);
 assert_eval(C, Cmd, _From) when C#cstate.no_more_output andalso
                                 Cmd#cmd.type =:= send ->
-    ErrBin = <<"The command must be executed",
+    ErrBin = <<"The send command must be executed",
                " in context of a running shell">>,
     C2 = C#cstate{latest_cmd = Cmd},
     stop(C2, error, ErrBin, []);
@@ -803,7 +803,7 @@ expect(#cstate{state_changed = true,
                     stop(C3, {fail, AltExpected, AltActual}, ?match_fail,
                          [{timer, "failed (after ~p microseconds)", [Diff]}]);
                 NoMoreOutput, element(1, Arg) =:= endshell ->
-                    %% Successful match of end of file (port program closed)
+                    %% Successful match of end of output (port program closed)
                     C2 = match_patterns(C),
                     C3 = cancel_timer(C2),
                     ExitStatus = ?l2b(?i2l(C3#cstate.exit_status)),
@@ -812,13 +812,12 @@ expect(#cstate{state_changed = true,
                     _C4 = try_match(C3, AltActual, AltSkip),
                     opt_late_sync_reply(C3#cstate{expected = undefined});
                 NoMoreOutput ->
-                    %% Got end of file while waiting for more data
+                    %% Got end of output while waiting for more data
                     C2 = match_patterns(C),
-                    ErrBin = <<"The command must be executed",
-                               " in context of a shell">>,
+                    ErrBin = <<"No more output to match">>,
                     stop(C2, error, ErrBin, []);
                 element(1, Arg) =:= endshell ->
-                    %% Still waiting for end of file
+                    %% Still waiting for end of output
                     match_patterns(C);
                 true ->
                     %% Waiting for more data
@@ -1420,7 +1419,7 @@ stop(C, Outcome, _Actual, PreEvents) when C#cstate.pre_expected =/= [],
                                           Outcome =/= fail ->
     Err = ["Shell ", C#cstate.name, " has dangling ?+ operations"],
     stop(C#cstate{pre_expected = []}, error, ?l2b(Err), PreEvents);
-stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual);
+stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual) orelse
                                           is_atom(Actual) ->
     Cmd = C#cstate.latest_cmd,
     case Outcome0 of
@@ -1433,7 +1432,13 @@ stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual);
             Rest = C#cstate.actual
     end,
     C2 = flush_port(C, []),
-    StopEvent = {stop, "~p", [Outcome]},
+    {StopFormat, StopDetails} =
+        case Outcome of
+            error when is_binary(Actual) -> {" \"~s\"", [Actual]};
+            error when is_atom(Actual)   -> {" \"~p\"", [Actual]};
+            _                            -> {"",       []}
+        end,
+    StopEvent = {stop, "~p"++StopFormat, [Outcome | StopDetails]},
     SkipEvents =
         case C2#cstate.actual of
             <<>> -> [];

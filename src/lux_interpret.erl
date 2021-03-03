@@ -492,7 +492,7 @@ dispatch_cmd(I,
                             Vars = [VarVal | I#istate.macro_vars],
                             I2#istate{macro_vars = Vars};
                         local when I2#istate.active_shell =:= no_shell ->
-                            Reason = <<"The command must be executed"
+                            Reason = <<"A local variable can only be set"
                                        " in context of a shell">>,
                             handle_error(I2, Reason);
                         local ->
@@ -545,7 +545,7 @@ dispatch_cmd(I,
         break ->
             case compile_regexp(I, Cmd, Arg) of
                 {ok, _Cmd2} when I#istate.loop_stack =:= [] ->
-                    Reason = <<"The command must be executed"
+                    Reason = <<"The break command must be executed"
                                " in context of a loop">>,
                     handle_error(I, Reason);
                 {ok, Cmd2} ->
@@ -1330,8 +1330,12 @@ multicast(Shells, Msg) when is_list(Shells) ->
     Send = fun(#shell{pid = Pid} = S) -> trace_msg(S, Msg), Pid ! Msg, Pid end,
     lists:map(Send, Shells).
 
-cast(#istate{active_shell = no_shell} = I, _Msg) ->
-    Reason = <<"The command must be executed in context of a shell">>,
+cast(#istate{active_shell = no_shell, latest_cmd = Cmd} = I, Msg) ->
+    Type = ?a2b(Cmd#cmd.type),
+    Tag = ?a2b(element(1, Msg)),
+    Reason = <<"The ", Type/binary,
+               " command must be executed in context of a shell",
+               " (", Tag/binary, ")" >>,
     {bad_shell, handle_error(I, Reason)};
 cast(#istate{active_shell = #shell{pid =Pid}, active_name = Name}, Msg) ->
     trace_msg(#shell{name=Name}, Msg),
