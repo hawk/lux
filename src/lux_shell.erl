@@ -434,17 +434,18 @@ assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
     stop(C, fail, endshell, []);
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
     ok;
-assert_eval(_C, Cmd, _From) when Cmd#cmd.type =:= variable;
-                                 Cmd#cmd.type =:= sleep;
-                                 Cmd#cmd.type =:= debug;
-                                 Cmd#cmd.type =:= fail;
-                                 Cmd#cmd.type =:= success;
-                                 Cmd#cmd.type =:= break;
-                                 Cmd#cmd.type =:= progress;
-                                 Cmd#cmd.type =:= change_timeout;
-                                 Cmd#cmd.type =:= no_cleanup;
-                                 Cmd#cmd.type =:= cleanup;
-                                 Cmd#cmd.type =:= post_cleanup ->
+assert_eval(_C, #cmd{type = Type}, _From)
+  when Type =:= variable;
+       Type =:= sleep;
+       Type =:= debug;
+       Type =:= fail;
+       Type =:= success;
+       Type =:= break;
+       Type =:= progress;
+       Type =:= change_timeout;
+       Type =:= no_cleanup;
+       Type =:= cleanup;
+       Type =:= post_cleanup ->
     ok;
 assert_eval(C, Cmd, _From) ->
     IE = {internal_error, invalid_type, Cmd,
@@ -467,7 +468,7 @@ shell_eval(#cstate{name = Name} = C0,
             single = element(2, Arg), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
             dlog(C, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
-            ExpectEvent = {ExpectTag, "\"endshell retcode=~s\"",
+            ExpectEvent = {ExpectTag, "\"endshell: exit_status=~s\"",
                            [lux_utils:to_string(RegExp)]},
             C2 = start_timer(C, [ExpectEvent]),
             C2#cstate{state_changed = true, expected = Cmd};
@@ -763,35 +764,39 @@ expect(#cstate{state_changed = false} = C) ->
     %% Nothing has changed
     C;
 expect(#cstate{state_changed = true,
+               mode = Mode,
                no_more_output = NoMoreOutput,
                expected = Expected,
                actual = Actual,
-               timed_out = TimedOut} = C0) ->
+               timed_out = TimedOut,
+               timer_ref = TimerRef,
+               wakeup_ref = WakeupRef} = C0) ->
     %% Something has changed
     C = C0#cstate{state_changed = false},
     case Expected of
-        _ when C#cstate.wakeup_ref =/= undefined ->
+        _ when WakeupRef =/= undefined ->
             %% Sleeping
             undefined = Expected, % Assert
-            suspend = C#cstate.mode, % Assert
-            undefined = C#cstate.timer_ref, % Assert
+            suspend = Mode, % Assert
+            undefined = TimerRef, % Assert
             C;
-        _ when C#cstate.mode =:= suspend ->
+        _ when Mode =:= suspend ->
             %% Suspended
             undefined = Expected, % Assert
-            undefined = C#cstate.timer_ref, % Assert
+            undefined = TimerRef, % Assert
             C;
-        _ when C#cstate.mode =:= stop ->
+        _ when Mode =:= stop ->
             %% Stopped
             undefined = Expected, % Assert
-            undefined = C#cstate.timer_ref, % Assert
+            undefined = TimerRef, % Assert
             C;
-        undefined when C#cstate.mode =:= resume ->
+        undefined when Mode =:= resume ->
             %% Nothing to wait for
-            undefined = C#cstate.timer_ref, % Assert
+            undefined = TimerRef, % Assert
             C;
-        #cmd{arg = Arg} when C#cstate.mode =:= resume ->
-            %% Waiting
+        #cmd{arg = Arg} when Mode =:= resume ->
+            %% Waiting for output
+            MatchExitStatus = (element(1, Arg) =:= endshell),
             if
                 TimedOut ->
                     %% timeout - waited enough for more input
@@ -802,27 +807,30 @@ expect(#cstate{state_changed = true,
                         log_multi_nomatch(C2, Arg, Actual),
                     stop(C3, {fail, AltExpected, AltActual}, ?match_fail,
                          [{timer, "failed (after ~p microseconds)", [Diff]}]);
-                NoMoreOutput, element(1, Arg) =:= endshell ->
-                    %% Successful match of end of output (port program closed)
-                    C2 = match_patterns(C),
-                    C3 = cancel_timer(C2),
-                    ExitStatus = ?l2b(?i2l(C3#cstate.exit_status)),
-                    AltActual = ExitStatus,
-                    AltSkip = Actual,
-                    _C4 = try_match(C3, AltActual, AltSkip),
-                    opt_late_sync_reply(C3#cstate{expected = undefined});
-                NoMoreOutput ->
-                    %% Got end of output while waiting for more data
-                    C2 = match_patterns(C),
-                    ErrBin = <<"No more output to match">>,
-                    stop(C2, error, ErrBin, []);
-                element(1, Arg) =:= endshell ->
-                    %% Still waiting for end of output
+                MatchExitStatus andalso NoMoreOutput ->
+                    %% Port program closed - end of output
+                    C2 = cancel_timer(C),
+                    C3 = match_patterns(C2),
+                    Skip = C3#cstate.actual,
+                    clog_skip(C3, Skip),
+                    AltSkip = <<>>,
+                    C4 = C3#cstate{actual = AltSkip},
+                    ExitStatus = ?l2b(?i2l(C4#cstate.exit_status)),
+                    AltActual = <<"endshell: exit_status=",
+                                  ExitStatus/binary>>,
+                    C5 = try_match(C4, AltActual, AltSkip), % Fail if nomatch
+                    C6 = C5#cstate{actual = <<>>,
+                                   expected = undefined},
+                    opt_late_sync_reply(C6);
+                MatchExitStatus ->
+                    %% Wait for port program to close
                     match_patterns(C);
+                NoMoreOutput ->
+                    %% Port program closed - end of output
+                    AltSkip = Actual,
+                    try_match(C, Actual, AltSkip); % Fail if nomatch
                 true ->
-                    %% Waiting for more data
                     try_match(C, Actual, noendshell)
-
             end
     end.
 
@@ -848,7 +856,7 @@ try_match(C, Actual, AltSkip) ->
         {nomatch, _} when AltSkip =:= noendshell ->
             %% Main pattern does not match
             %% Wait for more input
-             match_patterns(C);
+            match_patterns(C);
         {nomatch, OptMulti} ->
             C2 = cancel_timer(C),
             C3 = match_patterns(C2),
@@ -1074,7 +1082,9 @@ clear_expected(C, Context, Mode0) ->
             stop -> OldMode;
             _    -> Mode0
         end,
-    C3 = C2#cstate{mode = Mode, expected = undefined, wakeup_ref = undefined},
+    C3 = C2#cstate{mode = Mode,
+                   expected = undefined,
+                   wakeup_ref = undefined},
     dlog(C3, ?dmore, "expected=[]~s", [Context]),
     C3.
 
@@ -1228,7 +1238,7 @@ flush_port_loop(Port, Max, DataAcc, ExitAcc) ->
                             [MoreData | DataAcc], ExitAcc);
         {Port, {exit_status, ExitStatus}} ->
             flush_port_loop(Port, NewMax,
-                            DataAcc, [{shell_exit,ExitStatus} | ExitAcc]);
+                            DataAcc, [{shell_exit, ExitStatus} | ExitAcc]);
         {'EXIT', Port, PosixCode} ->
             flush_port_loop(Port, NewMax,
                             DataAcc, [{posix_exit, PosixCode} | ExitAcc])
@@ -1239,14 +1249,12 @@ flush_port_loop(Port, Max, DataAcc, ExitAcc) ->
 make_exit_events(C, [Exit | Exits], Events) ->
     case Exit of
         {shell_exit, ExitStatus} ->
-            String = "status="++?i2l(ExitStatus),
-            Event = {shell_exit, "\"~s\"", [lux_utils:to_string(String)]},
+            Event = {shell_exit, "\"exit_status=~p\"", [ExitStatus]},
             C2 = C#cstate{state_changed = true,
                           no_more_output = true,
                           exit_status = ExitStatus};
-        {posix_exit, PosixCode} when C#cstate.exit_status =/= undefined ->
-            String = "code="++?a2l(PosixCode),
-            Event = {posix_exit, "\"~s\"", [lux_utils:to_string(String)]},
+        {posix_exit, PosixCode} ->
+            Event = {posix_exit, "\"posix_code=~p\"", [PosixCode]},
             C2 = C#cstate{state_changed = true,
                           no_more_output = true}
     end,

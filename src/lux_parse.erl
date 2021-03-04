@@ -727,7 +727,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             RegExp = <<".*">>,
             {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
         "endshell " ++ Data ->
-            RegExp = ?l2b(Data),
+            RegExp = ?l2b(["endshell: exit_status=",Data]),
             {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
         "config " ++ VarVal ->
             {P2, ConfigCmd} =
