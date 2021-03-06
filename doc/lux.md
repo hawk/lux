@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.5.1 - 2021-01-31
+Version 2.6 - 2021-03-10
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1320,12 +1320,16 @@ A loop with a break pattern can only exit by a successful match of the
 break pattern. If the loop exits anyway it will cause the test case to
 fail. Unless the loop break pattern is reset (cleared).
 
-**\[endshell\]**  
 **\[endshell Regexp\]**
 An `expect` operation like `?`, but it waits for the `stdout` stream
 of the shell to be closed. This means the shell has terminated. The
-`Regexp` may optionally be used to match on the exit status from the
-shell, such as `[endshell ^0$]`.
+`Regexp` matches the exit status from the shell, such as `[endshell
+0]` or `[endshell .*]`. Be careful with using `[endshell .*]` as it
+may cause crashing shells to not be noticed. Use [endshell 0] instead.
+
+Note that the "exit" command in a Bourne shell may return a non-zero
+status code if the latest executed command returned a non-zero. Use
+"exit 0" if that is an issue.
 
 ### Meta statements ###
 
@@ -3254,6 +3258,17 @@ By default the threshold is 1 part-per billion (ppb), but it can be
 configured to something else than
 
         --sloppy_threshold=0.000000001
+
+**Warning: Shell XXX exited prematurely with status=YYY and posix=ZZZ**  
+
+The shell exited in an uncontrolled manner. Normally there is no need
+to exit shells explicitly. But sometimes it may be neccessary. If the
+shell is intended to exit, its expected exit status should be matched
+to ensure that it exited properly. To ensure a successful exit,
+i.e. with the status set to `0`, `[endshell 0]` should be used to
+check that the shell exited properly. If any exit status is accepted
+`[endshell .*]` can be used. The regexp can also be used to explicit
+match one ore more non-successful exit statuses.
 
 **Warning: FAIL at XXX in shell YYY**  
 

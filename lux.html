@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.5.1 - 2021-01-31</p>
+<p>Version 2.6 - 2021-03-10</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -1408,12 +1408,16 @@ like command has produced all output that may match the break pattern.</p>
 break pattern. If the loop exits anyway it will cause the test case to
 fail. Unless the loop break pattern is reset (cleared).</p>
 
-<p><strong>[endshell]</strong> <br />
-<strong>[endshell Regexp]</strong>
+<p><strong>[endshell Regexp]</strong>
 An <code>expect</code> operation like <code>?</code>, but it waits for the <code>stdout</code> stream
 of the shell to be closed. This means the shell has terminated. The
-<code>Regexp</code> may optionally be used to match on the exit status from the
-shell, such as <code>[endshell ^0$]</code>.</p>
+<code>Regexp</code> matches the exit status from the shell, such as <code>[endshell
+0]</code> or <code>[endshell .*]</code>. Be careful with using <code>[endshell .*]</code> as it
+may cause crashing shells to not be noticed. Use [endshell 0] instead.</p>
+
+<p>Note that the "exit" command in a Bourne shell may return a non-zero
+status code if the latest executed command returned a non-zero. Use
+"exit 0" if that is an issue.</p>
 
 <h3>Meta statements</h3>
 
@@ -3390,6 +3394,17 @@ configured to something else than</p>
 
 <pre><code>    --sloppy_threshold=0.000000001
 </code></pre>
+
+<p><strong>Warning: Shell XXX exited prematurely with status=YYY and posix=ZZZ</strong>  </p>
+
+<p>The shell exited in an uncontrolled manner. Normally there is no need
+to exit shells explicitly. But sometimes it may be neccessary. If the
+shell is intended to exit, its expected exit status should be matched
+to ensure that it exited properly. To ensure a successful exit,
+i.e. with the status set to <code>0</code>, <code>[endshell 0]</code> should be used to
+check that the shell exited properly. If any exit status is accepted
+<code>[endshell .*]</code> can be used. The regexp can also be used to explicit
+match one ore more non-successful exit statuses.</p>
 
 <p><strong>Warning: FAIL at XXX in shell YYY</strong>  </p>
 

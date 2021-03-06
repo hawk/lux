@@ -24,7 +24,7 @@
 -include("lux.hrl").
 
 -define(SUMMARY_LOG_VERSION, <<"0.3">>).
--define(EVENT_LOG_VERSION,   <<"0.7">>).
+-define(EVENT_LOG_VERSION,   <<"0.8">>).
 -define(CONFIG_LOG_VERSION,  <<"0.1">>).
 -define(RESULT_LOG_VERSION,  <<"0.1">>).
 
@@ -707,6 +707,9 @@ scan_events(EventLog, WWW) when is_list(EventLog) ->
     case ReadRes of
         {ok, ?EVENT_LOG_VERSION, Sections} ->
             %% Latest version
+            do_scan_events(EventLog, Sections, NewWWW);
+        {ok, <<"0.7">>, Sections} ->
+            %% Prev version with changes in shell exit codes
             do_scan_events(EventLog, Sections, NewWWW);
         {ok, <<"0.6">>, Sections} ->
             %% Prev version with old case_timeout format
