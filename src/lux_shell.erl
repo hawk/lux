@@ -424,6 +424,17 @@ assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     %% Assert - sender must be parent
     IE = {internal_error, invalid_sender, Cmd, process_info(From)},
     logs_close_and_exit(C, IE);
+assert_eval(C, #cmd{type = Type} = Cmd, _From)
+  when C#cstate.got_endshell andalso
+       Type =/= no_cleanup andalso
+       Type =/= cleanup andalso
+       Type =/= post_cleanup ->
+    TypeBin = ?a2b(Type),
+    ErrBin = <<"The ", TypeBin/binary,
+               " command must be executed",
+               " in context of a running shell">>,
+    C2 = C#cstate{latest_cmd = Cmd},
+    stop(C2, error, ErrBin, []);
 assert_eval(C, Cmd, _From) when C#cstate.no_more_output andalso
                                 Cmd#cmd.type =:= send ->
     ErrBin = <<"The send command must be executed",
@@ -467,11 +478,12 @@ shell_eval(#cstate{name = Name} = C0,
         expect when element(1, Arg) =:= endshell ->
             single = element(2, Arg), % Assert
             {ExpectTag, RegExp} = extract_regexp(Arg),
-            dlog(C, ?dmore, "expected=regexp (~p)", [element(1, Arg)]),
-            ExpectEvent = {ExpectTag, "\"endshell: exit_status=~s\"",
-                           [lux_utils:to_string(RegExp)]},
+            dlog(C, ?dmore, "~p", [element(1, Arg)]),
+            ExpectEvent = {ExpectTag, "\"~s\"", [lux_utils:to_string(RegExp)]},
             C2 = start_timer(C, [ExpectEvent]),
-            C2#cstate{state_changed = true, expected = Cmd};
+            C2#cstate{state_changed = true,
+                      expected = Cmd,
+                      got_endshell = true};
         expect when element(2, Arg) =:= expect_add orelse
                     element(2, Arg) =:= expect_add_strict ->
             %% Add alternate regexp
@@ -1256,7 +1268,8 @@ make_exit_events(C, [Exit | Exits], Events) ->
         {posix_exit, PosixCode} ->
             Event = {posix_exit, "\"posix_code=~p\"", [PosixCode]},
             C2 = C#cstate{state_changed = true,
-                          no_more_output = true}
+                          no_more_output = true,
+                          posix_code = PosixCode}
     end,
     make_exit_events(C2, Exits, [Event | Events]);
 make_exit_events(C, [], Events) ->
@@ -1429,7 +1442,22 @@ stop(C, Outcome, _Actual, PreEvents) when C#cstate.pre_expected =/= [],
     stop(C#cstate{pre_expected = []}, error, ?l2b(Err), PreEvents);
 stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual) orelse
                                           is_atom(Actual) ->
-    Cmd = C#cstate.latest_cmd,
+    C2 = flush_port(C, []),
+    C3 =
+        if
+            (C2#cstate.exit_status =/= undefined orelse
+             C2#cstate.posix_code =/= undefined) andalso
+            not C2#cstate.got_endshell ->
+                Txt = lists:concat(["Shell ", C2#cstate.name,
+                                    " exited prematurely with"
+                                    " status=", C2#cstate.exit_status,
+                                    " and posix=", C2#cstate.posix_code]),
+                W = make_warning(C2, Txt),
+                C2#cstate{warnings = [W | C2#cstate.warnings]};
+            true ->
+                C2
+        end,
+    Cmd = C3#cstate.latest_cmd,
     case Outcome0 of
         {Outcome, {ExpectedTag, Expected}, Rest} ->
             ok;
@@ -1437,9 +1465,8 @@ stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual) orelse
             ExpectedTag = ?EXPECTED_RE;
         Outcome ->
             {ExpectedTag, Expected} = lux_utils:cmd_expected(Cmd),
-            Rest = C#cstate.actual
+            Rest = C3#cstate.actual
     end,
-    C2 = flush_port(C, []),
     {StopFormat, StopDetails} =
         case Outcome of
             error when is_binary(Actual) -> {" \"~s\"", [Actual]};
@@ -1448,36 +1475,36 @@ stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual) orelse
         end,
     StopEvent = {stop, "~p"++StopFormat, [Outcome | StopDetails]},
     SkipEvents =
-        case C2#cstate.actual of
+        case C3#cstate.actual of
             <<>> -> [];
             Skip -> [{skip, "\"~s\"", [lux_utils:to_string(Skip)]}]
         end,
-    clog_stack(C, PreEvents ++ [StopEvent | SkipEvents]),
-    {NewOutcome, Extra} = prepare_outcome(C2, Outcome, Actual),
+    clog_stack(C3, PreEvents ++ [StopEvent | SkipEvents]),
+    {NewOutcome, Extra} = prepare_outcome(C3, Outcome, Actual),
     Res = #result{outcome = NewOutcome,
-                  shell_name = C2#cstate.name,
+                  shell_name = C3#cstate.name,
                   latest_cmd = Cmd,
-                  pos_stack = C2#cstate.pos_stack,
+                  pos_stack = C3#cstate.pos_stack,
                   expected_tag = ExpectedTag,
                   expected = Expected,
                   extra = Extra,
                   actual = Actual,
                   rest = Rest,
-                  warnings = C#cstate.warnings},
+                  warnings = C3#cstate.warnings},
     %% io:format("\nRES ~p\n", [Res]),
-    ?TRACE_ME2(40, C2#cstate.name, Outcome, [{actual, Actual}, Res]),
+    ?TRACE_ME2(40, C3#cstate.name, Outcome, [{actual, Actual}, Res]),
     %%  C3 = opt_late_sync_reply(C2#cstate{expected = undefined}),
-    C3 = C2#cstate{expected = undefined, actual = <<>>, mode = stop},
+    C4 = C3#cstate{expected = undefined, actual = <<>>, mode = stop},
     send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
-            port_close_and_exit(C3, Outcome, Res);
+            port_close_and_exit(C4, Outcome, Res);
         Outcome =:= error ->
-            port_close_and_exit(C3, {error, Actual}, Res);
+            port_close_and_exit(C4, {error, Actual}, Res);
         true ->
             %% Wait for potential cleanup to be run
             %% before we close the port
-            wait_for_down(C3, Res)
+            wait_for_down(C4, Res)
     end.
 
 clog_stack(#cstate{orig_file = File,

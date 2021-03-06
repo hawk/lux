@@ -205,6 +205,17 @@ configured to something else than
 
         --sloppy_threshold=0.000000001
 
+**Warning: Shell XXX exited prematurely with status=YYY and posix=ZZZ**  
+
+The shell exited in an uncontrolled manner. Normally there is no need
+to exit shells explicitly. But sometimes it may be neccessary. If the
+shell is intended to exit, its expected exit status should be matched
+to ensure that it exited properly. To ensure a successful exit,
+i.e. with the status set to `0`, `[endshell 0]` should be used to
+check that the shell exited properly. If any exit status is accepted
+`[endshell]` or `[endshell .*]` can be used. The regexp can also be
+used to explicit match non-successful exit statuses.
+
 **Warning: FAIL at XXX in shell YYY**  
 
 The script fails at line `XXX`, but it **also** fails during

@@ -907,7 +907,10 @@ classify_warning(Text) ->
          {<<"as variable \\S+ is">>,        <<"as variable XXX is">>},
          {<<"name \".*\" contains">>,       <<"name XXX contains">>},
          {<<"Risky timer > \\S+%">>,        <<"Risky timer > XXX%">>},
-         {<<"Sloppy timer < \\S+">>,        <<"Sloppy timer < XXX">>}
+         {<<"Sloppy timer < \\S+">>,        <<"Sloppy timer < XXX">>},
+         {<<"Shell \\S+ exited">>,          <<"Shell XXX exited">>},
+         {<<"prematurely with status=0 and posix=normal">>, <<"prematurely">>},
+         {<<"prematurely with.*">>,         <<"prematurely with error code">>}
         ],
     Opts = [{return, binary}],
     Replace = fun({From, To}, Acc) -> re:replace(Acc, From, To, Opts) end,

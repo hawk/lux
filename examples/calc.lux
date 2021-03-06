@@ -39,9 +39,9 @@
      # Reset the failure pattern
      -
 [shell other]
-    # Exit the shell and verify that it really exits
+    # Exit the shell and verify that it really exits with status 0
     !exit
-    [endshell]
+    [endshell 0]
 
 ### Macros ###
 

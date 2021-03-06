@@ -724,10 +724,10 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             P2 = P#pstate{newshell = true},
             parse_shell(P2, Fd, Cmd, LineNo, Name, newshell);
         "endshell" ->
-            RegExp = <<".*">>,
+            RegExp = ?l2b(["^endshell: exit_status=.*$"]),
             {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
         "endshell " ++ Data ->
-            RegExp = ?l2b(["endshell: exit_status=",Data]),
+            RegExp = ?l2b(["^endshell: exit_status=", Data, "$"]),
             {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
         "config " ++ VarVal ->
             {P2, ConfigCmd} =
