@@ -724,8 +724,10 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             P2 = P#pstate{newshell = true},
             parse_shell(P2, Fd, Cmd, LineNo, Name, newshell);
         "endshell" ->
-            RegExp = ?l2b(["^endshell: exit_status=.*$"]),
-            {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};
+            parse_error(P, Fd, LineNo,
+                        ["Syntax error at line ",
+                         ?i2l(LineNo),
+                         ": endshell regexp matching exit status is missing"]);
         "endshell " ++ Data ->
             RegExp = ?l2b(["^endshell: exit_status=", Data, "$"]),
             {P, Cmd#cmd{type = expect, arg = {endshell, single, RegExp}}};

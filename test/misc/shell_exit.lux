@@ -10,13 +10,13 @@
 
 [shell mid]
     !${_CTRL_D_}
-    [endshell ^0$]
+    [endshell 0]
 
 [shell last]
     [global last_status=start]
     !exit
     [global last_status=exit]
-    [endshell]
+    [endshell 0]
     [global last_status=end]
 
 [cleanup]

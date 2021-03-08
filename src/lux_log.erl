@@ -1207,6 +1207,9 @@ parse_result(RawResult) ->
                 end
         end,
     {LongWarnings, [LongResult|Rest]} = lists:splitwith(Pred, RawResult),
+io:format("\n\nRAWRES ~p\n\n", [RawResult]),
+io:format("\n\nLONGWARN ~p\n\n", [LongWarnings]),
+io:format("\n\nLONGRES ~p\n\n", [LongResult]),
     Split = fun(R) -> binary:split(R, <<": ">>) end,
     Warnings = lists:map(fun(L) -> [_T, W] = Split(L), Split(W) end,
                          LongWarnings),
@@ -1227,6 +1230,8 @@ parse_result(RawResult) ->
             <<"INTERNAL_ERROR ", Reason/binary>> ->
                 {error, [Reason | Rest]};
             <<"WARNING at ", FailBin/binary>> ->
+io:format("\n\nFAILBIN ~p\n\n", [FailBin]),
+io:format("\n\nREST ~p\n\n", [Rest]),
                 [TagBin = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
                 ExpectedTag = list_to_existing_atom(?b2l(TagBin)),

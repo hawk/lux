@@ -7,7 +7,7 @@
 # test include file
 #
 
-[include test.luxinc]
+[include misc.luxinc]
 
 #
 # test local and global variables

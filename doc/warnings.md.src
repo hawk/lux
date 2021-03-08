@@ -213,8 +213,8 @@ shell is intended to exit, its expected exit status should be matched
 to ensure that it exited properly. To ensure a successful exit,
 i.e. with the status set to `0`, `[endshell 0]` should be used to
 check that the shell exited properly. If any exit status is accepted
-`[endshell]` or `[endshell .*]` can be used. The regexp can also be
-used to explicit match non-successful exit statuses.
+`[endshell .*]` can be used. The regexp can also be used to explicit
+match one ore more non-successful exit statuses.
 
 **Warning: FAIL at XXX in shell YYY**  
 
