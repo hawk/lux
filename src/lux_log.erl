@@ -1207,9 +1207,6 @@ parse_result(RawResult) ->
                 end
         end,
     {LongWarnings, [LongResult|Rest]} = lists:splitwith(Pred, RawResult),
-io:format("\n\nRAWRES ~p\n\n", [RawResult]),
-io:format("\n\nLONGWARN ~p\n\n", [LongWarnings]),
-io:format("\n\nLONGRES ~p\n\n", [LongResult]),
     Split = fun(R) -> binary:split(R, <<": ">>) end,
     Warnings = lists:map(fun(L) -> [_T, W] = Split(L), Split(W) end,
                          LongWarnings),
@@ -1230,24 +1227,12 @@ io:format("\n\nLONGRES ~p\n\n", [LongResult]),
             <<"INTERNAL_ERROR ", Reason/binary>> ->
                 {error, [Reason | Rest]};
             <<"WARNING at ", FailBin/binary>> ->
-io:format("\n\nFAILBIN ~p\n\n", [FailBin]),
-io:format("\n\nREST ~p\n\n", [Rest]),
-                [TagBin = <<"expected", _/binary>>, Expected,
-                 <<"actual ", Actual/binary>>, Details | _] = Rest,
+                [TagBin = <<"expected", _/binary>>,
+                 Expected,
+                 <<"actual ", Actual/binary>>,
+                 Details | _] = Rest,
                 ExpectedTag = list_to_existing_atom(?b2l(TagBin)),
-                {RawLineNo, ShellName} =
-                    case binary:split(FailBin, <<":">>) of
-                        [_] -> % Main
-                            split_fail_bin(FailBin);
-                        [Before, After] -> % Nested
-                            try
-                                _ = list_to_integer(?b2l(Before)),
-                                split_fail_bin(FailBin)
-                            catch
-                                _:badarg ->
-                                    After
-                            end
-                    end,
+                {RawLineNo, ShellName} = split_fail_bin(FailBin),
                 {quote, Expected2} = unquote(Expected),
                 Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
@@ -1255,27 +1240,11 @@ io:format("\n\nREST ~p\n\n", [Rest]),
                 {warning, RawLineNo, ShellName,
                  ExpectedTag, Expected3,
                  Actual, Details3};
-            <<"FAIL at ", FailBin0/binary>> ->
-                case FailBin0 of
-                    <<"line ", FailBin/binary>> -> ok;
-                    FailBin                     -> ok
-                end,
+            <<"FAIL at ", FailBin/binary>> ->
                 [TagBin = <<"expected", _/binary>>, Expected,
                  <<"actual ", Actual/binary>>, Details | _] = Rest,
                 ExpectedTag = list_to_existing_atom(?b2l(TagBin)),
-                {RawLineNo, ShellName} =
-                    case binary:split(FailBin, <<":">>) of
-                        [_] -> % Main
-                            split_fail_bin(FailBin);
-                        [Before, After] -> % Nested
-                            try
-                                _ = list_to_integer(?b2l(Before)),
-                                split_fail_bin(FailBin)
-                            catch
-                                _:badarg ->
-                                    After
-                            end
-                    end,
+                {RawLineNo, ShellName} = split_fail_bin(FailBin),
                 {quote, Expected2} = unquote(Expected),
                 Expected3 = split_quoted_lines(Expected2),
                 {quote, Details2} = unquote(Details),
@@ -1283,7 +1252,7 @@ io:format("\n\nREST ~p\n\n", [Rest]),
                 {fail, RawLineNo, ShellName,
                  ExpectedTag, Expected3,
                  Actual, Details3};
-            <<"FAIL as ", _/binary>> = Fail->
+            <<"FAIL as ", _/binary>> = Fail-> % Require
                 {error, [Fail]}
         end,
     %% io:format("Result: ~p\n", [R]),
@@ -1304,9 +1273,13 @@ do_split_quoted_lines(Bin) ->
     Normalized = lux_utils:replace(Bin, [{quoted_crlf, <<"\n">>}]),
     lux_utils:split_lines(Normalized).
 
-split_fail_bin(FailBin) ->
+split_fail_bin(FailBin0) ->
+    case FailBin0 of
+        <<"line ", FailBin/binary>> -> ok;
+        FailBin                     -> ok % Backwards compat
+    end,
     case binary:split(FailBin, <<" in shell ">>, []) of
-        [RawLineNo] -> {RawLineNo, <<"lux">>};
+        [RawLineNo] -> {RawLineNo, <<"lux">>}; % Backwards compat
         [RawLineNo, ShellName] -> {RawLineNo, ShellName}
     end.
 
