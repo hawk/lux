@@ -1334,7 +1334,7 @@ tap_case_end(#rstate{warnings = OrigWarnings},
             fail when SkipSkip    -> {not_ok, TodoReason};
             fail                  -> {not_ok, ""};
             warning               -> {ok,     Reason};
-            skip                  -> {ok,     Reason};
+            skip                  -> {ok,     ""};
             success when SkipSkip -> {ok,     TodoReason};
             success               -> {ok,     ""}
         end,
@@ -1359,7 +1359,7 @@ tap_comment(TAP, Context, Outcome, _File,
                            " at line ", FullLineNo]))
         end,
     case binary:split(Details, <<"\n">>, [global]) of
-        [<<>>] when Outcome =/= skip, Reason =/= "" ->
+        [<<>>] when Reason =/= "" ->
             Prefix = MakePrefix(Outcome),
             ok = lux_tap:diag(TAP, Prefix ++ " - " ++ Reason);
         [<<>>] ->
