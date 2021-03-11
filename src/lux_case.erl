@@ -586,7 +586,7 @@ print_success(I, File) ->
                 success
         end,
     Results = [],
-    {ok, Outcome, File, FullLineNo, I#istate.case_log_dir,
+    {ok, Outcome, File, FullLineNo, no_shell, I#istate.case_log_dir,
      RunWarnings, UnstableWarnings, Results,
      <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
 
@@ -642,7 +642,7 @@ print_fail(OldI0, NewI, File, Results,
                 [NewActual, lux_utils:to_string(NewRest)]),
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
     NewResults = [Fail],
-    {ok, Outcome, File, FullLineNo, NewI#istate.case_log_dir,
+    {ok, Outcome, File, FullLineNo, ShellName, NewI#istate.case_log_dir,
      RunWarnings, UnstableWarnings, NewResults,
      FailBin, Opaque}.
 
@@ -719,7 +719,7 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                 false ->
                     false;
                 true ->
-                    Format = "Fail but UNSTABLE as variable ~s is set",
+                    Format = "FAIL but UNSTABLE as variable ~s is set",
                     Reason = format_val(Format, [Name], Val),
                     W = lux_utils:make_warning(File, FullLineNo, Reason),
                     progress_warnings(I, [W]),
@@ -731,7 +731,7 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                 true ->
                     false;
                 false ->
-                    Format = "Fail but UNSTABLE as variable ~s is not set",
+                    Format = "FAIL but UNSTABLE as variable ~s is not set",
                     Reason = format_val(Format, [Name], Val),
                     W = lux_utils:make_warning(File, FullLineNo, Reason),
                     progress_warnings(I, [W]),

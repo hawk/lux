@@ -581,7 +581,8 @@ run_cases(R, [{SuiteFile, {error,Reason}, P, LenP}|Scripts],
     ?TRACE_ME(70, suite, 'case', SuiteFile, []),
     tap_case_begin(R, SuiteFile),
     ?TRACE_ME(70, 'case', suite, error, [Reason]),
-    tap_case_end(R, R, CC, SuiteFile, P, LenP, Max, error, "0", Reason, Reason),
+    tap_case_end(R, R, CC, SuiteFile, P, LenP, Max, error,
+                 "0", no_shell, Reason, Reason),
     run_cases(R, Scripts, OldSummary, Results2, Max, CC+1, List, Opaque);
 run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
           OldSummary, Results, Max, CC, List, Opaque) ->
@@ -640,16 +641,19 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                                                       Opts, Opaque),
                     SkipReason = "",
                     case Res of
-                        {ok, Summary, _, FullLineNo, CaseLogDir,
+                        {ok, Summary, _, FullLineNo, ShellName, CaseLogDir,
                          RunWarnings, UnstableWarnings, Events,
                          Details, NewOpaque} ->
-                            NewRes = {ok, Summary, Script, FullLineNo,
-                                      CaseLogDir, Events, Details, Opaque},
+                            NewRes = {ok, Summary, Script,
+                                      FullLineNo, ShellName,
+                                      CaseLogDir, Events,
+                                      Details, Opaque},
                             NewScripts = Scripts;
                         {error, MainFile, FullLineNo, CaseLogDir,
                          RunWarnings, UnstableWarnings, Details} ->
                             Summary = error,
                             NewOpaque = Opaque,
+                            ShellName = no_shell,
                             NewRes = {error, MainFile, FullLineNo, Details},
                             NewScripts =
                                 case Details of
@@ -666,7 +670,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     NewR2 = NewR#rstate{warnings = AllWarnings},
                     tap_case_end(OrigR, NewR2, CC, Script,
                                  P, LenP, Max, Summary,
-                                 FullLineNo, SkipReason, Details),
+                                 FullLineNo, ShellName, SkipReason, Details),
                     NewSummary = lux_utils:summary(OldSummary, Summary),
                     annotate_event_log(NewR2, Script, NewSummary,
                                        CaseLogDir, Opts),
@@ -708,9 +712,10 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
             #cmd_pos{lineno = FullLineNo} = stack_error(ErrorStack, SkipReason),
             tap_case_end(OrigR, NewR, CC, Script,
                          P, LenP, Max, Summary,
-                         FullLineNo, ?b2l(SkipReason), <<>>),
+                         FullLineNo, no_shell,
+                         ?b2l(SkipReason), <<>>),
             NewSummary = lux_utils:summary(OldSummary, Summary),
-            Res = {ok, Summary, Script2, FullLineNo,
+            Res = {ok, Summary, Script2, FullLineNo, no_shell,
                    NewR#rstate.log_dir, [], SkipReason, []},
             Results2 = [Res | Results],
             ParseWarnings = NewR#rstate.warnings,
@@ -759,7 +764,7 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
             {ok, _} = lux_case:copy_orig(ErrR#rstate.log_dir, MainFile),
             tap_case_end(OrigR, ErrR, CC, Script,
                          P, LenP, Max, Summary,
-                         "0", ErrorBin, ErrorBin),
+                         "0", no_shell, ErrorBin, ErrorBin),
             NewWarnings = ErrR#rstate.warnings,
             AllWarnings = OrigR#rstate.warnings ++ NewWarnings,
             NewSummary = lux_utils:summary(OldSummary, Summary),
@@ -1306,14 +1311,14 @@ tap_case_begin(#rstate{}, _AbsScript) ->
 tap_case_end(#rstate{},
              #rstate{tap = undefined}, _CaseCount, _Script,
              _P, _LenP, _Max,
-             _Result, _FullLineNo,
+             _Result, _FullLineNo, _ShellName,
              _Reason, _Details) ->
     ok;
 tap_case_end(#rstate{warnings = OrigWarnings},
              #rstate{tap = TAP, skip_skip = SkipSkip, warnings = Warnings},
              CaseCount, _AbsScript,
              P, LenP, Max,
-             Result, FullLineNo, Reason, Details) ->
+             Result, FullLineNo, ShellName, Reason, Details) ->
     CaseCountStr = ?i2l(CaseCount),
     PrefixLen = lists:min([4, 5-length(CaseCountStr)]),
     Indent = lists:duplicate(PrefixLen, " "),
@@ -1335,28 +1340,47 @@ tap_case_end(#rstate{warnings = OrigWarnings},
         end,
     lux_tap:test(TAP, Outcome, Descr, Directive, Max-LenP),
     NewWarnings = Warnings -- OrigWarnings,
-    lists:foreach(fun(W) -> tap_comment(TAP, W) end, NewWarnings),
-    case Details of
-        <<>> -> ignore;
-        _    -> tap_comment(TAP, {Result, dummy, FullLineNo, Details})
-    end.
+    TapComment =
+        fun(#warning{file=F, lineno=L, reason=R}) ->
+                tap_comment(TAP, prep, warning, F,
+                            L, no_shell, R, [])
+        end,
+    lists:foreach(TapComment, NewWarnings),
+    tap_comment(TAP, final, Result, no_file,
+                FullLineNo, ShellName,
+                Details, Reason).
 
-tap_comment(TAP, #warning{file=File, lineno=FullLineNo, reason=Reason}) ->
-    Outcome = warning,
-    tap_comment(TAP, Outcome, File, FullLineNo, Reason);
-tap_comment(TAP, {Outcome, _File, FullLineNo, Details}) ->
-    tap_comment(TAP, Outcome, _File, FullLineNo, Details).
-
-tap_comment(TAP, Outcome, _File, FullLineNo, Details) ->
-    Prefix = ?b2l(?l2b([string:to_upper(?a2l(Outcome)),
-                        " at line ", FullLineNo])),
+tap_comment(TAP, Context, Outcome, _File,
+            FullLineNo, OptShellName,
+            Details, Reason) ->
+    MakePrefix =
+        fun(O) ->
+                ?b2l(?l2b([string:to_upper(?a2l(O)),
+                           " at line ", FullLineNo]))
+        end,
     case binary:split(Details, <<"\n">>, [global]) of
+        [<<>>] when Outcome =/= skip, Reason =/= "" ->
+            Prefix = MakePrefix(Outcome),
+            ok = lux_tap:diag(TAP, Prefix ++ " - " ++ Reason);
+        [<<>>] ->
+            ignore;
         [Single] ->
+            Prefix = MakePrefix(Outcome),
             ok = lux_tap:diag(TAP, Prefix ++ " - " ++ ?b2l(Single));
-        Multiline ->
-            ok = lux_tap:diag(TAP, Prefix ++ " - FAIL at line " ++
-                                  FullLineNo ++ " in shell ZZZ"),
-            [lux_tap:diag(TAP, ?b2l(D)) || D <- Multiline]
+        Multiline when Context =:= final ->
+            Suffix =
+                case OptShellName of
+                    no_shell  -> "";
+                    ShellName -> " in shell " ++ ShellName
+                end,
+            NewOutcome =
+                case Outcome of
+                    warning -> fail;
+                    _       -> Outcome
+                end,
+            Prefix = MakePrefix(NewOutcome),
+            ok = lux_tap:diag(TAP, Prefix ++ Suffix),
+            [ok = lux_tap:diag(TAP, ?b2l(D)) || D <- Multiline]
     end.
 
 throw_error(File, Reason) ->

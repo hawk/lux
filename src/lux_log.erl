@@ -640,10 +640,17 @@ pick_result(Results, Outcome) ->
                             end,
                    lists:foldl(Actual, Outcome, Events)
            end,
-    [{Script, FullLineNo, Pick(Outcome, FailBin, Events)} ||
-        {ok, O, Script, FullLineNo, _LogDir,
-         Events, FailBin, _Opaque} <- Results,
-        O =:= Outcome].
+    MatchRes =
+        fun({ok, O, Script, FullLineNo, _S, _LD, Events, FailBin, _O}) ->
+                if
+                    O =:= Outcome ->
+                        {true, {Script, FullLineNo, Pick(O, FailBin, Events)}};
+                    true ->
+                        false
+                end
+        end,
+    OkRes = [R || R <- Results, element(1, R) =:= ok],
+    lists:zf(MatchRes, OkRes).
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->
     IoList = ?FF(Format, Args),

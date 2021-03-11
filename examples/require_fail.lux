@@ -1,10 +1,9 @@
 [doc Demonstrate an error]
 
-[config require=MAKE]
+[config require=YADA_MAKE]
 
 [shell setup]
-    !$MAKE start
-
+    !${YADA_MAKE} start
 
 [cleanup]
-    !$MAKE stop
+    !${YADA_MAKE} stop
