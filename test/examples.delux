@@ -8,83 +8,83 @@
     [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
     !../bin/lux --progress=summary --timeout=5000 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate ../examples
 
-"""?
-test case         : .*examples/calc.lux
-result            : SUCCESS
-"""
-"""?
-test case         : .*examples/fail.lux
-result            : FAIL at 32 in shell calculator
-expected\*
-	19
-actual match_timeout
-	
-	$eprompt.*
-	18
-	$eprompt
-diff
-	- 19
-	\+ 
-	\+ 3> 5\+13\.
-	\+ 18
-	\+ 4> 
-"""
-"""?
-test case         : .*examples/intro.lux
-result            : SUCCESS
-"""
-"""?
-test case         : .*examples/loop.lux
-result            : SUCCESS
-"""
-"""?
-test case         : .*examples/loop_fail.lux
-result            : FAIL at 5 in shell break
-expected\*
-	
-actual Loop ended without match of break pattern "THIS WILL NEVER MATCH"
-	
-diff
-	  
-	
-"""
-"""?
-test case         : .*examples/require_fail.lux
-result            : FAIL as required variable MAKE is not set
-"""
-"""?
-test case         : .*examples/skip.lux
-result            : SKIP as variable TEST_SUNOS is not set
-"""
-"""?
-test case         : .*examples/unstable_warn.lux
-warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
-result            : WARNING at 7 in shell foo
-expected\*
-	bar
-actual match_timeout
-	
-diff
-	- bar
-	\+ 
-"""
-"""?
-test case         : .*examples/warning.lux
-warning           : 3: Trailing whitespaces
-result            : WARNING
-"""
-"""?
-successful        : 3
-skipped           : 1
-	.*examples/skip.lux:6
-warnings          : 2
-	.*examples/unstable_warn.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
-	.*examples/warning.lux:3 - Trailing whitespaces
-failed            : 3
-	.*examples/fail.lux:32 - match_timeout
-	.*examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
-	.*examples/require_fail.lux:3 - FAIL as required variable MAKE is not set
-summary           : FAIL
-"""
+    """?
+    test case         : .*examples/calc.lux
+    result            : SUCCESS
+    """
+    """?
+    test case         : .*examples/fail.lux
+    result            : FAIL at line 32 in shell calculator
+    expected\*
+    	19
+    actual match_timeout
+    	
+    	$eprompt.*
+    	18
+    	$eprompt
+    diff
+    	- 19
+    	\+ 
+    	\+ 3> 5\+13\.
+    	\+ 18
+    	\+ 4> 
+    """
+    """?
+    test case         : .*examples/intro.lux
+    result            : SUCCESS
+    """
+    """?
+    test case         : .*examples/loop.lux
+    result            : SUCCESS
+    """
+    """?
+    test case         : .*examples/loop_fail.lux
+    result            : FAIL at line 5 in shell break
+    expected\*
+    	
+    actual Loop ended without match of break pattern "THIS WILL NEVER MATCH"
+    	
+    diff
+    	  
+    	
+    """
+    """?
+    test case         : .*examples/require_fail.lux
+    result            : FAIL as required variable YADA_MAKE is not set
+    """
+    """?
+    test case         : .*examples/skip.lux
+    result            : SKIP as variable TEST_SUNOS is not set
+    """
+    """?
+    test case         : .*examples/unstable_warn.lux
+    warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
+    result            : WARNING at line 7 in shell foo
+    expected\*
+    	bar
+    actual match_timeout
+    	
+    diff
+    	- bar
+    	\+ 
+    """
+    """?
+    test case         : .*examples/warning.lux
+    warning           : 3: Trailing whitespaces
+    result            : WARNING
+    """
+    """?
+    successful        : 3
+    skipped           : 1
+    	.*examples/skip.lux:6
+    warnings          : 2
+    	.*examples/unstable_warn.lux:8 - FAIL but UNSTABLE as variable TEST_DEVELOP is not set
+    	.*examples/warning.lux:3 - Trailing whitespaces
+    failed            : 3
+    	.*examples/fail.lux:32 - match_timeout
+    	.*examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
+    	.*examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
+    summary           : FAIL
+    """
 
     [invoke check_status 1]
