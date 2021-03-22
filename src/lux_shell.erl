@@ -199,7 +199,6 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
             stop_relax(C, relax, Data, []);
         {end_of_script, _From} ->
             dlog(C, ?dmore,"mode=resume (end_of_script)", []),
-            %% C#cstate{no_more_input = true, mode = suspend};
             stop_relax(C, success, end_of_script,
                        [{'end', "of script", []}]);
         {Port, {data, Data}} when Port =:= C#cstate.port ->
@@ -441,8 +440,6 @@ assert_eval(C, Cmd, _From) when C#cstate.no_more_output andalso
                " in context of a running shell">>,
     C2 = C#cstate{latest_cmd = Cmd},
     stop(C2, error, ErrBin, []);
-assert_eval(C, _Cmd, _From) when C#cstate.no_more_input ->
-    stop(C, fail, endshell, []);
 assert_eval(C, _Cmd, _From) when C#cstate.expected =:= undefined ->
     ok;
 assert_eval(_C, #cmd{type = Type}, _From)
@@ -769,9 +766,6 @@ expect_more(C) ->
             C2
     end.
 
-%% expect(#cstate{} = C) when ?end_of_script(C) ->
-%%     %% Normal end of script
-%%     stop(C, success, end_of_script);
 expect(#cstate{state_changed = false} = C) ->
     %% Nothing has changed
     C;
@@ -884,20 +878,14 @@ try_match(C, Actual, AltSkip) ->
     end.
 
 match_more(C, SubMatches) ->
-    case C#cstate.no_more_input of
-        true ->
-            %% End of input
-            stop_relax(C, success, end_of_script, []);
-        false ->
-            SubVars = submatch_vars(SubMatches, 1),
-            [clog(C, capture, "\"~s\"",
-                  [ lux_utils:quote_newlines(SV)]) ||
-                SV <- SubVars],
-            send_reply(C, C#cstate.parent, {submatch_vars, self(), SubVars}),
-            C2 = C#cstate{expected = undefined},
-            dlog(C2, ?dmore, "expected=[] (waiting)", []),
-            opt_late_sync_reply(C2)
-    end.
+    SubVars = submatch_vars(SubMatches, 1),
+    [clog(C, capture, "\"~s\"",
+          [ lux_utils:quote_newlines(SV)]) ||
+        SV <- SubVars],
+    send_reply(C, C#cstate.parent, {submatch_vars, self(), SubVars}),
+    C2 = C#cstate{expected = undefined},
+    dlog(C2, ?dmore, "expected=[] (waiting)", []),
+    opt_late_sync_reply(C2).
 
 submatch_vars([SubMatches | Rest], N) ->
     case SubMatches of

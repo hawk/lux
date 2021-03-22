@@ -333,7 +333,6 @@
          state_changed = false   :: boolean(),
          timed_out = false       :: boolean(),
          idle_count = 0          :: non_neg_integer(),
-         no_more_input = false   :: boolean(),
          no_more_output = false  :: boolean(),
          exit_status             :: non_neg_integer(),
          posix_code              :: file:posix(),
