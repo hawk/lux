@@ -1442,14 +1442,12 @@ safe_format(Fd, Format, Args) ->
 safe_write(OptFd, IoList) when is_list(IoList) ->
     safe_write(OptFd, ?l2b(IoList));
 safe_write(OptFd, Bin) when is_binary(Bin) ->
-    case OptFd of
-        undefined ->
-            ok = io:format("~s", [Bin]),
-            Bin;
-        Fd ->
-            ok = file:write(Fd, Bin),
-            Bin
-    end.
+    if
+        Bin =:= <<>>        -> ok;
+        OptFd =:= undefined -> ok = io:format("~s", [Bin]);
+        true                -> ok = file:write(OptFd, Bin)
+    end,
+    Bin.
 
 double_write(Progress, Fd, {ResIoList, ConIoList}) when Fd =/= undefined ->
     Bin = safe_write(Fd, ResIoList),
@@ -1469,7 +1467,15 @@ safe_format(Progress, LogFun, Fd, Format, Args) ->
 
 safe_write(Progress, LogFun, Fd, IoList) when is_list(IoList) ->
     safe_write(Progress, LogFun, Fd, ?l2b(IoList));
+safe_write(_Progress, _LogFun, _Fd, Bin) when Bin =:= <<>>  ->
+    Bin;
 safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
+    {Verbose, Fd} = split_fd(Fd0),
+    write_progress(Progress, Verbose, Bin),
+    write_to_log(Fd, LogFun, Bin),
+    Bin.
+
+split_fd(Fd0) ->
     case Fd0 of
         undefined ->
             Fd = Fd0,
@@ -1477,78 +1483,72 @@ safe_write(Progress, LogFun, Fd0, Bin) when is_binary(Bin) ->
         {Verbose, Fd} ->
             ok
     end,
+    {Verbose, Fd}.
+
+write_progress(Progress, false, _Bin) ->
     case Progress of
-        silent ->
+        silent  -> ok;
+        summary -> ok;
+        brief   -> ok;
+        doc     -> ok;
+        compact -> ok;
+        verbose -> ok;
+        etrace  -> ok;
+        ctrace  -> ok
+    end;
+write_progress(Progress, true, Bin) ->
+    try
+        case Progress of
+            silent  -> ok;
+            summary -> ok;
+            brief   -> ok;
+            doc     -> ok;
+            compact -> io:format("~s", [?b2l(Bin)]);
+            verbose -> io:format("~s", [dequote(?b2l(Bin))]);
+            etrace  -> io:format("~s", [dequote(?b2l(Bin))]);
+            ctrace  -> io:format("~s", [dequote(?b2l(Bin))])
+        end
+    catch
+        _:Reason:EST ->
+            io:format("\nINTERNAL LUX ERROR: progress write failed:"
+                      " ~p\n\t~p\n\t~p\n",
+                      [Reason, Bin, EST]),
+            exit({safe_write, Progress, Bin, Reason})
+    end.
+
+write_to_log(undefined, LogFun, Bin) ->
+    try
+        case LogFun(Bin) of
+            <<_/binary>> ->
+                ok;
+            BadRes ->
+                BadEST = ?stacktrace(),
+                io:format("\nINTERNAL LUX ERROR: log write failed:"
+                          " ~p\n\t~p\n\t~p\n",
+                      [BadRes, Bin, BadEST]),
+                exit({safe_write, log_fun, Bin, BadRes})
+        end
+    catch
+        _:LogReason:LogEST ->
+            io:format("\nINTERNAL LUX ERROR: log write failed:"
+                      " ~p\n\t~p\n\t~p\n",
+                      [LogReason, Bin, LogEST]),
+            exit({safe_write, log_fun, Bin, LogReason})
+    end;
+write_to_log(Fd, _LogFun, Bin) ->
+    try file:write(Fd, Bin) of
+        ok ->
             ok;
-        summary ->
-            ok;
-        brief ->
-            ok;
-        doc ->
-            ok;
-        compact when Verbose ->
-            try
-                io:format("~s", [?b2l(Bin)])
-            catch
-                _:CReason ->
-                    exit({safe_write, compact, Bin, CReason})
-            end;
-        compact ->
-            ok;
-        verbose when Verbose ->
-            try
-                io:format("~s", [dequote(?b2l(Bin))])
-            catch
-                _:VReason ->
-                    exit({safe_write, verbose, Bin, VReason})
-            end;
-        verbose ->
-            ok;
-        etrace when Verbose ->
-            try
-                io:format("~s", [dequote(?b2l(Bin))])
-            catch
-                _:VReason ->
-                    exit({safe_write, etrace, Bin, VReason})
-            end;
-        etrace ->
-            ok;
-        ctrace when Verbose ->
-            try
-                io:format("~s", [dequote(?b2l(Bin))])
-            catch
-                _:VReason ->
-                    exit({safe_write, ctrace, Bin, VReason})
-            end;
-        ctrace ->
-            ok
-    end,
-    case Fd of
-        undefined ->
-            try
-                case LogFun(Bin) of
-                    <<_/binary>> ->
-                        ok;
-                    BadRes ->
-                        exit({safe_write, log_fun, Bin, BadRes})
-                end
-            catch
-                _:LReason ->
-                    exit({safe_write, log_fun, Bin, LReason})
-            end;
-        _ ->
-            try file:write(Fd, Bin) of
-                ok ->
-                    ok;
-                {error, FReason} ->
-                    Str = file:format_error(FReason),
-                    io:format("\nINTERNAL LUX ERROR: file write failed:"
-                              " ~s\n\t~p\n\t~p\n",
-                              [Str, Bin, ?stacktrace()]),
-                    exit({safe_write, file, Fd, Bin, {error, FReason}})
-            catch
-                _:WReason ->
-                    exit({safe_write, file, Bin, WReason})
-            end
-    end,
-    Bin.
+        {error, FileReason} ->
+            Str = file:format_error(FileReason),
+            io:format("\nINTERNAL LUX ERROR: file write failed:"
+                      " ~s\n\t~p\n\t~p\n",
+                      [Str, Bin, ?stacktrace()]),
+            exit({safe_write, file, Fd, Bin, {error, FileReason}})
+    catch
+        _:WriteReason:WriteEST ->
+            io:format("\nINTERNAL LUX ERROR: file write failed:"
+                      " ~p\n\t~p\n\t~p\n",
+                      [WriteReason, Bin, WriteEST]),
+            exit({safe_write, file, Bin, WriteReason})
+    end.

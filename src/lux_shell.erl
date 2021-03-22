@@ -423,7 +423,7 @@ sync_reply(C, From) ->
 assert_eval(C, Cmd, From) when From =/= C#cstate.parent ->
     %% Assert - sender must be parent
     IE = {internal_error, invalid_sender, Cmd, process_info(From)},
-    logs_close_and_exit(C, IE);
+    close_logs_and_exit(C, IE);
 assert_eval(C, #cmd{type = Type} = Cmd, _From)
   when C#cstate.got_endshell andalso
        Type =/= no_cleanup andalso
@@ -463,7 +463,7 @@ assert_eval(C, Cmd, _From) ->
           C#cstate.expected,
           C#cstate.mode, Cmd#cmd.type, (C#cstate.latest_cmd)#cmd.type,
           C#cstate.latest_cmd},
-    logs_close_and_exit(C, IE).
+    close_logs_and_exit(C, IE).
 
 shell_eval(#cstate{name = Name} = C0,
            #cmd{type = Type, arg = Arg} = Cmd) ->
@@ -1575,7 +1575,7 @@ interpreter_died(C, DownReason) ->
     trace_interpreter_down(C, DownReason),
     IE = {internal_error, interpreter_died, C#cstate.latest_cmd, DownReason},
     C2 = C#cstate{event_log_fd = closed},
-    logs_close_and_exit(C2, IE).
+    close_logs_and_exit(C2, IE).
 
 trace_interpreter_down(C, DownReason) ->
     TraceFrom = 'case',
@@ -1587,7 +1587,7 @@ port_close_and_exit(C, DownReason, #result{} = Res) ->
     catch port_close(C#cstate.port),
     exit(DownReason).
 
-logs_close_and_exit(C, IE) when element(1, IE) =:= internal_error ->
+close_logs_and_exit(C, IE) when element(1, IE) =:= internal_error ->
     ?TRACE_ME2(40, C#cstate.name, close_and_exit, [IE]),
     {Res, CloseEvent} = error_to_result(C, IE),
     C2 = flush_port(C, []),
@@ -1666,21 +1666,22 @@ wait_for_down(C, Res) ->
             wait_for_down(C2, Res)
     end.
 
-clog(#cstate{event_log_fd = closed}, _Events) ->
-    ok;
+clog(C, Op, Format, Args) ->
+    clog(C, [{Op, Format, Args}]).
+
 clog(#cstate{progress = Progress,
              log_fun = LogFun,
              event_log_fd = Fd,
              name = Shell,
              latest_cmd = Cmd,
              emit_timestamp = EmitTimestamp},
-     Events) ->
+     Events)
+  when Fd =/= closed ->
     lux_log:write_events(Progress, LogFun, Fd,
                          Cmd#cmd.lineno, Shell,
-                         EmitTimestamp, Events).
-
-clog(C, Op, Format, Args) ->
-    clog(C, [{Op, Format, Args}]).
+                         EmitTimestamp, Events);
+clog(#cstate{}, _Events) ->
+    ok.
 
 clog_skip(_C, <<>>) ->
     ok;
