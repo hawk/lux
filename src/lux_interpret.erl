@@ -59,21 +59,18 @@ init(I) ->
             end,
         I6 = check_infinite_timers(I5),
         I7 = loop(I6),
-        stop(I7),
-        I8 = check_risky_timer(I7, "case_timeout", CaseRef),
-        I9 = check_risky_timer(I8, "suite_timeout", SuiteRef),
-        lux_utils:cancel_timer(CaseRef),
-        {ok, I9}
+        I8 = stop(I7),
+        {ok, I8}
     catch
         throw:{error, Reason, IA} ->
-            stop(IA),
-            {error, Reason, IA};
+            IA2 = stop(IA),
+            {error, Reason, IA2};
         ?CATCH_STACKTRACE(error, Reason, EST)
             ErrBin = ?l2b(?FF("~p", [Reason])),
             io:format("\nINTERNAL LUX ERROR: Interpreter crashed: ~s\n~p\n",
                       [ErrBin, EST]),
-        stop(IB),
-        {error, ErrBin, IB}
+        IB2 = stop(IB),
+        {error, ErrBin, IB2}
     end.
 
 check_infinite_timers(I) ->
@@ -87,13 +84,26 @@ check_infinite_timers(I) ->
     end.
 
 stop(I) ->
+    %% Ensure that no shell writes to the event log after this point
+    case all_shells(I) of
+        [] ->
+            ok;
+        Shells ->
+            io:format("\nINTERNAL LUX ERROR: Alive shells:\n\t~p\n", [Shells]),
+            [exit(S#shell.pid, kill) || S <- Shells]
+    end,
+
     CaseRef = I#istate.case_timer_ref,
     SuiteRef = I#istate.suite_timer_ref,
-    ilog(I, "case_timeout ~s\n", [timer_left(I, CaseRef)], "lux", 0),
-    ilog(I, "suite_timeout ~s\n", [timer_left(I, SuiteRef)], "lux", 0),
+    I2 = check_risky_timer(I, "case_timeout", CaseRef),
+    I3 = check_risky_timer(I2, "suite_timeout", SuiteRef),
+    ilog(I3, "case_timeout ~s\n", [timer_left(I3, CaseRef)], "lux", 0),
+    ilog(I3, "suite_timeout ~s\n", [timer_left(I3, SuiteRef)], "lux", 0),
     EndTime = lux_utils:now_to_string(lux_utils:timestamp()),
-    ilog(I, "end_time \"~s\"\n", [EndTime], "lux", 0),
-    opt_stop_etrace(I).
+    ilog(I3, "end_time \"~s\"\n", [EndTime], "lux", 0),
+    lux_utils:cancel_timer(CaseRef),
+    I4 = I3#istate{case_timer_ref = undefined},
+    opt_stop_etrace(I4).
 
 timer_left(I, #timer_ref{} = TimerRef) ->
     timer_left(I, read_timer_left(TimerRef));
@@ -1321,11 +1331,13 @@ delete_shell(#istate{active_shell=ActiveShell, shells=OldShells} = I, Pid) ->
             {Health, Name, I2#istate{shells = NewShells}}
     end.
 
-multicast(#istate{shells = OtherShells, active_shell = no_shell}, Msg) ->
-    multicast(OtherShells, Msg);
-multicast(#istate{shells = OtherShells, active_shell = ActiveShell}, Msg) ->
-    multicast([ActiveShell | OtherShells], Msg);
-multicast(Shells, Msg) when is_list(Shells) ->
+all_shells(#istate{shells = OtherShells, active_shell = no_shell}) ->
+    OtherShells;
+all_shells(#istate{shells = OtherShells, active_shell = ActiveShell}) ->
+    [ActiveShell | OtherShells].
+
+multicast(I, Msg) ->
+    Shells = all_shells(I),
     ?TRACE_ME2(50, 'case', multicast, [{shells, Shells}, Msg]),
     Send = fun(#shell{pid = Pid} = S) -> trace_msg(S, Msg), Pid ! Msg, Pid end,
     lists:map(Send, Shells).
