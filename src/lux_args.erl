@@ -82,6 +82,7 @@ specs() ->
      {"--sloppy_threshold",   0.000000001, {float, 0.0, infinity}, mandatory},
      {"--newshell"     ,      false,       boolean,                none},
      {"--shell_wrapper",      "",          string,                 optional},
+     {"--shell_wrapper_mode", silent,      {enum, wrapper_mode},   mandatory},
      {"--shell_cmd",          "/bin/sh",   string,                 mandatory},
      {"--shell_args",         ["-i"],      string,                 mandatory},
      {"--shell_prompt_cmd",   "export PS1=SH-PROMPT:",
@@ -100,6 +101,8 @@ enum(profile) ->
     [standalone, development, embedded];
 enum(mode) ->
     [list, list_dir, doc, validate, dump, expand, execute];
+enum(wrapper_mode) ->
+    [silent, debug, trace];
 enum(prio) ->
     [enable, success, skip, warning, fail, error, disable];
 enum(html) ->
@@ -233,6 +236,7 @@ translate_opts([
      {"--sloppy_threshold",   SloppyThreshold},
      {"--newshell",           NewShell},
      {"--shell_wrapper",      ShellWrapper},
+     {"--shell_wrapper_mode", ShellWrapperMode},
      {"--shell_cmd",          ShellCmd},
      {"--shell_args",         ShellArgs},
      {"--shell_prompt_cmd",   ShellPromptCmd},
@@ -265,6 +269,7 @@ translate_opts([
          {sloppy_threshold,   SloppyThreshold},
          {newshell,           NewShell},
          {shell_wrapper,      ShellWrapper},
+         {shell_wrapper_mode, ShellWrapperMode},
          {shell_cmd,          ShellCmd},
          {shell_args,         ShellArgs},
          {shell_prompt_cmd,   ShellPromptCmd},

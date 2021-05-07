@@ -330,6 +330,8 @@ config_type(Name) ->
         shell_wrapper ->
             {ok, #istate.shell_wrapper, [string,
                                          {atom, [undefined]}]};
+        shell_wrapper_mode ->
+            {ok, #istate.shell_wrapper_mode, [{atom, [silent, debug, trace]}]};
         shell_cmd ->
             {ok, #istate.shell_cmd, [string]};
         shell_args ->
@@ -844,6 +846,7 @@ user_config_keys() ->
      sloppy_threshold,
      newshell,
      shell_wrapper,
+     shell_wrapper_mode,
      shell_cmd,
      shell_args,
      shell_prompt_cmd,

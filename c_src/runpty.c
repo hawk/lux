@@ -69,7 +69,10 @@ static enum dbgoutmode_t dbgoutmode = meta;
 static void dbg_dump(const char *buf, int len)
 {
     if (dbglevel > silent) {
-        write(dbgfd, buf, len);
+        if (write(dbgfd, buf, len) < 0) {
+            perror("dump to log failed");
+            exit(1);
+        }
         dbgoutmode = raw;
     }
 }
@@ -252,19 +255,25 @@ int main(int argc, char *argv[])
             logdir = getcwd(NULL, 0);
         }
         if (shellname) {
-            asprintf(&dbgfile, "%s/runpty%s.%s", logdir, logtype, shellname);
+            if (asprintf(&dbgfile, "%s/runpty%s.%s",
+                         logdir, logtype, shellname) < 0) {
+                fprintf(stderr, "\nrunpty error: "
+                        "concatenate shell log filename failed");
+                exit(1);
+            }
         } else {
-            asprintf(&dbgfile, "%s/runpty%s", logdir, logtype);
+            if (asprintf(&dbgfile, "%s/runpty%s", logdir, logtype) < 0) {
+                fprintf(stderr, "\nrunpty error: "
+                        "concatenate log filename failed");
+                exit(1);
+            }
         }
-        dbgfd = open(dbgfile, O_WRONLY | O_CREAT | O_TRUNC);
+        dbgfd = open(dbgfile,
+                     O_WRONLY | O_CREAT | O_TRUNC,
+                     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (dbgfd < 0 ) {
             perror("open runpty failed");
             exit(1);
-        } else {
-            if (fchmod(dbgfd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) < 0) {
-                perror("chmod runpty failed");
-                exit(1);
-            }
         }
     }
 

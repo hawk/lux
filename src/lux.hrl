@@ -195,6 +195,7 @@
          sloppy_threshold = ?DEFAULT_SLOPPY_THRESHOLD :: float() | infinity,
          newshell = false           :: boolean(),
          shell_wrapper              :: undefined | string(),
+         shell_wrapper_mode = silent:: wrapper_mode(),
          shell_cmd = "/bin/sh"      :: string(),
          shell_args = ["-i"]        :: [string()],
          shell_prompt_cmd = "export PS1=SH-PROMPT:" :: string(),
@@ -318,6 +319,7 @@
          risky_threshold         :: float() | infinity,
          sloppy_threshold        :: float() | infinity,
          shell_wrapper           :: undefined | string(),
+         shell_wrapper_mode      :: wrapper_mode(),
          shell_cmd               :: string(),
          shell_args              :: [string()],
          shell_prompt_cmd        :: string(),
@@ -420,3 +422,4 @@
 -type expected_tag() :: ?EXPECTED_EQ | ?EXPECTED_RE.
 -type suppress()     :: suppress_any_success | suppress_none.
 -type select()       :: select_worst | select_latest.
+-type wrapper_mode() :: silent | debug | trace.

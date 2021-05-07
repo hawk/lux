@@ -476,6 +476,18 @@ shell wrapper (if it has been built properly).
 It is also possible to use no shell wrapper at all by omitting the
 `Executable` value (or simply set it to the empty string "").
 
+     [config shell_wrapper=]
+
+**--shell\_wrapper\_mode WrapperMode**
+The WrapperMode is used for debugging the shell wrapper program. By
+default it is set to `silent`, but it can also be set to `debug` or
+`trace`. Debug will log wrapper internal events, such as signal
+handling. Trace will also log the socket payload. When enabled in a
+test case, a log file will be created per shell on the extra logs
+directory.
+
+     [config shell_wrapper_mode=trace]
+
 **--post\_commit\_cmd**  
 **--post\_commit\_cmd \[CleanupCmd\]**  
 Enable centrally defined cleanup code to be run after those test cases

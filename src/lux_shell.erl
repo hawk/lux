@@ -41,6 +41,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 risky_threshold = I#istate.risky_threshold,
                 sloppy_threshold = I#istate.sloppy_threshold,
                 shell_wrapper = I#istate.shell_wrapper,
+                shell_wrapper_mode = I#istate.shell_wrapper_mode,
                 shell_cmd = I#istate.shell_cmd,
                 shell_args = I#istate.shell_args,
                 shell_prompt_cmd = I#istate.shell_prompt_cmd,
@@ -90,10 +91,12 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
     FlatExec = lists:flatten([Exec, [[" ", A] || A <- Args]]),
     clog(C2, start, "\"~s\"", [lux_utils:to_string(FlatExec)]),
     StartReason = ?a2l(C#cstate.start_reason),
+    WrapperMode = ?a2l(C#cstate.shell_wrapper_mode),
     PortEnv = [{"LUX_SHELLNAME", Name},
                {"LUX_START_REASON", StartReason},
-               {"LUX_EXTRA_LOGS", ExtraLogs}],
-               WorkDir = filename:dirname(C2#cstate.orig_file),
+               {"LUX_EXTRA_LOGS", ExtraLogs},
+               {"LUX_RUNPTY_MODE", WrapperMode}],
+    WorkDir = filename:dirname(C2#cstate.orig_file),
     Opts = [binary, stream, use_stdio, stderr_to_stdout, exit_status,
             {args, Args}, {cd, WorkDir}, {env, PortEnv}],
     try
@@ -109,13 +112,13 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
             shell_loop(C3, C3)
         catch
             ?CATCH_STACKTRACE(error, LoopReason, LoopEST)
-                LoopErrBin = ?l2b(?FF("INTERNAL LUX ERROR: ~999999p ~999999p",
-                                      [LoopReason, LoopEST])),
-                io:format("\n~s\n", [LoopErrBin]),
-                stop(C3, error, LoopErrBin,
-                     [{error, "INTERNAL LUX ERROR: \"~999999p\" ~999999p",
-                       [LoopErrBin, LoopEST]}])
-        end
+            LoopErrBin = ?l2b(?FF("INTERNAL LUX ERROR: ~999999p ~999999p",
+                                  [LoopReason, LoopEST])),
+            io:format("\n~s\n", [LoopErrBin]),
+            stop(C3, error, LoopErrBin,
+                 [{error, "INTERNAL LUX ERROR: \"~999999p\" ~999999p",
+                   [LoopErrBin, LoopEST]}])
+            end
     catch
         ?CATCH_STACKTRACE(error, InitReason, InitEST)
         FileErrStr = file:format_error(InitReason),
@@ -141,10 +144,11 @@ open_logfile(C, Slogan) ->
                    [ErrBin]}])
     end.
 
-choose_exec(C) ->
+choose_exec(#cstate{shell_cmd = Cmd,
+                    shell_args = Args} = C) ->
     case C#cstate.shell_wrapper of
-        undefined -> {C#cstate.shell_cmd, C#cstate.shell_args};
-        Wrapper   -> {Wrapper, [C#cstate.shell_cmd | C#cstate.shell_args]}
+        undefined -> {Cmd, Args};
+        Wrapper -> {Wrapper, [Cmd | Args]}
     end.
 
 shell_loop(C, OrigC) ->
