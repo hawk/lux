@@ -40,27 +40,14 @@
 #include <util.h>
 #endif
 
-#define EXIT(reason)                                                    \
-    {                                                                   \
-        fprintf(stderr, "\nrunpty error: %s: %s\n", reason, strerror(errno)); \
-        dbg_printf("\n\n%s: %s\n", reason, strerror(errno));            \
-        dbg_exit(1);                                                    \
-    }
-
-#define QUIT(reason)                                                    \
-    {                                                                   \
-        quit_reason = reason;                                           \
-        goto quit;                                                      \
-    }
-
 enum dbglevel_t {
     silent = 1,
     debug  = 2,
-    trace  = 3,
+    trace  = 3
 };
 
-int dbgfd = -1;
-enum dbglevel_t dbglevel =
+static int dbgfd = -1;
+static enum dbglevel_t dbglevel =
 
 #ifdef TRACE
     trace;
@@ -72,12 +59,18 @@ enum dbglevel_t dbglevel =
 #    endif
 #endif
 
+enum dbgoutmode_t {
+    raw,
+    meta
+};
+
+static enum dbgoutmode_t dbgoutmode = meta;
+
 static void dbg_dump(const char *buf, int len)
 {
     if (dbglevel > silent) {
-        dprintf(dbgfd, "\n<<<BEGIN>>>\n");
         write(dbgfd, buf, len);
-        dprintf(dbgfd, "\n<<<END>>>\n\n");
+        dbgoutmode = raw;
     }
 }
 
@@ -85,9 +78,13 @@ static void dbg_printf(const char *fmt, ...)
 {
     if (dbglevel > silent) {
         va_list args;
+
+        if (dbgoutmode == raw) dprintf(dbgfd, "\n");
+        dprintf(dbgfd, "[runpty] ");
         va_start(args, fmt);
-        dprintf(dbgfd, fmt, args);
+        vdprintf(dbgfd, fmt, args);
         va_end(args);
+        dbgoutmode = meta;
     }
 }
 
@@ -102,7 +99,7 @@ static void dbg_exit(int status)
 
 static int quit = 0;
 void signal_handler(int sig) {
-    dbg_printf("\nGOT SIGNAL %d\n", sig);
+    dbg_printf("GOT SIGNAL %d\n", sig);
     switch (sig) {
     case SIGCHLD:
         break;
@@ -136,7 +133,7 @@ static char *openmaster(int *master, int *slave)
     *slave = -1;
     return path;
 fail:
-    dbg_printf("\nCLOSE master %d\n", __LINE__);
+    dbg_printf("CLOSE master at line %d\n", __LINE__);
     close(m);
     return NULL;
 }
@@ -174,7 +171,8 @@ static int unset_onlcr(int fd)
 }
 
 
-int prev_fd_flags, prev_outfd_flags;
+static int prev_fd_flags;
+static int prev_outfd_flags;
 
 static void set_nonblocking(int fd, int outfd)
 {
@@ -193,15 +191,29 @@ void restore_blocking(int fd, int outfd)
     fcntl(outfd, F_SETFL, prev_outfd_flags);
 }
 
-static char *quit_reason = NULL;
+#define QUIT(reason)                                                    \
+    {                                                                   \
+        dbg_printf("QUIT at line %d due to '%s' fail: %s\n",            \
+                   __LINE__, reason, strerror(errno));                  \
+        goto quit;                                                      \
+    }
+
+#define EXIT(reason)                                                    \
+    {                                                                   \
+        dbg_printf("EXIT at line %d\n", __LINE__);                      \
+        fprintf(stderr, "\nrunpty error: %s: %s\n", reason, strerror(errno)); \
+        dbg_printf("%s: %s\n", reason, strerror(errno));                \
+        dbg_exit(1);                                                    \
+    }
+
 int main(int argc, char *argv[])
 {
     int in = fileno(stdin);
     int out = fileno(stdout);
-    int inr = 0;
-    int inw = 0;
-    int outr = 0;
-    int outw = 0;
+    long inr = 0;
+    long inw = 0;
+    long outr = 0;
+    long outw = 0;
     fd_set readfdset;
     fd_set writefdset;
     char inbuf[BUFSIZ*4];  /* *4 appears to fix bug on mac os x */
@@ -211,21 +223,25 @@ int main(int argc, char *argv[])
     char *slavepath;
     pid_t child;
     int status;
-    int incnt = 0;
-    int outcnt = 0;
+    long incnt = 0;
+    long outcnt = 0;
 
     char *dbgmode = getenv("LUX_RUNPTY_MODE");
     char *logdir = getenv("LUX_EXTRA_LOGS");
     char *shellname = getenv("LUX_SHELLNAME");
     char *dbgfile = NULL;
+    char *logtype = NULL;
 
     if (dbgmode) {
         if (strcmp(dbgmode, "trace") == 0) {
             dbglevel = trace;
+            logtype = ".trace";
         } else if (strcmp(dbgmode, "debug") == 0) {
             dbglevel = debug;
+            logtype = ".debug";
         } else if (strcmp(dbgmode, "silent") == 0) {
             dbglevel = silent;
+            logtype = "";
         }
     }
 
@@ -236,17 +252,17 @@ int main(int argc, char *argv[])
             logdir = getcwd(NULL, 0);
         }
         if (shellname) {
-            asprintf(&dbgfile, "%s/runpty.dbg.%s", logdir, shellname);
+            asprintf(&dbgfile, "%s/runpty%s.%s", logdir, logtype, shellname);
         } else {
-            asprintf(&dbgfile, "%s/runpty.dbg", logdir);
+            asprintf(&dbgfile, "%s/runpty%s", logdir, logtype);
         }
         dbgfd = open(dbgfile, O_WRONLY | O_CREAT | O_TRUNC);
         if (dbgfd < 0 ) {
-            perror("open runpty.dbg failed");
+            perror("open runpty failed");
             exit(1);
         } else {
             if (fchmod(dbgfd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) < 0) {
-                perror("chmod runpty.dbg failed");
+                perror("chmod runpty failed");
                 exit(1);
             }
         }
@@ -296,7 +312,7 @@ int main(int argc, char *argv[])
         dup2(slave, 1);
         dup2(slave, 2);
         if (slave > 2) {
-            dbg_printf("\nCLOSE slave %d\n", __LINE__);
+            dbg_printf("CLOSE slave at line %d\n", __LINE__);
             close(slave);
         }
         unset_onlcr(1);
@@ -306,13 +322,15 @@ int main(int argc, char *argv[])
     }
 
     if (slave >= 0) {
-        dbg_printf("\nCLOSE slave %d\n", __LINE__);
+        dbg_printf("CLOSE slave at line %d\n", __LINE__);
         close(slave);
     }
 
     set_nonblocking(in, master);
 
+    dbg_printf("Wait for SIGINT (%d) or timeout\n", SIGINT);
     signal(SIGINT, signal_handler);
+    dbg_printf("Wait for SIGTERM (%d) or timeout\n", SIGTERM);
     signal(SIGTERM, signal_handler);
 
     for (;;) {
@@ -320,10 +338,10 @@ int main(int argc, char *argv[])
         FD_ZERO(&writefdset);
 
         if (inw == inr) {
-            dbg_printf("IN(%d):  Waiting for more\n", incnt);
+            dbg_printf("IN(%ld): Waiting for more\n", 0);//incnt);
             FD_SET(in, &readfdset);
         } else {
-            dbg_printf("IN(%d):  Written %d of %d bytes, waiting for %d more\n",
+            dbg_printf("IN(%d): Written %d of %d bytes, waiting for %d more\n",
                        incnt, inw, inr, inr-inw);
             FD_SET(master, &writefdset);
         }
@@ -331,8 +349,9 @@ int main(int argc, char *argv[])
             dbg_printf("OUT(%d): Waiting for more\n", outcnt);
             FD_SET(master, &readfdset);
         } else {
+            ssize_t left = outr-outw;
             dbg_printf("OUT(%d): Written %d of %d bytes, waiting for %d more\n",
-                       outcnt, outw, outr, outr-outw);
+                       outcnt, outw, outr, left);
             FD_SET(out, &writefdset);
         }
 
@@ -343,70 +362,68 @@ int main(int argc, char *argv[])
         if (FD_ISSET(in, &readfdset)) {
             incnt++;
             inr = read(in, inbuf, sizeof(inbuf));
-            dbg_printf("IN(%d):  Read    %d (%d) bytes",
+            dbg_printf("IN(%d): Read %d (%d) bytes\n",
                        incnt, inr, (int)sizeof(inbuf));
             if (inr < 1) QUIT("read in");
             inw = write(master, inbuf, inr);
-            dbg_printf(", wrote %d bytes\n", inw);
+            dbg_printf("IN(%d): Wrote %d bytes\n", incnt, inw);
             if (inw < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) inw = 0;
             if (inw < 0) QUIT("write in");
         }
         if (FD_ISSET(master, &writefdset)) {
             int left = inr-inw;
-            int w = write(master, inbuf+inw, left);
-            dbg_printf("IN(%d):  Wrote   %d of %d bytes", incnt, w, left);
+            ssize_t w = write(master, inbuf+inw, left);
+            dbg_printf("IN(%d): Wrote %d of %d bytes\n", incnt, w, left);
             if (w < 1) QUIT("write in");
             inw += w;
-            dbg_printf(", in total %d of %d\n", inw, inr);
+            dbg_printf("IN(%d): Written in total %d of %d\n", incnt, inw, inr);
         }
         if (FD_ISSET(master, &readfdset)) {
             outcnt++;
             outr = read(master, outbuf, sizeof(outbuf));
-            dbg_printf("OUT(%d): Read    %d (%d) bytes",
+            dbg_printf("OUT(%d): Read %d (%d) bytes\n",
                        outcnt, outr, (int)sizeof(outbuf));
             if (outr < 1) QUIT("read out");
             outw = write(out, outbuf, outr);
-            dbg_printf(", wrote %d bytes\n", outw);
+            dbg_printf("OUT(%d): Wrote %d bytes\n", outcnt, outw);
 
             if (dbglevel >= trace) {
-                if (outbuf[0] == '\r') dbg_printf("\n<<<NEWLINE CR FIRST>>>\n");
+                if (outbuf[0] == '\r') dbg_printf("<<<NEWLINE CR FIRST>>>\n");
                 dbg_dump(outbuf, outw);
                 if (outbuf[outw-1] == '\r')
-                    dbg_printf("\n<<<NEWLINE CR LAST>>>\n");
+                    dbg_printf("<<<NEWLINE CR LAST>>>\n");
             }
             if (outw < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) outw = 0;
             if (outw < 0) QUIT("write out");
         }
         if (FD_ISSET(out, &writefdset)) {
-            int left = outr-outw;
-            int w = write(out, outbuf+outw, left);
-            dbg_printf("OUT(%d): Wrote   %d of %d bytes", outcnt, w, left);
+            ssize_t left = outr-outw;
+            ssize_t w = write(out, outbuf+outw, left);
+            dbg_printf("OUT(%d): Wrote %d of %d bytes\n", outcnt, w, left);
             if (dbglevel >= trace) {
                 dbg_dump(outbuf+outw, w);
                 if (outbuf[outw+w-1] == '\r')
-                    dbg_printf("\n<<<NEWLINE CR2 LAST>>>\n");
+                    dbg_printf("<<<NEWLINE CR2 LAST>>>\n");
             }
             if (w < 1) QUIT("write out");
             outw += w;
-            dbg_printf(", in total %d of %d\n", outw, outr);
+            dbg_printf("OUT(%d): Written in total %d of %d\n",
+                       outcnt, outw, outr);
         }
     }
 
 quit:
-    dbg_printf("\nCLOSE master %d\n", __LINE__);
+    dbg_printf("CLOSE master at line %d\n", __LINE__);
     close(master);
 
     if (waitpid(child, &status, WNOHANG) == 0) {
         /* Child hasn't terminated, give it some time
          * and if it still hasn't quit, kill it */
 
-        if (quit_reason != NULL)
-            dbg_printf("\n\n%s: %s\n", quit_reason, strerror(errno));
-
         struct timeval tv;
         tv.tv_sec = 5; tv.tv_usec = 0;
         signal(SIGCHLD, signal_handler);
-        /* Wait for SIGCHLD or timeout */
+        dbg_printf("Wait for SIGCHLD (%d) or timeout\n", SIGCHLD);
         if (select(0, NULL, NULL, NULL, &tv) == 0) {
             dbg_printf("KILL CHILD\n");
             kill(child, SIGKILL);
