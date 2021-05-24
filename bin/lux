@@ -33,6 +33,7 @@
 
 -spec(main([string()]) -> no_return()).
 main(OrigArgs) ->
+    steal_signals(),
     ExitCode =
         try
             case OrigArgs of
@@ -262,6 +263,37 @@ do_normalize_path([H | T], Acc) ->
     do_normalize_path(T, Acc2);
 do_normalize_path([], Acc) ->
     filename:join(lists:reverse(Acc)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Signal handling
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+steal_signals() ->
+    Pid = spawn_link(fun echo_signals/0),
+    catch erlang:unregister(erl_signal_server),
+    true = erlang:register(erl_signal_server, Pid),
+                                    % io:format("ospid=~s\n", [os:getpid()]),
+    os:set_signal(sigusr1, handle), % io:format("sigusr1=crashdump\n", []),
+    os:set_signal(sigusr2, handle), % io:format("sigusr2=procinfo\n", []),
+    Pid.
+
+echo_signals() ->
+    receive
+        {notify, Sig} ->
+            io:format("\nGOT SIGNAL ~p\n", [Sig]),
+            case Sig of
+                sigusr1 ->
+                    erlang:halt("\nHalting...\n");
+                sigusr2 ->
+                    Items = [registered_name, current_stacktrace, messages],
+                    ProcInfo = [[{P, erlang:process_info(P, Items)}
+                                 || P <- processes()]],
+                    erlang:display({procinfo, ProcInfo});
+                _ ->
+                    ignore
+            end,
+            echo_signals()
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Duplicate code. Copied from lux_main.
