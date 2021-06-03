@@ -1,12 +1,40 @@
+;;; lux-mode.el --- Major mode for editing lux files
+
 ;; Copyright 2012-2021 Tail-f Systems AB
 ;;
-;; See the file "LICENSE" for information on usage and redistribution
-;; of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Major mode for editing lux files
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;     http://www.apache.org/licenses/LICENSE-2.0
+;;
+;; Unless required by applicable law or agreed to in writing, software
+;; distributed under the License is distributed on an "AS IS" BASIS,
+;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;; See the License for the specific language governing permissions and
+;; limitations under the License.
+;;
+
+;; Author: Håkan Mattsson
+;; Version: 1.0
+;; Homepage: https://github.com/hawk/lux
+;; Package-Requires: ((emacs "24.3"))
+
+;;; Commentary:
+;; Major mode for editing lux files.
+;;
+;; Lux (LUcid eXpect scripting) is a test automation framework with
+;; Expect style execution of commands.
+;;
 ;; Make sure lux-mode.el is found in your elisp path, and
 ;; add to your .emacs:
 ;;  (require 'lux-mode)
+
+
+;;; Code:
+
+(require 'cl-lib)
+(require 'ring)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Indentation
@@ -36,7 +64,7 @@
 (defvar lux-meta-commands-regexp (regexp-opt lux-meta-commands 'words))
 (defvar lux-config-params-regexp (regexp-opt lux-config-params 'words))
 
-(setq lux-font-lock-keywords
+(defvar lux-font-lock-keywords
   `(
     (,lux-keywords-regexp . font-lock-keyword-face)
     (,lux-events-regexp . font-lock-builtin-face)
@@ -52,7 +80,8 @@
 (defconst lux-regexp-special-characters "[][^{}()$+*.]")
 
 (defun lux-quote-region (start end)
-  "Qoute special characters by insert a preceding '\' character."
+  "Quote special characters by insert a preceding '\' character in region.
+Region is defined by START and END."
   (interactive "r")
   (save-excursion
     (save-match-data
@@ -64,7 +93,7 @@
           ())))))
 
 (defun lux-indent-line ()
-  "Indent current line in a lux"
+  "Indent current line in a lux."
   (interactive)
   ;; Set the point to beginning of line.
   (beginning-of-line)
@@ -125,7 +154,7 @@
 ;; Find include file or macro def
 
 (defun lux-find-source ()
-  "Open an include file or source code for macro"
+  "Open an include file or source code for macro."
   (interactive)
   (let* ((keyword-param1 (lux-which-cmd))
          (keyword        (car keyword-param1))
@@ -136,7 +165,7 @@
      (t (error "Not a lux statement")))))
 
 (defun lux-which-cmd ()
-  "Return nil or command name and first parameter"
+  "Return nil or command name and first parameter."
   (save-excursion
     (let* ((regexp  (lux-build-meta-regexp)))
       (beginning-of-line)
@@ -147,24 +176,25 @@
 (cl-defun lux-build-meta-regexp (&optional (keyword "[^ \t]+")
                                            (param1 "[^] \t]+"))
   "Build lux meta statement regexp with two subexpressions:
-   1 - keyword
-   2 - first parameter"
+1 - KEYWORD
+2 - PARAM1"
   (concat "[ \t]*\\[\\(" keyword "\\)[ \t]+\\(" param1 "\\)[] \t]"))
 
 (defun lux-find-file (file)
-  "Wrapper for find-file-existing"
+  "Wrapper for `find-file-existing' FILE."
   (let* ((mark (copy-marker (point-marker)))
          (new-file (lux-expand-file file)))
     (find-file-existing new-file)
     (ring-insert-at-beginning (lux-window-history-ring) mark)))
 
 (defun lux-window-history-ring ()
+  "Get or create window history ring for selected window."
   (let ((window (selected-window)))
     (or (window-parameter window 'lux-find-history-ring)
         (set-window-parameter window 'lux-find-history-ring (make-ring 20)))))
 
 (defun lux-find-source-unwind ()
-  "Unwind back from uses of lux-find-source."
+  "Unwind back from use of `lux-find-source'."
   (interactive)
   (let ((ring (lux-window-history-ring)))
     (unless (ring-empty-p ring)
@@ -177,7 +207,7 @@
           (lux-find-source-unwind))))))
 
 (defun lux-find-macro (macro)
-  "Find macro definition"
+  "Find MACRO definition."
   (let* ((macro-regexp (lux-build-meta-regexp "macro" macro))
          (case-fold-search nil))
     (or (lux-search-current-buffer macro-regexp)
@@ -185,8 +215,8 @@
            (error (concat "Cannot find the lux macro " macro)))))
 
 (defun lux-search-current-buffer (regexp)
-  "Find the first match for RE in the current buffer. Move point there
-and make an entry in lux-window-history-ring."
+  "Find the first match for REGEXP in the current buffer.
+Move point there and make an entry in `lux-window-history-ring'."
   (let ((mark  (copy-marker (point-marker))))
     (goto-char (point-min))
     (if (re-search-forward regexp nil t)
@@ -196,9 +226,8 @@ and make an entry in lux-window-history-ring."
         (null (goto-char mark)))))
 
 (defun lux-find-external-macro (macro-regexp)
-  ""
-  (let ((mark     (copy-marker (point-marker)))
-        (includes (lux-list-includes))
+  "Find external macro matching MACRO-REGEXP."
+  (let ((includes (lux-list-includes))
         (found    nil))
     (with-temp-buffer
       (save-excursion
@@ -217,7 +246,7 @@ and make an entry in lux-window-history-ring."
     found))
 
 (defun lux-list-includes ()
-  "Return a list of lux include files"
+  "Return a list of lux include files."
   (let ((files nil))
     (save-excursion
       (goto-char (point-min))
@@ -226,7 +255,7 @@ and make an entry in lux-window-history-ring."
       files)))
 
 (defun lux-expand-file (orig-file)
-  "Expand environment variables and ask user if non-existent"
+  "Expand environment variables in ORIG-FILE and ask user if non-existent."
   (let*
       ((file (expand-file-name (substitute-in-file-name orig-file)))
        (dir (file-name-directory file)))
@@ -263,3 +292,5 @@ and make an entry in lux-window-history-ring."
   (set (make-local-variable 'indent-line-function) 'lux-indent-line))
 
 (provide 'lux-mode)
+
+;;; lux-mode.el ends here
