@@ -270,11 +270,12 @@ Move point there and make an entry in `lux-window-history-ring'."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Autoload
-
+;;;###autoload
 (dolist (a '(("\\.lux$" . lux-mode)
              ("\\.luxinc$" . lux-mode)))
   (add-to-list 'auto-mode-alist a))
 
+;;;###autoload
 (define-derived-mode lux-mode fundamental-mode
   (set (make-local-variable 'mode-name) "lux")
   (set (make-local-variable 'font-lock-defaults) '(lux-font-lock-keywords))
