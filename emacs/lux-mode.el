@@ -42,7 +42,7 @@
 (defvar lux-keywords
   '("shell" "endshell" "cleanup"
     "timeout" "sleep"
-    "doc" "doc0" "doc1" "doc2" "doc3" "doc4" "doc5"
+    "doc" "enddoc" "doc0" "doc1" "doc2" "doc3" "doc4" "doc5"
     "loop" "endloop"
     "macro" "endmacro" "invoke"))
 
