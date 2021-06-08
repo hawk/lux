@@ -196,7 +196,7 @@ Each `send` and `expect` operation is directed to one particular shell
 shell. The **stdout** and **stderr** streams of the shell are combined
 to one single output stream. A Lux script can start and control
 many concurrent shells, but at any time point only one is the active
-shell which can evaulate new Lux statements.
+shell which can evaluate new Lux statements.
 
 It is possible to reference **variables** in the `send`, `expect`,
 `my`, `local`, `global` and `config` statements, using the standard
@@ -604,7 +604,7 @@ Some logs are common for all test cases in a test suite:
 
   - Summary log - a summary of the outcome of the test suite
   - Config log - actual configuration for the run
-  - Annotated summary log (HTML) - pretty printed asummary log
+  - Annotated summary log (HTML) - pretty printed a summary log
 
 while others are per test case:
 
@@ -745,7 +745,7 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 The shell stdin log is also quite useful when trying to reproduce a
 run of a test case.
 
-  - Start multiple terminalks and create shells manually
+  - Start multiple terminals and create shells manually
   - Copy and paste from stdin logs to the shells
 
 Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdin.log`
@@ -840,7 +840,7 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 Infra-structure support
 -----------------------
 
-In a hetrogenous test environment with various types of machines
+In a heterogeneous test environment with various types of machines
 possibly with different architectures and hardware, it may be
 necessary to have machine dependent configuration settings. This can
 be achieved by using `.luxcfg` files. Look in the
@@ -1085,7 +1085,7 @@ Why is Erlang a good fit? Primary due to its
 
   - Concurrency
   - Port programs
-  - Built-in regular expresssions (re)
+  - Built-in regular expressions (re)
   - Timers
 
 Lux is written as an escript which can be installed as stand-alone
@@ -1109,7 +1109,7 @@ shell.
 Input data strings from the script is sent as is to the stdin of the
 port. The terminal is setup to echo the input to stdout.
 
-The stderr is redirected to stdout. The terminal will normalise the
+The stderr is redirected to stdout. The terminal will normalize the
 output from the Bourne shell (stdout and stderr) to make each end of
 line a carriage return followed by a line feed. The output from the
 port is buffered.
@@ -1167,10 +1167,10 @@ Tail-f/Cisco
     - Device configuration
     - Model driven configuration management framework for a network element
     - Render northbound interfaces such as CLI, Netconf, SNMP, Rest, RestConf
-    - Tracable internal interfaces
+    - Traceable internal interfaces
   - NSO
-    - Orchestrator for a massive number of (hetrogenous) network elements
-    - Same standardised northbound interfaces as Confd
+    - Orchestrator for a massive number of (heterogeneous) network elements
+    - Same standardized northbound interfaces as Confd
     - Standard interfaces southbound combined with
     - 100+ adaptors for network elements lacking standard interfaces
 <a name="script_syntax"/>
@@ -1267,7 +1267,7 @@ specified with `?`).
     ?+B
     ?C
 
-will render matching of all permutatations of A, B and C. Note the
+will render matching of all permutations of A, B and C. Note the
 usage of `?`. `?+` is always used in conjunction with `?`. Never `??`
 nor `???`. It is the `?` command which triggers the actual regexp
 match.
@@ -1550,7 +1550,7 @@ The script expects the shell output to match given
 [regular expression][]s. But the output must be received within a
 given time limit. The `timeout` command sets the timeout for the
 current shell to the given number of seconds multiplied with a
-configurated factor. By default the multiplier is `1000`. For example,
+configured factor. By default the multiplier is `1000`. For example,
 by setting the `--multiplier` parameter to `2000` all timeouts will be
 doubled. The resulting timeout value affects how long time `expect`
 operations will wait before reporting failure. If the time is omitted
@@ -1649,7 +1649,7 @@ See [installation](#../INSTALL). Installs the Lux application as a
 standalone application in the `InstallDir` directory. `InstallDir`
 must exist. If `InstallDir` is omitted only a dry run is performed. A
 standalone installation is self-contained and contains a minimal
-Erlang runtime system. It is however not neccessary to install Lux as
+Erlang runtime system. It is however not necessary to install Lux as
 standalone. If Erlang already is installed on the system, Lux can make
 use of that runtime environment. But sometimes it is useful to avoid
 that dependency.
@@ -2030,7 +2030,7 @@ When the Lux engine receives output from a shell it will
 wait in `PollTimeout` milliseconds for more output before it
 tries to match it against any [regular expression][]s. It defaults
 to `0`. If you want to experiment with it, `100` milliseconds
-(1/10 second) can be a resonable value.
+(1/10 second) can be a reasonable value.
 
 **--risky\_threshold RiskyThreshold**  
 An experimental timeout setting.
@@ -2455,7 +2455,7 @@ shell \[name\] \[mode\]
 Connect to a shell
 
 With no argument, the names of the shells will be listed.
-In the listing the active shell is preceeded by an arrow
+In the listing the active shell is preceded by an arrow
 and zombie shells with an star. Repeating the command
 will disconnect the shell. Repeat again to connect...
 
@@ -2500,12 +2500,12 @@ tail \[index\] \[format\] \[n_lines\]
 Display log files
 
 With no argument, the names of the log files will be listed.
-Each one is preceeded by its index number and optionally a
+Each one is preceded by its index number and optionally a
 star. The star means that the log has been updated since the
 previous status check. Use the index to display a particular
 log. Such as "t 5" for the event log. Press enter to
 display more lines. n_lines can be used to override that
-behavior andonly display a fixed number of lines regardless
+behavior and only display a fixed number of lines regardless
 of the command is repeated or not.
 
 **Parameters:**  
@@ -2692,7 +2692,7 @@ Warnings and avoiding failures
 ------------------------------
 
 At startup lux imports all environment variables as global lux
-variables. making them accessible vith `$var` syntax. Variables may
+variables. making them accessible with `$var` syntax. Variables may
 also be set in architecture or host specific configuration files. This
 may be useful when certain test cases only can be run on some hosts
 due to missing libraries, lack of memory etc.
@@ -2852,7 +2852,7 @@ Evaluate `lux examples`
 Hardening test cases
 ====================
 
-Here follows some advices to make the test cases more reliable. In
+Here follows some advice to make the test cases more reliable. In
 general we want to avoid race conditions and intermittent failures. We
 do also want our test cases to not introduce problems for other test
 cases.
@@ -2866,7 +2866,7 @@ cause race conditions and intermittent fails. The command is kept for
 backwards compatibility but should really not be used. It is a very
 good candidate for deprecation.
 
-Do also look out for unintended emtying of the output streams. Ensure
+Do also look out for unintended emptying of the output streams. Ensure
 that there are no `Empty multi-line expect command` warnings. E.g.
 
         """?
@@ -2896,7 +2896,7 @@ scripts, possibly comparing successful runs with failing dito.
 
 It may even be the case that different environments might have so
 different properties that a success/failure on one platform can be a
-failure/success on another and that missing prompt synchronisation is
+failure/success on another and that missing prompt synchronization is
 the cause for this.
 
 **Protect the stdin**  
@@ -2943,7 +2943,7 @@ robust solution is to also match the prompt after `make`
 
 Once all timers have been adjusted to get rid of the timer related
 warnings it is time to harden the script even further by setting some
-configuration parameters to more challanging values. For example
+configuration parameters to more challenging values. For example
 
         --risky_threshold=0.60
         --sloppy_threshold=0.000001
@@ -2973,7 +2973,7 @@ synchronization points to fail.
 
 Default is `--poll_timeout=0`. It reasonable to try with
 `--poll_timeout=10` and when the scripts are adjusted to cope with
-this setting it may be time to use the more challanging value`
+this setting it may be time to use the more challenging value`
 --poll_timeout=100`.
 
 The special value `--poll_timeout=-1` causes Lux to not wait for
@@ -2987,7 +2987,7 @@ intermittent problems.
 **[cleanup]**  
 
 It is good hygiene to ensure that each test case does not affect the
-outcome of other test cases. Respect your collegues by not making your
+outcome of other test cases. Respect your colleagues by not making your
 test cases to cause theirs to fail.
 
 Use the `[cleanup]` section to cleanup side-effects that may affect
@@ -3001,7 +3001,7 @@ case in a controlled manner by executing the cleanup code. `q s` or
 
 In order to be able to perform post mortem analysis some side effects
 needs to be kept. But ensure that these do not affect subsequent test
-cases. A god praxis is to copy logs, and what not, to the directory
+cases. A good praxis is to copy logs, and what not, to the directory
 named in the environment variable `LUX_EXTRA_LOGS`. Each test case gets
 its unique directory path in the variable. Your script needs to create
 the directory if it is needed. The extra logs are kept among the other
@@ -3043,7 +3043,7 @@ will be adapted timers per architecture or per host.
 **[config unstable=XXX]**  
 **[config unstable_unless=XXX]**  
 
-Respect your collegues by withdrawing your intermittently failing test
+Respect your colleagues by withdrawing your intermittently failing test
 cases from the test results of the group. Use these constructs to mark
 those test cases as unstable. They will then be run but only cause a
 warning if they fail.
@@ -3059,7 +3059,7 @@ Lux emits various warnings. Some are built-in and others are
 configurable. Some are emitted during validation and others during
 execution.
 
-Here follows a few configuration pararamenters that may be useful in
+Here follows a few configuration parameters that may be useful in
 this context:
 
 **--fail\_when\_warning**  
@@ -3262,7 +3262,7 @@ configured to something else than
 **Warning: Shell XXX exited prematurely with status=YYY and posix=ZZZ**  
 
 The shell exited in an uncontrolled manner. Normally there is no need
-to exit shells explicitly. But sometimes it may be neccessary. If the
+to exit shells explicitly. But sometimes it may be necessary. If the
 shell is intended to exit, its expected exit status should be matched
 to ensure that it exited properly. To ensure a successful exit,
 i.e. with the status set to `0`, `[endshell 0]` should be used to
