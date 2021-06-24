@@ -20,7 +20,7 @@
     -${fail_pattern}
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/intro"]
-    [invoke eval "lux *.delux"]
+    [invoke eval "../../../../bin/lux *.delux"]
 
 [shell intro]
     [progress intro]

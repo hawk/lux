@@ -4,6 +4,8 @@ TIMESTAMP=$(shell date +"%F_%T")
 GITHASH=$(shell git rev-parse --verify --short HEAD)
 TOPDIR=$(shell pwd | sed -e 's/tutorial.*/tutorial/')
 
+export PATH:=$(TOPDIR)/../bin:$(PATH)
+
 all: build test
 
 build:
