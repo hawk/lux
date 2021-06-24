@@ -830,7 +830,7 @@ gen_warnings(AbsHtmlDir, #table{rows = Rows}) ->
                          "        ", html_td(Test,   Res,     "left", ""),
                          "        ", html_td(LineNo, warning, "left", ""),
                          "        ", html_td(Desc,   warning, "left", ""),
-                         "    <tr>\n"
+                         "    </tr>\n"
                         ]
                 end,
             TextCalc = lists:concat([FailN, " (", WarnN, ")"]),
