@@ -16,7 +16,7 @@
 
 [shell debugger]
     [progress debugger]
-    [timeout 30]
+    [timeout 60]
     -${fail_pattern}
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/intro"]
