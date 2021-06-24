@@ -32,7 +32,7 @@
     ???test case         : a_simple_server.lux
     ???result            : SUCCESS
     ???test case         : async_startup_fail.lux
-    ???result            : FAIL at 25 in shell hawk
+    ???result            : FAIL at line 25 in shell hawk
     ???test case         : sync_startup.lux
     ???result            : SUCCESS
     ???test case         : sync_startup_cleanup.lux
