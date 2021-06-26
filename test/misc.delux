@@ -6,7 +6,7 @@
 
 [shell test]
     [invoke eval $OK "rm -rf delux_logs"]
-    !lux --timeout=5000 --log_dir=delux_logs --html=validate misc
+    !../bin/lux --timeout=5000 --log_dir=delux_logs --html=validate misc
 
     """?
     foo

@@ -14,7 +14,7 @@ result            : SUCCESS
 """
 """?
 test case         : .*examples/fail.lux
-result            : FAIL at 32 in shell calculator
+result            : FAIL at line 32 in shell calculator
 expected\*
 	19
 actual match_timeout
@@ -39,7 +39,7 @@ result            : SUCCESS
 """
 """?
 test case         : .*examples/loop_fail.lux
-result            : FAIL at 5 in shell break
+result            : FAIL at line 5 in shell break
 expected\*
 	
 actual Loop ended without match of break pattern "THIS WILL NEVER MATCH"
@@ -59,7 +59,7 @@ result            : SKIP as variable TEST_SUNOS is not set
 """?
 test case         : .*examples/unstable_warn.lux
 warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
-result            : WARNING at 7 in shell foo
+result            : WARNING at line 7 in shell foo
 expected\*
 	bar
 actual match_timeout

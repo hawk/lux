@@ -9,7 +9,7 @@
                 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate plain
     """?
     test case         : .*plain/nested_fail_html.lux
-    result            : FAIL at 8:4:12 in shell zzz
+    result            : FAIL at line 8:4:12 in shell zzz
     expected\*
     .*SH-PROMPT:
     actual fail pattern matched "echo xxx"
