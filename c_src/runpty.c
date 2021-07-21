@@ -271,6 +271,7 @@ int main(int argc, char *argv[])
         dbgfd = open(dbgfile,
                      O_WRONLY | O_CREAT | O_TRUNC,
                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        free(dbgfile);
         if (dbgfd < 0 ) {
             perror("open runpty failed");
             exit(1);
