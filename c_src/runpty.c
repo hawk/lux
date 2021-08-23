@@ -238,10 +238,10 @@ int main(int argc, char *argv[])
     if (dbgmode) {
         if (strcmp(dbgmode, "trace") == 0) {
             dbglevel = trace;
-            logtype = ".trace";
+            logtype = ".trace.log";
         } else if (strcmp(dbgmode, "debug") == 0) {
             dbglevel = debug;
-            logtype = ".debug";
+            logtype = ".debug.log";
         } else if (strcmp(dbgmode, "silent") == 0) {
             dbglevel = silent;
             logtype = "";
