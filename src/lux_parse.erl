@@ -119,7 +119,7 @@ ensure_cleanup(P, RevCmds) when P#pstate.has_cleanup ->
 ensure_cleanup(_P, [] = RevCmds) ->
     RevCmds;
 ensure_cleanup(_P, [LastCmd | _] = RevCmds) ->
-    NoCleanup = LastCmd#cmd{type = no_cleanup},
+    NoCleanup = LastCmd#cmd{type = cleanup},
     [NoCleanup | RevCmds].
 
 extract_config(Cmd, _RevFile, _PosStack, Acc) ->
