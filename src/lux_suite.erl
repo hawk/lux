@@ -1,3 +1,4 @@
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2012-2021 Tail-f Systems AB
 %%
@@ -41,21 +42,23 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                 doc_run(R2)
             catch
                 ?CATCH_STACKTRACE(throw, {error, FileErr, Reason}, _EST)
-                    {error, FileErr, Reason};
+                {error, FileErr, Reason};
                 ?CATCH_STACKTRACE(Class, Reason, EST)
-                    ReasonStr =
-                        lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
-                    {ok, Cwd} = file:get_cwd(),
-                    {error, Cwd, ReasonStr}
-            end;
+                ReasonStr =
+                lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
+                {ok, Cwd} = file:get_cwd(),
+                {error, Cwd, ReasonStr}
+                end;
         {ok, R} ->
             LogDir = R#rstate.log_dir,
             SummaryLog = filename:join([LogDir, ?SUITE_SUMMARY_LOG]),
             try
                 {ConfigData, R2} = parse_config(R), % May throw error
+                PostCaseCmds = parse_post_case_cmds(R2),
                 SuiteRef = start_suite_timer(R2),
                 try
-                    R3 = R2#rstate{suite_timer_ref = SuiteRef},
+                    R3 = R2#rstate{suite_timer_ref = SuiteRef,
+                                   post_case_cmds = PostCaseCmds},
                     R4 = compute_files(R3, ?SUITE_SUMMARY_LOG),
                     R5 = adjust_files(R4),
                     full_run(R5, ConfigData, SummaryLog)
@@ -67,7 +70,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                         {error, FileErr, ReasonStr};
                     ?CATCH_STACKTRACE(Class, Reason, EST)
                     ReasonStr =
-                        lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
+                    lists:flatten(?FF("~p:~p\n\t~p", [Class, Reason, EST])),
                     {error, SummaryLog, ReasonStr}
                 after
                     lux_utils:cancel_timer(SuiteRef)
@@ -77,9 +80,9 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                     {error, FileErr2, ReasonStr2};
                 ?CATCH_STACKTRACE(Class2, Reason2, EST2)
                 ReasonStr2 =
-                    lists:flatten(?FF("~p:~p\n\t~p", [Class2, Reason2, EST2])),
+                lists:flatten(?FF("~p:~p\n\t~p", [Class2, Reason2, EST2])),
                 {error, SummaryLog, ReasonStr2}
-            end;
+                end;
         {error, {badarg, Name, Val}} ->
             ArgErr =
                 lux_log:safe_format(undefined,
@@ -634,10 +637,12 @@ run_cases(OrigR, [{SuiteFile,{ok,Script}, P, LenP} | Scripts],
                     tap_case_begin(NewR, Script),
                     init_case_rlog(NewR, P, Script),
                     SuiteRef = NewR#rstate.suite_timer_ref,
+                    PostCaseCmds = NewR#rstate.post_case_cmds,
                     Res = lux_case:interpret_commands(Script2, Cmds,
                                                       ParseWarnings,
                                                       CaseStartTime,
                                                       SuiteRef,
+                                                      PostCaseCmds,
                                                       Opts, Opaque),
                     SkipReason = "",
                     case Res of
@@ -887,6 +892,74 @@ parse_script(R, _SuiteFile, Script) ->
             {error, R, ErrorStack, ErrorBin}
     end.
 
+parse_post_case_cmds(R) ->
+    {ok, Cwd} = file:get_cwd(),
+    Opts = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
+    PostCase = proplists:lookup_all(post_case, Opts),
+    CheckDoc = false, % Ignore missing summary doc warning for the time being
+    Prefix = "post_case",
+    FirstLineNo = 1,
+    DefaultCmd = #cmd{type = comment,
+                      lineno = 0,
+                      orig = <<>>},
+    NoCleanupCmd = DefaultCmd#cmd{type = no_cleanup},
+    Fun =
+        fun({post_case, RelFile}, N) ->
+                NextN = N + 1,
+                PostName =
+                    case N of
+                        1 -> Prefix;
+                        _ -> lists:concat([Prefix, N])
+                    end,
+                AbsFile = filename:absname(RelFile, Cwd),
+                AbsFile2 = lux_utils:normalize_filename(AbsFile),
+                case lux_parse:parse_file(AbsFile2,
+                                          R#rstate.mode,
+                                          R#rstate.skip_unstable,
+                                          R#rstate.skip_skip,
+                                          CheckDoc,
+                                          Opts) of
+                    {ok, PostScript, InclCmds, FileOpts, NewWarnings} ->
+                        LastCmd =
+                            case InclCmds of
+                                [] -> DefaultCmd;
+                                _  -> lists:last(InclCmds)
+                            end,
+                        LastLineNo = LastCmd#cmd.lineno,
+                        PostCmd = DefaultCmd#cmd{type = post_case,
+                                                 arg = {PostName, PostScript}},
+                        InclCmd = DefaultCmd#cmd{type = include,
+                                                 arg = {include, PostScript,
+                                                        FirstLineNo, LastLineNo,
+                                                        InclCmds}},
+                        PostCmds = [PostCmd, InclCmd, NoCleanupCmd],
+                        PCC = #post_case_cmd{name = PostName,
+                                             script = PostScript,
+                                             commands = PostCmds,
+                                             file_opts = FileOpts,
+                                             warnings = NewWarnings},
+                        {PCC, NextN};
+                    {skip, _ErrorStack, SkipBin} ->
+                        PostScript = AbsFile2,
+                        W = lux_utils:make_warning(PostScript, "0", SkipBin),
+                        PCC = #post_case_cmd{name = PostName,
+                                             script = PostScript,
+                                             commands = [],
+                                             file_opts = [],
+                                             warnings = [W]},
+                        {PCC, NextN};
+                    {error, ErrorStack, ErrorBin} ->
+                        #cmd_pos{rev_file = RevMainFile,
+                                 type = ErrorBin2} =
+                            stack_error(ErrorStack, ErrorBin),
+                        MainFile =
+                            lux_utils:pretty_filename(RevMainFile),
+                        throw_error(MainFile, ErrorBin2)
+                end
+        end,
+    {PostCaseCmds, _N} = lists:mapfoldl(Fun, 1, PostCase),
+    PostCaseCmds.
+
 parse_config(R) ->
     %% Default opts
     DefaultBase = "luxcfg",
@@ -978,12 +1051,16 @@ config_name() ->
     end.
 
 parse_config_file(R, AbsConfigFile) ->
-    Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
     SkipUnstable = false,
     SkipSkip = true,
     CheckDoc = false,
-    case lux_parse:parse_file(AbsConfigFile, R#rstate.mode,
-                              SkipUnstable, SkipSkip, CheckDoc, Opts0) of
+    Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
+    case lux_parse:parse_file(AbsConfigFile,
+                              R#rstate.mode,
+                              SkipUnstable,
+                              SkipSkip,
+                              CheckDoc,
+                              Opts0) of
         {ok, _File, _Cmds, UpdatedOpts, NewWarnings} ->
             Key = config_dir,
             Opts2 =

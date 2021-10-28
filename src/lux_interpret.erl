@@ -32,17 +32,9 @@ init(I) ->
     ilog(I2, "suite_timeout ~s\n", [timer_left(I2, SuiteRef)], "lux", 0),
     ilog(I2, "case_timeout ~s\n", [timer_left(I2, CaseRef)], "lux", 0),
     IB = I2#istate{case_timer_ref = CaseRef},
+    OrigCmds = IB#istate.commands,
     try
-        OrigCmds = IB#istate.commands,
-        Macros = collect_macros(IB, OrigCmds),
-        I3 =
-            IB#istate{macros = Macros,
-                      blocked = false,
-                      has_been_blocked = false,
-                      want_more = true,
-                      old_want_more = undefined,
-                      orig_commands = OrigCmds,
-                      case_timer_ref = CaseRef},
+        I3 = check_infinite_timers(IB),
         I5 =
             if
                 I3#istate.stopped_by_user =:= suite ->
@@ -57,10 +49,19 @@ init(I) ->
                 true ->
                     I3
             end,
-        I6 = check_infinite_timers(I5),
-        I7 = loop(I6),
-        I8 = stop(I7),
-        {ok, I8}
+        I6 = I5#istate{orig_commands = OrigCmds,
+                       case_timer_ref = CaseRef},
+        I7 = prepare_istate(I6),
+        I8 = loop(I7),
+        I9 = lists:foldl(
+               fun(PCC, AccI) ->
+                       AccI2 = prepare_istate(AccI),
+                       AccI3 = prepare_post_case(PCC, AccI2),
+                       loop(AccI3)
+               end,
+               I8, I8#istate.post_case_cmds),
+        FinalI = stop(I9),
+        {ok, FinalI}
     catch
         throw:{error, Reason, IA} ->
             IA2 = stop(IA),
@@ -82,6 +83,23 @@ check_infinite_timers(I) ->
         true ->
             I
     end.
+
+prepare_post_case(PCC, I) ->
+    %% Eval next post case hook
+    dlog(I, ?dmore, "post_case", []),
+    #post_case_cmd{name = _Name,
+                   script = _PostScript,
+                   commands = PostCmds,
+                   file_opts = _FileOpts,
+                   warnings = NewWarnings} = PCC,
+    OldMode = I#istate.mode,
+    OldWarnings = I#istate.warnings,
+    LatestCmd = I#istate.latest_cmd,
+    LatestLineNo = LatestCmd#cmd.lineno,
+    PostCmds2 = [C#cmd{lineno = LatestLineNo} || C <- PostCmds],
+    I#istate{mode = mode(OldMode, cleanup),
+             commands = PostCmds2,
+             warnings = NewWarnings ++ OldWarnings}.
 
 stop(I) ->
     %% Ensure that no shell writes to the event log after this point
@@ -263,6 +281,14 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
         end,
     lux_utils:foldl_cmds(Collect, [], OrigFile, [], OrigCmds).
 
+prepare_istate(I) ->
+    Macros = collect_macros(I, I#istate.commands),
+    I#istate{macros = Macros,
+             blocked = false,
+             has_been_blocked = false,
+             want_more = true,
+             old_want_more = undefined}.
+
 loop(#istate{mode = stopping,
              shells = [],
              active_shell = no_shell} = I) ->
@@ -416,8 +442,8 @@ premature_stop(I, CleanupReason, StopRes) ->
             %% Error (or timeout) during cleanup,
             %% initiate stop by sending shutdown to all shells.
             multicast(I2, {shutdown, self()}),
-            I#istate{mode = mode(OldMode, stopping),
-                     cleanup_reason = CleanupReason};
+            I2#istate{mode = mode(OldMode, stopping),
+                      cleanup_reason = CleanupReason};
         stopping ->
             %% Shutdown has already been sent to the normal shells,
             %% continue to collect their states as well as cleanup shells.
@@ -630,14 +656,24 @@ dispatch_cmd(I,
                  I#istate.active_name, LineNo),
             I;
         no_cleanup ->
-            prepare_cleanup(I, Cmd);
+            I2 = prepare_cleanup(I, Cmd, false),
+            do_prepare_stop(I2, no_cleanup);
         cleanup ->
-            I2 = prepare_cleanup(I, Cmd),
-            {I3, ShellCmd} = cleanup_cmd(I2, Cmd, "cleanup"),
+            I2 = prepare_cleanup(I, Cmd, true),
+            Prefix = Cmd#cmd.arg,
+            Suffix =
+                case ?call_level(I2) of
+                    1 -> "";
+                    N -> ?i2l(N)
+                end,
+            Name = Prefix ++ Suffix,
+            {I3, ShellCmd} = cleanup_cmd(I2, Cmd, Name),
             ensure_shell(I3, ShellCmd);
-        post_cleanup ->
-            I2 = prepare_cleanup(I, Cmd),
-            ensure_shell(I2, Arg);
+        post_case ->
+            I2 = prepare_cleanup(I, Cmd, true),
+            {Name, _Script} = Cmd#cmd.arg,
+            {I3, ShellCmd} = cleanup_cmd(I2, Cmd, Name),
+            ensure_shell(I3, ShellCmd);
         shell ->
             ensure_shell(I, Cmd);
         newshell ->
@@ -694,19 +730,14 @@ dispatch_cmd(I,
             shell_eval(I, Cmd)
     end.
 
-cleanup_cmd(I, Cmd, Prefix) ->
+cleanup_cmd(I, Cmd, Name) ->
     I2 = refresh_case_timer(I),
-    Suffix =
-        case ?call_level(I2) of
-            1 -> "";
-            N -> ?i2l(N)
-        end,
     ShellType =
         case I2#istate.newshell of
             true  -> newshell;
             false -> shell
         end,
-    ShellCmd = Cmd#cmd{type = ShellType, arg = Prefix ++ Suffix},
+    ShellCmd = Cmd#cmd{type = ShellType, arg = Name},
     OldMode = I2#istate.mode,
     NewMode =
         if
@@ -1090,35 +1121,41 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
                   cleanup_reason = CleanupReason},
     {Health, ShellName, I3} = delete_shell(I2, Pid),
     OldMode = I3#istate.mode,
+    Outcome = Res#result.outcome,
     ?TRACE_ME2(50, 'case', prepare_stop,
                [{mode, OldMode},
-                {stop, Res#result.outcome, Res#result.actual},
+                {outcome, Outcome},
+                {result, Res#result.actual},
+                {cleanup, I3#istate.cleanup_reason},
                 {shell, ShellName, Health},
                 {active_shell, I3#istate.active_shell},
                 {shells, I3#istate.shells},
                 Res]),
-    case {OldMode, Res#result.outcome, Health} of
-        {_Mode, _Outcome, zombie} ->
-            I3;
-        {_Mode, relax, _} ->
-            I3;
-        {_Mode, shutdown, _} ->
-            I3;
-        {running, _Outcome, _} ->
-            multicast(I3, {relax, self()}),
-            goto_cleanup(I3);
-        {cleanup, _Outcome, _} when I3#istate.post_cleanup_cmd =:= undefined ->
-            %% Initiate stop by sending shutdown to the remaining shells.
-            multicast(I3, {shutdown, self()}),
-            I3#istate{mode = mode(OldMode, stopping)};
-        {cleanup, _Outcome, _} when I3#istate.post_cleanup_cmd =/= undefined ->
-            %% Post cleanup
-            multicast(I3, {relax, self()}),
-            goto_post_cleanup(I3);
-        {stopping, _Outcome, _} ->
+    case {Outcome, Health} of
+        {_, zombie}   ->  I3;
+        {relax, _}    ->  I3;
+        {shutdown, _} ->  I3;
+        _             ->  do_prepare_stop(I3, cleanup)
+    end.
+
+do_prepare_stop(I, CleanupType) ->
+    OldMode = I#istate.mode,
+    case OldMode of
+        running ->
+            multicast(I, {relax, self()}),
+            case CleanupType of
+                cleanup    -> goto_cleanup(I);
+                no_cleanup -> I
+            end;
+        cleanup ->
+            %% Initiate stop by sending shutdown
+            %%to the remaining shells.
+            multicast(I, {shutdown, self()}),
+            I#istate{mode = mode(OldMode, stopping)};
+        stopping ->
             %% Shutdown has already been sent to the other shells.
             %% Continue to collect their states if needed.
-            I3
+            I
     end.
 
 prepare_result(#istate{mode = Mode,
@@ -1196,29 +1233,6 @@ find_cleanup(I) ->
         end,
     lists:dropwhile(CleanupFun, Cmds).
 
-goto_post_cleanup(I) ->
-    dlog(I, ?dmore, "want_more=false (post_cleanup)", []),
-
-    %% Shell cmd
-    LatestCmd = I#istate.latest_cmd,
-    {I2, ShellCmd} = cleanup_cmd(I, LatestCmd, "post_cleanup"),
-    PostCleanup = ShellCmd#cmd{type = post_cleanup,
-                               arg = ShellCmd},
-
-    %% Eval post cleanup
-    CmdStr = ?l2b([I#istate.post_cleanup_cmd, "\n"]),
-    EvalCmd = LatestCmd#cmd{type = send,
-                            arg = CmdStr},
-
-    %% Wait for the prompt
-    CmdRegExp = ?l2b(I#istate.shell_prompt_regexp),
-    SyncPrompt = LatestCmd#cmd{type = expect,
-                               arg = {regexp, single, CmdRegExp}},
-
-    I2#istate{want_more = true,
-              commands = [PostCleanup, EvalCmd, SyncPrompt],
-              post_cleanup_cmd = undefined}.
-
 result_lineno(I, LineNoStr) ->
     %% Ensure that the cleanup does not take too long time
     case I#istate.results of
@@ -1250,12 +1264,12 @@ refresh_case_timer(I) ->
             end
     end.
 
-prepare_cleanup(I, Cmd) ->
+prepare_cleanup(I, Cmd, WantMore) ->
     cleanup_progress(I, Cmd),
     I2 = break_all_loops(I),
     I3 = zombify_shells(I2, Cmd),
     NewMode = cleanup_mode(I3),
-    I3#istate{mode = NewMode, want_more = true}.
+    I3#istate{mode = NewMode, want_more = WantMore}.
 
 cleanup_mode(I) ->
     case I#istate.pos_stack of
@@ -1277,25 +1291,26 @@ cleanup_mode(I) ->
 cleanup_progress(#istate{active_name = ShellName,
                          cleanup_reason = CleanupReason,
                          progress = Progress} = I,
-                 #cmd{lineno = LineNo, type = Type}) ->
-    {PrefixStr, ProgressStr} = cleanup_strings(Type, CleanupReason),
-    ilog(I, "~scleanup\n",
-         [PrefixStr],
+                 #cmd{lineno = LineNo, type = Type, arg = Arg}) ->
+    {CleanupCmd, SuffixStr, ProgressStr} =
+        cleanup_strings(Type, CleanupReason, Arg),
+    ilog(I, "~s~s\n",
+         [CleanupCmd, SuffixStr],
          ShellName, LineNo),
     lux_utils:progress_write(Progress, ProgressStr).
 
-cleanup_strings(cleanup, normal) ->
-    {"", "c"};
-cleanup_strings(cleanup, _CleanupReason) ->
-    {"", "C"};
-cleanup_strings(no_cleanup, normal) ->
-    {"no_", ""};
-cleanup_strings(no_cleanup, _CleanupReason) ->
-    {"no_", ""};
-cleanup_strings(post_cleanup, normal) ->
-    {"no_", "p"};
-cleanup_strings(post_cleanup, _CleanupReason) ->
-    {"no_", "P"}.
+cleanup_strings(cleanup, normal, _Arg) ->
+    {"cleanup", "", "c"};
+cleanup_strings(cleanup, _CleanupReason, _Arg) ->
+    {"cleanup", "", "C"};
+cleanup_strings(no_cleanup, normal, _Arg) ->
+    {"no_cleanup", "", ""};
+cleanup_strings(no_cleanup, _CleanupReason, _Arg) ->
+    {"no_cleanup", "", ""};
+cleanup_strings(post_case, normal, {_Name, Script}) ->
+    {"post_case", " " ++ Script, "p"};
+cleanup_strings(post_case, _CleanupReason, {_Name, Script}) ->
+    {"post_case", " " ++ Script, "P"}.
 
 zombify_shells(I, Cmd) ->
     ?TRACE_ME2(50, 'case', zombify_shells, [Cmd, {shells, I#istate.shells}]),

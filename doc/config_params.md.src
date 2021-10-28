@@ -488,17 +488,16 @@ directory.
 
      [config shell_wrapper_mode=trace]
 
-**--post\_commit\_cmd**  
-**--post\_commit\_cmd \[CleanupCmd\]**  
-Enable centrally defined cleanup code to be run after those test cases
-where the "normal" cleanup fails. The purpose of this is to make it
-possible to report and possibly undo unwanted side effects which the
-cleanup code have failed to handle. A workaround for sloppy written
-test cases which may make a test suite more stable.
+**--post\_case**  
+**--post\_case \[IncludeFile\]**  
+Enable centrally defined cleanup code to be run after each test case
+regardless whether they fail or succeed. The purpose of this is to
+make it possible to report and possibly undo unwanted side effects
+which the cleanup code in the test case has failed to handle.
 
-When a test case fails in its `cleanup`, a shell named `post_commit`
-will be started, the `CleanupCmd` string will be sent to the shell and
-the shell prompt will be waited for.
+There may be more than one `post_case` parameter. For each one a shell
+will be started when the test case has ended and the Lux code in the
+`IncludeFile` will be executed in the context of the test case.
 
 **--line\_term Chars**  
 Specify the character sequence added to the end of lines sent to

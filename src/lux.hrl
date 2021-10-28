@@ -148,6 +148,13 @@
          mode :: background | foreground,
          pid  :: pid()}).
 
+-record(post_case_cmd,
+        {name      :: string(),
+         script    :: string(),
+         commands  :: cmds(),
+         file_opts :: opts(),
+         warnings  :: [#warning{}]}).
+
 -record(istate,
         {top_pid                    :: pid(),
          file                       :: string(),
@@ -200,7 +207,7 @@
          shell_args = ["-i"]        :: [string()],
          shell_prompt_cmd = "export PS1=SH-PROMPT:" :: string(),
          shell_prompt_regexp = "^SH-PROMPT:" :: string(),
-         post_cleanup_cmd           :: undefined | string(),
+         post_case                  :: [string()],
          call_level= 1              :: non_neg_integer(),
          results = []               :: [#result{} | {'EXIT', term()}],
          active_shell = no_shell    :: no_shell | #shell{},
@@ -213,8 +220,8 @@
          old_want_more              :: boolean(),
          debug_level = 0            :: non_neg_integer(),
          breakpoints = []           :: [#break{}],
-         commands                   :: [#cmd{}],
-         orig_commands              :: [#cmd{}],
+         commands                   :: cmds(),
+         orig_commands              :: cmds(),
          macros = []                :: [#macro{}],
          pos_stack = []             :: [#cmd_pos{}],
          submatch_vars = []         :: [string()],   % ["name=val"]
@@ -222,6 +229,7 @@
          global_vars = []           :: [string()],   % ["name=val"]
          builtin_vars               :: [string()],   % ["name=val"]
          system_vars                :: [string()],   % ["name=val"]
+         post_case_cmds             :: [#post_case_cmd{}],
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
          stopped_by_user            :: undefined | 'case' | suite,
@@ -384,6 +392,7 @@
                                     :: [string()], % ["name=val"]
          system_vars = lux_utils:system_vars()
                                     :: [string()], % ["name=val"]
+         post_case_cmds             :: [#post_case_cmd{}],
          tap_opts = []              :: [string()],
          tap                        :: term(), % #tap{}
          junit = false              :: boolean()

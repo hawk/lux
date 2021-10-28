@@ -8,7 +8,7 @@
 -module(lux_case).
 
 -export([
-         interpret_commands/7,
+         interpret_commands/8,
          default_istate/1,
          parse_iopts/2,
          config_type/1,
@@ -29,11 +29,13 @@
                          [#warning{}],
                          erlang:timestamp(),
                          #timer_ref{},
+                         [#post_case_cmd{}],
                          opts(),
                          [{atom(), term()}]) ->
              [{ok, summary(), filename(), [result()]} | error()].
 
-interpret_commands(Script, Cmds, Warnings, StartTime, SuiteRef, Opts, Opaque) ->
+interpret_commands(Script, Cmds, Warnings, StartTime,
+                   SuiteRef, PostCaseCmds, Opts, Opaque) ->
     %% io:format("\nCmds ~p\n", [Cmds]),
     I = default_istate(Script),
     case lists:keyfind(stopped_by_user, 1, Opaque) of
@@ -45,7 +47,8 @@ interpret_commands(Script, Cmds, Warnings, StartTime, SuiteRef, Opts, Opaque) ->
                   orig_commands = shrinked,
                   stopped_by_user = Context,
                   start_time = StartTime,
-                  suite_timer_ref = SuiteRef},
+                  suite_timer_ref = SuiteRef,
+                  post_case_cmds = PostCaseCmds},
     try
         case parse_iopts(I2, Opts) of
             {ok, I3} ->
@@ -248,9 +251,9 @@ do_parse_iopts(I, [], U) ->
         "" -> ShellWrapper = undefined;
         ShellWrapper -> ok
     end,
-    case I#istate.post_cleanup_cmd of
-        "" -> PostCleanup = undefined;
-        PostCleanup -> ok
+    case I#istate.post_case of
+        "" -> PostCase = undefined;
+        PostCase -> ok
     end,
     SuiteLogDir = lux_utils:normalize_filename(I#istate.suite_log_dir),
     I2 = I#istate{file = File,
@@ -258,7 +261,7 @@ do_parse_iopts(I, [], U) ->
                   shell_wrapper = ShellWrapper,
                   suite_log_dir = SuiteLogDir,
                   case_log_dir = SuiteLogDir,
-                  post_cleanup_cmd = PostCleanup},
+                  post_case = PostCase},
     {{ok, I2}, U}.
 
 parse_iopt(I, Name, Val, U) when is_atom(Name) ->
@@ -340,9 +343,8 @@ config_type(Name) ->
             {ok, #istate.shell_prompt_cmd, [string]};
         shell_prompt_regexp ->
             {ok, #istate.shell_prompt_regexp, [string]};
-        post_cleanup_cmd ->
-            {ok, #istate.post_cleanup_cmd, [string,
-                                            {atom, [undefined]}]};
+        post_case ->
+            {ok, #istate.post_case, [{reset_list, [string]}]};
         var ->
             {ok, #istate.global_vars, [{std_list, [string]}]};
         system_env ->
@@ -851,7 +853,7 @@ user_config_keys() ->
      shell_args,
      shell_prompt_cmd,
      shell_prompt_regexp,
-     post_cleanup_cmd,
+     post_case,
      var
     ].
 

@@ -16,8 +16,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse a script file
 
--spec parse_file(filename(), run_mode(),
-                 boolean(), boolean(), boolean(),
+-spec parse_file(filename(),
+                 run_mode(),
+                 boolean(),
+                 boolean(),
+                 boolean(),
                  opts()) ->
              {ok, filename(), cmds(), opts()} | skip() | error().
 
@@ -114,13 +117,17 @@ do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
             {skip, ErrorStack, ErrorBin}
     end.
 
-ensure_cleanup(P, RevCmds) when P#pstate.has_cleanup ->
-    RevCmds;
-ensure_cleanup(_P, [] = RevCmds) ->
-    RevCmds;
-ensure_cleanup(_P, [LastCmd | _] = RevCmds) ->
-    NoCleanup = LastCmd#cmd{type = no_cleanup},
-    [NoCleanup | RevCmds].
+ensure_cleanup(P, RevCmds) ->
+    if
+        P#pstate.has_cleanup ->
+            RevCmds;
+        RevCmds =:= [] ->
+            RevCmds;
+        true ->
+            LastCmd = hd(RevCmds),
+            NoCleanup = LastCmd#cmd{type = no_cleanup},
+            [NoCleanup | RevCmds]
+    end.
 
 extract_config(Cmd, _RevFile, _PosStack, Acc) ->
     case Cmd of
@@ -709,12 +716,13 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                          ?i2l(LineNo),
                          ": cleanup only allowed at top level in main script"]);
         "cleanup" ->
-            Name = "",
+            Name = "cleanup",
             {P#pstate{has_cleanup = true},
              Cmd#cmd{type = cleanup, arg = Name}};
         "cleanup " ++ Name ->
+            Name2 = "cleanup_" ++ Name,
             {P#pstate{has_cleanup = true},
-             Cmd#cmd{type = cleanup, arg = Name}};
+             Cmd#cmd{type = cleanup, arg = Name2}};
         "shell" ->
             Name = "",
             parse_shell(P, Fd, Cmd, LineNo, Name, shell);
@@ -765,30 +773,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "debug " ++ DbgCmd ->
             {P, Cmd#cmd{type = debug, arg = DbgCmd}};
         "include " ++ RelFile ->
-            CurrFile = P#pstate.file,
-            CurrPosStack = P#pstate.pos_stack,
-            Dir = filename:dirname(CurrFile),
-            RelFile2 = expand_vars(P, Fd, RelFile, LineNo),
-            AbsFile = filename:absname(RelFile2, Dir),
-            AbsFile2 = lux_utils:normalize_filename(AbsFile),
-            try
-                NewPosStack = cmd_pos_stack(P, Cmd),
-                {P2, FirstLineNo, LastLineNo, RevInclCmds} =
-                    parse_file2(P#pstate{file = AbsFile2,
-                                         pos_stack = NewPosStack}),
-                InclCmds = lists:reverse(RevInclCmds),
-                Cmd2 = Cmd#cmd{type = include,
-                               arg = {include,AbsFile2,FirstLineNo,
-                                      LastLineNo,InclCmds}},
-                {P2#pstate{file = CurrFile, pos_stack = CurrPosStack}, Cmd2}
-            catch
-                throw:{skip, ErrorStack, Reason} ->
-                    %% re-throw
-                    reparse_error(Fd, skip, ErrorStack, Reason);
-                throw:{error, ErrorStack, Reason} ->
-                    %% re-throw
-                    reparse_error(Fd, error, ErrorStack, Reason)
-            end;
+            parse_include(P, Fd, Cmd, RelFile, LineNo);
         "macro " ++ Head ->
             case string:tokens(Head, " ") of
                 [Name | ArgNames] ->
@@ -842,6 +827,33 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                          ?i2l(LineNo),
                          ": Unknown meta command '",
                          Bad, "'"])
+    end.
+
+parse_include(P, Fd, Cmd, RelFile, LineNo) ->
+    Dir = filename:dirname(P#pstate.file),
+    CurrFile = P#pstate.file,
+    CurrPosStack = P#pstate.pos_stack,
+    RelFile2 = expand_vars(P, Fd, RelFile, LineNo),
+    AbsFile = filename:absname(RelFile2, Dir),
+    AbsFile2 = lux_utils:normalize_filename(AbsFile),
+    try
+        NewPosStack = cmd_pos_stack(P, Cmd),
+        {P2, FirstLineNo, LastLineNo, RevInclCmds} =
+            parse_file2(P#pstate{file = AbsFile2,
+                                 pos_stack = NewPosStack}),
+        InclCmds = lists:reverse(RevInclCmds),
+        Cmd2 = Cmd#cmd{type = include,
+                       arg = {include, AbsFile2,
+                              FirstLineNo, LastLineNo,
+                              InclCmds}},
+        {P2#pstate{file = CurrFile, pos_stack = CurrPosStack}, Cmd2}
+    catch
+        throw:{skip, ErrorStack, Reason} ->
+            %% re-throw
+            reparse_error(Fd, skip, ErrorStack, Reason);
+        throw:{error, ErrorStack, Reason} ->
+            %% re-throw
+            reparse_error(Fd, error, ErrorStack, Reason)
     end.
 
 parse_meta_doc(P, Fd, Cmd, LineNo, Text) ->
@@ -905,7 +917,13 @@ parse_shell(P, Fd, Cmd, LineNo, Name, Type) ->
                             ": ~s is a reserved"
                             " shell name",
                             [LineNo, Name]));
-        {"post_cleanup"++_, _} ->
+        {"pre_case"++_, _} ->
+            parse_error(P, Fd, LineNo,
+                        ?FF("Syntax error at line ~p"
+                            ": ~s is a reserved"
+                            " shell name",
+                            [LineNo, Name]));
+        {"post_case"++_, _} ->
             parse_error(P, Fd, LineNo,
                         ?FF("Syntax error at line ~p"
                             ": ~s is a reserved"
@@ -1200,9 +1218,9 @@ reparse_error(Fd, Tag, PosStack, IoList) ->
     throw({Tag, PosStack, IoList}).
 
 make_warning(P, OptCmd, IoList) ->
-    File = P#pstate.orig_file,
+    OrigFile = P#pstate.orig_file,
     FullLineNo = full_lineno(P, OptCmd),
-    lux_utils:make_warning(File, FullLineNo, IoList).
+    lux_utils:make_warning(OrigFile, FullLineNo, IoList).
 
 add_warning(P, OptCmd, IoList) ->
     Warning = make_warning(P, OptCmd, IoList),

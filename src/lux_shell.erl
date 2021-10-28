@@ -431,7 +431,7 @@ assert_eval(C, #cmd{type = Type} = Cmd, _From)
   when C#cstate.got_endshell andalso
        Type =/= no_cleanup andalso
        Type =/= cleanup andalso
-       Type =/= post_cleanup ->
+       Type =/= post_case ->
     TypeBin = ?a2b(Type),
     ErrBin = <<"The ", TypeBin/binary,
                " command must be executed",
@@ -457,7 +457,7 @@ assert_eval(_C, #cmd{type = Type}, _From)
        Type =:= change_timeout;
        Type =:= no_cleanup;
        Type =:= cleanup;
-       Type =:= post_cleanup ->
+       Type =:= post_case ->
     ok;
 assert_eval(C, Cmd, _From) ->
     IE = {internal_error, invalid_type, Cmd,
@@ -630,7 +630,7 @@ shell_eval(#cstate{name = Name} = C0,
             cleanup(C, Type);
         cleanup ->
             cleanup(C, Type);
-        post_cleanup ->
+        post_case ->
             cleanup(C, Type);
         Unexpected ->
             Err = ?FF("[shell ~s] got cmd with type ~p\n\t~p\n",
