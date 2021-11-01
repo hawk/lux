@@ -1179,7 +1179,13 @@ prepare_result(#istate{mode = Mode,
             #result{outcome = relax} ->
                 {OrigCleanupReason, Res#result{outcome = shutdown}};
             #result{outcome = NewOutcome} ->
-                {NewOutcome, Res};
+                NewCleanupReason =
+                    if
+                        OrigCleanupReason =:= fail -> fail;
+                        NewOutcome        =:= fail -> fail;
+                        true                       -> success
+                    end,
+                {NewCleanupReason, Res};
             {'EXIT', {error, FailReason}} ->
                 fail_result(LatestCmd, PosStack, ActiveName, FailReason);
             {fail, FailReason} ->
