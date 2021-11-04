@@ -21,6 +21,13 @@ environment.
 See the file **lux.html** for the full documentation or view it online
 on [GitHub](https://github.com/hawk/lux/blob/master/doc/lux.md).
 
+Video walkthru of the tutorial
+==============================
+
+This talk about Lux was presented at the Erlang User Conference 2019:
+
+[https://www.youtube.com/watch?v=Nu15YOpmCKQ]
+
 A sample script
 ---------------
 
