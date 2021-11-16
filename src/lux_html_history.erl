@@ -105,6 +105,10 @@ read_cache(CacheFile, Opts) ->
             {ok, 0, [], []}
     end.
 
+write_cache(_CacheFile, _Threshold, [], _Errors, _Opts) ->
+    io:format("\nNo runs to write to cache file\n", []);
+write_cache(_CacheFile, _Threshold, [#run{runs = []}], _Errors, _Opts) ->
+    io:format("\nNo runs to write to cache file\n", []);
 write_cache(CacheFile, Threshold, Runs, Errors, Opts) ->
     Cache = #cache{threshold = Threshold,
                    runs = Runs,
