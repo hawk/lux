@@ -44,7 +44,7 @@ interpret_commands(Script, Cmds, Warnings, StartTime,
     end,
     I2 = I#istate{commands = Cmds,
                   warnings = Warnings,
-                  orig_commands = shrinked,
+                  orig_commands = Cmds,
                   stopped_by_user = Context,
                   start_time = StartTime,
                   suite_timer_ref = SuiteRef,
@@ -196,9 +196,10 @@ eval(OldI, Progress, Verbose,
         end,
         %% Poor mans hibernate
         ShrinkedI =
-            DbgI#istate{commands     = shrinked,
-                        macro_vars   = shrinked,
-                        global_vars  = shrinked},
+            DbgI#istate{commands      = shrinked,
+                        orig_commands = shrinked,
+                        macro_vars    = shrinked,
+                        global_vars   = shrinked},
         garbage_collect(),
         wait_for_done(ShrinkedI, Ipid, Docs)
     after

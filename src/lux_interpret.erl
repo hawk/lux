@@ -31,8 +31,15 @@ init(I) ->
     ilog(I2, "start_time \"~s\"\n", [StartTimeStr], "lux", 0),
     ilog(I2, "suite_timeout ~s\n", [timer_left(I2, SuiteRef)], "lux", 0),
     ilog(I2, "case_timeout ~s\n", [timer_left(I2, CaseRef)], "lux", 0),
-    IB = I2#istate{case_timer_ref = CaseRef},
-    OrigCmds = IB#istate.commands,
+    OrigCmds = I2#istate.commands,
+    Macros = collect_macros(I2, I2#istate.commands),
+    IB = I2#istate{orig_commands = OrigCmds,
+                   case_timer_ref = CaseRef,
+                   macros = Macros,
+                   blocked = false,
+                   has_been_blocked = false,
+                   want_more = true,
+                   old_want_more = undefined},
     try
         I3 = check_infinite_timers(IB),
         I5 =
@@ -49,18 +56,14 @@ init(I) ->
                 true ->
                     I3
             end,
-        I6 = I5#istate{orig_commands = OrigCmds,
-                       case_timer_ref = CaseRef},
-        I7 = prepare_istate(I6),
-        I8 = loop(I7),
-        I9 = lists:foldl(
+        I6 = loop(I5),
+        I7 = lists:foldl(
                fun(PCC, AccI) ->
-                       AccI2 = prepare_istate(AccI),
-                       AccI3 = prepare_post_case(PCC, AccI2),
-                       loop(AccI3)
+                       AccI2 = prepare_post_case(PCC, AccI),
+                       loop(AccI2)
                end,
-               I8, I8#istate.post_case_cmds),
-        FinalI = stop(I9),
+               I6, I6#istate.post_case_cmds),
+        FinalI = stop(I7),
         {ok, FinalI}
     catch
         throw:{error, Reason, IA} ->
@@ -97,8 +100,21 @@ prepare_post_case(PCC, I) ->
     LatestCmd = I#istate.latest_cmd,
     LatestLineNo = LatestCmd#cmd.lineno,
     PostCmds2 = [C#cmd{lineno = LatestLineNo} || C <- PostCmds],
-    I#istate{mode = mode(OldMode, cleanup),
-             commands = PostCmds2,
+    PostMacros = collect_macros(I, PostCmds2),
+    if
+        I#istate.blocked ->
+            WantMore = I#istate.want_more,
+            OldWantMore = I#istate.old_want_more;
+        true ->
+            WantMore = true,
+            OldWantMore = undefined
+    end,
+    I#istate{commands = PostCmds2,
+             orig_commands = PostCmds2,
+             macros = PostMacros,
+             mode = mode(OldMode, cleanup),
+             want_more = WantMore,
+             old_want_more = OldWantMore,
              warnings = NewWarnings ++ OldWarnings}.
 
 stop(I) ->
@@ -280,14 +296,6 @@ collect_macros(#istate{orig_file = OrigFile} = I, OrigCmds) ->
                 end
         end,
     lux_utils:foldl_cmds(Collect, [], OrigFile, [], OrigCmds).
-
-prepare_istate(I) ->
-    Macros = collect_macros(I, I#istate.commands),
-    I#istate{macros = Macros,
-             blocked = false,
-             has_been_blocked = false,
-             want_more = true,
-             old_want_more = undefined}.
 
 loop(#istate{mode = stopping,
              shells = [],

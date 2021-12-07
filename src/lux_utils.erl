@@ -515,9 +515,9 @@ foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, OptI})
     RevFile = filename_split(File2),
     do_foldl_cmds(Fun, Acc, File2, RevFile, PosStack, Cmds, {Depth, OptI}).
 
-do_foldl_cmds(Fun, Acc, File, RevFile, PosStack,
-              [#cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd | Cmds],
-              {Depth, OptI} = FullDepth) ->
+do_foldl_cmds(Fun, Acc, File, RevFile, PosStack, [Cmd | Cmds], FullDepth) ->
+    #cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd,
+    {Depth, OptI} = FullDepth,
     CmdPos = lux_utils:cmd_pos(File, Cmd),
     SubFun =
         fun(SubFile, SubCmds, SubStack) ->
@@ -560,7 +560,8 @@ do_foldl_cmds(Fun, Acc, File, RevFile, PosStack,
                 Fun(Cmd, RevFile, PosStack, Acc)
         end,
     do_foldl_cmds(Fun, Acc2, File, RevFile, PosStack, Cmds, FullDepth);
-do_foldl_cmds(_Fun, Acc, _File, _RevFile, _PosStack, [], {_Depth, _OptI}) ->
+do_foldl_cmds(_Fun, Acc, _File, _RevFile, _PosStack, [], FullDepth) ->
+    {_Depth, _OptI} = FullDepth,
     Acc.
 
 full_lineno(File, Cmd, PosStack) ->

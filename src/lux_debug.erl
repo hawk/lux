@@ -64,9 +64,9 @@ init(Ipid, DebugFile) ->
     DefaultCmd = "help",
     Dstate = #dstate{n_cmds = 1,
                      mode = background,
-                     interpreter_pid=Ipid,
+                     interpreter_pid = Ipid,
                      prev_cmd = DefaultCmd,
-                     cmd_state=undefined,
+                     cmd_state = undefined,
                      shells = []},
     case DebugFile of
         undefined ->
