@@ -448,11 +448,11 @@ run(Opts, Files, PrevLogDir, OrigArgs) ->
         ok -> % HTML
             Summary = success,
             ok;
-        {ok, Summary, _SummaryLog, _Results} -> % LUX
+        {run_ok, Summary, _SummaryLog, _Results} -> % LUX
             ok;
-        {error, undefined, no_input_files} ->
+        {run_error, undefined, no_input_files} ->
             Summary = error;
-        {error, File, ReasonBin} ->
+        {run_error, File, ReasonBin} ->
             io:format("\n\nFATAL ERROR: ~s:\n\t~s\n", [File, ReasonBin]),
             Summary = error
     end,

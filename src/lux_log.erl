@@ -529,7 +529,7 @@ parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
         end,
     {Res, NewWWW}.
 
-write_results(Progress, SummaryLog, Summary, Results, Warnings)
+write_results(Progress, SummaryLog, Summary, SuiteResults, Warnings)
   when is_list(SummaryLog) ->
     LogDir = filename:dirname(SummaryLog),
     ResultFile = lux_utils:join(LogDir, ?SUITE_RESULT_LOG),
@@ -540,7 +540,8 @@ write_results(Progress, SummaryLog, Summary, Results, Warnings)
                 safe_format(Fd, "~s~s\n",
                             [?TAG(?RESULT_TAG), ?RESULT_LOG_VERSION]),
                 IsTmp = is_temporary(SummaryLog),
-                print_results(Progress, {IsTmp,Fd}, Summary, Results, Warnings),
+                print_results(Progress, {IsTmp,Fd}, Summary,
+                              SuiteResults, Warnings),
                 file:close(Fd),
                 ok = file:rename(TmpResultFile, ResultFile)
             catch
@@ -554,25 +555,25 @@ write_results(Progress, SummaryLog, Summary, Results, Warnings)
             erlang:error(ReasonStr)
     end.
 
-print_results(Progress, Fd, Summary, Results, Warnings) ->
+print_results(Progress, Fd, Summary, SuiteResults, Warnings) ->
     %% Display most important results last
     result_format(Progress, Fd, "\n", []),
-    print_success(Progress, Fd, Results),
-    print_skip(Progress, Fd, Results),
+    print_success(Progress, Fd, SuiteResults),
+    print_skip(Progress, Fd, SuiteResults),
     print_warning(Progress, Fd, Warnings),
-    print_fail(Progress, Fd, Results),
-    print_error(Progress, Fd, Results),
+    print_fail(Progress, Fd, SuiteResults),
+    print_error(Progress, Fd, SuiteResults),
     result_format(Progress, Fd, "~s~s\n",
                   [?TAG("summary"),
                    [string:to_upper(Char) || Char <- ?a2l(Summary)]]).
 
-print_success(Progress, Fd, Results) ->
-    SuccessScripts = pick_result(Results, success),
+print_success(Progress, Fd, SuiteResults) ->
+    SuccessScripts = pick_result(SuiteResults, success),
     result_format(Progress, Fd, "~s~p\n",
                   [?TAG("successful"), length(SuccessScripts)]).
 
-print_skip(Progress, Fd, Results) ->
-    case pick_result(Results, skip) of
+print_skip(Progress, Fd, SuiteResults) ->
+    case pick_result(SuiteResults, skip) of
         [] ->
             ok;
         SkipScripts ->
@@ -596,8 +597,8 @@ print_warning(Progress, Fd, Warnings) ->
                 {F, L, R} <- WarnScripts]
     end.
 
-print_fail(Progress, Fd, Results) ->
-    case pick_result(Results, fail) of
+print_fail(Progress, Fd, SuiteResults) ->
+    case pick_result(SuiteResults, fail) of
         [] ->
             ok;
         FailScripts ->
@@ -611,8 +612,8 @@ print_fail(Progress, Fd, Results) ->
                 {F, L, R} <- FailScripts]
     end.
 
-print_error(Progress, Fd, Results) ->
-    case pick_result(Results, error) of
+print_error(Progress, Fd, SuiteResults) ->
+    case pick_result(SuiteResults, error) of
         [] ->
             ok;
         ErrorScripts ->
@@ -623,34 +624,49 @@ print_error(Progress, Fd, Results) ->
                 {F, L, R} <- ErrorScripts]
     end.
 
-pick_result(Results, Outcome) when Outcome =:= error ->
-    [{Script, FullLineNo, Reason} ||
-        {error, Script, FullLineNo, Reason} <- Results];
+pick_result(SuiteResults, Outcome) when Outcome =:= error ->
+    Filter =
+        fun({suite_ok, _Summary, _Script, _FullLineNo,
+             _ShellName, _CaseLogDir,
+             _CaseResults, _Details, _Opaque}) ->
+                false;
+           ({suite_error, Script, FullLineNo, Reason}) ->
+                {true, {Script, FullLineNo, Reason}}
+        end,
+    lists:zf(Filter, SuiteResults);
 pick_result(Warnings, Outcome) when Outcome =:= warning ->
-    [{Script, FullLineNo, Reason} ||
-        #warning{file = Script,
-                 lineno = FullLineNo,
-                 reason = Reason} <- Warnings];
-pick_result(Results, Outcome) ->
+    Filter =
+        fun(#warning{file = Script,
+                     lineno = FullLineNo,
+                     reason = Reason}) ->
+                {Script, FullLineNo, Reason}
+        end,
+    lists:map(Filter, Warnings);
+pick_result(SuiteResults, Outcome) ->
     Pick = fun(fail, <<"FAIL", _/binary>> = FailBin, _Events) ->
                    FailBin;
-              (_Outcome, _FailBin, Events) ->
+              (_Outcome, _Details, CaseResults) ->
                    Actual = fun(#result{actual=NewAcc}, _Acc) -> NewAcc;
                                (_, Acc)                       -> Acc
                             end,
-                   lists:foldl(Actual, Outcome, Events)
+                   lists:foldl(Actual, Outcome, CaseResults)
            end,
     MatchRes =
-        fun({ok, O, Script, FullLineNo, _S, _LD, Events, FailBin, _O}) ->
+        fun({suite_ok, Summary, Script, FullLineNo,
+             _ShellName, _CaseLogDir,
+             CaseResults, Details, _Opaque}) ->
                 if
-                    O =:= Outcome ->
-                        {true, {Script, FullLineNo, Pick(O, FailBin, Events)}};
+                    Summary =:= Outcome ->
+                        {true,
+                         {Script, FullLineNo,
+                          Pick(Summary, Details, CaseResults)}};
                     true ->
                         false
-                end
+                end;
+           ({suite_error, _Script, _FullLineNo, _Reason}) ->
+                false
         end,
-    OkRes = [R || R <- Results, element(1, R) =:= ok],
-    lists:zf(MatchRes, OkRes).
+    lists:zf(MatchRes, SuiteResults).
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->
     IoList = ?FF(Format, Args),

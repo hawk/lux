@@ -221,7 +221,7 @@ fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
     UnstableWarnings = [],
     print_warnings(I, RunWarnings, UnstableWarnings),
     double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
-    {error, I#istate.file, FullLineNo, I#istate.case_log_dir,
+    {case_error, I#istate.file, FullLineNo, I#istate.case_log_dir,
      RunWarnings, UnstableWarnings, ReasonBin}.
 
 print_warnings(I, RunWarnings, UnstableWarnings) ->
@@ -591,9 +591,13 @@ print_success(I, File) ->
                 success
         end,
     Results = [],
-    {ok, Outcome, File, FullLineNo, no_shell, I#istate.case_log_dir,
-     RunWarnings, UnstableWarnings, Results,
-     <<>>, [{stopped_by_user, I#istate.stopped_by_user}]}.
+    CaseLogDir = I#istate.case_log_dir,
+    Details = <<>>,
+    Opaque = [{stopped_by_user, I#istate.stopped_by_user}],
+    {case_ok, Outcome, File, FullLineNo,
+     no_shell, CaseLogDir,
+     RunWarnings, UnstableWarnings,
+     Results, Details, Opaque}.
 
 print_fail(OldI0, NewI, File, Results,
            #result{outcome      = fail,
@@ -647,9 +651,12 @@ print_fail(OldI0, NewI, File, Results,
                 [NewActual, lux_utils:to_string(NewRest)]),
     Opaque = [{stopped_by_user,NewI#istate.stopped_by_user}],
     NewResults = [Fail],
-    {ok, Outcome, File, FullLineNo, ShellName, NewI#istate.case_log_dir,
-     RunWarnings, UnstableWarnings, NewResults,
-     FailBin, Opaque}.
+    CaseLogDir = NewI#istate.case_log_dir,
+    Details = FailBin,
+    {case_ok, Outcome, File, FullLineNo,
+     ShellName, CaseLogDir,
+     RunWarnings, UnstableWarnings,
+     NewResults, Details, Opaque}.
 
 new_actual(Actual, Expected, Rest) when is_atom(Expected) ->
     NewExpected = ?a2b(Expected),
