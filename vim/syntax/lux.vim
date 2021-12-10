@@ -18,9 +18,11 @@ syn match luxMetaEnd /\]\s*\n\s*"""/ contained containedin=luxMetaMultiline
 syn region luxArgs start=// end=/\]/ contained
             \ contains=luxVariable,luxSpecSym,luxMetaEnd
 syn region luxArgsWithStrings start=// end=/\]/ contained
-            \ contains=luxVariable,luxSpecSym,luxString,luxMetaEnd
+           \ contains=luxVariable,luxSpecSym,luxMultiString,luxString,luxMetaEnd
 
 syn region luxString start=/"/ skip=/\\"/ end=/"/ contained extend
+syn region luxMultiString matchgroup=luxString start=/^\z(\s*\)"""/
+                        \ matchgroup=luxString end=/^\z1"""/ contained extend
 
 syn match luxNumArg /[0-9]\+/ contained nextgroup=luxMetaEnd skipwhite
 syn match luxVarArg /\(\$\)\@1<!\$[a-zA-Z0-9_]\+/ contained
@@ -48,7 +50,9 @@ syn match luxMacroName /[a-zA-Z0-9_-]\+/ contained nextgroup=luxArgs
 syn match luxInvokeName /[a-zA-Z0-9_-]\+/ contained nextgroup=luxArgsWithStrings
 syn match luxVarName /[a-zA-Z0-9_]\+/ contained skipwhite
                                     \ nextgroup=equalSign,luxBadMeta
+
 syn match equalSign /=/ contained nextgroup=luxArgs
+syn match equalSign /=\n/ contained nextgroup=luxArgsWithStrings extend
 
 syn match luxInfoStart /\("""\)\?\[\(progress\|doc[1-9]\? \)/ contained
             \ containedin=luxMetaStart contains=luxInfo
