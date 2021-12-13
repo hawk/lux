@@ -241,9 +241,11 @@ reltool_opts(LuxAppDir, Opts, ThisEscript, RA, MA) ->
     %% Include some extra files beside the default files
     AppFilters =
         [{incl_app_filters, ["^LICENSE", "^lux.html",
-                             "ebin", "^priv", "^examples.*", "^emacs.*"]},
+                             "ebin", "^priv", "^examples.*",
+                             "^emacs.*", "^vim.*"]},
          {excl_archive_filters, ["^LICENSE", "^lux.html",
-                                 "^priv", "^examples.*", "^emacs.*"]},
+                                 "^priv", "^examples.*",
+                                 "^emacs.*", "^vim.*"]},
          {excl_app_filters, [".*empty$"]}],
     HasAppLibDir = app_has_feature(reltool, "0.6", mandatory, RA),
     LuxApps =
