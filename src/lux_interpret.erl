@@ -118,15 +118,6 @@ prepare_post_case(PCC, I) ->
              warnings = NewWarnings ++ OldWarnings}.
 
 stop(I) ->
-    %% Ensure that no shell writes to the event log after this point
-    case all_shells(I) of
-        [] ->
-            ok;
-        Shells ->
-            io:format("\nINTERNAL LUX ERROR: Alive shells:\n\t~p\n", [Shells]),
-            [exit(S#shell.pid, kill) || S <- Shells]
-    end,
-
     CaseRef = I#istate.case_timer_ref,
     SuiteRef = I#istate.suite_timer_ref,
     I2 = check_risky_timer(I, "case_timeout", CaseRef),
@@ -1344,7 +1335,9 @@ zombify_shells(I, Cmd) ->
     ?TRACE_ME2(50, 'case', zombify_done, [Cmd, {shells, Zombies}]),
     I3#istate{shells = Zombies}.
 
-delete_shell(#istate{active_shell=ActiveShell, shells=OldShells} = I, Pid) ->
+delete_shell(#istate{active_shell = ActiveShell, shells = OldShells} = I,
+             Pid) ->
+    kill_shell(Pid),
     case lists:keyfind(Pid, #shell.pid, [ActiveShell | OldShells]) of
         false ->
             {dead, Pid, I};
@@ -1360,10 +1353,20 @@ delete_shell(#istate{active_shell=ActiveShell, shells=OldShells} = I, Pid) ->
             {Health, Name, I2#istate{shells = NewShells}}
     end.
 
-all_shells(#istate{shells = OtherShells, active_shell = no_shell}) ->
-    OtherShells;
+kill_shell(Pid) ->
+    exit(Pid, shutdown),
+    receive
+        {'DOWN', _, process, Pid, _Reason} ->
+            ok
+    after 100 ->
+            exit(Pid, kill)
+    end.
+
 all_shells(#istate{shells = OtherShells, active_shell = ActiveShell}) ->
-    [ActiveShell | OtherShells].
+    case ActiveShell of
+        no_shell ->  OtherShells;
+        _        -> [ActiveShell | OtherShells]
+    end.
 
 multicast(I, Msg) ->
     Shells = all_shells(I),
