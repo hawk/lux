@@ -1,6 +1,6 @@
 ;;; lux-mode.el --- Major mode for editing lux files
 
-;; Copyright 2012-2021 Tail-f Systems AB
+;; Copyright 2012-2022 Tail-f Systems AB
 ;;
 ;; Licensed under the Apache License, Version 2.0 (the "License");
 ;; you may not use this file except in compliance with the License.

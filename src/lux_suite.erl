@@ -1,6 +1,5 @@
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Copyright 2012-2021 Tail-f Systems AB
+%% Copyright 2012-2022 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -225,7 +224,7 @@ initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
         end,
     NewRes;
 initial_res(R, Exists, ConfigData, SummaryLog, Summary)
-  when Exists =:= false ->
+  when Exists =:= false, Summary =:= success ->
     ok = write_config_log(SummaryLog, ConfigData),
     ok = lux_log:write_results(R#rstate.progress, SummaryLog, skip, [], []),
     ok = annotate_tmp_summary_log(R, Summary, undefined),
