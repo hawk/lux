@@ -355,7 +355,10 @@ printing out the history of test runs. See the
 Combines two runs into one. The summary log of an earlier run is
 extended with the outcome of the new run. `--log_dir` can be given
 explicitly. If not, the symbolic `latest_run` link is used to find
-a suitable log directory.
+a suitable log directory. Note that the runs cannot be run in parallel
+as they will write into the same files. It is much better to use the
+`--merge` option to perform the merge of log files when all runs are
+done.
 
 **--revision Revision**  
 The `Revision` is used for bookkeeping a repository revision

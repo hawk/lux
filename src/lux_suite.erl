@@ -7,7 +7,7 @@
 
 -module(lux_suite).
 
--export([run/4, args_to_opts/3, annotate_log/3]).
+-export([run/4, args_to_opts/3, annotate_log/3, merge_logs/2]).
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -24,7 +24,7 @@ adjust_files(R) ->
 %% Run a test suite
 
 -spec run(filename(), opts(), string(), [string()]) ->
-             {ok, summary(), filename(), [result()]} | error() | no_input().
+          {ok, summary(), filename(), [result()]} | error() | no_input().
 
 run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
     R0 = #rstate{files = Files,
@@ -156,7 +156,8 @@ list_files(R, File) ->
         {ok, #file_info{type = directory}} ->
             Fun = fun(F, Acc) -> [F | Acc] end,
             RegExp = R#rstate.file_pattern,
-            Files = lux_utils:fold_files(File, RegExp, true, Fun, []),
+            Recursive = true,
+            Files = lux_utils:fold_files(File, RegExp, Recursive, Fun, []),
             {ok, lists:sort(Files)};
         {ok, _} ->
             {ok, [File]};
@@ -168,9 +169,9 @@ full_run(#rstate{mode = Mode} = R, _ConfigData, SummaryLog)
   when Mode =:= dump   orelse
        Mode =:= expand ->
     InitialSummary = success,
-    InitialRes = [],
+    InitialSuiteRes = [],
     {_R2, Summary, Results} =
-        run_suite(R, R#rstate.files, InitialSummary, InitialRes),
+        run_suite(R, R#rstate.files, InitialSummary, InitialSuiteRes),
     {run_ok, Summary, SummaryLog, Results};
 full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
     ExtendRun = R#rstate.extend_run,
@@ -212,17 +213,7 @@ maybe_write_junit_report(#rstate{junit = true}, SummaryLog, ConfigData) ->
 initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
   when Exists =:= true ->
     TmpLog = SummaryLog ++ ".tmp",
-    WWW = undefined,
-    {ParseRes, NewWWW} = lux_log:parse_summary_log(TmpLog, WWW),
-    lux_utils:stop_app(NewWWW),
-    NewRes =
-        case ParseRes of
-            {ok, _, Groups, _, _, _} ->
-                flatten_init_results(Groups);
-            {error, _, _} ->
-                []
-        end,
-    NewRes;
+    flat_parse_summary_log(TmpLog);
 initial_res(R, Exists, ConfigData, SummaryLog, Summary)
   when Exists =:= false, Summary =:= success ->
     ok = write_config_log(SummaryLog, ConfigData),
@@ -230,18 +221,214 @@ initial_res(R, Exists, ConfigData, SummaryLog, Summary)
     ok = annotate_tmp_summary_log(R, Summary, undefined),
     [].
 
+flat_parse_summary_log(Log) ->
+    DeepLogRes = deep_parse_summary_log(Log),
+    FlatLogRes = flatten_summary_results(DeepLogRes),
+    FlatLogRes.
+
+deep_parse_summary_log(Log) ->
+    WWW = undefined,
+    {DeepParseRes, NewWWW} = lux_log:parse_summary_log(Log, WWW),
+    lux_utils:stop_app(NewWWW),
+    DeepParseRes.
+
+flatten_summary_results({ok, _ResSummary, Cases, _, _, _}) ->
+    Init =
+        fun(Summary, Script, FullLineNo) ->
+                {suite_ok, Summary, Script, FullLineNo,
+                 no_shell, no_case_log_dir,
+                 [], <<>>, []}
+        end,
+    Fun =
+        fun(Script, {warnings_and_result, _Warnings, Summary}) ->
+                case Summary of
+                    success ->
+                        Init(Summary, Script, "0");
+                    skip ->
+                        Init(Summary, Script, "0");
+                    warning ->
+                        Init(Summary, Script, "0");
+                    {warning, _FullLineNo, _SN, _ET, _E, _A, _D} ->
+                        Init(warning, Script, "0");
+                    {error_line, RawLineNo, ReasonBin} ->
+                        {suite_error, Script, ?b2l(RawLineNo), ReasonBin};
+                    {error, [ReasonBin]} ->
+                        case binary:split(ReasonBin, <<": ">>, [global]) of
+                            [_, <<"Syntax error at line ", N/binary>>, _] ->
+                                {suite_error, Script, ?b2l(N), ReasonBin};
+                            _ ->
+                                {suite_error, Script, "0", ReasonBin}
+                        end;
+                    {error, ReasonBin} ->
+                        {suite_error, Script, "0", ReasonBin};
+                    {fail, RawLineNo, _SN, _ET, _E, _A, _D} ->
+                        Init(fail, Script, ?b2l(RawLineNo))
+                end
+        end,
+    [Fun(Script, Res) ||
+        {test_case, Script, _Log, _Doc, _HtmlLog, Res} <- Cases];
+flatten_summary_results({error, _File, _Reason}) ->
+    [].
+
 write_config_log(SummaryLog, ConfigData) ->
     LogDir = filename:dirname(SummaryLog),
     ConfigLog = filename:join([LogDir, ?SUITE_CONFIG_LOG]),
     ok = lux_log:write_config_log(ConfigLog, ConfigData).
 
+-spec merge_logs([filename()], filename()) ->
+          ok | error().
+
+merge_logs(Sources, RelTargetDir) ->
+    io:format("Invoke: ~s\n", [string:join(init:get_plain_arguments(), " ")]),
+    RelDir = "",
+    Cands = lux_utils:summary_log_candidates(),
+    DeepLogRes = collect_logs(Sources, RelTargetDir, RelDir, Cands, []),
+    case [{Log, flatten_summary_results(Res)} || {Log, Res} <- DeepLogRes] of
+        [] ->
+            {error, RelTargetDir, file:format_error(enoent)};
+        FlatLogRes ->
+            ok = do_merge_logs(RelTargetDir, FlatLogRes),
+            RelSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
+            AbsSummaryLog = lux_utils:normalize_filename(RelSummaryLog),
+            Opts = [],
+            Transform = transform_summary_results(DeepLogRes),
+            Res = do_annotate_log(false, AbsSummaryLog, Opts, Transform),
+            case Res of
+                ok ->
+                    RelHtmlFile = RelSummaryLog ++ ".html",
+                    {ok, RelHtmlFile};
+                {error, File, ReasonStr} ->
+                    {error, File, ReasonStr}
+            end
+    end.
+
+collect_logs([Source | Sources], RelLogDir, RelDir, Cands, Acc) ->
+    io:format("\n\t~s", [Source]),
+    NewAcc = do_collect_logs(Source, RelLogDir, RelDir, Cands, Acc),
+    collect_logs(Sources, RelLogDir, RelDir, Cands, NewAcc);
+collect_logs([], _RelLogDir, _RelDir, _Cands, Acc) ->
+    Acc.
+
+do_collect_logs(RelSource, RelLogDir, RelDir, Cands, Acc)
+  when is_list(RelDir) ->
+    io:format(".", []),
+    Dir0 = lux_utils:join(RelSource, RelDir),
+    Dir = lux_utils:normalize_filename(Dir0),
+    case file:list_dir(Dir) of
+        {ok, Files} ->
+            case lux_utils:multi_member(Cands, Files) of
+                {true, Base} ->
+                    IsLog = lists:suffix(".log", Base),
+                    collect_log(IsLog, Dir, Base, Acc);
+                false ->
+                    %% No interesting file found. Search subdirs
+                    Collect =
+                        fun("latest_run", A) ->
+                                %% Symlink
+                                io:format("l", []),
+                                A;
+                           (Base, A) ->
+                                RelDir2 =
+                                    case RelDir of
+                                        "" -> Base;
+                                        _  -> lux_utils:join(RelDir, Base)
+                                    end,
+                                do_collect_logs(RelSource, RelLogDir,
+                                                RelDir2, Cands, A)
+                        end,
+                    lists:foldl(Collect, Acc, Files)
+            end;
+        {error, _Reason} ->
+            %% Not a dir or problem to read dir
+            io:format("e", []),
+            Acc
+    end.
+
+collect_log(true, Dir, Base, Acc) ->
+    %% A summary log
+    io:format("p", []),
+    LogFile = filename:join([Dir, Base]),
+    DeepParseRes = deep_parse_summary_log(LogFile),
+    [{LogFile, DeepParseRes} | Acc];
+collect_log(false, _Dir, _Base, Acc) ->
+    %% Skip
+    io:format("s", []),
+    Acc.
+
+transform_summary_results(DeepLogRes) ->
+    Transform =
+        fun({Log, {ok, _Result, _Cases, SummaryConfig, _Ctime, EventLogs}}) ->
+                {Log, SummaryConfig, EventLogs}
+        end,
+    lists:map(Transform, DeepLogRes).
+
+do_merge_logs(RelTargetDir, FlatLogRes) ->
+    ok = filelib:ensure_dir(filename:join([RelTargetDir, "dummy"])),
+    merge_summary_logs(RelTargetDir, FlatLogRes, undefined, []),
+    merge_tap_logs(RelTargetDir, FlatLogRes, []),
+    merge_result_logs(RelTargetDir, FlatLogRes),
+    merge_config_logs(RelTargetDir, FlatLogRes),
+    ok.
+
+merge_summary_logs(RelTargetDir, [{SummaryLog, _Res} | Rest], _OldHead, Acc) ->
+    {ok, Bin} = file:read_file(SummaryLog),
+    [Head | Body] = binary:split(Bin, <<"\n">>, []),
+    merge_summary_logs(RelTargetDir, Rest, Head, [Body | Acc]);
+merge_summary_logs(_RelTargetDir, [], undefined, []) ->
+    ok;
+merge_summary_logs(RelTargetDir, [], Head, Acc) ->
+    Contents = [Head, "\n" | lists:reverse(Acc)],
+    TargetSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
+    ok = file:write_file(TargetSummaryLog, Contents).
+
+merge_tap_logs(RelTargetDir, [{SummaryLog, _Res} | Rest], Acc) ->
+    Dir = filename:dirname(SummaryLog),
+    TapLog = filename:join([Dir, ?SUITE_TAP_LOG]),
+    {ok, Bin} = file:read_file(TapLog),
+    merge_tap_logs(RelTargetDir, Rest, [Bin | Acc]);
+merge_tap_logs(RelTargetDir, [], Acc) ->
+    Contents = lists:join("\n", lists:reverse(Acc)),
+    TargetTapLog = filename:join([RelTargetDir, ?SUITE_TAP_LOG]),
+    ok = file:write_file(TargetTapLog, Contents).
+
+merge_result_logs(RelTargetDir, FlatLogRes) ->
+    FlatRes = lists:flatten([Res || {_Log, Res} <- FlatLogRes]),
+    Summary = case_summary(FlatRes, success),
+    TargetSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
+    Warnings = [],
+    lux_log:write_results(silent, TargetSummaryLog, Summary, FlatRes, Warnings).
+
+case_summary([CaseRes | Rest], OldSummary) ->
+    {suite_ok, Summary, _Script, _FullLineNo,
+     _ShellName, _CaseLogDir,
+     _CaseResults, _Details, _Opaque} = CaseRes,
+    NewSummary = lux_utils:summary(OldSummary, Summary),
+    case_summary(Rest, NewSummary);
+case_summary([], Summary) ->
+    Summary.
+
+merge_config_logs(RelTargetDir, [{FirstSummaryLog, _Res} | _Rest]) ->
+    TargetConfigLog = filename:join([RelTargetDir, ?SUITE_CONFIG_LOG]),
+    Dir = filename:dirname(FirstSummaryLog),
+    FirstConfigLog = filename:join([Dir, ?SUITE_CONFIG_LOG]),
+    {ok, Contents} = file:read_file(FirstConfigLog),
+    AbsTargetDir = lux_utils:normalize_filename(RelTargetDir),
+    With = list_to_binary(["\\1", AbsTargetDir]),
+    Opts = [multiline, {return, binary}],
+    Contents2 = re:replace(Contents, <<"^\(run_dir +: \).*$">>, With, Opts),
+    Contents3 = re:replace(Contents2, <<"^\(log_dir +: \).*$">>, With, Opts),
+    ok = file:write_file(TargetConfigLog, Contents3).
+
 -spec annotate_log(boolean(), filename(), opts()) ->
-             ok | error().
+          ok | error().
 
 annotate_log(IsRecursive, LogFile, Opts) ->
+    do_annotate_log(IsRecursive, LogFile, Opts, []).
+
+do_annotate_log(IsRecursive, LogFile, Opts, Transform) ->
     DefaultDir = filename:dirname(LogFile),
     SuiteLogDir = find_suite_log_dir(DefaultDir, DefaultDir),
-    do_annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts).
+    safe_annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts, Transform).
 
 find_suite_log_dir(Dir, DefaultDir) ->
     ConfigLog = filename:join([Dir, ?SUITE_CONFIG_LOG]),
@@ -257,8 +444,10 @@ find_suite_log_dir(Dir, DefaultDir) ->
             end
     end.
 
-do_annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts) ->
-    case lux_html_annotate:generate(IsRecursive, LogFile, SuiteLogDir, Opts) of
+safe_annotate_log(IsRecursive, LogFile, SuiteLogDir, Opts, Transform) ->
+    Res = lux_html_annotate:generate(IsRecursive, LogFile, SuiteLogDir,
+                                     Opts, Transform),
+    case Res of
         {ok, HtmlFile} ->
             lux_html_parse:validate_html(HtmlFile, Opts);
         {error, File, Reason} ->
@@ -275,7 +464,10 @@ annotate_event_log(R, Script, NewSummary, CaseLogDir, Opts) ->
                                       Base ++ ?CASE_EVENT_LOG]),
             SuiteLogDir = R#rstate.log_dir,
             NoHtmlOpts = lists:keydelete(html, 1, Opts),
-            case do_annotate_log(false, EventLog, SuiteLogDir, NoHtmlOpts) of
+            Transform = [],
+            Res = safe_annotate_log(false, EventLog, SuiteLogDir,
+                                    NoHtmlOpts, Transform),
+            case Res of
                 ok ->
                     ok;
                 {error, File, ReasonStr} ->
@@ -303,7 +495,8 @@ annotate_tmp_summary_log(R, Summary, NextScript) ->
             SummaryLog = R#rstate.summary_log,
             TmpLog = SummaryLog ++ ".tmp",
             ok = file:sync(R#rstate.log_fd), % Flush summary log
-            case annotate_log(false, TmpLog, NoHtmlOpts) of
+            Res = annotate_log(false, TmpLog, NoHtmlOpts),
+            case Res of
                 ok ->
                     TmpHtml =  TmpLog ++ ".html",
                     SummaryHtml = SummaryLog ++ ".html",
@@ -360,26 +553,13 @@ compute_files(R, LogBase) ->
             compute_rerun_files(R, [R#rstate.prev_log_dir], LogBase, [])
     end.
 
-compute_rerun_files(R, LogDirs, LogBase, Acc) ->
-    WWW = undefined,
-    {NewR, NewWWW} = compute_rerun_files2(R, LogDirs, LogBase, Acc, WWW),
-    lux_utils:stop_app(NewWWW),
-    NewR.
-
-compute_rerun_files2(R, [LogDir|LogDirs], LogBase, Acc, WWW) ->
+compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc) ->
     OldLog = filename:join([LogDir, LogBase]),
-    {ParseRes, NewWWW} = lux_log:parse_summary_log(OldLog, WWW),
-    LatestRes =
-        case ParseRes of
-            {ok, _, Groups, _, _, _} ->
-                flatten_init_results(Groups);
-            {error, _, _} ->
-                []
-        end,
-    Files = filter_rerun_files(R, LatestRes),
-    compute_rerun_files2(R, LogDirs, LogBase, Files ++ Acc, NewWWW);
-compute_rerun_files2(R, [], _LogBase, Acc, WWW) ->
-    {R#rstate{files = lists:usort(Acc)}, WWW}.
+    FlatParseRes = flat_parse_summary_log(OldLog),
+    Files = filter_rerun_files(R, FlatParseRes),
+    compute_rerun_files(R, LogDirs, LogBase, Files ++ Acc);
+compute_rerun_files(R, [], _LogBase, Acc) ->
+    R#rstate{files = lists:usort(Acc)}.
 
 filter_rerun_files(R, InitialRes) ->
     MinCond = lux_utils:summary_prio(R#rstate.rerun),
@@ -405,43 +585,6 @@ filter_rerun_files(R, InitialRes) ->
                 end
         end,
     lists:zf(Filter, InitialRes).
-
-flatten_init_results(Groups) ->
-    Init =
-        fun(Summary, Script, FullLineNo) ->
-                {suite_ok, Summary, Script, FullLineNo,
-                 no_shell, no_case_log_dir,
-                 [], <<>>, []}
-        end,
-    Fun =
-        fun(Script, {warnings_and_result, _Warnings, Summary}) ->
-                case Summary of
-                    success ->
-                        Init(Summary, Script, "0");
-                    skip ->
-                        Init(Summary, Script, "0");
-                    warning ->
-                        Init(Summary, Script, "0");
-                    {warning, _FullLineNo, _SN, _ET, _E, _A, _D} ->
-                        Init(warning, Script, "0");
-                    {error_line, RawLineNo, ReasonBin} ->
-                        {suite_error, Script, ?b2l(RawLineNo), ReasonBin};
-                    {error, [ReasonBin]} ->
-                        case binary:split(ReasonBin, <<": ">>, [global]) of
-                            [_, <<"Syntax error at line ", N/binary>>, _] ->
-                                {suite_error, Script, ?b2l(N), ReasonBin};
-                            _ ->
-                                {suite_error, Script, "0", ReasonBin}
-                        end;
-                    {error, ReasonBin} ->
-                        {suite_error, Script, "0", ReasonBin};
-                    {fail, RawLineNo, _SN, _ET, _E, _A, _D} ->
-                        Init(fail, Script, ?b2l(RawLineNo))
-                end
-        end,
-    [Fun(Script, Res) ||
-        {test_group, _Group, Cases} <- Groups,
-        {test_case, Script, _Log, _Doc, _HtmlLog, Res} <- Cases].
 
 parse_ropts([{Name, Val} = NameVal | T], R) ->
     case Name of
@@ -1363,7 +1506,7 @@ tap_suite_begin(R, Scripts, Directive)
        R#rstate.mode =/= doc      andalso
        R#rstate.mode =/= dump     andalso
        R#rstate.mode =/= expand ->
-    TapLog = filename:join([R#rstate.log_dir, ?CASE_TAP_LOG]),
+    TapLog = filename:join([R#rstate.log_dir, ?SUITE_TAP_LOG]),
     TapOpts = [TapLog | R#rstate.tap_opts],
     case lux_tap:open(TapOpts) of
         {ok, TAP} ->

@@ -41,10 +41,10 @@
 -define(SUITE_SUMMARY_LOG, "lux_summary.log").
 -define(SUITE_CONFIG_LOG, "lux_config.log").
 -define(SUITE_RESULT_LOG, "lux_result.log").
+-define(SUITE_TAP_LOG, "lux.tap").
 -define(CASE_EVENT_LOG, ".event.log").
 -define(CASE_CONFIG_LOG, ".config.log").
 -define(CASE_EXTRA_LOGS, ".extra.logs").
--define(CASE_TAP_LOG, "lux.tap").
 
 -define(DEFAULT_LOG, <<"unknown">>).
 -define(DEFAULT_HOSTNAME, <<"no_host">>).

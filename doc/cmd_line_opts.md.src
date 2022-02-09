@@ -15,6 +15,7 @@ Lux perform other tasks.
 * --markdown
 * --annotate
 * --history
+* --merge
 * --mode
 * --doc
 
@@ -85,6 +86,7 @@ Log management
 --------------
 
     lux --annotate LogFile
+    lux --merge TargetLogDir [SourceLogFile]...
     lux --history TargetLogDir [SourceLogFile]...
 
 **--annotate LogFile**  
@@ -92,6 +94,21 @@ Transforms textual log files into HTML format and annotates Lux script
 code with log events. The generated HTML file will get the same name
 as `LogFile` but with a `.html` extension added. See also the
 [configuration parameter](#config_params) `--html`.
+
+**--merge TargetLogDir [SourceLogFile]...**  
+Merges the logs from multiple partial runs. When a test suite takes a
+long time to run, it is possible to split it up in multiple runs with
+a few test cases in each. When all test cases in the suite has
+completed, their logs can me merged. The result will look like the
+test suite was run in one go. The original logs will be kept as is and
+the new `lux_summary.log.html`log will contain links to the original
+logs. For example the original `lux_config.log` files cannot be merged
+as the separate test case runs may been run in very different
+environments (ex. different Docker containers).
+
+The `--merge` option is much safer than using `--extend_run` as it
+enables true parallel runs of the test cases. The `--extend_run` can
+only be used when the test cases are run in sequence after each other.
 
 **--history TargetLogDir [SourceLogFile]...**  
 Generates an HTML file which summarizes the history of all test runs.

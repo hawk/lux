@@ -91,10 +91,10 @@ close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
 parse_summary_log(SummaryLog, WWW) when is_list(SummaryLog) ->
-    Source = #source{branch=undefined,
-                     suite_prefix=undefined,
-                     file=?l2b(SummaryLog),
-                     orig=?l2b(SummaryLog)},
+    Source = #source{branch = undefined,
+                     suite_prefix = undefined,
+                     file = ?l2b(SummaryLog),
+                     orig = ?l2b(SummaryLog)},
     parse_summary_log(Source, WWW);
 parse_summary_log(#source{file=SummaryLog} = Source, WWW)
   when is_binary(SummaryLog)->
@@ -110,7 +110,7 @@ parse_summary_log(#source{file=SummaryLog} = Source, WWW)
             {{error, SummaryLog, ReasonStr}, WWW}
     end.
 
-try_parse_summary_log(#source{file=SummaryLogBin}, WWW) ->
+try_parse_summary_log(#source{file = SummaryLogBin}, WWW) ->
     SummaryLog = ?b2l(SummaryLogBin),
     {ReadRes, NewWWW} = read_log(SummaryLog, ?SUMMARY_TAG, WWW),
     Res =
@@ -145,9 +145,7 @@ do_parse_summary_log(SummaryLog, Sections, NewWWW) ->
                 Ctime0 = FI#file_info.ctime,
                 ?l2b(lux_utils:datetime_to_string(Ctime0))
         end,
-    {ok,
-     Result,
-     [{test_group, "", Cases}], SummaryConfig, Ctime, EventLogs}.
+    {ok, Result, Cases, SummaryConfig, Ctime, EventLogs}.
 
 read_log(Log, ExpectedTag, WWW) when is_list(Log) ->
     {FetchRes, NewWWW} = fetch_log(Log, WWW),
@@ -319,7 +317,7 @@ parse_run_summary(Source, SummaryLog, Res, Opts) when is_list(SummaryLog) ->
 do_parse_run_summary(Source, SummaryLog, Res, Opts) ->
     R = default_run(Source, SummaryLog),
     case Res of
-        {ok, Result, Groups, SummaryConfig, Ctime, _EventLogs} ->
+        {ok, Result, Cases, SummaryConfig, Ctime, _EventLogs} ->
             ConfigBins = binary:split(SummaryConfig, <<"\n">>, [global]),
             ConfigProps = split_config(ConfigBins),
             StartTime = find_config(<<"start time">>, ConfigProps, Ctime),
@@ -368,10 +366,9 @@ do_parse_run_summary(Source, SummaryLog, Res, Opts) ->
             RunDir = find_config(<<"run_dir">>, ConfigProps, R#run.run_dir),
             RunLogDir = find_config(<<"log_dir">>, ConfigProps, RunDir),
             NewLogDir = R#run.new_log_dir,
-            Cases = [parse_run_case(NewLogDir, RunDir, RunLogDir,
-                                    StartTime, Branch, HostName, ConfigName,
-                                    Suite, RunId, ReposRev, Case) ||
-                        {test_group, _Group, Cases} <- Groups,
+            NewCases = [parse_run_case(NewLogDir, RunDir, RunLogDir,
+                                       StartTime, Branch, HostName, ConfigName,
+                                       Suite, RunId, ReposRev, Case) ||
                         Case <- Cases],
             {RunWarnings, RunResult} = run_result(Result),
             R#run{test        = Suite,
@@ -385,7 +382,7 @@ do_parse_run_summary(Source, SummaryLog, Res, Opts) ->
                   run_dir     = RunDir,
                   run_log_dir = true_drop_prefix(RunDir, RunLogDir),
                   repos_rev   = ReposRev,
-                  runs        = Cases};
+                  runs        = NewCases};
         {error, _SummaryLog, _ReasonStr} ->
             R
     end.

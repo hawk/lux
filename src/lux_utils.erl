@@ -27,7 +27,8 @@
          cmd/1, cmd_expected/1, perms/1,
          pick_opt/3, split/2, join/2,
          is_url/1, start_app/1, stop_app/1,
-         user_prefix/0, real_hostname/0, make_warning/3]).
+         user_prefix/0, real_hostname/0, make_warning/3,
+         multi_member/2, summary_log_candidates/0]).
 
 -include("lux.hrl").
 
@@ -1011,3 +1012,21 @@ make_warning(File, FullLineNo, Reason) ->
     #warning{file = File,
              lineno = FullLineNo,
              reason = ?l2b(Reason)}.
+
+multi_member([H | T], List) ->
+    case lists:member(H, List) of
+        true  -> {true, H};
+        false -> multi_member(T, List)
+    end;
+multi_member([], _List) ->
+    false.
+
+summary_log_candidates() ->
+    [
+     "lux.skip",
+     ?SUITE_SUMMARY_LOG,
+     ?SUITE_SUMMARY_LOG ++ ".tmp",
+     "qmscript.skip",
+     "qmscript_summary.log",
+     "qmscript_summary.log.tmp"
+    ].

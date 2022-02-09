@@ -19,8 +19,8 @@ write_report(SummaryLog, RunDir, _Opts) ->
     {ParseRes, NewWWW} = lux_log:parse_summary_log(File, WWW),
     Res =
         case ParseRes of
-            {ok, _Result, Groups, _ConfigSection, _FileInfo, _EventLogs} ->
-                Content = testsuites(Groups, RunDir, ""),
+            {ok, _Result, Cases, _ConfigSection, _FileInfo, _EventLogs} ->
+                Content = testsuites(Cases, RunDir, ""),
                 Dir = filename:dirname(File),
                 JunitFile = filename:join([Dir, "lux_junit.xml"]),
                 file:write_file(JunitFile, Content);
@@ -30,19 +30,18 @@ write_report(SummaryLog, RunDir, _Opts) ->
     lux_utils:stop_app(NewWWW),
     Res.
 
-testsuites(Groups, RunDir, Indent) ->
-    TestsuiteFun = fun(Group) ->
-                           testsuite(Group, RunDir, [Indent, ?INDENT])
-                   end,
+testsuites(Cases, RunDir, Indent) ->
     [
      Indent, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n",
      "\n",
      Indent, "<testsuites>\n",
-     lists:flatmap(TestsuiteFun, Groups),
+     testsuite(Cases, RunDir, [Indent, ?INDENT]),
      Indent, "</testsuites>\n"
     ].
 
-testsuite({test_group, _, Cases}, RunDir, Indent) ->
+testsuite([], _RunDir, _Indent) ->
+    [];
+testsuite(Cases, RunDir, Indent) ->
     TestcaseFun = fun(Testcase) ->
                           testcase(Testcase, RunDir, [Indent, ?INDENT])
                   end,
@@ -51,9 +50,7 @@ testsuite({test_group, _, Cases}, RunDir, Indent) ->
      Indent, "<testsuite tests=\"", Tests, "\">\n",
      lists:flatmap(TestcaseFun, Cases),
      Indent, "</testsuite>\n"
-    ];
-testsuite(_Group, _RunDir, _Indent) ->
-    [].
+    ].
 
 testcase({result_case, Filename, Reason, _Details}, RunDir, Indent) ->
     [

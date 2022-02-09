@@ -681,7 +681,7 @@ gen_cells(AbsHtmlDir, Test, TestRuns, [{Id, _} | SplitIds],
     gen_cells(AbsHtmlDir, Test, RestRuns, SplitIds,
               MultiBranch, TagDict, Select, Suppress,
               NewHostMap, [Cell | Cells], NewRowRes);
-gen_cells(_AbsHtmlDir, _Test, [], [],
+gen_cells(_AbsHtmlDir, _Test, [], _SplitIds,
           _MultiBranch, _TagDict, _Select, _Suppress,
           _HostMap, Cells, RowRes) ->
     %% Cells are already in the correct order. No need to revert.
@@ -1174,8 +1174,8 @@ search_summary_dirs(Source, RelHtmlDir, RelDir, Threshold,
     Dir = lux_utils:normalize_filename(Dir0),
     case file:list_dir(Dir) of
         {ok, Files} ->
-            Cands = candidate_files(),
-            case multi_member(Cands, Files) of
+            Cands = lux_utils:summary_log_candidates(),
+            case lux_utils:multi_member(Cands, Files) of
                 {true, Base} ->
                     case lists:suffix(".log", Base) of
                         true ->
@@ -1211,19 +1211,9 @@ search_summary_dirs(Source, RelHtmlDir, RelDir, Threshold,
             end;
         {error, _Reason} ->
             %% Not a dir or problem to read dir
+            io:format("e", []),
             {{Newest,Acc,Err}, WWW}
     end.
-
-candidate_files() ->
-    [
-     "lux.skip",
-     ?SUITE_SUMMARY_LOG,
-     ?SUITE_SUMMARY_LOG ++ ".tmp",
-     "qmscript.skip",
-     "qmscript_summary.log",
-     "qmscript_summary.log.tmp",
-     "qmscript.summary.log"
-    ].
 
 parse_summary_files(Source, RelHtmlDir, RelDir, [Base | Bases],
                     Threshold, Newest,
@@ -1283,14 +1273,6 @@ source_file(Source, RelDir, Base) when is_list(RelDir), is_list(Base)  ->
             Tmp = lux_utils:join(RelFile, RelDir),
             lux_utils:join(Tmp, Base)
     end.
-
-multi_member([H | T], Files) ->
-    case lists:member(H, Files) of
-        true  -> {true, H};
-        false -> multi_member(T, Files)
-    end;
-multi_member([], _Files) ->
-    false.
 
 %% Keysort list of tuples and group them according to the value of that field
 %%

@@ -22,7 +22,6 @@
 
 -include("lux.hrl").
 
-
 %% Collect list of tuples and group them according to their tag
 %%
 %% The internal ordering is kept:

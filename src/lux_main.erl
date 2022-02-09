@@ -32,6 +32,9 @@ op_modes() ->
      "--annotate",
      "--history",
 
+     %% Merge logs for multiple runs
+     "--merge",
+
      %% Trace and debug
      "--suite_trace",
      "--event_trace",
@@ -96,6 +99,8 @@ do_dispatch(Op, Opts, LuxAppDir, Args, OrigArgs) ->
             annotate(LogFile, Opts);
         {"--history", [LogDir]} ->
             history(LogDir, Opts);
+        {"--merge", [LogDir]} ->
+            merge(LogDir, Opts);
 
         {"--suite_trace", [_]} ->
             suite_trace(Op, LuxAppDir, Opts, OrigArgs);
@@ -409,12 +414,12 @@ annotate(LogFile0, Opts) ->
     end.
 
 history(RelLogDir, Opts) ->
-    {Files0, Opts2} = lux_args:translate_opts(Opts),
-    case Files0 of
-        []    -> Files = [RelLogDir];
-        Files -> ok
+    {LogDirs0, Opts2} = lux_args:translate_opts(Opts),
+    case LogDirs0 of
+        []    -> LogDirs = [RelLogDir];
+        LogDirs -> ok
     end,
-    case safe_history(Files, RelLogDir, Opts2) of
+    case safe_history(LogDirs, RelLogDir, Opts2) of
         {ok, RelHtmlFile} ->
             io:format("...ok\n", []),
             AbsHtmlFile = filename:absname(RelHtmlFile),
@@ -437,6 +442,27 @@ safe_history(LogDirs, RelLogDir, Opts) ->
             end;
         {error, File, Reason} ->
             {error, File, Reason}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Merge logs for multiple runs
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+merge(RelLogDir, Opts) ->
+    {LogDirs0, _Opts2} = lux_args:translate_opts(Opts),
+    case LogDirs0 of
+        []    -> LogDirs = [RelLogDir];
+        LogDirs -> ok
+    end,
+    case lux_suite:merge_logs(LogDirs, RelLogDir) of
+        {ok, RelHtmlFile} ->
+            io:format("...ok\n", []),
+            AbsHtmlFile = filename:absname(RelHtmlFile),
+            io:format("\nfile://~s\n", [AbsHtmlFile]),
+            0;
+        {error, File, ReasonStr} ->
+            io:format("...ERROR\n\t~s: ~s\n", [File, ReasonStr]),
+            1
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
