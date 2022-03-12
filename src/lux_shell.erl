@@ -398,7 +398,7 @@ show_debug(#cstate{debug={connect,Mode}} = C, Prefix, Data) ->
 show_debug(C, _Prefix, _Data) ->
     C.
 
-opt_sync_reply(C, From, When) when C#cstate.wait_for_expect =:= undefined ->
+opt_sync_reply(C, From, When) ->
     case When of
         flush ->
             flush_logs(C),
