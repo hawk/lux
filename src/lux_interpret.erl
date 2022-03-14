@@ -1118,7 +1118,11 @@ prepare_stop(#istate{results = Acc} = I, Pid, RawRes) ->
     I2 = I#istate{results = [Res | Acc],
                   debug_level = NewLevel, % Activate debug after first error
                   cleanup_reason = CleanupReason},
-    {Health, ShellName, I3} = delete_shell(I2, Pid),
+    {Health, ShellName, I3} =
+        case Pid of
+            dummy_pid -> {dead, dummy_shell, I2};
+            _         ->  delete_shell(I2, Pid)
+        end,
     OldMode = I3#istate.mode,
     Outcome = Res#result.outcome,
     ?TRACE_ME2(50, 'case', prepare_stop,
@@ -1336,7 +1340,7 @@ zombify_shells(I, Cmd) ->
     I3#istate{shells = Zombies}.
 
 delete_shell(#istate{active_shell = ActiveShell, shells = OldShells} = I,
-             Pid) ->
+             Pid) when is_pid(Pid) ->
     kill_shell(Pid),
     case lists:keyfind(Pid, #shell.pid, [ActiveShell | OldShells]) of
         false ->
