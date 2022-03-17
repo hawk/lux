@@ -33,8 +33,7 @@
          run    :: #run{}}).
 
 generate(PrefixedSources, RelHtmlDir, Opts0) ->
-    io:format("Invoke: ~s\n",
-              [string:join(init:get_plain_arguments(), " ")]),
+    io:format("Invoke: ~s\n", [string:join(init:get_plain_arguments(), " ")]),
     io:format("Assembling history of logs from...", []),
     %% TIME: io:format("\nASSEMBLE ~p\n", [time()]),
     Sources = lists:map(fun split_source/1, PrefixedSources),
@@ -834,7 +833,7 @@ gen_warnings(AbsHtmlDir, #table{rows = Rows}) ->
                          "        ", html_td(Test,   Res,     "left", ""),
                          "        ", html_td(LineNo, warning, "left", ""),
                          "        ", html_td(Desc,   warning, "left", ""),
-                         "    <tr>\n"
+                         "    </tr>\n"
                         ]
                 end,
             TextCalc = lists:concat([FailN, " (", WarnN, ")"]),
@@ -1050,7 +1049,7 @@ header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG, TagDict, Errors) ->
         fun(Type, Title) ->
                 ExtractedRes =
                     [{Name, ST#table.res} ||
-                        {P, ST, _} <- AllG,
+                        {P, ST, _, _} <- AllG,
                         {T, Name} <- P#page.tags, T =:= Type],
                 [
                  "  <table border=\"1\">\n",

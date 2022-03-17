@@ -1,0 +1,80 @@
+[doc Plain lux tests]
+
+[include include/macros.luxinc]
+
+[shell test]
+    -LUX ERROR
+    [local top_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME]
+    [local orig_calc_dir=$top_dir/orig_calc]
+    [local orig_intro_dir=$top_dir/orig_intro]
+
+    [local history_dir=$top_dir/history_dir]
+    [local merge_dir=$history_dir/merge_dir]
+    [local new_calc_dir=$merge_dir/new_calc]
+    [local new_intro_dir=$merge_dir/new_intro]
+
+    [invoke eval $OK "mkdir -p $history_dir"]
+    [invoke eval $OK "mkdir -p $merge_dir"]
+
+    ### TEST CALC
+    [progress test calc]
+    [invoke eval $OK "mkdir -p $orig_calc_dir"]
+    !../bin/lux --progress=summary \
+                --log_dir=$orig_calc_dir \
+                --case_prefix=orig/case/prefix/ \
+                --html=validate \
+                ../examples/calc.lux
+    ???orig/case/prefix/../examples/calc.lux
+    [invoke check_status $OK]
+
+    [progress move calc]
+    [invoke eval $OK "mv $orig_calc_dir $new_calc_dir"]
+
+    ### TEST INTRO
+    [progress test intro]
+    [invoke eval $OK "mkdir -p $orig_intro_dir"]
+    !../bin/lux --progress=summary \
+                --log_dir=$orig_intro_dir \
+                --case_prefix=orig/case/prefix/ \
+                --html=validate \
+                ../examples/intro.lux
+    ???orig/case/prefix/../examples/intro.lux
+    [invoke check_status $OK]
+
+    [progress move intro]
+    [invoke eval $OK "mv $orig_intro_dir $new_intro_dir"]
+
+    ### ANNOTATE CALC w/ new case_prefix
+    [progress annotate calc]
+    !../bin/lux --case_prefix=new/case/prefix/ \
+                --html=validate \
+                --annotate=$new_calc_dir/lux_summary.log
+    [invoke check_status $OK]
+    !cat $new_calc_dir/lux_summary.log.html | grep examples
+    ???new/case/prefix/../examples/calc.lux
+    [invoke check_status $OK]
+
+    ### ANNOTATE INTRO - w/o re-using old case_prefix
+    [progress annotate intro]
+    !../bin/lux --html=validate \
+                --annotate=$new_intro_dir/lux_summary.log
+    [invoke check_status $OK]
+    !cat $new_intro_dir/lux_summary.log.html | grep examples
+    ???orig/case/prefix/../examples/intro.lux
+    [invoke check_status $OK]
+
+    ### MERGE
+    [progress merge]
+    !../bin/lux --html=validate \
+                --merge $merge_dir $new_calc_dir $new_intro_dir
+    [invoke check_status $OK]
+    !cat $merge_dir/lux_summary.log.html | grep examples
+    ???orig/case/prefix/../examples/calc.lux
+    ???orig/case/prefix/../examples/intro.lux
+    [invoke check_status $OK]
+
+    ### HISTORY
+    [progress history]
+    !../bin/lux --html=validate \
+                --history $history_dir $merge_dir
+    [invoke check_status $OK]

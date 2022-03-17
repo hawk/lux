@@ -7,7 +7,7 @@
 
 -module(lux_suite).
 
--export([run/4, args_to_opts/3, annotate_log/3, merge_logs/2]).
+-export([run/4, args_to_opts/3, annotate_log/3, merge_logs/3]).
 
 -include("lux.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -166,7 +166,7 @@ list_files(R, File) ->
     end.
 
 full_run(#rstate{mode = Mode} = R, _ConfigData, SummaryLog)
-  when Mode =:= dump   orelse
+  when Mode =:= dump orelse
        Mode =:= expand ->
     InitialSummary = success,
     InitialSuiteRes = [],
@@ -275,10 +275,10 @@ write_config_log(SummaryLog, ConfigData) ->
     ConfigLog = filename:join([LogDir, ?SUITE_CONFIG_LOG]),
     ok = lux_log:write_config_log(ConfigLog, ConfigData).
 
--spec merge_logs([filename()], filename()) ->
+-spec merge_logs([filename()], filename(), opts()) ->
           ok | error().
 
-merge_logs(Sources, RelTargetDir) ->
+merge_logs(Sources, RelTargetDir, Opts) ->
     io:format("Invoke: ~s\n", [string:join(init:get_plain_arguments(), " ")]),
     RelDir = "",
     Cands = lux_utils:summary_log_candidates(),
@@ -290,7 +290,6 @@ merge_logs(Sources, RelTargetDir) ->
             ok = do_merge_logs(RelTargetDir, FlatLogRes),
             RelSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
             AbsSummaryLog = lux_utils:normalize_filename(RelSummaryLog),
-            Opts = [],
             Transform = transform_summary_results(DeepLogRes),
             Res = do_annotate_log(false, AbsSummaryLog, Opts, Transform),
             case Res of
@@ -304,10 +303,11 @@ merge_logs(Sources, RelTargetDir) ->
 
 collect_logs([Source | Sources], RelLogDir, RelDir, Cands, Acc) ->
     io:format("\n\t~s", [Source]),
-    NewAcc = do_collect_logs(Source, RelLogDir, RelDir, Cands, Acc),
+    SourceAcc = do_collect_logs(Source, RelLogDir, RelDir, Cands, []),
+    NewAcc = [SourceAcc | Acc],
     collect_logs(Sources, RelLogDir, RelDir, Cands, NewAcc);
 collect_logs([], _RelLogDir, _RelDir, _Cands, Acc) ->
-    Acc.
+    lists:reverse(lists:append(Acc)).
 
 do_collect_logs(RelSource, RelLogDir, RelDir, Cands, Acc)
   when is_list(RelDir) ->
@@ -357,8 +357,8 @@ collect_log(false, _Dir, _Base, Acc) ->
 
 transform_summary_results(DeepLogRes) ->
     Transform =
-        fun({Log, {ok, _Result, _Cases, SummaryConfig, _Ctime, EventLogs}}) ->
-                {Log, SummaryConfig, EventLogs}
+        fun({Log, {ok, _Result, Cases, SummaryConfig, _Ctime, _EventLogs}}) ->
+                {Log, SummaryConfig, Cases}
         end,
     lists:map(Transform, DeepLogRes).
 
@@ -1197,6 +1197,7 @@ builtins(R, ActualConfigName) ->
      {suite, [string], R#rstate.suite},
      {run, [string], R#rstate.run},
      {revision, [string], R#rstate.revision},
+     {case_prefix, [string], R#rstate.case_prefix},
      {'config name', [string], R#rstate.config_name},
      {config_dir, [string], R#rstate.config_dir}
     ].

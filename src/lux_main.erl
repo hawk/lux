@@ -449,12 +449,12 @@ safe_history(LogDirs, RelLogDir, Opts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 merge(RelLogDir, Opts) ->
-    {LogDirs0, _Opts2} = lux_args:translate_opts(Opts),
+    {LogDirs0, Opts2} = lux_args:translate_opts(Opts),
     case LogDirs0 of
         []    -> LogDirs = [RelLogDir];
         LogDirs -> ok
     end,
-    case lux_suite:merge_logs(LogDirs, RelLogDir) of
+    case safe_merge(LogDirs, RelLogDir, Opts2) of
         {ok, RelHtmlFile} ->
             io:format("...ok\n", []),
             AbsHtmlFile = filename:absname(RelHtmlFile),
@@ -465,13 +465,26 @@ merge(RelLogDir, Opts) ->
             1
     end.
 
+safe_merge(LogDirs, RelLogDir, Opts) ->
+        case lux_suite:merge_logs(LogDirs, RelLogDir, Opts) of
+        {ok, RelHtmlFile} ->
+            case lux_html_parse:validate_html(RelHtmlFile, Opts) of
+                ok ->
+                    {ok, RelHtmlFile};
+                {error, File, Reason} ->
+                    {error, File, Reason}
+            end;
+        {error, File, Reason} ->
+            {error, File, Reason}
+    end.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Run tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 run(Opts, Files, PrevLogDir, OrigArgs) ->
     case do_run(Files, Opts, PrevLogDir, OrigArgs) of
-        ok -> % HTML
+        run_ok -> % HTML
             Summary = success,
             ok;
         {run_ok, Summary, _SummaryLog, _Results} -> % LUX
@@ -487,11 +500,21 @@ run(Opts, Files, PrevLogDir, OrigArgs) ->
 do_run(Files, Opts, PrevLogDir, OrigArgs) ->
     case is_html(Files) of
         true ->
-            lux_html_parse:validate_html(hd(Files), Opts);
+            validate_html(Files, [{html, validate} | Opts]);
         false ->
             ThisEscript = require_escript(),
             lux_suite:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
     end.
+
+validate_html([File | Files], Opts) ->
+    case lux_html_parse:validate_html(File, Opts) of
+        ok ->
+            validate_html(Files, Opts);
+        {error, File, Reason} ->
+            {run_error, File, Reason}
+    end;
+validate_html([], _Opts) ->
+    run_ok.
 
 is_html(Files) ->
     lists:any(fun(F) -> lists:suffix(".html", F) end, Files).

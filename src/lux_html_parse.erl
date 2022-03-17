@@ -15,7 +15,7 @@
 validate_html(HtmlFile, Opts) when is_list(HtmlFile) ->
     case lists:keyfind(html, 1, Opts) of
         {html, validate} ->
-            io:format("\nValidate ~p...\n", [HtmlFile]),
+            io:format("\nValidate ~s...\n", [HtmlFile]),
             {ValRes, NewWWW} = do_validate_html(HtmlFile, undefined),
             lux_utils:stop_app(NewWWW),
             ValRes;
@@ -78,13 +78,13 @@ do_validate_links({link, External, Internal}, Abs, Orig, EnoEnt, Acc) ->
             [{link_warning, Abs, 0, 0, Reason} | Acc];
         local ->
             case lists:keyfind(AbsExternal, 2, Orig) of
-                {ok, _File, _Refs, _Type} when hd(External) =:= $/,
-                                               Internal =:= "" ->
-                    Reason = External,
-                    [{link_error, Abs, 0, 0, Reason} | Acc];
-                {ok, _File, _Refs, _Type} when hd(External) =:= $/ ->
-                    Reason = External ++ "#" ++ Internal,
-                    [{link_error, Abs, 0, 0, Reason} | Acc];
+%%              {ok, _File, _Refs, _Type} when hd(External) =:= $/,
+%%                                             Internal =:= "" ->
+%%                  Reason = External,
+%%                  [{link_error, Abs, 0, 0, Reason} | Acc];
+%%              {ok, _File, _Refs, _Type} when hd(External) =:= $/ ->
+%%                  Reason = External ++ "#" ++ Internal,
+%%                  [{link_error, Abs, 0, 0, Reason} | Acc];
                 {ok, _File, _Refs, _Type} when Internal =:= "" ->
                     Acc;
                 {ok, _File, Refs, _Type} ->
