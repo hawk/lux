@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.6 - 2021-03-10
+Version 2.7 - 2022-03-23
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -42,6 +42,13 @@ environment.
 
 See the file **lux.html** for the full documentation or view it online
 on [GitHub](https://github.com/hawk/lux/blob/master/doc/lux.md).
+
+Video walkthru of the tutorial
+==============================
+
+This talk about Lux was presented at the Erlang User Conference 2019:
+
+[https://www.youtube.com/watch?v=Nu15YOpmCKQ]
 
 A sample script
 ---------------
@@ -119,13 +126,13 @@ Run a single script like this:
 Evaluate `lux examples/intro.lux`
 
 >     .../lux> lux examples/intro.lux
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_55_22_424927/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_21_22998/lux_summary.log
 >     test case         : examples/intro.lux
->     progress          : ..:..:.:..:..:.:.:.....:..:.:..:..:.:..:.:..:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
+>     progress          : ..:.:..:..:.:.:..:.:..:....:..:.:..:.:...:.:..:.:..:.:.:..:.:.:..:.:..:.:.:..:...:..:.:.:....c.:.....:..:.:..:.:..:..:.:.:..:.:..:.
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_55_22_424927/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_21_22998/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -159,11 +166,9 @@ Evaluate `lux --history .`
 >     .../lux> lux --history .
 >     Invoke: /Users/hmattsso/dev/lux/bin/lux --history .
 >     Assembling history of logs from...
->     	./lux_history.cache (17594 bytes)
->     -----
->     	..................................................................................................................======.s=s====.=.=s==.=============..=s===========s=s==========.=====s===========s==================s=====s==...=s==.=.==.==..================
->     Wrote 27023 bytes in run cache to file ./lux_history.cache
->     Analyzed 351 test runs with 1557 test cases (0 errors)...ok
+>     	.eeeeeeeeeeeeeeeeeeeeeeeeeee.eeeeee.eee.........eeeeee......................................................eeeeee...........................eeeee.........eeeeee.........eeeeee........................................eeeeee.eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.eeee........s.ss........sss.eeeeeeeeeeeeeeeeeeeeeeee.......................................s.eeeee..eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+>     Wrote 14873 bytes in run cache to file ./lux_history.cache
+>     Analyzed 212 test runs with 765 test cases (0 errors)...ok
 >     file:///Users/hmattsso/dev/lux/lux_history.html
 >     .../lux> echo $?
 >     0
@@ -196,7 +201,7 @@ Each `send` and `expect` operation is directed to one particular shell
 shell. The **stdout** and **stderr** streams of the shell are combined
 to one single output stream. A Lux script can start and control
 many concurrent shells, but at any time point only one is the active
-shell which can evaluate new Lux statements.
+shell which can evaulate new Lux statements.
 
 It is possible to reference **variables** in the `send`, `expect`,
 `my`, `local`, `global` and `config` statements, using the standard
@@ -604,7 +609,7 @@ Some logs are common for all test cases in a test suite:
 
   - Summary log - a summary of the outcome of the test suite
   - Config log - actual configuration for the run
-  - Annotated summary log (HTML) - pretty printed a summary log
+  - Annotated summary log (HTML) - pretty printed asummary log
 
 while others are per test case:
 
@@ -745,7 +750,7 @@ Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 The shell stdin log is also quite useful when trying to reproduce a
 run of a test case.
 
-  - Start multiple terminals and create shells manually
+  - Start multiple terminalks and create shells manually
   - Copy and paste from stdin logs to the shells
 
 Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdin.log`
@@ -840,7 +845,7 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 Infra-structure support
 -----------------------
 
-In a heterogeneous test environment with various types of machines
+In a hetrogenous test environment with various types of machines
 possibly with different architectures and hardware, it may be
 necessary to have machine dependent configuration settings. This can
 be achieved by using `.luxcfg` files. Look in the
@@ -1085,7 +1090,7 @@ Why is Erlang a good fit? Primary due to its
 
   - Concurrency
   - Port programs
-  - Built-in regular expressions (re)
+  - Built-in regular expresssions (re)
   - Timers
 
 Lux is written as an escript which can be installed as stand-alone
@@ -1109,7 +1114,7 @@ shell.
 Input data strings from the script is sent as is to the stdin of the
 port. The terminal is setup to echo the input to stdout.
 
-The stderr is redirected to stdout. The terminal will normalize the
+The stderr is redirected to stdout. The terminal will normalise the
 output from the Bourne shell (stdout and stderr) to make each end of
 line a carriage return followed by a line feed. The output from the
 port is buffered.
@@ -1167,10 +1172,10 @@ Tail-f/Cisco
     - Device configuration
     - Model driven configuration management framework for a network element
     - Render northbound interfaces such as CLI, Netconf, SNMP, Rest, RestConf
-    - Traceable internal interfaces
+    - Tracable internal interfaces
   - NSO
-    - Orchestrator for a massive number of (heterogeneous) network elements
-    - Same standardized northbound interfaces as Confd
+    - Orchestrator for a massive number of (hetrogenous) network elements
+    - Same standardised northbound interfaces as Confd
     - Standard interfaces southbound combined with
     - 100+ adaptors for network elements lacking standard interfaces
 <a name="script_syntax"/>
@@ -1267,7 +1272,7 @@ specified with `?`).
     ?+B
     ?C
 
-will render matching of all permutations of A, B and C. Note the
+will render matching of all permutatations of A, B and C. Note the
 usage of `?`. `?+` is always used in conjunction with `?`. Never `??`
 nor `???`. It is the `?` command which triggers the actual regexp
 match.
@@ -1550,7 +1555,7 @@ The script expects the shell output to match given
 [regular expression][]s. But the output must be received within a
 given time limit. The `timeout` command sets the timeout for the
 current shell to the given number of seconds multiplied with a
-configured factor. By default the multiplier is `1000`. For example,
+configurated factor. By default the multiplier is `1000`. For example,
 by setting the `--multiplier` parameter to `2000` all timeouts will be
 doubled. The resulting timeout value affects how long time `expect`
 operations will wait before reporting failure. If the time is omitted
@@ -1601,6 +1606,7 @@ Lux perform other tasks.
 * --markdown
 * --annotate
 * --history
+* --merge
 * --mode
 * --doc
 
@@ -1649,7 +1655,7 @@ See [installation](#../INSTALL). Installs the Lux application as a
 standalone application in the `InstallDir` directory. `InstallDir`
 must exist. If `InstallDir` is omitted only a dry run is performed. A
 standalone installation is self-contained and contains a minimal
-Erlang runtime system. It is however not necessary to install Lux as
+Erlang runtime system. It is however not neccessary to install Lux as
 standalone. If Erlang already is installed on the system, Lux can make
 use of that runtime environment. But sometimes it is useful to avoid
 that dependency.
@@ -1671,6 +1677,7 @@ Log management
 --------------
 
     lux --annotate LogFile
+    lux --merge TargetLogDir [SourceLogFile]...
     lux --history TargetLogDir [SourceLogFile]...
 
 **--annotate LogFile**  
@@ -1678,6 +1685,21 @@ Transforms textual log files into HTML format and annotates Lux script
 code with log events. The generated HTML file will get the same name
 as `LogFile` but with a `.html` extension added. See also the
 [configuration parameter](#config_params) `--html`.
+
+**--merge TargetLogDir [SourceLogFile]...**  
+Merges the logs from multiple partial runs. When a test suite takes a
+long time to run, it is possible to split it up in multiple runs with
+a few test cases in each. When all test cases in the suite has
+completed, their logs can me merged. The result will look like the
+test suite was run in one go. The original logs will be kept as is and
+the new `lux_summary.log.html`log will contain links to the original
+logs. For example the original `lux_config.log` files cannot be merged
+as the separate test case runs may been run in very different
+environments (ex. different Docker containers).
+
+The `--merge` option is much safer than using `--extend_run` as it
+enables true parallel runs of the test cases. The `--extend_run` can
+only be used when the test cases are run in sequence after each other.
 
 **--history TargetLogDir [SourceLogFile]...**  
 Generates an HTML file which summarizes the history of all test runs.
@@ -2030,7 +2052,7 @@ When the Lux engine receives output from a shell it will
 wait in `PollTimeout` milliseconds for more output before it
 tries to match it against any [regular expression][]s. It defaults
 to `0`. If you want to experiment with it, `100` milliseconds
-(1/10 second) can be a reasonable value.
+(1/10 second) can be a resonable value.
 
 **--risky\_threshold RiskyThreshold**  
 An experimental timeout setting.
@@ -2067,7 +2089,10 @@ printing out the history of test runs. See the
 Combines two runs into one. The summary log of an earlier run is
 extended with the outcome of the new run. `--log_dir` can be given
 explicitly. If not, the symbolic `latest_run` link is used to find
-a suitable log directory.
+a suitable log directory. Note that the runs cannot be run in parallel
+as they will write into the same files. It is much better to use the
+`--merge` option to perform the merge of log files when all runs are
+done.
 
 **--revision Revision**  
 The `Revision` is used for bookkeeping a repository revision
@@ -2188,17 +2213,28 @@ shell wrapper (if it has been built properly).
 It is also possible to use no shell wrapper at all by omitting the
 `Executable` value (or simply set it to the empty string "").
 
-**--post\_commit\_cmd**  
-**--post\_commit\_cmd \[CleanupCmd\]**  
-Enable centrally defined cleanup code to be run after those test cases
-where the "normal" cleanup fails. The purpose of this is to make it
-possible to report and possibly undo unwanted side effects which the
-cleanup code have failed to handle. A workaround for sloppy written
-test cases which may make a test suite more stable.
+     [config shell_wrapper=]
 
-When a test case fails in its `cleanup`, a shell named `post_commit`
-will be started, the `CleanupCmd` string will be sent to the shell and
-the shell prompt will be waited for.
+**--shell\_wrapper\_mode WrapperMode**
+The WrapperMode is used for debugging the shell wrapper program. By
+default it is set to `silent`, but it can also be set to `debug` or
+`trace`. Debug will log wrapper internal events, such as signal
+handling. Trace will also log the socket payload. When enabled in a
+test case, a log file will be created per shell on the extra logs
+directory.
+
+     [config shell_wrapper_mode=trace]
+
+**--post\_case**  
+**--post\_case \[IncludeFile\]**  
+Enable centrally defined cleanup code to be run after each test case
+regardless whether they fail or succeed. The purpose of this is to
+make it possible to report and possibly undo unwanted side effects
+which the cleanup code in the test case has failed to handle.
+
+There may be more than one `post_case` parameter. For each one a shell
+will be started when the test case has ended and the Lux code in the
+`IncludeFile` will be executed in the context of the test case.
 
 **--line\_term Chars**  
 Specify the character sequence added to the end of lines sent to
@@ -2455,7 +2491,7 @@ shell \[name\] \[mode\]
 Connect to a shell
 
 With no argument, the names of the shells will be listed.
-In the listing the active shell is preceded by an arrow
+In the listing the active shell is preceeded by an arrow
 and zombie shells with an star. Repeating the command
 will disconnect the shell. Repeat again to connect...
 
@@ -2500,12 +2536,12 @@ tail \[index\] \[format\] \[n_lines\]
 Display log files
 
 With no argument, the names of the log files will be listed.
-Each one is preceded by its index number and optionally a
+Each one is preceeded by its index number and optionally a
 star. The star means that the log has been updated since the
 previous status check. Use the index to display a particular
 log. Such as "t 5" for the event log. Press enter to
 display more lines. n_lines can be used to override that
-behavior and only display a fixed number of lines regardless
+behavior andonly display a fixed number of lines regardless
 of the command is repeated or not.
 
 **Parameters:**  
@@ -2692,7 +2728,7 @@ Warnings and avoiding failures
 ------------------------------
 
 At startup lux imports all environment variables as global lux
-variables. making them accessible with `$var` syntax. Variables may
+variables. making them accessible vith `$var` syntax. Variables may
 also be set in architecture or host specific configuration files. This
 may be useful when certain test cases only can be run on some hosts
 due to missing libraries, lack of memory etc.
@@ -2728,14 +2764,13 @@ Snippet from the enclosed `.../lux/examples/require_fail.lux` file:
 
 >     [doc Demonstrate an error]
 >     
->     [config require=MAKE]
+>     [config require=YADA_MAKE]
 >     
 >     [shell setup]
->         !$MAKE start
->     
+>         !${YADA_MAKE} start
 >     
 >     [cleanup]
->         !$MAKE stop
+>         !${YADA_MAKE} stop
 >     
 
 Snippet from the enclosed `.../lux/examples/warning.lux` file:
@@ -2775,12 +2810,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2021_01_31_17_07_16_173451/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_56_967885/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:..:..)..(.:.:...)(....:.:..:...)(.:.:..:..)..(.:..:..)......:.:.........
+>     progress          : ..:..:..:.:.:...:..:.:.:....:..:..:..(....:..:.:.:.:...)(.:.:..:..)...:...:.:.:.:..(.:.:..:..)..(.:.:..:..)(....:.:.:..:...)(..:.:.:.:..)..(..:.:.:..)......:..:........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:.:..:...:..:.:...:.:.:....:.:...32C..:..:.:....:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:...:.:.:...:.:..:.:.:...:.:.:....:.:..:..32C..:..:.:..:.:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at line 32 in shell calculator
 >     expected*
 >     	19
@@ -2797,13 +2832,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:.:...:.:.:.....:..:.:..:..:.:..:.:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
+>     progress          : ..:..:..:.:.:..:.:.:.....:...:.:.:.:...:.:..:.:..:.:.:..:.:.:..:.:..:.:.:..:...:..:.:.:.:....c.:.....:...:.:.:.:..:..:.:.:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:.:..)(.:.:..:.)(.:..:.))((.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:...:.:..:..:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2...:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:.)).c........:..:.:...:..:.:.
+>     progress          : ..:..:..:.:.:.((.:..:.:.:.)(.:..:.:.)(..:.:.:.:.))((..:.:.:.)(..:.:.:.:.)(..:.:.:.:.)(.:..:.:.:.)(.:..:.:.:.))((..:.:.:.:.)(..:.:.:.:.)(..:.:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.)(.:..:.:.:.)(..:.:.:.:.))...:.:..:.:..:.:..:..:.:.:.:..:.:..:.:.:.:...:..:.:..:.((.i=1..:..:.:.:..z)(z..i=2..:.:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4...:.:.:.):)..c........:...:.:.:...:.:.:.:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+>     progress          : ..:...:.:.:.:.:.((.i=1..:..:.:..z)(z..i=2...:.:.:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at line 5 in shell break
 >     expected*
 >     	
@@ -2813,13 +2848,12 @@ Evaluate `lux examples`
 >     	  
 >     	
 >     test case         : examples/require_fail.lux
->     progress          : ..:..:.:..:..:.:c.....:.:.:..:..:..:.
->     result            : SUCCESS
+>     result            : FAIL as required variable YADA_MAKE is not set
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable_warn.lux
->     progress          : ..:..:.:..:....7
->     warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     progress          : ..:...:.:.:.:....7
+>     warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at line 7 in shell foo
 >     expected*
 >     	bar
@@ -2833,17 +2867,18 @@ Evaluate `lux examples`
 >     progress          : W
 >     warning           : 3: Trailing whitespaces
 >     result            : WARNING
->     successful        : 4
+>     successful        : 3
 >     skipped           : 1
 >     	examples/skip.lux:6
 >     warnings          : 2
->     	examples/unstable_warn.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
+>     	examples/unstable_warn.lux:8 - FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     	examples/warning.lux:3 - Trailing whitespaces
->     failed            : 2
+>     failed            : 3
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
+>     	examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2021_01_31_17_07_16_173451/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_56_967885/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -2852,7 +2887,7 @@ Evaluate `lux examples`
 Hardening test cases
 ====================
 
-Here follows some advice to make the test cases more reliable. In
+Here follows some advices to make the test cases more reliable. In
 general we want to avoid race conditions and intermittent failures. We
 do also want our test cases to not introduce problems for other test
 cases.
@@ -2866,7 +2901,7 @@ cause race conditions and intermittent fails. The command is kept for
 backwards compatibility but should really not be used. It is a very
 good candidate for deprecation.
 
-Do also look out for unintended emptying of the output streams. Ensure
+Do also look out for unintended emtying of the output streams. Ensure
 that there are no `Empty multi-line expect command` warnings. E.g.
 
         """?
@@ -2896,7 +2931,7 @@ scripts, possibly comparing successful runs with failing dito.
 
 It may even be the case that different environments might have so
 different properties that a success/failure on one platform can be a
-failure/success on another and that missing prompt synchronization is
+failure/success on another and that missing prompt synchronisation is
 the cause for this.
 
 **Protect the stdin**  
@@ -2943,7 +2978,7 @@ robust solution is to also match the prompt after `make`
 
 Once all timers have been adjusted to get rid of the timer related
 warnings it is time to harden the script even further by setting some
-configuration parameters to more challenging values. For example
+configuration parameters to more challanging values. For example
 
         --risky_threshold=0.60
         --sloppy_threshold=0.000001
@@ -2973,7 +3008,7 @@ synchronization points to fail.
 
 Default is `--poll_timeout=0`. It reasonable to try with
 `--poll_timeout=10` and when the scripts are adjusted to cope with
-this setting it may be time to use the more challenging value`
+this setting it may be time to use the more challanging value`
 --poll_timeout=100`.
 
 The special value `--poll_timeout=-1` causes Lux to not wait for
@@ -2987,7 +3022,7 @@ intermittent problems.
 **[cleanup]**  
 
 It is good hygiene to ensure that each test case does not affect the
-outcome of other test cases. Respect your colleagues by not making your
+outcome of other test cases. Respect your collegues by not making your
 test cases to cause theirs to fail.
 
 Use the `[cleanup]` section to cleanup side-effects that may affect
@@ -3001,7 +3036,7 @@ case in a controlled manner by executing the cleanup code. `q s` or
 
 In order to be able to perform post mortem analysis some side effects
 needs to be kept. But ensure that these do not affect subsequent test
-cases. A good praxis is to copy logs, and what not, to the directory
+cases. A god praxis is to copy logs, and what not, to the directory
 named in the environment variable `LUX_EXTRA_LOGS`. Each test case gets
 its unique directory path in the variable. Your script needs to create
 the directory if it is needed. The extra logs are kept among the other
@@ -3043,7 +3078,7 @@ will be adapted timers per architecture or per host.
 **[config unstable=XXX]**  
 **[config unstable_unless=XXX]**  
 
-Respect your colleagues by withdrawing your intermittently failing test
+Respect your collegues by withdrawing your intermittently failing test
 cases from the test results of the group. Use these constructs to mark
 those test cases as unstable. They will then be run but only cause a
 warning if they fail.
@@ -3059,7 +3094,7 @@ Lux emits various warnings. Some are built-in and others are
 configurable. Some are emitted during validation and others during
 execution.
 
-Here follows a few configuration parameters that may be useful in
+Here follows a few configuration pararamenters that may be useful in
 this context:
 
 **--fail\_when\_warning**  
@@ -3262,7 +3297,7 @@ configured to something else than
 **Warning: Shell XXX exited prematurely with status=YYY and posix=ZZZ**  
 
 The shell exited in an uncontrolled manner. Normally there is no need
-to exit shells explicitly. But sometimes it may be necessary. If the
+to exit shells explicitly. But sometimes it may be neccessary. If the
 shell is intended to exit, its expected exit status should be matched
 to ensure that it exited properly. To ensure a successful exit,
 i.e. with the status set to `0`, `[endshell 0]` should be used to

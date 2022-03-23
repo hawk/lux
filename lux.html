@@ -7,7 +7,7 @@
 <body>
 <h1>Lux - LUcid eXpect scripting</h1>
 
-<p>Version 2.6 - 2021-03-10</p>
+<p>Version 2.7 - 2022-03-23</p>
 
 <ul>
 <li><a href="#../README">Introduction</a></li>
@@ -51,6 +51,12 @@ environment.</p>
 
 <p>See the file <strong>lux.html</strong> for the full documentation or view it online
 on <a href="https://github.com/hawk/lux/blob/master/doc/lux.md">GitHub</a>.</p>
+
+<h1>Video walkthru of the tutorial</h1>
+
+<p>This talk about Lux was presented at the Erlang User Conference 2019:</p>
+
+<p>[https://www.youtube.com/watch?v=Nu15YOpmCKQ]</p>
 
 <h2>A sample script</h2>
 
@@ -129,13 +135,13 @@ output with <code>?</code>.</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples/intro.lux
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_55_22_424927/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_21_22998/lux_summary.log
 test case         : examples/intro.lux
-progress          : ..:..:.:..:..:.:.:.....:..:.:..:..:.:..:.:..:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
+progress          : ..:.:..:..:.:.:..:.:..:....:..:.:..:.:...:.:..:.:..:.:.:..:.:.:..:.:..:.:.:..:...:..:.:.:....c.:.....:..:.:..:.:..:..:.:.:..:.:..:.
 result            : SUCCESS
 successful        : 1
 summary           : SUCCESS
-file:///Users/hmattsso/dev/lux/lux_logs/run_2020_05_04_07_55_22_424927/lux_summary.log.html
+file:///Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_21_22998/lux_summary.log.html
 .../lux&gt; echo $?
 0
 </code></pre>
@@ -166,11 +172,9 @@ identities if provided with <code>--revision</code>).</p>
 <pre><code>.../lux&gt; lux --history .
 Invoke: /Users/hmattsso/dev/lux/bin/lux --history .
 Assembling history of logs from...
-./lux_history.cache (17594 bytes)
------
-..................................................................................................................======.s=s====.=.=s==.=============..=s===========s=s==========.=====s===========s==================s=====s==...=s==.=.==.==..================
-Wrote 27023 bytes in run cache to file ./lux_history.cache
-Analyzed 351 test runs with 1557 test cases (0 errors)...ok
+.eeeeeeeeeeeeeeeeeeeeeeeeeee.eeeeee.eee.........eeeeee......................................................eeeeee...........................eeeee.........eeeeee.........eeeeee........................................eeeeee.eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.eeee........s.ss........sss.eeeeeeeeeeeeeeeeeeeeeeee.......................................s.eeeee..eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+Wrote 14873 bytes in run cache to file ./lux_history.cache
+Analyzed 212 test runs with 765 test cases (0 errors)...ok
 file:///Users/hmattsso/dev/lux/lux_history.html
 .../lux&gt; echo $?
 0
@@ -1699,6 +1703,7 @@ Lux perform other tasks.</p>
 <li>--markdown</li>
 <li>--annotate</li>
 <li>--history</li>
+<li>--merge</li>
 <li>--mode</li>
 <li>--doc</li>
 </ul>
@@ -1769,6 +1774,7 @@ This is used internally by doc/Makefile.</p>
 <h2>Log management</h2>
 
 <pre><code>lux --annotate LogFile
+lux --merge TargetLogDir [SourceLogFile]...
 lux --history TargetLogDir [SourceLogFile]...
 </code></pre>
 
@@ -1777,6 +1783,21 @@ Transforms textual log files into HTML format and annotates Lux script
 code with log events. The generated HTML file will get the same name
 as <code>LogFile</code> but with a <code>.html</code> extension added. See also the
 <a href="#config_params">configuration parameter</a> <code>--html</code>.</p>
+
+<p><strong>--merge TargetLogDir [SourceLogFile]...</strong> <br />
+Merges the logs from multiple partial runs. When a test suite takes a
+long time to run, it is possible to split it up in multiple runs with
+a few test cases in each. When all test cases in the suite has
+completed, their logs can me merged. The result will look like the
+test suite was run in one go. The original logs will be kept as is and
+the new <code>lux_summary.log.html</code>log will contain links to the original
+logs. For example the original <code>lux_config.log</code> files cannot be merged
+as the separate test case runs may been run in very different
+environments (ex. different Docker containers).</p>
+
+<p>The <code>--merge</code> option is much safer than using <code>--extend_run</code> as it
+enables true parallel runs of the test cases. The <code>--extend_run</code> can
+only be used when the test cases are run in sequence after each other.</p>
 
 <p><strong>--history TargetLogDir [SourceLogFile]...</strong> <br />
 Generates an HTML file which summarizes the history of all test runs.
@@ -2162,7 +2183,10 @@ printing out the history of test runs. See the
 Combines two runs into one. The summary log of an earlier run is
 extended with the outcome of the new run. <code>--log_dir</code> can be given
 explicitly. If not, the symbolic <code>latest_run</code> link is used to find
-a suitable log directory.</p>
+a suitable log directory. Note that the runs cannot be run in parallel
+as they will write into the same files. It is much better to use the
+<code>--merge</code> option to perform the merge of log files when all runs are
+done.</p>
 
 <p><strong>--revision Revision</strong> <br />
 The <code>Revision</code> is used for bookkeeping a repository revision
@@ -2283,17 +2307,30 @@ shell wrapper (if it has been built properly).</p>
 <p>It is also possible to use no shell wrapper at all by omitting the
 <code>Executable</code> value (or simply set it to the empty string "").</p>
 
-<p><strong>--post_commit_cmd</strong> <br />
-<strong>--post_commit_cmd [CleanupCmd]</strong> <br />
-Enable centrally defined cleanup code to be run after those test cases
-where the "normal" cleanup fails. The purpose of this is to make it
-possible to report and possibly undo unwanted side effects which the
-cleanup code have failed to handle. A workaround for sloppy written
-test cases which may make a test suite more stable.</p>
+<pre><code> [config shell_wrapper=]
+</code></pre>
 
-<p>When a test case fails in its <code>cleanup</code>, a shell named <code>post_commit</code>
-will be started, the <code>CleanupCmd</code> string will be sent to the shell and
-the shell prompt will be waited for.</p>
+<p><strong>--shell_wrapper_mode WrapperMode</strong>
+The WrapperMode is used for debugging the shell wrapper program. By
+default it is set to <code>silent</code>, but it can also be set to <code>debug</code> or
+<code>trace</code>. Debug will log wrapper internal events, such as signal
+handling. Trace will also log the socket payload. When enabled in a
+test case, a log file will be created per shell on the extra logs
+directory.</p>
+
+<pre><code> [config shell_wrapper_mode=trace]
+</code></pre>
+
+<p><strong>--post_case</strong> <br />
+<strong>--post_case [IncludeFile]</strong> <br />
+Enable centrally defined cleanup code to be run after each test case
+regardless whether they fail or succeed. The purpose of this is to
+make it possible to report and possibly undo unwanted side effects
+which the cleanup code in the test case has failed to handle.</p>
+
+<p>There may be more than one <code>post_case</code> parameter. For each one a shell
+will be started when the test case has ended and the Lux code in the
+<code>IncludeFile</code> will be executed in the context of the test case.</p>
 
 <p><strong>--line_term Chars</strong> <br />
 Specify the character sequence added to the end of lines sent to
@@ -2842,14 +2879,13 @@ a heterogeneous lab environment:</p>
 <blockquote>
 <pre><code>[doc Demonstrate an error]
 
-[config require=MAKE]
+[config require=YADA_MAKE]
 
 [shell setup]
-  !$MAKE start
-
+  !${YADA_MAKE} start
 
 [cleanup]
-  !$MAKE stop
+  !${YADA_MAKE} stop
 </code></pre>
 </blockquote>
 
@@ -2897,12 +2933,12 @@ a heterogeneous lab environment:</p>
 
 <blockquote>
 <pre><code>.../lux&gt; lux examples
-summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2021_01_31_17_07_16_173451/lux_summary.log
+summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_56_967885/lux_summary.log
 test case         : examples/calc.lux
-progress          : ..:..:.:..:...:..:.:....:..:.:..:..(....:..:.:.:.:...)(.:.:...)...:..:.:..:..(.:.:..:..)..(.:.:...)(....:.:..:...)(.:.:..:..)..(.:..:..)......:.:.........
+progress          : ..:..:..:.:.:...:..:.:.:....:..:..:..(....:..:.:.:.:...)(.:.:..:..)...:...:.:.:.:..(.:.:..:..)..(.:.:..:..)(....:.:.:..:...)(..:.:.:.:..)..(..:.:.:..)......:..:........
 result            : SUCCESS
 test case         : examples/fail.lux
-progress          : ..:..:.:..:...:..:.:...:.:.:....:.:...32C..:..:.:....:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+progress          : ..:...:.:.:...:.:..:.:.:...:.:.:....:.:..:..32C..:..:.:..:.:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 result            : FAIL at line 32 in shell calculator
 expected*
 19
@@ -2919,13 +2955,13 @@ diff
 + 4&gt; 
 
 test case         : examples/intro.lux
-progress          : ..:..:.:...:.:.:.....:..:.:..:..:.:..:.:..:.:..:.:.:..:.:......:..:.:.:....c......:.:.:..:.:..:..:.:..:..:.:..
+progress          : ..:..:..:.:.:..:.:.:.....:...:.:.:.:...:.:..:.:..:.:.:..:.:.:..:.:..:.:.:..:...:..:.:.:.:....c.:.....:...:.:.:.:..:..:.:.:..:.:..:.
 result            : SUCCESS
 test case         : examples/loop.lux
-progress          : ..:..:.:..:.((.:.:..)(.:.:..:.)(.:..:.))((.:.:..:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..))((.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.:.)(.:..:.)(.:.:..:.)(.:..:.))...:..:.:...:.:..:..:..:...:..:.:..:.((.i=1..:.:..:.:..z)(z..i=2...:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.:.)).c........:..:.:...:..:.:.
+progress          : ..:..:..:.:.:.((.:..:.:.:.)(.:..:.:.)(..:.:.:.:.))((..:.:.:.)(..:.:.:.:.)(..:.:.:.:.)(.:..:.:.:.)(.:..:.:.:.))((..:.:.:.:.)(..:.:.:.:.)(..:.:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.)(.:..:.:.:.)(..:.:.:.:.))...:.:..:.:..:.:..:..:.:.:.:..:.:..:.:.:.:...:..:.:..:.((.i=1..:..:.:.:..z)(z..i=2..:.:..:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4...:.:.:.):)..c........:...:.:.:...:.:.:.:.:.
 result            : SUCCESS
 test case         : examples/loop_fail.lux
-progress          : ..:..:.:..((.i=1..:.:..:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+progress          : ..:...:.:.:.:.:.((.i=1..:..:.:..z)(z..i=2...:.:.:..z)(z..i=3..:..:..z))+5
 result            : FAIL at line 5 in shell break
 expected*
 
@@ -2935,13 +2971,12 @@ diff
 
 
 test case         : examples/require_fail.lux
-progress          : ..:..:.:..:..:.:c.....:.:.:..:..:..:.
-result            : SUCCESS
+result            : FAIL as required variable YADA_MAKE is not set
 test case         : examples/skip.lux
 result            : SKIP as variable TEST_SUNOS is not set
 test case         : examples/unstable_warn.lux
-progress          : ..:..:.:..:....7
-warning           : 8: Fail but UNSTABLE as variable TEST_DEVELOP is not set
+progress          : ..:...:.:.:.:....7
+warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 result            : WARNING at line 7 in shell foo
 expected*
 bar
@@ -2955,17 +2990,18 @@ test case         : examples/warning.lux
 progress          : W
 warning           : 3: Trailing whitespaces
 result            : WARNING
-successful        : 4
+successful        : 3
 skipped           : 1
 examples/skip.lux:6
 warnings          : 2
-examples/unstable_warn.lux:8 - Fail but UNSTABLE as variable TEST_DEVELOP is not set
+examples/unstable_warn.lux:8 - FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 examples/warning.lux:3 - Trailing whitespaces
-failed            : 2
+failed            : 3
 examples/fail.lux:32 - match_timeout
 examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
+examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
 summary           : FAIL
-file:///Users/hmattsso/dev/lux/lux_logs/run_2021_01_31_17_07_16_173451/lux_summary.log.html
+file:///Users/hmattsso/dev/lux/lux_logs/run_2022_03_23_14_12_56_967885/lux_summary.log.html
 .../lux&gt; echo $?
 1
 </code></pre>
