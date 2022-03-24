@@ -1522,7 +1522,7 @@ write_progress(Progress, true, Bin) ->
             ctrace  -> io:format("~s", [dequote(?b2l(Bin))])
         end
     catch
-        _:Reason:EST ->
+        ?CATCH_STACKTRACE(_, Reason, EST)
             io:format("\nINTERNAL LUX ERROR: progress write failed:"
                       " ~p\n\t~p\n\t~p\n",
                       [Reason, Bin, EST]),
@@ -1542,7 +1542,7 @@ write_to_log(undefined, LogFun, Bin) ->
                 exit({safe_write, log_fun, Bin, BadRes})
         end
     catch
-        _:LogReason:LogEST ->
+        ?CATCH_STACKTRACE(_, LogReason, LogEST)
             io:format("\nINTERNAL LUX ERROR: log write failed:"
                       " ~p\n\t~p\n\t~p\n",
                       [LogReason, Bin, LogEST]),
@@ -1559,7 +1559,7 @@ write_to_log(Fd, _LogFun, Bin) ->
                       [Str, Bin, ?stacktrace()]),
             exit({safe_write, file, Fd, Bin, {error, FileReason}})
     catch
-        _:WriteReason:WriteEST ->
+        ?CATCH_STACKTRACE(_, WriteReason, WriteEST)
             io:format("\nINTERNAL LUX ERROR: file write failed:"
                       " ~p\n\t~p\n\t~p\n",
                       [WriteReason, Bin, WriteEST]),
