@@ -269,13 +269,19 @@ do_normalize_path([], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 steal_signals() ->
+    case erlang:function_exported(os, set_signal, 2) of
+        true  -> do_steal_signals();
+        false -> false % Pre OTP 20
+    end.
+
+do_steal_signals() ->
     Pid = spawn_link(fun echo_signals/0),
     catch erlang:unregister(erl_signal_server),
     true = erlang:register(erl_signal_server, Pid),
                                     % io:format("ospid=~s\n", [os:getpid()]),
     os:set_signal(sigusr1, handle), % io:format("sigusr1=crashdump\n", []),
     os:set_signal(sigusr2, handle), % io:format("sigusr2=procinfo\n", []),
-    Pid.
+    true.
 
 echo_signals() ->
     receive
