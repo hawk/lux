@@ -231,11 +231,13 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
                     C
             end;
         Unexpected ->
+            Port = C#cstate.port,
             ?TRACE_ME2(70, C#cstate.name, internal_error,
-                       [{shell_got, Unexpected}]),
-            clog(C, internal, "\"shell_got_msg ~p\"", [element(1, Unexpected)]),
-            io:format("\nINTERNAL LUX ERROR: Shell got: ~p\n",
-                      [Unexpected]),
+                       [{shell_got, Unexpected}, {port, Port}]),
+            clog(C, internal, "\"shell_got_msg ~p (port=~p)\"",
+                 [element(1, Unexpected), Port]),
+            io:format("\nINTERNAL LUX ERROR: Shell got: ~p (port=~p)\n",
+                      [Unexpected, Port]),
             io:format("\nDEBUG(~p):\n\t~p\n",
                       [?LINE, process_info(self(), messages)]),
             C
