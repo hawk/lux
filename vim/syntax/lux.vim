@@ -30,6 +30,7 @@ syn match luxVarArg /\(\$\)\@1<!\$[a-zA-Z0-9_]\+/ contained
 
 syn keyword luxKeyword config include contained nextgroup=luxArgs skipwhite
 syn keyword luxKeyword shell contained nextgroup=luxArgs skipwhite
+syn keyword luxKeyword newshell contained nextgroup=luxArgs skipwhite
 syn keyword luxKeyword timeout contained
             \ nextgroup=luxNumArg,luxVarArg,luxMetaEnd skipwhite
 syn keyword luxKeyword sleep contained nextgroup=luxNumArg,luxVarArg skipwhite

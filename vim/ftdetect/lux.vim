@@ -1,1 +1,1 @@
-autocmd BufNewFile,BufRead *.lux,*.luxinc set filetype=lux
+autocmd BufNewFile,BufRead *.lux,*.luxcfg,*.luxinc set filetype=lux
