@@ -40,23 +40,67 @@
 ;; Indentation
 
 (defvar lux-keywords
-  '("shell" "endshell" "cleanup"
-    "timeout" "sleep"
-    "doc" "enddoc" "doc0" "doc1" "doc2" "doc3" "doc4" "doc5"
+  '(
+    "progress" "doc" "enddoc" "doc0" "doc1" "doc2" "doc3" "doc4" "doc5"
+    "shell" "newshell" "endshell" "cleanup"
+    "macro" "endmacro" "invoke"
     "loop" "endloop"
-    "macro" "endmacro" "invoke"))
+    "timeout" "sleep"
+    ))
 
 (defvar lux-meta-commands
-  '("my" "local" "global" "config" "include" "macro" "endshell"))
+  '("my" "local" "global" "config" "include"))
 
 (defvar lux-events
   '("set-line-terminator" "reset-line-terminator" "set-timestamp"))
 
 (defvar lux-config-params
-  '("progress" "debug" "log_dir" "arch" "config_dir" "skip" "skip_unless"
-    "timeout" "multiplier" "suite_timeout" "case_timeout" "flush_timeout"
-    "poll_timeout" "require" "shell_wrapper" "shell_cmd" "shell_arg"
-    "line_term" "file_pattern" "var"))
+  '(
+    "case_prefix"
+    "case_timeout"
+    "cleanup_timeout"
+    "config_dir"
+    "config_name"
+    "debug"
+    "debug_file"
+    "extend_run"
+    "fail_when_warning"
+    "file_pattern"
+    "filter_trace"
+    "flush_timeout"
+    "hostname"
+    "html"
+    "junit"
+    "log_dir"
+    "mode"
+    "multiplier"
+    "newshell"
+    "poll_timeout"
+    "post_case"
+    "progress"
+    "require"
+    "rerun"
+    "revision"
+    "risky_threshold"
+    "root_dir"
+    "run"
+    "shell_args"
+    "shell_cmd"
+    "shell_prompt_cmd"
+    "shell_prompt_regexp"
+    "shell_wrapper"
+    "shell_wrapper_mode"
+    "skip"
+    "skip_skip"
+    "skip_unless"
+    "skip_unstable"
+    "sloppy_threshold"
+    "suite"
+    "suite_timeout"
+    "tap"
+    "timeout"
+    "var"
+    ))
 
 (defvar lux-indent 4)
 (defvar lux-keywords-regexp (regexp-opt lux-keywords 'words))
@@ -70,10 +114,9 @@
     (,lux-events-regexp . font-lock-builtin-face)
     (,lux-meta-commands-regexp . font-lock-preprocessor-face)
     (,lux-config-params-regexp . font-lock-function-name-face)
-    ;; match a failure regexp
-    ("^\s*-.*$" . font-lock-warning-face)
-    ;; match a success regexp
-    ("^\s*\\+.*$" . font-lock-type-face)
+    ("^\s*@.*$" . font-lock-warning-face)     ;; match a break regexp
+    ("^\s*-.*$" . font-lock-warning-face)     ;; match a failure regexp
+    ("^\s*\\+.*$" . font-lock-type-face)      ;; match a success regexp
     ("\\$\\([[:alnum:]_-]+\\)" 1 font-lock-variable-name-face)
     ("\\${\\([[:alnum:]_-]+\\)}" 1 font-lock-variable-name-face)))
 
@@ -106,7 +149,7 @@ Region is defined by START and END."
           (cur-indent nil)
           (comment "^[ \t]*#")
           (major-comment "^[ \t]*##")
-          (major-expr "^[ \t]*\\[\\(shell\\|cleanup\\|macro\\)")
+          (major-expr "^[ \t]*\\[\\(shell\\|newshell\\|cleanup\\|macro\\)")
           (block-expr "^[ \t]*\\[\\(loop\\)")
           (end-expr "^[ \t]*\\[\\(endloop\\|endmacro\\)"))
 
@@ -271,7 +314,8 @@ Move point there and make an entry in `lux-window-history-ring'."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Autoload
 
-(dolist (a '(("\\.lux$" . lux-mode)
+(dolist (a '(("\\.lux$"    . lux-mode)
+             ("\\.luxcfg$" . lux-mode)
              ("\\.luxinc$" . lux-mode)))
   (add-to-list 'auto-mode-alist a))
 
