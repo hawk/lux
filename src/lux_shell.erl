@@ -236,10 +236,10 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
                        [{shell_got, Unexpected}, {port, Port}]),
             clog(C, internal, "\"shell_got_msg ~p (port=~p)\"",
                  [element(1, Unexpected), Port]),
-            io:format("\nINTERNAL LUX ERROR: Shell got: ~p (port=~p)\n",
-                      [Unexpected, Port]),
-            io:format("\nDEBUG(~p):\n\t~p\n",
-                      [?LINE, process_info(self(), messages)]),
+            %% io:format("\nINTERNAL LUX ERROR: Shell got: ~p (port=~p)\n",
+            %%           [Unexpected, Port]),
+            %% io:format("\nDEBUG(~p):\n\t~p\n",
+            %%           [?LINE, process_info(self(), messages)]),
             C
     after LoopTimeout ->
             C#cstate{idle_count = C#cstate.idle_count + 1}
