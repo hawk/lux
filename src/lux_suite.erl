@@ -460,8 +460,7 @@ annotate_event_log(R, Script, NewSummary, CaseLogDir, Opts) ->
     if
         SummaryPrio >= HtmlPrio ->
             Base = filename:basename(Script),
-            EventLog = filename:join([CaseLogDir,
-                                      Base ++ ?CASE_EVENT_LOG]),
+            EventLog = filename:join([CaseLogDir, Base ++ ?CASE_EVENT_LOG]),
             SuiteLogDir = R#rstate.log_dir,
             NoHtmlOpts = lists:keydelete(html, 1, Opts),
             Transform = [],
@@ -1489,6 +1488,8 @@ suite_config_type(Name) ->
             {ok, [string]};
         hostname ->
             {ok, [string]};
+        history_cases ->
+            {ok, [{atom, [latest, any]}]};
         file_pattern ->
             {ok, [string]};
         tap ->

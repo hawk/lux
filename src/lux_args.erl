@@ -49,6 +49,7 @@ specs() ->
      {"--xref",               false,       boolean,                none},
      {"--annotate",           false,       string,                 mandatory},
      {"--history",            false,       string,                 mandatory},
+     {"--history_cases",      false,       {enum, history_cases},  mandatory},
      {"--merge",              false,       string,                 mandatory},
      {"--rerun",              enable,      {enum, prio},           mandatory},
      {"--html",               enable,      {enum, html},           mandatory},
@@ -102,6 +103,8 @@ enum(profile) ->
     [standalone, development, embedded];
 enum(mode) ->
     [list, list_dir, doc, validate, dump, expand, execute];
+enum(history_cases) ->
+    [latest, any];
 enum(wrapper_mode) ->
     [silent, debug, trace];
 enum(prio) ->
@@ -204,6 +207,7 @@ translate_opts([
      {"--xref",               _Xref},
      {"--annotate",           _AnnLogFile},
      {"--history",            _HistLogDir},
+     {"--history_cases",      HistoryCases},
      {"--merge",              _MergeLogDir},
      {"--rerun",              ReRun},
      {"--html",               Html},
@@ -260,6 +264,7 @@ translate_opts([
          {debug,              Debug},
          {debug_file,         DebugFile},
          {progress,           Progress},
+         {history_cases,      HistoryCases},
          {rerun,              ReRun},
          {html,               Html},
          {case_timeout,       CaseTimeout},

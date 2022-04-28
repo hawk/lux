@@ -63,9 +63,9 @@ generate(PrefixedSources, RelHtmlDir, Opts0) ->
                     io:format("\n<WARNING> No caching of remote logs\n", [])
             end,
 
-            Cases = lists:flatten([CaseRuns || #run{runs = CaseRuns} <- Runs]),
+            CaseRuns = lists:flatten([R#run.runs || R <- Runs]),
             io:format("\nAnalyzed ~p test runs with ~p test cases (~p errors)",
-                      [length(Runs), length(Cases),length(Errors)]),
+                      [length(Runs), length(CaseRuns),length(Errors)]),
             %% TIME: io:format("\nDONE ~p\n", [time()]),
             do_generate(?l2b(RelHtmlDir), Runs, Errors, Opts);
         {error, ErrFile, ErrReason} ->
@@ -225,7 +225,9 @@ do_generate(RelHtmlDir, AllRuns, Errors, Opts) ->
     MultiBranch = (length(SplitBranches) > 1),
     DeepPages = the_pages(AllRuns, SplitBranches, MultiBranch),
     {AllPages, TagDict} = adjust_pages(DeepPages),
-    AllG = [gen_page(RelHtmlDir, MultiBranch, P, TagDict) || P <- AllPages],
+    WhichCases = lux_utils:pick_opt(history_cases, Opts, latest),
+    AllG = [gen_page(RelHtmlDir, MultiBranch, P, TagDict, WhichCases)
+            || P <- AllPages],
     Footer =
         [
          args(RelHtmlDir, Opts),
@@ -397,12 +399,25 @@ errors(Errors) ->
      "</table>\n\n"
     ].
 
-extract_failed_runs(T) ->
-    IsFail = fun(#row{res = RowRes}) -> not is_success_res(RowRes) end,
-    FailedRows = lists:takewhile(IsFail, T#table.rows),
+extract_failed_runs(T, WhichCases) ->
+    FailedRows = extract_failed_rows(T, WhichCases),
     SortedFailedRows = lists:keysort(#row.test, FailedRows),
     SortedSplitTests = lists:keysort(1, T#table.split_tests),
     do_extract_failed_runs(SortedSplitTests, SortedFailedRows, []).
+
+extract_failed_rows(T, latest) ->
+    IsRowFail = fun(#row{res = RowRes}) -> not is_success_res(RowRes) end,
+    lists:takewhile(IsRowFail, T#table.rows);
+extract_failed_rows(T, any) ->
+    IsAnyCellFail =
+        fun(#row{cells = Cells}) ->
+                CellTest =
+                    fun(#cell{res = CellRes}) ->
+                            not is_success_res(CellRes)
+                    end,
+                lists:any(CellTest, Cells)
+        end,
+    lists:filter(IsAnyCellFail, T#table.rows).
 
 do_extract_failed_runs([{Test, Runs} | SortedSplitTests],
                        [FailedRow | SortedFailedRows] = AllSortedFailedRows,
@@ -791,13 +806,18 @@ gen_log_link(AbsHtmlDir, Run, Slogan) ->
             lux_html_utils:html_href([NewLog, ".html"], Slogan)
     end.
 
-gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict) ->
+gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict, WhichCases) ->
     AbsHtmlDir = lux_utils:normalize_filename(RelHtmlDir),
     SuiteP = CurrP#page{title = "All test suites"},
     SuiteT = gen_table(AbsHtmlDir, MultiBranch, SuiteP, TagDict),
-    FailedRuns = extract_failed_runs(SuiteT),
+    FailedRuns = extract_failed_runs(SuiteT, WhichCases),
     CaseRuns = extract_test_case_runs(FailedRuns),
-    CaseP = CurrP#page{title = "Still failing test cases",
+    Title =
+        case WhichCases of
+            latest -> "Still failing test cases";
+            any    -> "Unstable test cases"
+        end,
+    CaseP = CurrP#page{title = Title,
                        suppress = suppress_any_success,
                        select   = select_latest,
                        runs     = CaseRuns},
