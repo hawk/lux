@@ -33,6 +33,8 @@
          run    :: #run{}}).
 
 generate(PrefixedSources, RelHtmlDir, Opts0) ->
+    {ok, Cwd} = file:get_cwd(),
+    io:format("Cwd: ~s\n", [Cwd]),
     io:format("Invoke: ~s\n", [string:join(init:get_plain_arguments(), " ")]),
     io:format("Assembling history of logs from...", []),
     %% TIME: io:format("\nASSEMBLE ~p\n", [time()]),
@@ -801,7 +803,18 @@ gen_log_link(AbsHtmlDir, Run, Slogan) ->
                         {ok, Cwd} = file:get_cwd(),
                         NewLogDir = Run#run.new_log_dir,
                         TmpLog = filename:join([Cwd, NewLogDir, OldLog]),
-                        lux_utils:drop_prefix(AbsHtmlDir, TmpLog)
+                        RelLog = lux_utils:drop_prefix(AbsHtmlDir, TmpLog),
+
+                        %% Link to wrapper log if it exists
+                        Ext = <<".log">>,
+                        BaseLog = filename:rootname(TmpLog, Ext),
+                        WrapLog = <<BaseLog/binary, "_wrapper", Ext/binary>>,
+                        RelWrapLog = lux_utils:drop_prefix(AbsHtmlDir, WrapLog),
+                        WrapHtml = <<WrapLog/binary, ".html">>,
+                        case filelib:is_regular(WrapHtml) of
+                            true  -> RelWrapLog;
+                            false -> RelLog
+                        end
                 end,
             lux_html_utils:html_href([NewLog, ".html"], Slogan)
     end.
