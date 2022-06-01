@@ -232,7 +232,7 @@ deep_parse_summary_log(Log) ->
     lux_utils:stop_app(NewWWW),
     DeepParseRes.
 
-flatten_summary_results({ok, _ResSummary, Cases, _, _, _}) ->
+flatten_summary_results({ok, _Res, Cases, _Config, _Ctime, _EventLogs}) ->
     Init =
         fun(Summary, Script, FullLineNo) ->
                 {suite_ok, Summary, Script, FullLineNo,
@@ -270,6 +270,15 @@ flatten_summary_results({ok, _ResSummary, Cases, _, _, _}) ->
 flatten_summary_results({error, _File, _Reason}) ->
     [].
 
+find_config(Key, ConfigProps, Default) when is_list(ConfigProps) ->
+    lux_log:find_config(Key, ConfigProps, Default);
+find_config(Key, {ok, _Res, _Cases, Config, _Ctime, _EventLogs}, Default) ->
+    ConfigBins = binary:split(Config, <<"\n">>, [global]),
+    ConfigProps = lux_log:split_config(ConfigBins),
+    find_config(Key, ConfigProps, Default);
+find_config(_Key, {error, _File, _Reason}, Default) ->
+    Default.
+
 write_config_log(SummaryLog, ConfigData) ->
     LogDir = filename:dirname(SummaryLog),
     ConfigLog = filename:join([LogDir, ?SUITE_CONFIG_LOG]),
@@ -283,11 +292,16 @@ merge_logs(Sources, RelTargetDir, Opts) ->
     RelDir = "",
     Cands = lux_utils:summary_log_candidates(),
     DeepLogRes = collect_logs(Sources, RelTargetDir, RelDir, Cands, []),
-    case [{Log, flatten_summary_results(Res)} || {Log, Res} <- DeepLogRes] of
+    SemiFlatLogRes =
+         [{Log,
+           find_config(<<"log_dir">>, Res, no_log_dir),
+           flatten_summary_results(Res)} ||
+             {Log, Res} <- DeepLogRes],
+    case SemiFlatLogRes of
         [] ->
             {error, RelTargetDir, file:format_error(enoent)};
-        FlatLogRes ->
-            ok = do_merge_logs(RelTargetDir, FlatLogRes),
+        _ ->
+            ok = do_merge_logs(RelTargetDir, SemiFlatLogRes),
             RelSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
             AbsSummaryLog = lux_utils:normalize_filename(RelSummaryLog),
             Transform = transform_summary_results(DeepLogRes),
@@ -362,18 +376,21 @@ transform_summary_results(DeepLogRes) ->
         end,
     lists:map(Transform, DeepLogRes).
 
-do_merge_logs(RelTargetDir, FlatLogRes) ->
+do_merge_logs(RelTargetDir, SemiFlatLogRes) ->
     ok = filelib:ensure_dir(filename:join([RelTargetDir, "dummy"])),
-    merge_summary_logs(RelTargetDir, FlatLogRes, undefined, []),
-    merge_tap_logs(RelTargetDir, FlatLogRes, []),
-    merge_result_logs(RelTargetDir, FlatLogRes),
-    merge_config_logs(RelTargetDir, FlatLogRes),
+    merge_summary_logs(RelTargetDir, SemiFlatLogRes, undefined, []),
+    merge_tap_logs(RelTargetDir, SemiFlatLogRes, []),
+    merge_result_logs(RelTargetDir, SemiFlatLogRes),
+    merge_config_logs(RelTargetDir, SemiFlatLogRes),
     ok.
 
-merge_summary_logs(RelTargetDir, [{SummaryLog, _Res} | Rest], _OldHead, Acc) ->
+merge_summary_logs(RelTargetDir,
+                   [{SummaryLog, OrigLogDir, _Res} | Rest], _OldHead, Acc) ->
     {ok, Bin} = file:read_file(SummaryLog),
     [Head | Body] = binary:split(Bin, <<"\n">>, []),
-    merge_summary_logs(RelTargetDir, Rest, Head, [Body | Acc]);
+    SummaryLogDir = ?l2b(filename:dirname(SummaryLog)),
+    Body2 = replace_summary_paths(OrigLogDir, SummaryLogDir, Body),
+    merge_summary_logs(RelTargetDir, Rest, Head, [Body2 | Acc]);
 merge_summary_logs(_RelTargetDir, [], undefined, []) ->
     ok;
 merge_summary_logs(RelTargetDir, [], Head, Acc) ->
@@ -381,7 +398,18 @@ merge_summary_logs(RelTargetDir, [], Head, Acc) ->
     TargetSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
     ok = file:write_file(TargetSummaryLog, Contents).
 
-merge_tap_logs(RelTargetDir, [{SummaryLog, _Res} | Rest], Acc) ->
+replace_summary_paths(no_log_dir, _NewPath, Body) ->
+    Body;
+replace_summary_paths(OrigLogDir, NewPath, Body) ->
+    do_replace_summary_paths(OrigLogDir, NewPath, Body, []).
+
+do_replace_summary_paths(OldPath, NewPath, [H | T], Acc) ->
+    H2 = binary:replace(H, OldPath, NewPath, [global]),
+    do_replace_summary_paths(OldPath, NewPath, T, [H2 | Acc]);
+do_replace_summary_paths(_OldPath, _NewPath, [], Acc) ->
+    lists:reverse(Acc).
+
+merge_tap_logs(RelTargetDir, [{SummaryLog, _OrigLogDir, _Res} | Rest], Acc) ->
     Dir = filename:dirname(SummaryLog),
     TapLog = filename:join([Dir, ?SUITE_TAP_LOG]),
     {ok, Bin} = file:read_file(TapLog),
@@ -391,8 +419,9 @@ merge_tap_logs(RelTargetDir, [], Acc) ->
     TargetTapLog = filename:join([RelTargetDir, ?SUITE_TAP_LOG]),
     ok = file:write_file(TargetTapLog, Contents).
 
-merge_result_logs(RelTargetDir, FlatLogRes) ->
-    FlatRes = lists:flatten([Res || {_Log, Res} <- FlatLogRes]),
+merge_result_logs(RelTargetDir, SemiFlatLogRes) ->
+    FlatRes = lists:flatten([Res ||
+                                 {_Log, _OrigLogDir, Res} <- SemiFlatLogRes]),
     Summary = case_summary(FlatRes, success),
     TargetSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
     Warnings = [],
@@ -407,7 +436,7 @@ case_summary([CaseRes | Rest], OldSummary) ->
 case_summary([], Summary) ->
     Summary.
 
-merge_config_logs(RelTargetDir, [{FirstSummaryLog, _Res} | _Rest]) ->
+merge_config_logs(RelTargetDir, [{FirstSummaryLog, _OLD, _Res} | _Rest]) ->
     TargetConfigLog = filename:join([RelTargetDir, ?SUITE_CONFIG_LOG]),
     Dir = filename:dirname(FirstSummaryLog),
     FirstConfigLog = filename:join([Dir, ?SUITE_CONFIG_LOG]),

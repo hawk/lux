@@ -136,16 +136,16 @@ do_parse_summary_log(SummaryLog, Sections, NewWWW) ->
     SummaryConfig = parse_config(RawConfig),
     {{ok, Result}, NewWWW} = parse_summary_result(LogDir, NewWWW),
     {Cases, EventLogs} = split_cases(Sections, [], []),
-    Ctime =
+    CreationTime =
         case lux_utils:is_url(SummaryLog) of
             true ->
                 <<"remote">>;
             false ->
                 {ok, FI} = file:read_file_info(SummaryLog),
-                Ctime0 = FI#file_info.ctime,
-                ?l2b(lux_utils:datetime_to_string(Ctime0))
+                Ctime = FI#file_info.ctime,
+                ?l2b(lux_utils:datetime_to_string(Ctime))
         end,
-    {ok, Result, Cases, SummaryConfig, Ctime, EventLogs}.
+    {ok, Result, Cases, SummaryConfig, CreationTime, EventLogs}.
 
 read_log(Log, ExpectedTag, WWW) when is_list(Log) ->
     {FetchRes, NewWWW} = fetch_log(Log, WWW),
