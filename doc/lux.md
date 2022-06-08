@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.7.1 - 2022-03-29
+Version 2.8 - 2022-06-23
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1730,6 +1730,12 @@ times. For example when there are several versions of the system under
 test:
 
     lux --history . debug::PathToDebugLogDir release::PathToReleaseLogDir
+
+**--history_cases WhichCases...**
+`WhichCases` controls the selection of failing test cases in a history
+run. It defaults to `any` which means that all test cases that has
+failed at least once are included. Setting it to `latest` means that
+only the test cases that failed in the latest run is included.
 <a name="config_params"/>
 
 Configuration parameters
@@ -2810,12 +2816,36 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_03_29_08_05_54_8850/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:..:.:...:..:.:.:.:....:...:.:.:..(....:..:.:.:...)(.:.:..:.:..)...:..:..:.:.:..(.:.:..:..)..(.:.:..:..)(....:.:.:..:...)(.:..:.:..)..(.:..:.:..)......:..:........
+>     progress          : ..:..:.:..:...:..:.:.:.:....:..:.:..:..(....:..:.:.:.:.:...)(.:.:..:..)...:..:.:..:..(.:.:..:..)..(.:.:..:..)(....:.:..:...)(.:.:..:..)..(..:.:.:..)......:..:........
 >     result            : SUCCESS
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/fail.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/fail.lux"}]}
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:.:...:.:..:.:...:.:.:....:.:...32C..:..:..:.:.:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:.:..:...:.:..:.:.:...:.:.:.:....:.:..:..32C..:..:.:..:..:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at line 32 in shell calculator
 >     expected*
 >     	19
@@ -2831,14 +2861,230 @@ Evaluate `lux examples`
 >     	+ 18
 >     	+ 4> 
 >     	
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:.:..:.:.:.....:..:.:..:.:..:..:.:..:.:..:.:.:..:.:.:..:.:..:.:.:....:..:.:.:....c.:.....:..:..:.:..:..:.:.:..:.:..:.
+>     progress          : ..:..:.:..:..:.:.:.....:..:.:..:..:..:.:..:.:..:.:.:..:.:.:..:.:.....:..:.:.:....c.:.....:..:.:..:..:..:.:..:.:..:.
 >     result            : SUCCESS
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/intro.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/intro.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.:.((.:..:.:.:.:.)(..:.:.:.:.)(.:..:.:.:.))((.:..:.:.)(..:.:.:.:.:.)(..:.:.:.)(..:.:.:.:.:.)(.:..:.:.:.))((.:..:.:.)(.:..:.:.:.:.)(..:.:.:.:.)(..:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.))...:..:..:.:..:.:..:.:.:..:.:..:.:.:...:.:..:..:.:.((.i=1..:..:.:.:.:..z)(z..i=2...:.:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4...:.:.:.:.)).c........:..:.:..:...:.:.:.:.:.
+>     progress          : ..:..:.:..:.((.:..:.:.)(.:..:.:.)(.:..:.:.))((.:..:.:.)(.:.:..:.)(.:..:.)(.:..:.:.)(.:..:.:.))((..:.:.:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.:.)(.:..:.:.)(.:..:.))...:..:..:..:..:.:.:.:..:.:..:.:...:..:.:..:.((.i=1...:.:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3...:.:.:..z)(:.z..i=4..:..:.:.:.)).c........:..:.:..:..:..:.:.
 >     result            : SUCCESS
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/intro.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/intro.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..:.((.i=1..:..:.:..z)(z..i=2...:.:..z)(z..i=3...:.:..z))+5
+>     progress          : ..:..:.:..:.((.i=1...:.:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
 >     result            : FAIL at line 5 in shell break
 >     expected*
 >     	
@@ -2851,8 +3097,128 @@ Evaluate `lux examples`
 >     result            : FAIL as required variable YADA_MAKE is not set
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/intro.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/intro.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop_fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop_fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop_fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
 >     test case         : examples/unstable_warn.lux
->     progress          : ..:...:.:.:.:....7
+>     progress          : ..:..:.:..:....7
 >     warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at line 7 in shell foo
 >     expected*
@@ -2863,6 +3229,150 @@ Evaluate `lux examples`
 >     	- bar
 >     	+ 
 >     	
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/intro.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/intro.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop_fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop_fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop_fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/unstable_warn.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/unstable_warn.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/unstable_warn.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "yyyy-mm-dd hh:mm:ss",enable,
+>                 [{case_prefix,[]},
+>                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
 >     test case         : examples/warning.lux
 >     progress          : W
 >     warning           : 3: Trailing whitespaces
@@ -2878,7 +3388,161 @@ Evaluate `lux examples`
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_03_29_08_05_54_8850/lux_summary.log.html
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/calc.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/calc.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/intro.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/intro.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/loop_fail.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop_fail.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/loop_fail.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/unstable_warn.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/unstable_warn.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/unstable_warn.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     RHL  examples/warning.lux.event.log.html
+>     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/warning.lux.event.log.html
+>     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
+>     NRHL  examples/warning.lux.event.log.html
+>     OA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     NA  {astate,"/Users/hmattsso/dev/lux",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
+>                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
+>                 no_script_file,[],"2022-06-08 10:21:55.419636",
+>                 "2022-06-08 10:22:06.297963",enable,
+>                 [{case_prefix,[]},{html,enable}]}
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
