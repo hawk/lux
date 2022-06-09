@@ -45,12 +45,12 @@ generate(PrefixedSources, RelHtmlDir, Opts0) ->
     CacheFile = filename:join([CacheDir, ?HISTORY_LOG_BASE ++ ".cache"]),
     case read_cache(CacheFile, Opts) of
         {ok, OldThreshold, OldRuns, OldErrors} ->
-            ValidRuns = validate_runs(OldRuns),
+            ValidOldRuns = validate_runs(OldRuns),
             OldWWW = undefined,
             {Threshold, Runs, Errors, NewWWW} =
                 collect(SplitSources, RelHtmlDir,
                         OldThreshold, OldThreshold,
-                        ValidRuns, OldErrors, OldWWW, Opts),
+                        ValidOldRuns, OldErrors, OldWWW, Opts),
             case NewWWW of
                 {N, StopFun} -> lux_utils:stop_app(StopFun);
                 undefined    -> N = 0;
@@ -141,7 +141,7 @@ split_source(OrigSourceStr) when is_list(OrigSourceStr) ->
             SuitePrefix = undefined,
             File = PrefixedSource
     end,
-    #source{branch=Branch,
+    #source{branch = Branch,
             suite_prefix = SuitePrefix,
             file = File,
             dir = source_dir(File),
@@ -211,7 +211,7 @@ collect([], _RelHtmlDir, _Threshold, Newest, Runs, Errors, WWW, _Opts) ->
 collect_branch([Source | Sources], RelHtmlDir,
                Threshold, Newest,
                Runs, Errors, WWW, Opts) ->
-    io:format("\n\t~s", [Source#source.orig]),
+    io:format("\n\t~s ", [Source#source.orig]),
     {{NewNewest, NewRuns, NewErrors}, NewWWW} =
         parse_summary_logs(Source, RelHtmlDir,
                            Threshold, Newest, Runs, Errors, WWW, Opts),
@@ -237,7 +237,7 @@ do_generate(RelHtmlDir, AllRuns, Errors, Opts) ->
          lux_html_utils:html_footer()
         ],
     [write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
-                TagDict, Errors, Footer) ||
+                TagDict, Errors, WhichCases, Footer) ||
         CurrG <- AllG],
     RelHtmlFile = filename:join([RelHtmlDir, ?HISTORY_LOG_BASE ++ ?HTML_EXT]),
     {ok, RelHtmlFile}.
@@ -671,17 +671,14 @@ gen_cells(AbsHtmlDir, Test, TestRuns, [{Id, _} | SplitIds],
         Id =:= (hd(TestRuns))#run.id ->
             [Run | RestRuns] = TestRuns,
             {Cell, NewHostMap} =
-                gen_cell(AbsHtmlDir, Test, Run,
-                         MultiBranch, TagDict, HostMap),
+                gen_cell(AbsHtmlDir, Test, Run, MultiBranch, TagDict, HostMap),
             NewRowRes =
-                case Select of
-                    select_latest when Cell#cell.res =:= no_data orelse
-                                       Cell#cell.res =:= none ->
-                        RowRes;
-                    select_latest ->
-                        Cell#cell.res;
-                    select_worst ->
-                        lux_utils:summary(RowRes, Cell#cell.res)
+                case {Select, Cell#cell.res} of
+                    {select_latest, no_data} -> RowRes;
+                    {select_latest, none}    -> RowRes;
+                    {select_latest, CellRes} -> CellRes;
+                    {select_worst, CellRes}  ->
+                        lux_utils:summary(RowRes, CellRes)
                 end;
         true ->
             %% No test result
@@ -825,18 +822,20 @@ gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict, WhichCases) ->
     SuiteT = gen_table(AbsHtmlDir, MultiBranch, SuiteP, TagDict),
     FailedRuns = extract_failed_runs(SuiteT, WhichCases),
     CaseRuns = extract_test_case_runs(FailedRuns),
-    Title =
-        case WhichCases of
-            latest -> "Still failing test cases";
-            any    -> "Unstable test cases"
-        end,
-    CaseP = CurrP#page{title = Title,
+    Failing = failing_test_cases_title(WhichCases),
+    CaseP = CurrP#page{title = Failing,
                        suppress = suppress_any_success,
                        select   = select_latest,
                        runs     = CaseRuns},
     CaseT = gen_table(AbsHtmlDir, MultiBranch, CaseP, TagDict),
     WarnIoList = gen_warnings(AbsHtmlDir, CaseT),
     {CurrP, SuiteT, CaseT, WarnIoList}.
+
+failing_test_cases_title(WhichCases) ->
+    case WhichCases of
+        latest -> "Still failing test cases";
+        any    -> "Failing test cases"
+    end.
 
 gen_warnings(AbsHtmlDir, #table{rows = Rows}) ->
     Latest = [(hd(Row#row.cells))#cell.run  || Row <- Rows],
@@ -953,10 +952,10 @@ classify_warning(Text) ->
     lists:foldl(Replace, Text, Replacements).
 
 write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
-           TagDict, Errors, Footer) ->
+           TagDict, Errors, WhichCases, Footer) ->
     {CurrP, SuiteT, CaseT, OptWarn} = CurrG,
     Header = header(RelHtmlDir, MultiBranch, AllRuns,
-                    CurrG, AllG, TagDict, Errors),
+                    CurrG, AllG, TagDict, Errors, WhichCases),
     PageIoList =
         [
          Header,
@@ -994,7 +993,8 @@ write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
             lux_html_utils:safe_write_file(RelHtmlFile, PageIoList)
     end.
 
-header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG, TagDict, Errors) ->
+header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
+       TagDict, Errors, WhichCases) ->
     {CurrP, SuiteT, CaseT, WarnIoList} = CurrG,
     PageName = string:join(page_name(CurrP), " "),
     case lists:keysort(#run.repos_rev, AllRuns) of
@@ -1054,10 +1054,10 @@ header(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG, TagDict, Errors) ->
                   "</h3>\n"
                  ];
              true ->
+                 Failing = failing_test_cases_title(WhichCases),
                  [
                   "<h3>",
-                  lux_html_utils:html_href("#failing_test_cases",
-                                           "Still failing test cases"),
+                  lux_html_utils:html_href("#failing_test_cases", Failing),
                   "</h3>\n"
                  ]
          end,

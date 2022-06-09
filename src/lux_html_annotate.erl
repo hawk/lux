@@ -1,4 +1,3 @@
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2012-2022 Tail-f Systems AB
 %%
@@ -464,9 +463,9 @@ interleave_code(A, Events, Script) ->
     Files = [],
     Cache = dict:new(),
     Flush = (Events =:= []),
-    {SubAnnotated, Files2, _Cache2} =
+    {SubAnnotated, RevFiles, _Cache2} =
         interleave_file(A, Events, Flush, Script, 1, 999999, [], Files, Cache),
-    {SubAnnotated, Files2}.
+    {SubAnnotated, lists:reverse(RevFiles)}.
 
 interleave_file(A, Events, Flush, Script,
                 FirstLineNo, MaxLineNo,

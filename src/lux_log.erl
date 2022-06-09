@@ -91,12 +91,13 @@ close_summary_tmp_log(SummaryFd) ->
     file:close(SummaryFd).
 
 parse_summary_log(SummaryLog, WWW) when is_list(SummaryLog) ->
+    BinSummaryLog = ?l2b(SummaryLog),
     Source = #source{branch = undefined,
                      suite_prefix = undefined,
-                     file = ?l2b(SummaryLog),
-                     orig = ?l2b(SummaryLog)},
+                     file = BinSummaryLog,
+                     orig = BinSummaryLog},
     parse_summary_log(Source, WWW);
-parse_summary_log(#source{file=SummaryLog} = Source, WWW)
+parse_summary_log(#source{file = SummaryLog} = Source, WWW)
   when is_binary(SummaryLog)->
     try
         try_parse_summary_log(Source, WWW)
@@ -364,25 +365,32 @@ do_parse_run_summary(Source, SummaryLog, Res, Opts) ->
             ReposRev =
                 find_config(<<"revision">>, ConfigProps, R#run.repos_rev),
             RunDir = find_config(<<"run_dir">>, ConfigProps, R#run.run_dir),
+            OrigRunDir =
+                find_config(<<"orig_run_dir">>, ConfigProps, RunDir),
             RunLogDir = find_config(<<"log_dir">>, ConfigProps, RunDir),
+            OrigLogDir =
+                find_config(<<"orig_log_dir">>, ConfigProps, RunLogDir),
             NewLogDir = R#run.new_log_dir,
-            NewCases = [parse_run_case(NewLogDir, RunDir, RunLogDir,
+            NewCases = [parse_run_case(NewLogDir, RunDir, OrigRunDir,
+                                       RunLogDir, OrigLogDir,
                                        StartTime, Branch, HostName, ConfigName,
                                        Suite, RunId, ReposRev, Case) ||
-                        Case <- Cases],
+                           Case <- Cases],
             {RunWarnings, RunResult} = run_result(Result),
-            R#run{test        = Suite,
-                  id          = RunId,
-                  result      = RunResult,
-                  warnings    = RunWarnings,
-                  start_time  = StartTime,
-                  branch      = Branch,
-                  hostname    = HostName,
-                  config_name = ConfigName,
-                  run_dir     = RunDir,
-                  run_log_dir = true_drop_prefix(RunDir, RunLogDir),
-                  repos_rev   = ReposRev,
-                  runs        = NewCases};
+            R#run{test         = Suite,
+                  id           = RunId,
+                  result       = RunResult,
+                  warnings     = RunWarnings,
+                  start_time   = StartTime,
+                  branch       = Branch,
+                  hostname     = HostName,
+                  config_name  = ConfigName,
+                  run_dir      = RunDir,
+                  orig_run_dir = true_drop_prefix(RunDir, OrigRunDir),
+                  run_log_dir  = true_drop_prefix(RunDir, RunLogDir),
+                  orig_log_dir = true_drop_prefix(RunDir, OrigLogDir),
+                  repos_rev    = ReposRev,
+                  runs         = NewCases};
         {error, _SummaryLog, _ReasonStr} ->
             R
     end.
@@ -430,14 +438,16 @@ split_config(ConfigBins) ->
         end,
     lists:zf(Split, ConfigBins).
 
-parse_run_case(NewLogDir, RunDir, RunLogDir,
+parse_run_case(NewLogDir, RunDir, OrigRunDir, RunLogDir, OrigLogDir,
                StartTime, Branch, Host, ConfigName,
                Suite, RunId, ReposRev,
                {test_case, AbsName, AbsEventLog, _Doc, _HtmlLog, CaseRes})
   when is_binary(NewLogDir), is_binary(RunDir), is_binary(RunLogDir),
        is_list(AbsName), is_list(AbsEventLog) ->
-    RelEventLog = lux_utils:drop_prefix(RunLogDir, ?l2b(AbsEventLog)),
-    RelNameBin = lux_utils:drop_prefix(RunDir, ?l2b(AbsName)),
+    RelEventLog0 = lux_utils:drop_prefix(OrigLogDir, ?l2b(AbsEventLog)),
+    RelEventLog = lux_utils:drop_prefix(RunLogDir, RelEventLog0),
+    RelNameBin0 = lux_utils:drop_prefix(OrigRunDir, ?l2b(AbsName)),
+    RelNameBin = lux_utils:drop_prefix(RunDir, RelNameBin0),
     {RunWarnings, RunResult} = run_result(CaseRes),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
@@ -449,17 +459,20 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          hostname = Host,
          config_name = ConfigName,
          run_dir = undefined,
+         orig_run_dir = undefined,
          run_log_dir = undefined,
+         orig_log_dir = undefined,
          new_log_dir = undefined,
          repos_rev = ReposRev,
          runs = []};
-parse_run_case(NewLogDir, RunDir, RunLogDir,
+parse_run_case(NewLogDir, RunDir, OrigRunDir, RunLogDir, _OrigLogDir,
                StartTime, Branch, Host, ConfigName,
                Suite, RunId, ReposRev,
                {result_case, AbsName, Res, _Reason})
   when is_binary(NewLogDir), is_binary(RunDir), is_binary(RunLogDir),
        is_list(AbsName) ->
-    RelNameBin = lux_utils:drop_prefix(RunDir, ?l2b(AbsName)),
+    RelNameBin0 = lux_utils:drop_prefix(OrigRunDir, ?l2b(AbsName)),
+    RelNameBin = lux_utils:drop_prefix(RunDir, RelNameBin0),
     {RunWarnings, RunResult} = run_result(Res),
     #run{test = <<Suite/binary, ":", RelNameBin/binary>>,
          id = RunId,
@@ -470,7 +483,9 @@ parse_run_case(NewLogDir, RunDir, RunLogDir,
          hostname = Host,
          config_name = ConfigName,
          run_dir = undefined,
+         orig_run_dir = undefined,
          run_log_dir = undefined,
+         orig_log_dir = undefined,
          new_log_dir = undefined,
          repos_rev = ReposRev,
          runs = []}.
@@ -503,8 +518,8 @@ find_config(Key, Tuples, Default) ->
         {_, Val} -> Val
     end.
 
-write_config_log(ConfigLog, ConfigData) when is_list(ConfigLog) ->
-    PrettyConfig = format_config(ConfigData),
+write_config_log(ConfigLog, ConfigProps) when is_list(ConfigLog) ->
+    PrettyConfig = format_config(ConfigProps),
     write_log(ConfigLog, ?CONFIG_TAG, ?CONFIG_LOG_VERSION, [PrettyConfig]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1339,12 +1354,12 @@ dequote1([]) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Config log
 
-open_config_log(LogDir, Script, ConfigData) ->
+open_config_log(LogDir, Script, ConfigProps) ->
     Base = filename:basename(Script),
     ConfigFile = lux_utils:join(LogDir, Base ++ ?CASE_CONFIG_LOG),
     case filelib:ensure_dir(ConfigFile) of
         ok ->
-            case write_config_log(ConfigFile, ConfigData) of
+            case write_config_log(ConfigFile, ConfigProps) of
                 ok ->
                     case file:open(ConfigFile, [append]) of
                         {ok, ConfigFd} ->
@@ -1381,15 +1396,17 @@ close_config_log(ConfigFd, Logs) ->
     lists:foreach(ShowLog, Logs),
     file:close(ConfigFd).
 
-format_config(Config) ->
+format_config(ConfigProps) ->
     Fun =
-        fun({Tag, Types, Val}) ->
+        fun({Tag, Val}) when is_binary(Tag), is_binary(Val) ->
+                ?FF("~s~s\n", [?TAG(Tag), Val]);
+           ({Tag, Types, Val}) when is_atom(Tag) ->
                 lists:flatten(format_config(Tag, Val, Types));
-           ({Tag, Val}) ->
+           ({Tag, Val}) when is_atom(Tag) ->
                 {ok, _Pos, Types} = lux_case:config_type(Tag),
                 lists:flatten(format_config(Tag, Val, Types))
         end,
-    lists:map(Fun, Config).
+    lists:map(Fun, ConfigProps).
 
 format_config(Tag, Val, Types) ->
     case format_val_choice(Tag, Val, Types) of

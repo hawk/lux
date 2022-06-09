@@ -252,7 +252,9 @@
          config_name = ?DEFAULT_CONFIG_NAME
                       :: binary(),              % --config
          run_dir      :: binary(),              % current dir during run
+         orig_run_dir :: binary(),              % current dir during run
          run_log_dir  :: binary(),              % rel dir where logs was created
+         orig_log_dir :: binary(),              % rel dir where logs was created
          new_log_dir  :: binary(),              % rel top dir for new logs
          repos_rev = ?DEFAULT_REV
                       :: binary(),              % --revision

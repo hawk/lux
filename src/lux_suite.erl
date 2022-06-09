@@ -52,7 +52,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
             LogDir = R#rstate.log_dir,
             SummaryLog = filename:join([LogDir, ?SUITE_SUMMARY_LOG]),
             try
-                {ConfigData, R2} = parse_config(R), % May throw error
+                {ConfigProps, R2} = parse_config(R), % May throw error
                 PostCaseCmds = parse_post_case_cmds(R2),
                 SuiteRef = start_suite_timer(R2),
                 try
@@ -60,7 +60,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                                    post_case_cmds = PostCaseCmds},
                     R4 = compute_files(R3, ?SUITE_SUMMARY_LOG),
                     R5 = adjust_files(R4),
-                    full_run(R5, ConfigData, SummaryLog)
+                    full_run(R5, ConfigProps, SummaryLog)
                 catch
                     throw:{error, undefined, no_input_files} ->
                         {ok, Cwd} = file:get_cwd(),
@@ -94,7 +94,7 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
 
 doc_run(R) ->
     R2 = R#rstate{log_fd = undefined, summary_log = undefined},
-    {_ConfigData, R3} = parse_config(R2),  % May throw error
+    {_ConfigProps, R3} = parse_config(R2),  % May throw error
     {R4, Summary, SuiteResults} = run_suite(R3, R3#rstate.files, success, []),
     write_results(R4, Summary, SuiteResults).
 
@@ -165,7 +165,7 @@ list_files(R, File) ->
             {error, Reason}
     end.
 
-full_run(#rstate{mode = Mode} = R, _ConfigData, SummaryLog)
+full_run(#rstate{mode = Mode} = R, _ConfigProps, SummaryLog)
   when Mode =:= dump orelse
        Mode =:= expand ->
     InitialSummary = success,
@@ -173,7 +173,7 @@ full_run(#rstate{mode = Mode} = R, _ConfigData, SummaryLog)
     {_R2, Summary, Results} =
         run_suite(R, R#rstate.files, InitialSummary, InitialSuiteRes),
     {run_ok, Summary, SummaryLog, Results};
-full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
+full_run(#rstate{progress = Progress} = R, ConfigProps, SummaryLog) ->
     ExtendRun = R#rstate.extend_run,
     case lux_log:open_summary_log(Progress, SummaryLog, ExtendRun) of
         {ok, Exists, SummaryFd} ->
@@ -181,7 +181,7 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             HtmlPrio = lux_utils:summary_prio(R2#rstate.html),
             InitialSummary = success,
             InitialSuiteRes =
-                initial_res(R2, Exists, ConfigData,
+                initial_res(R2, Exists, ConfigProps,
                             SummaryLog, InitialSummary),
             {R3, Summary, SuiteResults} =
                 run_suite(R2, R2#rstate.files, InitialSummary, InitialSuiteRes),
@@ -189,9 +189,9 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
             _ = write_results(R3, Summary, SuiteResults),
             SuiteEndTime = lux_utils:now_to_string(lux_utils:timestamp()),
             EndConfig = [{'end time', [string], SuiteEndTime}],
-            write_config_log(SummaryLog, ConfigData ++ EndConfig),
+            write_config_log(SummaryLog, ConfigProps ++ EndConfig),
             lux_log:close_summary_log(SummaryFd, SummaryLog),
-            maybe_write_junit_report(R3, SummaryLog, ConfigData),
+            maybe_write_junit_report(R3, SummaryLog, ConfigProps),
             annotate_final_summary_log(R3, Summary, HtmlPrio,
                                        SummaryLog, SuiteResults);
         {error, FileReason} ->
@@ -206,17 +206,17 @@ full_run(#rstate{progress = Progress} = R, ConfigData, SummaryLog) ->
 
 maybe_write_junit_report(#rstate{junit = false}, _, _) ->
     ok;
-maybe_write_junit_report(#rstate{junit = true}, SummaryLog, ConfigData) ->
-    {run_dir, _, RunDir} = lists:keyfind(run_dir, 1, ConfigData),
+maybe_write_junit_report(#rstate{junit = true}, SummaryLog, ConfigProps) ->
+    {run_dir, _, RunDir} = lists:keyfind(run_dir, 1, ConfigProps),
     ok = lux_junit:write_report(SummaryLog, RunDir, []).
 
-initial_res(_R, Exists, _ConfigData, SummaryLog, _Summary)
+initial_res(_R, Exists, _ConfigProps, SummaryLog, _Summary)
   when Exists =:= true ->
     TmpLog = SummaryLog ++ ".tmp",
     flat_parse_summary_log(TmpLog);
-initial_res(R, Exists, ConfigData, SummaryLog, Summary)
+initial_res(R, Exists, ConfigProps, SummaryLog, Summary)
   when Exists =:= false, Summary =:= success ->
-    ok = write_config_log(SummaryLog, ConfigData),
+    ok = write_config_log(SummaryLog, ConfigProps),
     ok = lux_log:write_results(R#rstate.progress, SummaryLog, skip, [], []),
     ok = annotate_tmp_summary_log(R, Summary, undefined),
     [].
@@ -270,10 +270,10 @@ flatten_summary_results({ok, _ResSummary, Cases, _, _, _}) ->
 flatten_summary_results({error, _File, _Reason}) ->
     [].
 
-write_config_log(SummaryLog, ConfigData) ->
+write_config_log(SummaryLog, ConfigProps) ->
     LogDir = filename:dirname(SummaryLog),
     ConfigLog = filename:join([LogDir, ?SUITE_CONFIG_LOG]),
-    ok = lux_log:write_config_log(ConfigLog, ConfigData).
+    ok = lux_log:write_config_log(ConfigLog, ConfigProps).
 
 -spec merge_logs([filename()], filename(), opts()) ->
           ok | error().
@@ -366,8 +366,8 @@ do_merge_logs(RelTargetDir, FlatLogRes) ->
     ok = filelib:ensure_dir(filename:join([RelTargetDir, "dummy"])),
     merge_summary_logs(RelTargetDir, FlatLogRes, undefined, []),
     merge_tap_logs(RelTargetDir, FlatLogRes, []),
-    merge_result_logs(RelTargetDir, FlatLogRes),
-    merge_config_logs(RelTargetDir, FlatLogRes),
+    {RunDir, OrigRunDir} = merge_config_logs(RelTargetDir, FlatLogRes),
+    merge_result_logs(RelTargetDir, RunDir, OrigRunDir, FlatLogRes),
     ok.
 
 merge_summary_logs(RelTargetDir, [{SummaryLog, _Res} | Rest], _OldHead, Acc) ->
@@ -391,12 +391,33 @@ merge_tap_logs(RelTargetDir, [], Acc) ->
     TargetTapLog = filename:join([RelTargetDir, ?SUITE_TAP_LOG]),
     ok = file:write_file(TargetTapLog, Contents).
 
-merge_result_logs(RelTargetDir, FlatLogRes) ->
-    FlatRes = lists:flatten([Res || {_Log, Res} <- FlatLogRes]),
+merge_result_logs(RelTargetDir, RunDir, OrigRunDir, FlatLogRes) ->
+    FlatRes = lists:flatten([Res || {_Log, Res} <- FlatLogRes]),
+    {ok, Cwd} = file:get_cwd(),
+    RebaseScript =
+        fun(F) ->
+                   F2 = lux_utils:drop_prefix(OrigRunDir, F),
+                   F3 = lux_utils:drop_prefix(RunDir, F2),
+                   filename:join(Cwd, F3)
+        end,
+    RebaseSuiteRes =
+        fun({suite_ok, Summary, Script, FullLineNo,
+             ShellName, CaseLogDir,
+             CaseResults, Details, Opaque}) ->
+                Script2 = RebaseScript(Script),
+                {suite_ok, Summary, Script2, FullLineNo,
+                 ShellName, CaseLogDir,
+                 CaseResults, Details, Opaque};
+           ({suite_error, Script, FullLineNo, Reason}) ->
+                Script2 = RebaseScript(Script),
+                {suite_error, Script2, FullLineNo, Reason}
+        end,
+    RebasedFlatRes = lists:map(RebaseSuiteRes, FlatRes),
     Summary = case_summary(FlatRes, success),
     TargetSummaryLog = filename:join([RelTargetDir, ?SUITE_SUMMARY_LOG]),
     Warnings = [],
-    lux_log:write_results(silent, TargetSummaryLog, Summary, FlatRes, Warnings).
+    lux_log:write_results(silent, TargetSummaryLog, Summary,
+                         RebasedFlatRes, Warnings).
 
 case_summary([CaseRes | Rest], OldSummary) ->
     {suite_ok, Summary, _Script, _FullLineNo,
@@ -411,13 +432,31 @@ merge_config_logs(RelTargetDir, [{FirstSummaryLog, _Res} | _Rest]) ->
     TargetConfigLog = filename:join([RelTargetDir, ?SUITE_CONFIG_LOG]),
     Dir = filename:dirname(FirstSummaryLog),
     FirstConfigLog = filename:join([Dir, ?SUITE_CONFIG_LOG]),
-    {ok, Contents} = file:read_file(FirstConfigLog),
-    AbsTargetDir = lux_utils:normalize_filename(RelTargetDir),
-    With = list_to_binary(["\\1", AbsTargetDir]),
-    Opts = [multiline, {return, binary}],
-    Contents2 = re:replace(Contents, <<"^\(run_dir +: \).*$">>, With, Opts),
-    Contents3 = re:replace(Contents2, <<"^\(log_dir +: \).*$">>, With, Opts),
-    ok = file:write_file(TargetConfigLog, Contents3).
+    {ok, ConfigBlob} = file:read_file(FirstConfigLog),
+    ConfigBins = binary:split(ConfigBlob, <<"\n">>, [global]),
+    ConfigProps = lux_log:split_config(ConfigBins),
+
+    RunDir = lux_log:find_config(<<"run_dir">>, ConfigProps, no_config),
+    OrigRunDir = lux_log:find_config(<<"orig_run_dir">>, ConfigProps, RunDir),
+    RunLogDir = lux_log:find_config(<<"log_dir">>, ConfigProps, RunDir),
+    OrigLogDir =
+        lux_log:find_config(<<"orig_log_dir">>, ConfigProps, RunLogDir),
+
+    BinAbsTargetDir = ?l2b(lux_utils:normalize_filename(RelTargetDir)),
+    NewProps =
+        [{<<"run_dir">>, BinAbsTargetDir},
+         {<<"orig_run_dir">>, OrigRunDir},
+         {<<"log_dir">>, BinAbsTargetDir},
+         {<<"orig_log_dir">>, OrigLogDir}],
+    Replace =
+        fun({_Key, no_config}, CP) ->
+                CP;
+           ({Key, NewVal}, CP) ->
+                lists:keystore(Key, 1, CP, {Key, NewVal})
+        end,
+    NewConfigProps = lists:foldl(Replace, ConfigProps, NewProps),
+    lux_log:write_config_log(TargetConfigLog, NewConfigProps),
+    {?b2l(RunDir), ?b2l(OrigRunDir)}.
 
 -spec annotate_log(boolean(), filename(), opts()) ->
           ok | error().
@@ -1164,11 +1203,11 @@ parse_config(R) ->
         AbsConfigFile =/= DefaultFile ->
             {ConfigOpts, ConfigWarnings} = parse_config_file(R2, AbsConfigFile),
             ConfigArgs = opts_to_args(ConfigOpts, []),
-            ConfigData = [{'config file', [string], AbsConfigFile}] ++
+            ConfigProps = [{'config file', [string], AbsConfigFile}] ++
                 ConfigArgs;
         true ->
             ConfigArgs = [],
-            ConfigData = [],
+            ConfigProps = [],
             ConfigWarnings = []
         end,
     NewWarnings = DefaultWarnings ++ CommonWarnings ++ ConfigWarnings,
@@ -1178,7 +1217,7 @@ parse_config(R) ->
                    config_file = AbsConfigFile,
                    config_args = ConfigArgs,
                    warnings    = AllWarnings},
-    {DefaultData ++ ConfigData, R4}.
+    {DefaultData ++ ConfigProps, R4}.
 
 builtins(R, ActualConfigName) ->
     {ok, Cwd} = file:get_cwd(),
