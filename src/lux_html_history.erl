@@ -225,7 +225,7 @@ do_generate(RelHtmlDir, AllRuns, Errors, Opts) ->
     MultiBranch = (length(SplitBranches) > 1),
     DeepPages = the_pages(AllRuns, SplitBranches, MultiBranch),
     {AllPages, TagDict} = adjust_pages(DeepPages),
-    WhichCases = lux_utils:pick_opt(history_cases, Opts, latest),
+    WhichCases = lux_utils:pick_opt(history_cases, Opts, any),
     AllG = [gen_page(RelHtmlDir, MultiBranch, P, TagDict, WhichCases)
             || P <- AllPages],
     Footer =

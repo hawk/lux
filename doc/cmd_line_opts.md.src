@@ -142,7 +142,6 @@ test:
 
 **--history_cases WhichCases...**
 `WhichCases` controls the selection of failing test cases in a history
-run. It defaults to `latest`, which means that only the tests cases
-which were failing in the `latest` run is included. But setting it to
-`any` also includes the test cases which have failed in at least once
-run not neccessarily the latest.
+run. It defaults to `any` which means that all test cases that has
+failed at least once are included. Setting it to `latest` means that
+only the test cases that failed in the latest run is included.
