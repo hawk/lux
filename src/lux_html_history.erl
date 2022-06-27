@@ -402,42 +402,35 @@ errors(Errors) ->
     ].
 
 extract_failed_runs(T, WhichCases) ->
-    FailedRows = extract_failed_rows(T, WhichCases),
+    FailedRows = extract_failed_rows(WhichCases, T#table.rows),
     SortedFailedRows = lists:keysort(#row.test, FailedRows),
     SortedSplitTests = lists:keysort(1, T#table.split_tests),
     do_extract_failed_runs(SortedSplitTests, SortedFailedRows, []).
 
-extract_failed_rows(T, latest) ->
-    IsRowFail = fun(#row{res = RowRes}) -> not is_success_res(RowRes) end,
-    lists:takewhile(IsRowFail, T#table.rows);
-extract_failed_rows(T, any) ->
-    IsAnyCellFail =
+extract_failed_rows(latest, Rows) ->
+    RowFail = fun(#row{res = RowRes}) -> not is_success_res(RowRes) end,
+    lists:takewhile(RowFail, Rows);
+extract_failed_rows(any, Rows) ->
+    AnyCellFail =
         fun(#row{cells = Cells}) ->
-                CellTest =
-                    fun(#cell{res = CellRes}) ->
-                            not is_success_res(CellRes)
-                    end,
+                CellTest = fun(#cell{res = R}) -> not is_success_res(R)end,
                 lists:any(CellTest, Cells)
         end,
-    lists:filter(IsAnyCellFail, T#table.rows).
+    lists:filter(AnyCellFail, Rows).
 
 do_extract_failed_runs([{Test, Runs} | SortedSplitTests],
                        [FailedRow | SortedFailedRows] = AllSortedFailedRows,
                        Acc) ->
-    if
-        Test =:= FailedRow#row.test ->
-            do_extract_failed_runs(SortedSplitTests,
-                                   SortedFailedRows,
-                                   [Runs | Acc]);
-        true ->
-            do_extract_failed_runs(SortedSplitTests,
-                                   AllSortedFailedRows,
-                                   Acc)
-    end;
+    {SortedFailedRows2, Acc2} =
+        if
+            Test =:= FailedRow#row.test -> {SortedFailedRows, [Runs | Acc]};
+            true                        -> {AllSortedFailedRows, Acc}
+        end,
+    do_extract_failed_runs(SortedSplitTests, SortedFailedRows2, Acc2);
 do_extract_failed_runs(_SortedSplitTests, [], Acc) ->
     lists:append(Acc).
 
-extract_test_case_runs(AllRuns) ->
+extract_test_case_runs(SuiteRuns) ->
     Rebase =
         fun(#run{log=SL}, #run{log=EL})
               when SL =/= ?DEFAULT_LOG,
@@ -460,7 +453,7 @@ extract_test_case_runs(AllRuns) ->
                 CR2#run{runs = [CR2],
                         log = Rebase(SR, CR)}
         end,
-    [Propagate(SR, CR) || SR <- AllRuns,
+    [Propagate(SR, CR) || SR <- SuiteRuns,
                           CR <- SR#run.runs].
 
 gen_table(AbsHtmlDir, MultiBranch, Page, TagDict) ->
@@ -625,31 +618,36 @@ gen_row(AbsHtmlDir, Test, TestRuns, RevSplitIds,
         MultiBranch, TagDict,
         Select, Suppress, HostMap) ->
     RevTestRuns = lists:reverse(TestRuns),
-    {RowRes, Cells} =
+    InitRes = no_data,
+    {SelectedRowRes, WorstRowRes, Cells} =
         gen_cells(AbsHtmlDir, Test, RevTestRuns, RevSplitIds,
                   MultiBranch, TagDict, Select, Suppress,
-                  HostMap, [], no_data),
-    IsSuccess = is_success_res(RowRes),
+                  HostMap, [], InitRes, InitRes),
+    IsSelectedSuccess = is_success_res(SelectedRowRes),
+    IsAllSuccess = is_success_res(WorstRowRes),
     if
-        IsSuccess andalso
+        IsSelectedSuccess andalso
         Suppress =:= suppress_any_success ->
+            false;
+        IsAllSuccess andalso
+        Suppress =:= suppress_all_success ->
             false;
         true ->
             IoList =
                 if
-                    RowRes =:= warning,
-                    Suppress =:= suppress_any_success ->
+                    SelectedRowRes =:= warning andalso
+                    Suppress =/= suppress_none ->
                         [];
                     true ->
                         [
                          "    <tr>\n",
-                         html_td(Test, RowRes, "left", ""),
+                         html_td(Test, SelectedRowRes, "left", ""),
                          [C#cell.iolist || C <- Cells],
                          "    </tr>\n"
                         ]
                 end,
             Row =
-                #row{res = RowRes,
+                #row{res = SelectedRowRes,
                      test = Test,
                      cells = Cells,
                      iolist = IoList},
@@ -658,47 +656,55 @@ gen_row(AbsHtmlDir, Test, TestRuns, RevSplitIds,
 
 gen_cells(AbsHtmlDir, Test, [R1, R2 | TestRuns], SplitIds,
           MultiBranch, TagDict, Select, Suppress,
-          HostMap, Cells, RowRes)
+          HostMap, Cells, RowRes, WorstRowRes)
   when R1#run.id =:= R2#run.id ->
     %% Skip duplicate run
     gen_cells(AbsHtmlDir, Test, [R2 | TestRuns], SplitIds,
               MultiBranch, TagDict, Select, Suppress,
-              HostMap, Cells, RowRes);
+              HostMap, Cells, RowRes, WorstRowRes);
 gen_cells(AbsHtmlDir, Test, TestRuns, [{Id, _} | SplitIds],
           MultiBranch, TagDict, Select, Suppress,
-          HostMap, Cells, RowRes) ->
+          HostMap, Cells, SelectedRowRes, WorstRowRes) ->
     if
         Id =:= (hd(TestRuns))#run.id ->
             [Run | RestRuns] = TestRuns,
             {Cell, NewHostMap} =
                 gen_cell(AbsHtmlDir, Test, Run, MultiBranch, TagDict, HostMap),
-            NewRowRes =
-                case {Select, Cell#cell.res} of
-                    {select_latest, no_data} -> RowRes;
-                    {select_latest, none}    -> RowRes;
-                    {select_latest, CellRes} -> CellRes;
-                    {select_worst, CellRes}  ->
-                        lux_utils:summary(RowRes, CellRes)
+            CellRes = Cell#cell.res,
+            NewWorstRowRes = lux_utils:summary(WorstRowRes, CellRes),
+            NewSelectedRowRes =
+                case Select of
+                    select_worst ->
+                        NewWorstRowRes;
+                    select_latest when CellRes =:= no_data orelse
+                                       CellRes =:= none ->
+                        SelectedRowRes;
+                    select_latest ->
+                        CellRes
                 end;
         true ->
             %% No test result
             RestRuns = TestRuns,
-            Res = no_data,
-            Td = html_td("-", Res, "right", Test),
-            Cell = #cell{res=Res, run=undefined,
-                         n_run=0, n_fail=0,
-                         iolist=?l2b(Td)},
+            CellRes = no_data,
+            Td = html_td("-", CellRes, "right", Test),
+            Cell = #cell{res = CellRes,
+                         run = undefined,
+                         n_run = 0,
+                         n_fail = 0,
+                         iolist = ?l2b(Td)},
             NewHostMap = HostMap,
-            NewRowRes = RowRes
+            NewSelectedRowRes = SelectedRowRes,
+            NewWorstRowRes = WorstRowRes
     end,
     gen_cells(AbsHtmlDir, Test, RestRuns, SplitIds,
               MultiBranch, TagDict, Select, Suppress,
-              NewHostMap, [Cell | Cells], NewRowRes);
+              NewHostMap, [Cell | Cells],
+              NewSelectedRowRes, NewWorstRowRes);
 gen_cells(_AbsHtmlDir, _Test, [], _SplitIds,
           _MultiBranch, _TagDict, _Select, _Suppress,
-          _HostMap, Cells, RowRes) ->
+          _HostMap, Cells, SelectedRowRes, WorstRowRes) ->
     %% Cells are already in the correct order. No need to revert.
-    {RowRes, Cells}.
+    {SelectedRowRes, WorstRowRes, Cells}.
 
 is_success_res(Res) ->
     case Res of
@@ -823,8 +829,9 @@ gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict, WhichCases) ->
     FailedRuns = extract_failed_runs(SuiteT, WhichCases),
     CaseRuns = extract_test_case_runs(FailedRuns),
     Failing = failing_test_cases_title(WhichCases),
+    Suppress = failing_test_cases_suppress(WhichCases),
     CaseP = CurrP#page{title = Failing,
-                       suppress = suppress_any_success,
+                       suppress = Suppress,
                        select   = select_latest,
                        runs     = CaseRuns},
     CaseT = gen_table(AbsHtmlDir, MultiBranch, CaseP, TagDict),
@@ -833,8 +840,14 @@ gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict, WhichCases) ->
 
 failing_test_cases_title(WhichCases) ->
     case WhichCases of
-        latest -> "Still failing test cases";
-        any    -> "Failing test cases"
+        latest -> "Latest failing test cases";
+        any    -> "All failing test cases"
+    end.
+
+failing_test_cases_suppress(WhichCases) ->
+    case WhichCases of
+        latest -> suppress_any_success;
+        any    -> suppress_all_success
     end.
 
 gen_warnings(AbsHtmlDir, #table{rows = Rows}) ->

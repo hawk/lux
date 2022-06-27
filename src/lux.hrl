@@ -431,6 +431,7 @@
 -type run_mode()     :: list | list_dir | doc |
                         validate | dump | expand | execute.
 -type expected_tag() :: ?EXPECTED_EQ | ?EXPECTED_RE.
--type suppress()     :: suppress_any_success | suppress_none.
+-type suppress()     :: suppress_all_success | suppress_any_success |
+                        suppress_none.
 -type select()       :: select_worst | select_latest.
 -type wrapper_mode() :: silent | debug | trace.
