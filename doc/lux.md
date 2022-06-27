@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.8 - 2022-06-23
+Version 2.8.1 - 2022-06-27
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -126,13 +126,13 @@ Run a single script like this:
 Evaluate `lux examples/intro.lux`
 
 >     .../lux> lux examples/intro.lux
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_03_29_08_05_18_207034/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_06_27_19_40_24_793549/lux_summary.log
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:.:..:.:.:.....:..:.:..:.:..:..:.:..:.:..:.:.:..:.:.:..:.:..:.:.:..:...:..:.:.:....c.:.....:..:..:.:.:..:..:.:.:..:.:..:.
+>     progress          : ..:...:.:.:..:.:.:.....:...:.:.:.:..:..:.:..:.:..:.:.:..:.:.:..:..:.:.:..:.:...:..:.:.:....c:......:..:.:..:.:..:..:.:.:..:.:..:.
 >     result            : SUCCESS
 >     successful        : 1
 >     summary           : SUCCESS
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_03_29_08_05_18_207034/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_06_27_19_40_24_793549/lux_summary.log.html
 >     .../lux> echo $?
 >     0
 
@@ -164,11 +164,14 @@ Evaluate `lux --revision svn_4715 --run jenkins_22 examples`
 Evaluate `lux --history .`
 
 >     .../lux> lux --history .
+>     Cwd: /Users/hmattsso/dev/lux
 >     Invoke: /Users/hmattsso/dev/lux/bin/lux --history .
 >     Assembling history of logs from...
->     	.eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.....eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
->     Wrote 781 bytes in run cache to file ./lux_history.cache
->     Analyzed 5 test runs with 21 test cases (0 errors)...ok
+>     	./lux_history.cache (678 bytes)
+>     <WARNING> Cache file is incompatible with previous run ./lux_history.cache: ignoring cache
+>     	. eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.eee.........eeeeee......................................................eeeeee...........................eeeee.........eeeeee.........eeeeee....eeeee.eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee..eeeeeeeeeeeeeeeeeeeeeee.......eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+>     Wrote 9907 bytes in run cache to file ./lux_history.cache
+>     Analyzed 123 test runs with 554 test cases (0 errors)...ok
 >     file:///Users/hmattsso/dev/lux/lux_history.html
 >     .../lux> echo $?
 >     0
@@ -283,91 +286,50 @@ Hopefully the test code is self-explanatory.
 Evaluate `cd tutorial/chatty/test/intro && lux .`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux .
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_03_24_49420/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2022_06_27_19_40_56_509994/lux_summary.log
 >     test case         : a_simple_server.lux
->     progress          : ..:..:..:..:.:..:.:..:.:....:.:.:.13????13
->     result            : FAIL at line 13 in shell server
->     expected*
->     	Starting server
->     actual match_timeout
->     	chatty:server().
->     	** exception error: undefined function chatty:server/0
->     	(server@HMATTSSO-M-74JD)2> 
->     diff
->     	- Starting server
->     	+ chatty:server().
->     	+ ** exception error: undefined function chatty:server/0
->     	+ (server@HMATTSSO-M-74JD)2> 
->     	
+>     progress          : ..:...:.:.:.:..:.:..:.:.:.:.:..:.:....:.:.:..:.:.:..:..:.:..:.:..:.:....
+>     result            : SUCCESS
 >     test case         : async_startup_fail.lux
->     progress          : ..:..:.:...:.:..:.:.:.:.:.:.:.9????9
->     result            : FAIL at line 9 in shell server
+>     progress          : ..:...:.:.:.:...:.:.:.:.:.:.:.:.:.:....:.:.:..:.:..:.:..:..:.:.:..:.:.Will fail due to startup race cond.:.:.:..:.:.:.:.:.:.:.:.:.:.:.25????25..
+>     result            : FAIL at line 25 in shell hawk
 >     expected*
->     	Starting server
+>     	Trying to join the mytopic chat room...
+>     	Welcome to the chat room mytopic!a!!
+>     	Enter text and press enter. Exit chat with \^d.
+>     	
+>     	hawk>
 >     actual match_timeout
->     	erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
->     	Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
->     	
->     	"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
->     	Eshell V10.7.2.7  (abort with ^G)
->     	(mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
->     diff
->     	- Starting server
->     	+ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
->     	+ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
->     	+ 
->     	+ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
->     	+ Eshell V10.7.2.7  (abort with ^G)
->     	+ (mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
->     	
->     test case         : sync_startup.lux
->     progress          : ..:..:.:...:.:..:.:.:.:.:.8????8
->     result            : FAIL at line 8 in shell server
->     expected*
->     	Starting server
->     actual match_timeout
->     	erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
->     	Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
->     	
->     	"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
+>     	erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt opic
+>     	Trying to join the mytopic chat room...
+>     	<ERROR> Failed to join 'mytopic@HMATTSSO-M-74JD'. Is the server started?
+>     	{"init terminating in do_boot",shutdown}
+>     	init terminating in do_boot (shutdown)
 >     	SH-PROMPT:
 >     diff
->     	- Starting server
->     	+ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
->     	+ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
->     	+ 
->     	+ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
+>     	+ erl -pa ../../../chatty/ebin -sname hawk -noshell -s chatty client myt 
+>     	+ opic
+>     	  Trying to join the mytopic chat room...
+>     	- Welcome to the chat room mytopic!a!!
+>     	- Enter text and press enter. Exit chat with \^d.
+>     	- 
+>     	- hawk>
+>     	+ <ERROR> Failed to join 'mytopic@HMATTSSO-M-74JD'. Is the server started?
+>     	+ {"init terminating in do_boot",shutdown}
+>     	+ init terminating in do_boot (shutdown)
 >     	+ SH-PROMPT:
 >     	
+>     test case         : sync_startup.lux
+>     progress          : ..:...:.:.:.:..:..:.:.:.:.:.:.:.:.:.:.:.:.:..:.:.:.:....:..:..:.:..:..:.:.:....:.:..:..:.:..:.:..:.:.:.:.:.:.:.:.:.:.:.:....:...:.:.:..:.:..:.:.:.:.:.:.:.:.:.:.::......:.:.:.....:............
+>     result            : SUCCESS
 >     test case         : sync_startup_cleanup.lux
->     progress          : ()..:..:.:..:...:.:..:.:.:.:.:.:.:.12????12C..:..:.:..:.(.:.:..:.)(.:..:.:.)((.:..:.:.:.:.:.)(.:.:...))
->     result            : FAIL at line 12 in shell server
->     expected*
->     	Starting server
->     actual match_timeout
->     	erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
->     	Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
->     	
->     	"Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
->     	Eshell V10.7.2.7  (abort with ^G)
->     	(mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
->     diff
->     	- Starting server
->     	+ erl -pa ../../../chatty/ebin -sname mytopic -s chatty server
->     	+ Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
->     	+ 
->     	+ "Internal error: Terminated in boot ({undef,[{chatty,server,[],[]},{init,start_em,1,[]},{init,do_boot,3,[]}]})\n"
->     	+ Eshell V10.7.2.7  (abort with ^G)
->     	+ (mytopic@HMATTSSO-M-74JD)1> SH-PROMPT:
->     	
->     successful        : 0
->     failed            : 4
->     	a_simple_server.lux:13 - match_timeout
->     	async_startup_fail.lux:9 - match_timeout
->     	sync_startup.lux:8 - match_timeout
->     	sync_startup_cleanup.lux:12 - match_timeout
+>     progress          : ()..:...:.:.:.:.:....:.:.:.:.:.:.:.:.:.:..:.:.:.:....:..:.:..:.:..:..:.:.:.:....:...:.:.:.:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:....:..:..:.:.:...:.:.:.:.:.:..:.:....:.:.:.::..c..........:..:..:.:.(..:.:.:.:.:.)(..:.:.:.:.)((.:..:.:.:.:.:.:.:.:.:.:.:.:.:.)(.:.:..:..))((..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.)(.:.:..:..))
+>     result            : SUCCESS
+>     successful        : 3
+>     failed            : 1
+>     	async_startup_fail.lux:25 - match_timeout
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_03_24_49420/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2022_06_27_19_40_56_509994/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
@@ -548,7 +510,7 @@ at `lux_logs/latest_run`. With this command you get a list of all logs:
 Evaluate `cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run`
 
 >     .../lux> cd tutorial/chatty/test/intro && ls -ld lux_logs/latest_run
->     lrwxr-xr-x 1 hmattsso staff 29 Jan 31 18:03 lux_logs/latest_run -> run_2021_01_31_17_03_24_49420
+>     lrwxr-xr-x 1 hmattsso staff 30 Jun 27 21:40 lux_logs/latest_run -> run_2022_06_27_19_40_56_509994
 >     .../lux> echo $?
 >     0
 
@@ -561,24 +523,35 @@ Evaluate `cd tutorial/chatty/test/intro && find -L lux_logs/latest_run`
 >     lux_logs/latest_run/sync_startup.lux.event.log.html
 >     lux_logs/latest_run/sync_startup_cleanup.lux.cleanup.stdin.log
 >     lux_logs/latest_run/a_simple_server.lux.server.stdout.log
+>     lux_logs/latest_run/sync_startup.lux.hawk.stdout.log
+>     lux_logs/latest_run/async_startup_fail.lux.hawk.stdin.log
 >     lux_logs/latest_run/async_startup_fail.lux.event.log.html
+>     lux_logs/latest_run/async_startup_fail.lux.hawk.stdout.log
 >     lux_logs/latest_run/async_startup_fail.lux.event.log.csv
 >     lux_logs/latest_run/sync_startup_cleanup.lux.server.stdout.log
+>     lux_logs/latest_run/sync_startup.lux.hawk.stdin.log
 >     lux_logs/latest_run/lux_summary.log.html
 >     lux_logs/latest_run/async_startup_fail.lux.config.log
+>     lux_logs/latest_run/sync_startup_cleanup.lux.cons.stdin.log
+>     lux_logs/latest_run/sync_startup_cleanup.lux.server-log.stdout.log
 >     lux_logs/latest_run/sync_startup_cleanup.lux.extra.logs
+>     lux_logs/latest_run/sync_startup_cleanup.lux.extra.logs/chatty_mytopic.log
 >     lux_logs/latest_run/sync_startup.lux.orig
 >     lux_logs/latest_run/sync_startup_cleanup.lux.event.log.csv
 >     lux_logs/latest_run/sync_startup_cleanup.lux.cleanup.stdout.log
 >     lux_logs/latest_run/sync_startup_cleanup.lux.event.log
 >     lux_logs/latest_run/sync_startup.lux.config.log
+>     lux_logs/latest_run/sync_startup_cleanup.lux.hawk.stdout.log
+>     lux_logs/latest_run/sync_startup.lux.server-log.stdin.log
 >     lux_logs/latest_run/a_simple_server.lux.event.log.html
 >     lux_logs/latest_run/async_startup_fail.lux.server.stdout.log
 >     lux_logs/latest_run/sync_startup.lux.server.stdin.log
 >     lux_logs/latest_run/a_simple_server.lux.orig
 >     lux_logs/latest_run/async_startup_fail.lux.event.log
 >     lux_logs/latest_run/sync_startup_cleanup.lux.orig
+>     lux_logs/latest_run/sync_startup_cleanup.lux.hawk.stdin.log
 >     lux_logs/latest_run/sync_startup_cleanup.lux.server.stdin.log
+>     lux_logs/latest_run/sync_startup_cleanup.lux.server-log.stdin.log
 >     lux_logs/latest_run/a_simple_server.lux.event.log.csv
 >     lux_logs/latest_run/sync_startup_cleanup.lux.config.log
 >     lux_logs/latest_run/Users
@@ -591,6 +564,8 @@ Evaluate `cd tutorial/chatty/test/intro && find -L lux_logs/latest_run`
 >     lux_logs/latest_run/Users/hmattsso/dev/lux/tutorial/support/luxinc/macros.luxinc.orig
 >     lux_logs/latest_run/lux_config.log
 >     lux_logs/latest_run/async_startup_fail.lux.server.stdin.log
+>     lux_logs/latest_run/sync_startup.lux.cons.stdout.log
+>     lux_logs/latest_run/sync_startup.lux.server-log.stdout.log
 >     lux_logs/latest_run/sync_startup_cleanup.lux.event.log.html
 >     lux_logs/latest_run/lux_result.log
 >     lux_logs/latest_run/async_startup_fail.lux.orig
@@ -598,9 +573,11 @@ Evaluate `cd tutorial/chatty/test/intro && find -L lux_logs/latest_run`
 >     lux_logs/latest_run/sync_startup.lux.server.stdout.log
 >     lux_logs/latest_run/a_simple_server.lux.config.log
 >     lux_logs/latest_run/sync_startup.lux.event.log.csv
+>     lux_logs/latest_run/sync_startup_cleanup.lux.cons.stdout.log
 >     lux_logs/latest_run/a_simple_server.lux.event.log
 >     lux_logs/latest_run/a_simple_server.lux.server.stdin.log
 >     lux_logs/latest_run/lux.tap
+>     lux_logs/latest_run/sync_startup.lux.cons.stdin.log
 >     .../lux> echo $?
 >     0
 
@@ -637,114 +614,153 @@ use the `--progress=verbose` flag or `-v` for short:
 Evaluate `cd tutorial/chatty/test/intro && lux -v a_simple_server.lux`
 
 >     .../lux> cd tutorial/chatty/test/intro && lux -v a_simple_server.lux
->     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_04_06_55344/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2022_06_27_19_41_21_142972/lux_summary.log
 >     test case         : a_simple_server.lux
->     event log         : 0.7
+>     event log         : 0.8
 >     /Users/hmattsso/dev/lux/tutorial/chatty/test/intro/a_simple_server.lux
->     18:04:06.168665 lux(0): start_time "2021-01-31 18:04:06.149388"
->     18:04:06.169224 lux(0): suite_timeout infinity
->     18:04:06.169407 lux(0): case_timeout 300000000 micros left (300 seconds * 1.000 multiplier)
->     18:04:06.171947 lux(1): doc "Demo a simple single shell test case"
->     18:04:06.176075 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
->     18:04:06.177053 server(4): expected* ".+"
->     18:04:06.177053 server(4): timer started (10 seconds * 1.000 multiplier)
->     18:04:06.187425 server(4): recv "\e[?1034hsh-3.2$ "
->     18:04:06.187613 server(4): timer canceled (after 10320 microseconds)
->     18:04:06.187768 server(4): match "\e[?1034hsh-3.2$ "
->     18:04:06.187768 server(4): rest ""
->     18:04:06.188075 server(4): send "export PS1=SH-PROMPT:
+>     21:41:21.276605 lux(0): start_time "2022-06-27 21:41:21.229784"
+>     21:41:21.276924 lux(0): suite_timeout infinity
+>     21:41:21.277050 lux(0): case_timeout 300000000 micros left (300 seconds * 1.000 multiplier)
+>     21:41:21.279648 lux(1): doc "Demo a simple single shell test case"
+>     21:41:21.284303 server(4): start "/Users/hmattsso/dev/lux/priv/bin/runpty /bin/sh -i"
+>     21:41:21.285051 server(4): expected* ".+"
+>     21:41:21.285051 server(4): timer started (10 seconds * 1.000 multiplier)
+>     21:41:21.295985 server(4): recv "\e[?1034hsh-3.2$ "
+>     21:41:21.296145 server(4): timer canceled (after 10925 microseconds)
+>     21:41:21.296239 server(4): match "\e[?1034hsh-3.2$ "
+>     21:41:21.296239 server(4): rest ""
+>     21:41:21.296511 server(4): send "export PS1=SH-PROMPT:
 >         "
->     18:04:06.188383 server(4): recv "export "
->     18:04:06.188511 server(4): recv "PS1=SH-PROMPT:
+>     21:41:21.296715 server(4): expected* "^SH-PROMPT:"
+>     21:41:21.296715 server(4): timer started (10 seconds * 1.000 multiplier)
+>     21:41:21.296907 server(4): recv "export PS1"
+>     21:41:21.297045 server(4): recv "=SH-PROM"
+>     21:41:21.297188 server(4): recv "PT:
 >         "
->     18:04:06.188640 server(4): expected* "^SH-PROMPT:"
->     18:04:06.188640 server(4): timer started (10 seconds * 1.000 multiplier)
->     18:04:06.188833 server(4): recv "SH-PROMPT:"
->     18:04:06.188943 server(4): timer canceled (after 137 microseconds)
->     18:04:06.189080 server(4): skip "export PS1=SH-PROMPT:
+>     21:41:21.297317 server(4): recv "SH-PROMPT:"
+>     21:41:21.297423 server(4): timer canceled (after 571 microseconds)
+>     21:41:21.297501 server(4): skip "export PS1=SH-PROMPT:
 >         "
->     18:04:06.189080 server(4): match "SH-PROMPT:"
->     18:04:06.189080 server(4): rest ""
->     18:04:06.189543 server(6): send "erl -sname server -pa ../../../chatty/ebin
+>     21:41:21.297501 server(4): match "SH-PROMPT:"
+>     21:41:21.297501 server(4): rest ""
+>     21:41:21.297771 server(6): send "erl -sname server -pa ../../../chatty/ebin
 >         "
->     18:04:06.189829 server(6): recv "erl "
->     18:04:06.190109 server(6): recv "-sname server -pa ../../../chatty/ebin
+>     21:41:21.297990 server(6): recv "e"
+>     21:41:21.298092 server(6): recv "rl"
+>     21:41:21.298191 server(8): expected* "Erlang/OTP"
+>     21:41:21.298191 server(8): timer started (10 seconds * 1.000 multiplier)
+>     21:41:21.298331 server(8): recv " -sname server -pa "
+>     21:41:21.298438 server(8): recv "../../"
+>     21:41:21.298523 server(8): recv "../ch"
+>     21:41:21.298593 server(8): recv "atty"
+>     21:41:21.298685 server(8): recv "/ebin"
+>     21:41:21.298769 server(8): recv "
 >         "
->     18:04:06.190232 server(8): expected* "Erlang/OTP"
->     18:04:06.190232 server(8): timer started (10 seconds * 1.000 multiplier)
->     18:04:06.340437 server(8): recv "Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     21:41:21.574667 server(8): recv "Erlang/OTP 24 [erts-12.3.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [jit] [dtrace]
 >         
 >         "
->     18:04:06.340665 server(8): timer canceled (after 150252 microseconds)
->     18:04:06.340829 server(8): skip "erl -sname server -pa ../../../chatty/ebin
+>     21:41:21.574789 server(8): timer canceled (after 276496 microseconds)
+>     21:41:21.574870 server(8): skip "erl -sname server -pa ../../../chatty/ebin
 >         "
->     18:04:06.340829 server(8): match "Erlang/OTP"
->     18:04:06.340829 server(8): rest " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     21:41:21.574870 server(8): match "Erlang/OTP"
+>     21:41:21.574870 server(8): rest " 24 [erts-12.3.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [jit] [dtrace]
 >         
 >         "
->     18:04:06.341453 server(9): expected* "Eshell"
->     18:04:06.341453 server(9): timer started (10 seconds * 1.000 multiplier)
->     18:04:06.461122 server(9): recv "Eshell V10.7.2.7  (abort with ^G)
->         "
->     18:04:06.461287 server(9): timer canceled (after 119621 microseconds)
->     18:04:06.461497 server(9): skip " 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     21:41:21.575228 server(9): expected* "Eshell"
+>     21:41:21.575228 server(9): timer started (10 seconds * 1.000 multiplier)
+>     21:41:21.696138 server(9): recv "Eshell V12.3.1  (abort with ^G)
+>         (server@HMATTSSO-M-74JD)1> "
+>     21:41:21.696316 server(9): timer canceled (after 120975 microseconds)
+>     21:41:21.696480 server(9): skip " 24 [erts-12.3.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [jit] [dtrace]
 >         
 >         "
->     18:04:06.461497 server(9): match "Eshell"
->     18:04:06.461497 server(9): rest " V10.7.2.7  (abort with ^G)
->         "
->     18:04:06.461802 server(9): recv "(server@HMATTSSO-M-74JD)1> "
->     18:04:06.462137 server(10): expected* "> "
->     18:04:06.462137 server(10): timer started (10 seconds * 1.000 multiplier)
->     18:04:06.462378 server(10): timer canceled (after 9 microseconds)
->     18:04:06.462527 server(10): skip " V10.7.2.7  (abort with ^G)
+>     21:41:21.696480 server(9): match "Eshell"
+>     21:41:21.696480 server(9): rest " V12.3.1  (abort with ^G)
+>         (server@HMATTSSO-M-74JD)1> "
+>     21:41:21.696850 server(10): expected* "> "
+>     21:41:21.696850 server(10): timer started (10 seconds * 1.000 multiplier)
+>     21:41:21.697041 server(10): timer canceled (after 8 microseconds)
+>     21:41:21.697146 server(10): skip " V12.3.1  (abort with ^G)
 >         (server@HMATTSSO-M-74JD)1"
->     18:04:06.462527 server(10): match "> "
->     18:04:06.462527 server(10): rest ""
->     18:04:06.463079 server(12): send "chatty:server().
+>     21:41:21.697146 server(10): match "> "
+>     21:41:21.697146 server(10): rest ""
+>     21:41:21.697509 server(12): send "chatty:server().
 >         "
->     18:04:06.463387 server(13): expected* "Starting server"
->     18:04:06.463387 server(13): timer started (10 seconds * 1.000 multiplier)
->     18:04:06.485231 server(13): recv "chatty:server("
->     18:04:06.486064 server(13): recv ").
+>     21:41:21.697713 server(13): expected* "Starting server"
+>     21:41:21.697713 server(13): timer started (10 seconds * 1.000 multiplier)
+>     21:41:21.719395 server(13): recv "cha"
+>     21:41:21.719581 server(13): recv "tty:server().
 >         "
->     18:04:06.492812 server(13): recv "** exception error: undefined function chatty:server/0
+>     21:41:21.725196 server(13): recv "Starting server server...
 >         "
->     18:04:06.493037 server(13): recv "(server@HMATTSSO-M-74JD)2> "
->     18:04:16.464507 server(13): recv "match_timeout"
->     18:04:16.465070 server(13): timer failed (after 10001243 microseconds)
->     18:04:16.465070 server(13): stop fail
->     18:04:16.465070 server(13): skip "chatty:server().
->         ** exception error: undefined function chatty:server/0
+>     21:41:21.725304 server(13): timer canceled (after 27456 microseconds)
+>     21:41:21.725423 server(13): skip "chatty:server().
+>         "
+>     21:41:21.725423 server(13): match "Starting server"
+>     21:41:21.725423 server(13): rest " server...
+>         "
+>     21:41:21.725737 server(14): expected* "> "
+>     21:41:21.725737 server(14): timer started (10 seconds * 1.000 multiplier)
+>     21:41:24.726659 server(14): recv "Trying to open log file chatty_server.log..."
+>     21:41:24.731218 server(14): recv "ok.
+>         "
+>     21:41:24.731442 server(14): recv "<0.87.0>
 >         (server@HMATTSSO-M-74JD)2> "
->     18:04:16.465070 server(13): where "13"
->     18:04:16.465070 server(13): stack "a_simple_server.lux:13" expect 
->     18:04:16.465323 server(13): inactivate after delete
->     18:04:16.465390 lux(13): goto cleanup
->     18:04:16.465550 lux(22): no_cleanup
->     18:04:16.465627 lux(0): case_timeout 289703000 micros left (289 seconds * 1.000 multiplier)
->     18:04:16.465696 lux(0): suite_timeout infinity
->     18:04:16.465796 lux(0): end_time "2021-01-31 18:04:16.465788"
->     result            : FAIL at line 13 in shell server
->     expected*
->     	Starting server
->     actual match_timeout
->     	chatty:server().
->     	** exception error: undefined function chatty:server/0
->     	(server@HMATTSSO-M-74JD)2> 
->     diff
->     	- Starting server
->     	+ chatty:server().
->     	+ ** exception error: undefined function chatty:server/0
->     	+ (server@HMATTSSO-M-74JD)2> 
->     	
->     successful        : 0
->     failed            : 1
->     	a_simple_server.lux:13 - match_timeout
->     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2021_01_31_17_04_06_55344/lux_summary.log.html
+>     21:41:24.731635 server(14): timer canceled (after 3005772 microseconds)
+>     21:41:24.731790 server(14): skip " server...
+>         Trying to open log file chatty_server.log...ok.
+>         <0.87.0>
+>         (server@HMATTSSO-M-74JD)2"
+>     21:41:24.731790 server(14): match "> "
+>     21:41:24.731790 server(14): rest ""
+>     21:41:24.732272 server(16): send "halt(3).
+>         "
+>     21:41:24.732629 server(17): expected* "SH-PROMPT:"
+>     21:41:24.732629 server(17): timer started (10 seconds * 1.000 multiplier)
+>     21:41:24.732921 server(17): recv "halt(3).
+>         "
+>     21:41:24.737803 server(17): recv "SH-PROMPT:"
+>     21:41:24.737974 server(17): timer canceled (after 5137 microseconds)
+>     21:41:24.738088 server(17): skip "halt(3).
+>         "
+>     21:41:24.738088 server(17): match "SH-PROMPT:"
+>     21:41:24.738088 server(17): rest ""
+>     21:41:24.738467 server(19): send "echo "===$?==="
+>         "
+>     21:41:24.738768 server(19): recv "ec"
+>     21:41:24.738987 server(19): recv "ho "===$?==="
+>     21:41:24.739133 server(20): expected* "===3==="
+>     21:41:24.739133 server(20): timer started (10 seconds * 1.000 multiplier)
+>     21:41:24.739344 server(20): recv ""
+>         ===3===
+>         SH-PROMPT:"
+>     21:41:24.739453 server(20): timer canceled (after 160 microseconds)
+>     21:41:24.739541 server(20): skip "echo "===$?==="
+>         "
+>     21:41:24.739541 server(20): match "===3==="
+>     21:41:24.739541 server(20): rest "
+>         SH-PROMPT:"
+>     21:41:24.739753 server(21): expected* "SH-PROMPT:"
+>     21:41:24.739753 server(21): timer started (10 seconds * 1.000 multiplier)
+>     21:41:24.739865 server(21): timer canceled (after 8 microseconds)
+>     21:41:24.739939 server(21): skip "
+>         "
+>     21:41:24.739939 server(21): match "SH-PROMPT:"
+>     21:41:24.739939 server(21): rest ""
+>     21:41:24.740129 server(22): no_cleanup
+>     21:41:24.750479 server(22): inactivate after zombify
+>     21:41:24.761906 server(22): stop shutdown
+>     21:41:24.761906 server(22): where "22"
+>     21:41:24.761906 server(22): stack "a_simple_server.lux:22" no_cleanup 
+>     21:41:24.762584 lux(0): case_timeout 296514000 micros left (296 seconds * 1.000 multiplier)
+>     21:41:24.762834 lux(0): suite_timeout infinity
+>     21:41:24.763034 lux(0): end_time "2022-06-27 21:41:24.763022"
+>     result            : SUCCESS
+>     successful        : 1
+>     summary           : SUCCESS
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/lux_logs/run_2022_06_27_19_41_21_142972/lux_summary.log.html
 >     .../lux> echo $?
->     1
+>     0
 
 
 The shell stdin log is also quite useful when trying to reproduce a
@@ -759,6 +775,8 @@ Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_serv
 >     export PS1=SH-PROMPT:
 >     erl -sname server -pa ../../../chatty/ebin
 >     chatty:server().
+>     halt(3).
+>     echo "===$?==="
 >     .../lux> echo $?
 >     0
 
@@ -768,13 +786,18 @@ Evaluate `cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_serv
 >     .../lux> cd tutorial/chatty/test/intro && cat lux_logs/latest_run/a_simple_server.lux.server.stdout.log
 >     [?1034hsh-3.2$ export PS1=SH-PROMPT:
 >     SH-PROMPT:erl -sname server -pa ../../../chatty/ebin
->     Erlang/OTP 22 [erts-10.7.2.7] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [hipe]
+>     Erlang/OTP 24 [erts-12.3.1] [source] [64-bit] [smp:12:12] [ds:12:12:10] [async-threads:1] [jit] [dtrace]
 >     
->     Eshell V10.7.2.7  (abort with ^G)
+>     Eshell V12.3.1  (abort with ^G)
 >     (server@HMATTSSO-M-74JD)1> chatty:server().
->     ** exception error: undefined function chatty:server/0
+>     Starting server server...
+>     Trying to open log file chatty_server.log...ok.
+>     <0.87.0>
+>     (server@HMATTSSO-M-74JD)2> halt(3).
+>     SH-PROMPT:echo "===$?==="
+>     ===3===
 >     .../lux> echo $?
->     (server@HMATTSSO-M-74JD)2> 0
+>     SH-PROMPT:0
 
 
 Lux has a built-in debugger. It is always present, ready to read
@@ -809,6 +832,13 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     rm -rf tmp_logs
 >     lux -d --log_dir=tmp_logs a_simple_server.lux
 >     c 15
+>     shell server
+>     !im().
+>     ?
+>     n
+>     t
+>     help quit
+>     c
 >     
 
 Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_run/a_simple_server.delux.debug.stdout.log` file:
@@ -840,7 +870,102 @@ Snippet from the enclosed `.../lux/tutorial/chatty/test/intro/lux_logs/latest_ru
 >     Set temporary breakpoint at "a_simple_server.lux:15"
 >     
 >     Continue to run from "a_simple_server.lux:1"
->     ..:..:.:..:..:.:..:..:.:....:.:.13???
+>     ..:..:.:..:..:.:..:.:.:..:.:....:.:.:..:.:.:.
+>     Break at "a_simple_server.lux:15"
+>     
+>     File a_simple_server.lux:
+>     13:     ?Starting server
+>     14:     ?> 
+>     15> 
+>     16:     !halt(3).
+>     17:     ?SH-PROMPT:
+>     18: 
+>     19:     !echo "===$?==="
+>     20:     ?===3===
+>     21:     ?SH-PROMPT:
+>     22: 
+>     shell server
+>     22: 
+>     
+>     Connect to shell "server" in background mode.
+>     !im().
+>     
+>     Send data to shell "server".
+>     
+>     server(recv): im().
+>     server(recv): 
+>     ?
+>     
+>     Reset output buffer for shell "server".
+>     n
+>     
+>     File a_simple_server.lux:
+>     16>     !halt(3).
+>     t
+>     Log files at tmp_logs/.:
+>     
+>     *  1 lux_config.log
+>     *  2 lux_summary.log.tmp
+>     *  3 lux_result.log
+>     *  4 a_simple_server.lux.config.log
+>     *  5 a_simple_server.lux.event.log
+>     *  6 a_simple_server.lux.server.stdin.log
+>     *  7 a_simple_server.lux.server.stdout.log
+>     
+>     Last 10 (65..74) lines of log file: a_simple_server.lux.event.log
+>     
+>     21:41:29.433328 server(14): recv "ok.\r\n<0.87.0>\r\n"
+>     21:41:29.433638 server(14): recv "(server@HMATTSSO-M-74JD)2> "
+>     21:41:29.433835 server(14): timer canceled (after 3004863 microseconds)
+>     21:41:29.433956 server(14): skip " server...\r\nTrying to open log file chatty_server.log...ok.\r\n<0.87.0>\r\n(server@HMATTSSO-M-74JD)2"
+>     21:41:29.433956 server(14): match "> "
+>     21:41:29.433956 server(14): rest ""
+>     21:41:29.441252 server(14): send "im().\n"
+>     21:41:29.942268 server(14): recv "im().\r\n"
+>     21:41:29.954063 server(14): reset "7 bytes wasted"
+>     21:41:29.954063 server(14): output reset 7 bytes
+>     
+>     help quit
+>     
+>     quit \[scope\]
+>     --------------
+>     
+>     Quit a single test case or the entire test suite
+>     in a controlled manner. Runs cleanup if applicable.
+>     
+>     **Parameters:**  
+>     
+>     * scope - scope of exit; enum(case|suite)  
+>     
+>     c
+>     
+>     Continue to run from "a_simple_server.lux:16"
+>     
+>     server(recv): <0.90.0>
+>     server(recv): 
+>     
+>     server(recv): (server@HMATTSSO-M-74JD)3> halt(3).
+>     server(recv): 
+>     
+>     server(recv): SH-PROMPT:
+>     
+>     server(recv): e
+>     
+>     server(recv): cho "===$?==="
+>     server(recv): ===3===
+>     server(recv): SH-PROMPT:
+>     .
+>     Cleanup. Turn existing shells into zombies.
+>     
+>     Disconnect from shell "server".
+>     .
+>     result            : SUCCESS
+>     
+>     successful        : 1
+>     summary           : SUCCESS
+>     
+>     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/intro/tmp_logs/lux_summary.log.html
+>     SH-PROMPT:
 
 Infra-structure support
 -----------------------
@@ -1029,10 +1154,11 @@ Evaluate `cd tutorial/chatty/test/infra && rm -f history_demo_multi_host/lux_his
 Evaluate `cd tutorial/chatty/test/infra && lux --history history_demo_multi_host history_demo_multi_host/run_logs`
 
 >     .../lux> cd tutorial/chatty/test/infra && lux --history history_demo_multi_host history_demo_multi_host/run_logs
+>     Cwd: /Users/hmattsso/dev/lux/tutorial/chatty/test/infra
 >     Invoke: /Users/hmattsso/dev/lux/bin/lux --history history_demo_multi_host history_demo_multi_host/run_logs
 >     Assembling history of logs from...
->     	history_demo_multi_host/run_logs...........................
->     Wrote 2469 bytes in run cache to file history_demo_multi_host/lux_history.cache
+>     	history_demo_multi_host/run_logs ...........................
+>     Wrote 2499 bytes in run cache to file history_demo_multi_host/lux_history.cache
 >     Analyzed 27 test runs with 135 test cases (0 errors)...ok
 >     file:///Users/hmattsso/dev/lux/tutorial/chatty/test/infra/history_demo_multi_host/lux_history.html
 >     .../lux> echo $?
@@ -2816,36 +2942,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_06_27_19_44_58_934610/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:.:..:...:..:.:.:.:....:..:.:..:..(....:..:.:.:.:.:...)(.:.:..:..)...:..:.:..:..(.:.:..:..)..(.:.:..:..)(....:.:..:...)(.:.:..:..)..(..:.:.:..)......:..:........
+>     progress          : ..:..:..:.:....:.:.:....:.:..:..:.:.:..(....:..:.:.:.:...)(.:.:..:..)...:...:.:.:.:..(.:.:..:..)..(.:.:..:.:..)(....:.:..:...)(..:.:.:.:..)..(..:.:.:.:..).......:.:........
 >     result            : SUCCESS
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/fail.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/fail.lux"}]}
 >     test case         : examples/fail.lux
->     progress          : ..:..:.:..:...:.:..:.:.:...:.:.:.:....:.:..:..32C..:..:.:..:..:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:.:.:...:.:..:.:...:.:.:.:....:.:..:..32C..:...:.:.:.:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at line 32 in shell calculator
 >     expected*
 >     	19
@@ -2861,230 +2963,14 @@ Evaluate `lux examples`
 >     	+ 18
 >     	+ 4> 
 >     	
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/intro.lux"}]}
 >     test case         : examples/intro.lux
->     progress          : ..:..:.:..:..:.:.:.....:..:.:..:..:..:.:..:.:..:.:.:..:.:.:..:.:.....:..:.:.:....c.:.....:..:.:..:..:..:.:..:.:..:.
+>     progress          : ..:..:..:.:..:.:..:....:..:..:.:.:...:.:..:.:..:.:..:.:..:.:..:..:.:.:..:.:..:..:.:.:....c.:.....:.:..:.:..:.:...:.:.:..:.:..:.
 >     result            : SUCCESS
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/intro.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/intro.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop.lux"}]}
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.((.:..:.:.)(.:..:.:.)(.:..:.:.))((.:..:.:.)(.:.:..:.)(.:..:.)(.:..:.:.)(.:..:.:.))((..:.:.:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.)(.:..:.:.)(.:..:.:.)(.:..:.))...:..:..:..:..:.:.:.:..:.:..:.:...:..:.:..:.((.i=1...:.:.:.:..z)(z..i=2..:..:.:.:..z)(z..i=3...:.:.:..z)(:.z..i=4..:..:.:.:.)).c........:..:.:..:..:..:.:.
+>     progress          : ..:..:.:..:.:.((.:.:..:.:.)(..:.:.:.:.:.)(..:.:.:.:.:.))((.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.))((..:.:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:.:..:.:.)(.:..:.:.:.)(.:..:.)(..:.:.:.)(.:..:.:.))...:...:.:.:.:...:.:.:.:.:.:.:..:.:..:.:...:..:..:.:.:.((.i=1..:..:.:.:.:..z)(z..i=2...:.:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):)..c........:...:.:.:..:..:.:.:.:.
 >     result            : SUCCESS
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/intro.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/intro.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/loop_fail.lux"}]}
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:.:..:.((.i=1...:.:..z)(z..i=2..:..:..z)(z..i=3..:..:..z))+5
+>     progress          : ..:..:..:.:.((.i=1..:..:.:..z)(z..i=2..:..:..z)(z..i=3..:..:.:..z))+5
 >     result            : FAIL at line 5 in shell break
 >     expected*
 >     	
@@ -3097,128 +2983,8 @@ Evaluate `lux examples`
 >     result            : FAIL as required variable YADA_MAKE is not set
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/intro.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/intro.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop_fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop_fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop_fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/unstable_warn.lux"}]}
 >     test case         : examples/unstable_warn.lux
->     progress          : ..:..:.:..:....7
+>     progress          : ..:...:.:.:....7
 >     warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at line 7 in shell foo
 >     expected*
@@ -3229,150 +2995,6 @@ Evaluate `lux examples`
 >     	- bar
 >     	+ 
 >     	
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/intro.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/intro.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop_fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop_fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop_fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/unstable_warn.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/unstable_warn.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/unstable_warn.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.tmp",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "yyyy-mm-dd hh:mm:ss",enable,
->                 [{case_prefix,[]},
->                  {next_script,"/Users/hmattsso/dev/lux/examples/warning.lux"}]}
 >     test case         : examples/warning.lux
 >     progress          : W
 >     warning           : 3: Trailing whitespaces
@@ -3388,161 +3010,7 @@ Evaluate `lux examples`
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
 >     summary           : FAIL
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/calc.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/calc.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/calc.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/intro.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/intro.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/intro.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/loop_fail.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/loop_fail.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/loop_fail.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/unstable_warn.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/unstable_warn.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/unstable_warn.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     -ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     RHL  examples/warning.lux.event.log.html
->     +ONL  /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NHL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/examples/warning.lux.event.log.html
->     -NSL /Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636
->     NRHL  examples/warning.lux.event.log.html
->     OA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     NA  {astate,"/Users/hmattsso/dev/lux",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636",
->                 "/Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log",
->                 no_script_file,[],"2022-06-08 10:21:55.419636",
->                 "2022-06-08 10:22:06.297963",enable,
->                 [{case_prefix,[]},{html,enable}]}
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_06_08_08_21_55_419636/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_06_27_19_44_58_934610/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
