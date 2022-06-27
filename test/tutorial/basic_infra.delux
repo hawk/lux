@@ -77,10 +77,10 @@
 
     !cat lux_history.html
 
-    ?Still failing test cases
+    ?All failing test cases
     ?All runs on host
     ?no_suite
-    ?Still failing test cases
+    ?All failing test cases
     ?no_suite:warning.lux
 
     [invoke check_ok]

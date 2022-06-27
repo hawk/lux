@@ -21,7 +21,7 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make  history_demo_multi_branch < /dev/null
+    !${validate} make history_demo_multi_branch < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
@@ -30,7 +30,7 @@
 
     ?chatty-2.0
     ?chatty-1.0
-    ?Still failing test cases
+    ?All failing test cases
     ?demo:warning.lux
 
     [invoke check_ok]
@@ -49,7 +49,7 @@
 
     !cat history_demo_multi_host/lux_history.html
 
-    ?Still failing test cases
+    ?All failing test cases
     ?All configurations
     ?NetBSD-macppc
     ?SunOS-i86pc
@@ -67,7 +67,7 @@
     ?sunny.*SunOS-i86pc
     ?demo
 
-    ?Still failing test cases
+    ?All failing test cases
     ?netty.*NetBSD-macppc
     ?cloudy.*SunOS-i86pc
     ?sunny.*SunOS-i86pc
@@ -81,15 +81,15 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make  history_demo_single < /dev/null
+    !${validate} make history_demo_single < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
 
     !cat history_demo_single/lux_history.html
 
-    ?Still failing test cases
-    ?Still failing test cases
+    ?All failing test cases
+    ?All failing test cases
     ?demo:warning.lux
 
     [invoke check_ok]
@@ -99,7 +99,7 @@
     [timeout 60]
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make  history_demo_success < /dev/null
+    !${validate} make history_demo_success < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
@@ -123,8 +123,8 @@
 
     !cat history_demo_warning/lux_history.html
 
-    ?Still failing test cases
-    ?Still failing test cases
+    ?All failing test cases
+    ?All failing test cases
     ?demo:warning.lux
 
     [invoke check_ok]
@@ -135,7 +135,7 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make  history_demo_empty < /dev/null
+    !${validate} make history_demo_empty < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:

@@ -57,10 +57,11 @@
     [progress \nopen file://$run/logs/lux_history.html\n]
     [invoke eval 0 "../bin/lux --html=validate --history $run/logs"]
 
-    -success.lux|better.lux|No still failing test cases
+    #-success.lux|better.lux|No failing test cases
+    -success.lux|No failing test cases
     !cat $run/logs/lux_history.html
-    ?Still failing test cases
-    ?Still failing test cases
+    ?All failing test cases
+    ?All failing test cases
     ?worse.lux
     ?fail.lux
     [invoke check_status 0]
