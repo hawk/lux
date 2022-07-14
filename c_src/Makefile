@@ -15,6 +15,8 @@ endif
 
 PROG = ../priv/bin/runpty
 
+.PHONY: all debug trace clean info
+
 all: $(PROG)
 
 debug:

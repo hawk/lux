@@ -13,6 +13,8 @@ APP_DIR=$(shell dirname $(PWD))
 ERL_FILES=$(shell ls *erl)
 EBIN_FILES=$(ERL_FILES:%.erl=../ebin/%.$(EMULATOR)) ../ebin/lux.app
 
+.PHONY: all debug clean info
+
 all debug: $(EBIN_FILES)
 
 $(EBIN_FILES): lux.hrl

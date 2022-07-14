@@ -1,3 +1,5 @@
+.PHONY: all debug clean info
+
 all debug:
 	../bin/lux --file_pattern=.delux$$ --junit=true .
 

@@ -16,6 +16,8 @@
 
 -include("lux.hrl").
 
+-dialyzer({no_return, badarg/2}).
+
 -define(FILES, "--").
 
 -spec specs() -> [spec()].

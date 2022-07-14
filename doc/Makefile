@@ -39,6 +39,8 @@ SRC_MD=$(wildcard $(WILDCARD))
 GEN_MD=$(patsubst %.md.src,%.md,$(SRC_MD))
 DEPS_MD=$(patsubst %.src,%.d,$(SRC_MD))
 
+.PHONY: all doc clean
+
 all doc: $(LUX_HTML)
 
 clean:

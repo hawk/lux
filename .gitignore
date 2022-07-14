@@ -37,6 +37,10 @@ core*
 /tutorial/README.md
 
 
+# Dialyzer
+.dialyzer_plt
+dialyzer.log
+
 # Lux
 lux_logs
 tmp_logs

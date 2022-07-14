@@ -15,7 +15,10 @@ DIALYZER_LOG = dialyzer.log
 
 LUXCFG=$(DESTDIR)$(TARGETDIR)/priv/luxcfg
 
-.PHONY: all debug clean xref doc test test_clean config_clean install
+### BUILD ###
+
+.PHONY: all debug clean config_clean doc
+
 all debug clean:
 	@for d in $(SUBDIRS); do \
 	   if test ! -d $$d ; then \
@@ -25,23 +28,16 @@ all debug clean:
 	   fi ; \
 	done
 
-xref:
-	bin/lux --xref
+config_clean:
+	$(MAKE) clean
+	-rm -rf configure include.mk autom4te.cache config.status config.log *~
 
 doc:
 	cd doc && $(MAKE) all
 
-dialyzer: $(DIALYZER_PLT)
-	dialyzer --src src --src bin --plt $(DIALYZER_PLT) \
-		 -Wunderspecs -Woverspecs \
-		| tee $(DIALYZER_LOG)
+### TEST ###
 
-$(DIALYZER_PLT):
-	dialyzer --build_plt --output_plt $(DIALYZER_PLT) \
-		--apps erts kernel stdlib runtime_tools xmerl inets
-
-dialyzer_clean:
-	rm -f $(DIALYZER_PLT) $(DIALYZER_LOG)
+.PHONY: test test_clean xref dialyzer dialyzer_clean
 
 test:
 	cd test && $(MAKE) all
@@ -49,9 +45,24 @@ test:
 test_clean:
 	cd test && $(MAKE) clean
 
-config_clean:
-	$(MAKE) clean
-	-rm -rf configure include.mk autom4te.cache config.status config.log *~
+xref:
+	bin/lux --xref
+
+dialyzer: $(DIALYZER_PLT)
+	dialyzer --src src --src bin --plt $(DIALYZER_PLT) \
+		| tee $(DIALYZER_LOG)
+
+$(DIALYZER_PLT):
+	dialyzer --build_plt --output_plt $(DIALYZER_PLT) \
+		--apps erts kernel stdlib runtime_tools xmerl inets \
+		tools reltool et wx
+
+dialyzer_clean:
+	rm -f $(DIALYZER_PLT) $(DIALYZER_LOG)
+
+### INSTALL ###
+
+.PHONY: install info
 
 install:
 	@### TOP
