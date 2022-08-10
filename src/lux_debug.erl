@@ -13,7 +13,8 @@
          eval_cmd/4,
          cmd_attach/3,
          check_breakpoint/2,
-         gen_markdown/1
+         gen_markdown/1,
+         stop_trace/1
         ]).
 
 -include("lux.hrl").
@@ -1609,11 +1610,8 @@ cmd_trace(I, Args, _CmdState) ->
                     elog(I, "trace start (~s)", [Base2]),
                     {CmdState, I#istate{trace_mode = TraceMode2}};
                 'STOP' when TraceMode =:= TraceMode2 ->
-                    format("\nInternal tracing of test ~s stopped.\n",
-                           [?a2l(TraceMode)]),
-                    elog(I, "trace stop", []),
-                    lux_trace:stop_trace(),
-                    {CmdState, I#istate{trace_mode = none}};
+                    I2 = stop_trace(I),
+                    {CmdState, I2};
                 _ ->
                     format("\nERROR: Refused to ~p internal tracing of"
                            " test case as test ~s is being traced.\n",
@@ -1628,6 +1626,14 @@ elog(I, Format, Args) ->
                        Args,
                        I#istate.active_name,
                        (I#istate.latest_cmd)#cmd.lineno).
+
+stop_trace(I) ->
+    TraceMode = I#istate.trace_mode,
+    format("\nInternal tracing of test ~s stopped.\n",
+           [?a2l(TraceMode)]),
+    elog(I, "trace stop", []),
+    lux_trace:stop_trace(),
+    I#istate{trace_mode = none}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

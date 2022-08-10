@@ -261,8 +261,8 @@ filter(Trace, S) when element(1, Trace) =:= trace ->
     {keep, NewTrace}.
 
 filter_call(MFA, Vals, S) ->
-    {CallAction, DataAction} =
-        lookup_call_filter(MFA, S#state.call_filters, deep, keep),
+    CallFilters = S#state.call_filters,
+    {CallAction, DataAction} = lookup_call_filter(MFA, CallFilters, deep, keep),
     TopFs = S#state.data_filters,
     TopAct = DataAction,
     Top = {TopFs, TopAct},

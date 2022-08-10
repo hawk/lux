@@ -183,7 +183,10 @@ opt_start_etrace(#istate{progress = Progress, trace_mode = none} = I)
     ExtraMods = extra_trace_modules(I),
     {ok, log} =
         lux_trace:start_trace(event, TraceTarget, FirstTracePid, ExtraMods),
-    I#istate{trace_mode = progress};
+    TraceMode = progress,
+    io:format("\nInternal tracing of test ~s started.\n", [?a2l(TraceMode)]),
+    ilog(I, "trace start\n", [], "lux", 0),
+    I#istate{trace_mode = TraceMode};
 opt_start_etrace(I) ->
     I.
 
@@ -241,10 +244,9 @@ display_trace(Progress, Trace, _Str) ->
             io:format("TRACE: ~p\n", [Trace])
     end.
 
-opt_stop_etrace(#istate{progress = Progress, trace_mode = TraceMode} = I)
-  when Progress =:= detail, TraceMode =:= progress ->
-    lux_trace:stop_trace(),
-    I#istate{trace_mode = none};
+opt_stop_etrace(#istate{trace_mode = TraceMode} = I)
+  when TraceMode =/= none ->
+    lux_debug:stop_trace(I);
 opt_stop_etrace(I) ->
     I.
 

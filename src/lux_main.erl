@@ -287,6 +287,7 @@ suite_trace(MainOp, LuxAppDir, Opts, OrigArgs) ->
             Res;
         {error, Format, Args} ->
             io:format(Format, Args),
+            lux_trace:stop_trace(),
             1
     end.
 
