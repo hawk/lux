@@ -95,6 +95,21 @@ if test "x$ERLC" = "xno"; then
   AC_MSG_ERROR([erlc: command not found])
 fi
 
+AC_ARG_ENABLE(deterministic_build,
+AS_HELP_STRING([--enable-deterministic-build],
+                [enable deterministic build,
+                 add +deterministic remove +debug_info]))
+
+DEBUGINFO_OR_DETERMINISTIC=+debug_info
+STRIP_RUNPTY=
+if test "x$enable_deterministic_build" = "xyes"; then
+    DEBUGINFO_OR_DETERMINISTIC=+deterministic
+    STRIP_RUNPTY=true
+fi
+
+AC_SUBST(DEBUGINFO_OR_DETERMINISTIC)
+AC_SUBST(STRIP_RUNPTY)
+
 ################################################################################
 # Doc
 

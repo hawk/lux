@@ -25,6 +25,10 @@ trace:
 
 $(PROG): runpty.c
 	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $<
+ifeq ($(STRIP_RUNPTY), true)
+	strip $(PROG)
+	strip --remove-section=.note.gnu.build-id $(PROG)
+endif
 
 clean:
 	rm -rf $(PROG) ../priv/bin/runpty.dSYM core* *~
