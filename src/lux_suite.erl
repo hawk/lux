@@ -76,20 +76,21 @@ run(Files, Opts, PrevLogDir, OrigArgs) when is_list(Files) ->
                 end
             catch
                 throw:{error, FileErr2, ReasonStr2} ->
-                    {error, FileErr2, ReasonStr2};
+                    {run_error, FileErr2, ReasonStr2};
                 ?CATCH_STACKTRACE(Class2, Reason2, EST2)
-                ReasonStr2 =
-                lists:flatten(?FF("~p:~p\n\t~p", [Class2, Reason2, EST2])),
-                {error, SummaryLog, ReasonStr2}
-                end;
+                    ReasonStr2 =
+                        lists:flatten(?FF("~p:~p\n\t~p",
+                                          [Class2, Reason2, EST2])),
+                {run_error, SummaryLog, ReasonStr2}
+            end;
         {error, {badarg, Name, Val}} ->
             ArgErr =
                 lux_log:safe_format(undefined,
                                     "ERROR: ~p is an illegal argument (~p)\n",
                                     [Name, Val]),
-            {error, hd(Files), ArgErr};
+            {run_error, hd(Files), ArgErr};
         {error, File, ArgErr} ->
-            {error, File, ArgErr}
+            {run_error, File, ArgErr}
     end.
 
 doc_run(R) ->
