@@ -989,7 +989,7 @@ stop_app(WWW) ->
     if
         WWW =:= undefined ->
             ok;
-        WWW =:= false ->
+        WWW =:= failed ->
             ok;
         is_function(WWW, 0) ->
             %% WWW(), % Get rid of progress printouts

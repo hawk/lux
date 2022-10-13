@@ -37,7 +37,6 @@ generate(PrefixedSources, RelHtmlDir, Opts0) ->
     io:format("Cwd: ~s\n", [Cwd]),
     io:format("Invoke: ~s\n", [string:join(init:get_plain_arguments(), " ")]),
     io:format("Assembling history of logs from...", []),
-    %% TIME: io:format("\nASSEMBLE ~p\n", [time()]),
     Sources = lists:map(fun split_source/1, PrefixedSources),
     SplitSources = keysplit(#source.branch, Sources),
     Opts = [{top, Sources} | Opts0],
@@ -66,9 +65,9 @@ generate(PrefixedSources, RelHtmlDir, Opts0) ->
             end,
 
             CaseRuns = lists:flatten([R#run.runs || R <- Runs]),
-            io:format("\nAnalyzed ~p test runs with ~p test cases (~p errors)",
+            io:format("\nAnalyzed ~p test runs"
+                      " with ~p test cases (~p errors)\n",
                       [length(Runs), length(CaseRuns),length(Errors)]),
-            %% TIME: io:format("\nDONE ~p\n", [time()]),
             do_generate(?l2b(RelHtmlDir), Runs, Errors, Opts);
         {error, ErrFile, ErrReason} ->
             {error, ErrFile, ErrReason}
@@ -86,8 +85,10 @@ read_cache(CacheFile, Opts) ->
                     if
                         CacheOpts =/= Opts ->
                             io:format("\n<WARNING> Cache file is incompatible"
-                                      " with previous run ~s: ignoring cache\n",
-                                      [CacheFile]),
+                                      " with previous run ~s: ignoring cache\n"
+                                      "Old opts: ~p\n"
+                                      "New opts: ~p\n",
+                                      [CacheFile, CacheOpts, Opts]),
                             {ok, 0, [], []};
                         true ->
                             {ok, CacheThreshold, CacheRuns, CacheErrors}
@@ -462,13 +463,15 @@ gen_table(AbsHtmlDir, MultiBranch, Page, TagDict) ->
           select   = Select,
           runs     = Runs} = Page,
 
-    %% TIME: io:format("\nTABLE ~p \t~p #~p\n", [time(), Title, length(Runs)]),
+    io:format("\t\tGenerate table: ~s\n", [Title]),
     %% Ensure order of the runs
+    io:format("\t\tSplit tests\n", []),
     SplitTests = keysplit(#run.test, Runs, fun compare_run/2),
     UnsortedSplitIds = keysplit(#run.id, Runs, fun compare_run/2),
     SplitIds = lists:sort(fun compare_split/2, UnsortedSplitIds),
 
     %% Generate rows
+    io:format("\t\tGenerate rows\n", []),
     HostMap = maps:new(),
     RevSplitIds = lists:reverse(SplitIds),
     Rows = lists:zf(fun({Test, TestRuns}) ->
@@ -477,23 +480,34 @@ gen_table(AbsHtmlDir, MultiBranch, Page, TagDict) ->
                                     Select, Suppress, HostMap)
                     end,
                    SplitTests),
+
     %% Sort rows according to prio
+    io:format("\t\tSort ~p rows\n", [length(Rows)]),
     SplitRows = keysplit(#row.res, Rows),
+    io:format("\t\t\t1\n", []),
     SortedSplitRows = keysort_prio(1, SplitRows),
-    SortedRows = lists:append([lists:reverse(SubRows) ||
-                                  {_Res, SubRows} <- SortedSplitRows]),
+    io:format("\t\t\t2\n", []),
+    DeepSortedRows = [lists:reverse(SubRows) ||
+                         {_Res, SubRows} <- SortedSplitRows],
+    io:format("\t\t\t3\n", []),
+    SortedRows = lists:append(DeepSortedRows),
+    io:format("\t\t\t4\n", []),
     case SortedRows of
         []                         -> TableRes = no_data;
         [#row{res = TableRes} | _] -> ok
     end,
 
     %% Generate header rows
-    RowsIoList    = [R#row.iolist || R <- SortedRows],
+    io:format("\t\tGenerate header\n", []),
+    RowsIoList = [R#row.iolist || R <- SortedRows],
+    io:format("\t\tGenerate run info\n", []),
     RunInfoIoList = lists:map(fun run_info/1, SplitIds),
-    HostInfo      = fun(SI) -> host_info(SI, Page, TagDict, MultiBranch) end,
-    HostIoList    = lists:map(HostInfo, SplitIds),
-    CntTuple      = lists:mapfoldl(fun run_cnt/2, {1,Rows}, SplitIds),
-    CntIoList     = element(1, CntTuple),
+    io:format("\t\tGenerate hosts\n", []),
+    HostInfo = fun(SI) -> host_info(SI, Page, TagDict, MultiBranch) end,
+    HostIoList = lists:map(HostInfo, SplitIds),
+    io:format("\t\tGenerate run count\n", []),
+    CntTuple = lists:mapfoldl(fun run_count/2, {1,Rows}, SplitIds),
+    CntIoList = element(1, CntTuple),
 
     %% Return the table
     TableIoList =
@@ -512,8 +526,7 @@ gen_table(AbsHtmlDir, MultiBranch, Page, TagDict) ->
               RowsIoList,
               "  </table>\n"
              ]),
-    %% TIME: io:format("DONE  ~p \t~p\n", [time(), Title]),
-
+    io:format("\t\tTable done\n", []),
     #table{res=TableRes,
            rows=SortedRows,
            iolist=TableIoList,
@@ -599,7 +612,7 @@ host_info({_, [#run{hostname=H, config_name=C} | _]}, CurrP,
      "</td>\n"
     ].
 
-run_cnt({_, _}, {N, Rows} ) ->
+run_count({_, _}, {N, Rows} ) ->
     Sum = fun(Pos) ->
                   lists:sum([element(Pos,lists:nth(N,Cells)) ||
                                 #row{cells = Cells} <- Rows])
@@ -823,19 +836,25 @@ gen_log_link(AbsHtmlDir, Run, Slogan) ->
     end.
 
 gen_page(RelHtmlDir, MultiBranch, CurrP, TagDict, WhichCases) ->
+    RelHtmlFile = filename:join([RelHtmlDir, CurrP#page.file]),
+    io:format("Generate page ~s\n", [RelHtmlFile]),
     AbsHtmlDir = lux_utils:normalize_filename(RelHtmlDir),
     SuiteP = CurrP#page{title = "All test suites"},
     SuiteT = gen_table(AbsHtmlDir, MultiBranch, SuiteP, TagDict),
+    io:format("\tSuite done\n", []),
     FailedRuns = extract_failed_runs(SuiteT, WhichCases),
     CaseRuns = extract_test_case_runs(FailedRuns),
     Failing = failing_test_cases_title(WhichCases),
     Suppress = failing_test_cases_suppress(WhichCases),
+    io:format("\tExtract done\n", []),
     CaseP = CurrP#page{title = Failing,
                        suppress = Suppress,
                        select   = select_latest,
                        runs     = CaseRuns},
     CaseT = gen_table(AbsHtmlDir, MultiBranch, CaseP, TagDict),
+    io:format("\tCase done\n", []),
     WarnIoList = gen_warnings(AbsHtmlDir, CaseT),
+    io:format("\tWarnings done\n", []),
     {CurrP, SuiteT, CaseT, WarnIoList}.
 
 failing_test_cases_title(WhichCases) ->
@@ -967,6 +986,8 @@ classify_warning(Text) ->
 write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
            TagDict, Errors, WhichCases, Footer) ->
     {CurrP, SuiteT, CaseT, OptWarn} = CurrG,
+    RelHtmlFile = filename:join([RelHtmlDir, CurrP#page.file]),
+    io:format("Write page ~s\n", [RelHtmlFile]),
     Header = header(RelHtmlDir, MultiBranch, AllRuns,
                     CurrG, AllG, TagDict, Errors, WhichCases),
     PageIoList =
@@ -996,7 +1017,6 @@ write_page(RelHtmlDir, MultiBranch, AllRuns, CurrG, AllG,
          end,
          Footer
         ],
-    RelHtmlFile = filename:join([RelHtmlDir, CurrP#page.file]),
     case SuiteT#table.res =:= no_data andalso
         not lists:member(overview, CurrP#page.tags) of
         true ->
@@ -1167,8 +1187,8 @@ parse_summary_logs(Source, RelHtmlDir,
     if
         Base =:= HistoryFile ->
             %% Use history file as source
-            {ParseRes, NewWWW} =
-                lux_html_parse:parse_files(shallow, RelFile, WWW),
+            {ParseRes, NewWWW, _NewFileCount, _NewWWWCount} =
+                lux_html_parse:parse_files(shallow, RelFile, WWW, 0, 0),
             case ParseRes of
                 [{ok, _, Links, html}] ->
                     SL = ?SUITE_SUMMARY_LOG,

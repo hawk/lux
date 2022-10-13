@@ -7,7 +7,7 @@
 
 -module(lux_html_parse).
 
--export([format_results/2, validate_html/2, parse_files/3]).
+-export([format_results/2, validate_html/2, parse_files/5]).
 
 -include_lib("lux.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
@@ -24,12 +24,14 @@ validate_html(HtmlFile, Opts) when is_list(HtmlFile) ->
     end.
 
 do_validate_html(HtmlFile, WWW) ->
-    {ValRes, NewWWW} = validate_file(HtmlFile, WWW),
+    {ValRes, NewWWW, NewFileCount, NewWWWCount} =
+        validate_file(HtmlFile, WWW, 0, 0),
+    io:format("\nValidated ~p files (~p WWW)\n", [NewFileCount, NewWWWCount]),
     case format_results(ValRes, NewWWW) of
         [] ->
             ok;
         Reasons ->
-            io:format("\n", []),
+            %% io:format("\n", []),
             [io:format("~s\n", [R]) || R <- Reasons]
     end,
     Errors = [VR || VR <- ValRes,
@@ -54,12 +56,14 @@ do_validate_html(HtmlFile, WWW) ->
          Line::non_neg_integer(), Col::non_neg_integer(),
          Reason::string()}.
 
-validate_file(File, WWW) ->
-    {Res, NewWWW} = parse_files(deep, File, WWW),
+validate_file(File, WWW, FileCount, WWWCount) ->
+    {Res, NewWWW, NewFileCount, NewWWWCount}
+        = parse_files(deep, File, WWW, FileCount, WWWCount),
     %% io:format("\nLINKS: ~s\n\t~p\n", [File, Res]),
     Enoent = file:format_error(enoent),
     Fun = fun(E, A) -> validate_links(E, Res, Enoent, A) end,
-    {lists:reverse(lists:foldl(Fun, [], Res)), NewWWW}.
+    {lists:reverse(lists:foldl(Fun, [], Res)), NewWWW,
+     NewFileCount, NewWWWCount}.
 
 validate_links({ok, Abs, Refs, Type}, Orig, EnoEnt, Acc) ->
     Fun = fun(E, A) -> do_validate_links(E, Abs, Orig, EnoEnt, A) end,
@@ -109,17 +113,26 @@ do_validate_links({link, External, Internal}, Abs, Orig, EnoEnt, Acc) ->
 do_validate_links({anchor, _Name}, _Abs, _Orig, _EnoEnt, Acc) ->
     Acc.
 
-parse_files(Mode, Rel, WWW) ->
-    do_parse_files(Mode, [{top, Rel}], WWW, []).
+parse_files(Mode, Rel, WWW, FileCount, WWWCount) ->
+    do_parse_files(Mode, [{top, Rel}], WWW, [], FileCount, WWWCount).
 
-do_parse_files(Mode, [Rel|Rest], WWW, Acc) ->
+do_parse_files(Mode, [Rel|Rest], WWW, Acc, FileCount, WWWCount) ->
     {_LinkType, Abs} = link_type(Rel),
     case lists:keymember(Abs, 2, Acc) of
         true ->
             %% Already parsed
-            do_parse_files(Mode, Rest, WWW, Acc);
+            do_parse_files(Mode, Rest, WWW, Acc, FileCount, WWWCount);
         false ->
-            {ParseRes, NewWWW} = parse_file(Abs, lux_utils:is_url(Abs), WWW),
+            {ParseRes, NewWWW, NewFileCount, NewWWWCount} =
+                parse_file(Abs, lux_utils:is_url(Abs), WWW,
+                           FileCount, WWWCount),
+            if
+                FileCount =/= NewFileCount andalso
+                (NewFileCount rem 100) =:= 0 ->
+                    io:format("~p", [NewFileCount]);
+                true ->
+                    ok
+            end,
             case ParseRes of
                 {ok, Simple, Type} ->
                     Refs = to_links(Simple),
@@ -129,18 +142,20 @@ do_parse_files(Mode, [Rel|Rest], WWW, Acc) ->
                             deep    ->
                                 More = [{target, Abs, E} ||
                                            {link, E, _I} <- Refs],
-                                Rest++More;
+                                Rest ++ More;
                             shallow ->
                                 Rest
                         end,
-                    do_parse_files(Mode, Next, NewWWW, NewAcc);
+                    do_parse_files(Mode, Next, NewWWW, NewAcc,
+                                   NewFileCount, NewWWWCount);
                 {error, Line, Col, Reason} ->
                     NewAcc = [{error, Abs, Line, Col, Reason} | Acc],
-                    do_parse_files(Mode, Rest, NewWWW, NewAcc)
+                    do_parse_files(Mode, Rest, NewWWW, NewAcc,
+                                   NewFileCount, NewWWWCount)
             end
     end;
-do_parse_files(_Mode, [], WWW, Acc) ->
-    {lists:reverse(Acc), WWW}.
+do_parse_files(_Mode, [], WWW, Acc, FileCount, WWWCount) ->
+    {lists:reverse(Acc), WWW, FileCount, WWWCount}.
 
 link_type({target, Source, ""}) when is_list(Source) ->
     {local, Source};
@@ -176,18 +191,25 @@ to_links(Simple) ->
           end,
     iterate(Fun, Simple, []).
 
-parse_file(URL, false, WWW) ->
-    {do_parse_file(URL), WWW};
-parse_file(URL, true, false = WWW) ->
-    {do_parse_file(URL), WWW};
-parse_file(URL, true = IsUrl, undefined) ->
+parse_file(URL, IsUrl, WWW, FileCount, WWWCount)
+  when not IsUrl ->
+    io:format(".", []),
+    {do_parse_file(URL), WWW, FileCount+1, WWWCount};
+parse_file(URL, IsUrl, WWW, FileCount, WWWCount)
+  when IsUrl andalso WWW =:= failed ->
+    io:format(",", []),
+    {do_parse_file(URL), WWW, FileCount+1, WWWCount+1};
+parse_file(URL, IsUrl, WWW, FileCount, WWWCount)
+  when IsUrl andalso WWW =:= undefined ->
     case lux_utils:start_app(inets) of
         {true, StopFun} ->
-            parse_file(URL, IsUrl, StopFun);
+            parse_file(URL, IsUrl, StopFun, FileCount, WWWCount);
         {false, _StopFun} ->
-            parse_file(URL, IsUrl, false)
+            io:format("www failed", []),
+            parse_file(URL, IsUrl, failed, FileCount, WWWCount)
     end;
-parse_file(URL, true, StopFun = WWW) when is_function(StopFun, 0) ->
+parse_file(URL, IsUrl, StopFun = WWW, FileCount, WWWCount)
+  when IsUrl andalso is_function(StopFun, 0) ->
     io:format(":", []),
     Res =
         case httpc:request(URL) of
@@ -206,7 +228,7 @@ parse_file(URL, true, StopFun = WWW) when is_function(StopFun, 0) ->
                 String = lists:flatten(?FF("~p", [Reason])),
                 {error, 0, 0, String}
         end,
-    {Res, WWW}.
+    {Res, WWW, FileCount+1, WWWCount+1}.
 
 do_parse_file(File) ->
     case lists:suffix(".html", File) of
