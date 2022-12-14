@@ -1116,6 +1116,11 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
             LastLineNo = LastLineNo0+Incr,
             MultiLine =
                 case MetaCmd of
+                    no_meta when Chars =:= <<"~">> ->
+                        SingleLineBlob =
+                            re:replace(Blob, "\n", "",
+                                       [global, {return, binary}]),
+                        <<Chars/binary, SingleLineBlob/binary>>;
                     no_meta ->
                         <<Chars/binary, Blob/binary>>;
                     #cmd{orig = MetaChars} ->
