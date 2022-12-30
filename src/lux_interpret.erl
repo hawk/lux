@@ -1,13 +1,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Copyright 2012-2022 Tail-f Systems AB
+%% Copyright 2012-2023 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_interpret).
-
--include("lux.hrl").
 
 -export([
          init/1,
@@ -18,6 +16,8 @@
          expand_vars/3,
          extra_trace_modules/1
         ]).
+
+-include("lux.hrl").
 
 -define(call_level(I), I#istate.call_level).
 

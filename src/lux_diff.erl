@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Copyright 2009-2020 Tail-f Systems AB
+%% Copyright 2009-2023 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -11,14 +11,16 @@
 
 -module(lux_diff).
 
--include("lux.hrl").
-
 -export([
          compare/3, compare2/3, default_match/0,
          split_diff/1,
          apply_verbose_diff/2, apply_compact_diff/2,
          test/0, test2/2
         ]).
+
+-include("lux.hrl").
+
+-export_type([elem/0, elem_list/0, compact_diff/0]).
 
 -type elem() :: term().
 -type elem_list() :: [elem()].

@@ -1,11 +1,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Copyright 2012-2022 Tail-f Systems AB
+%% Copyright 2012-2023 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_utils).
+
 -export([version/0, timestamp/0, has_timestamp/0,
          builtin_vars/0, system_vars/0, expand_vars/3,
          test_var/2, split_var/2,
