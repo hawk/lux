@@ -446,8 +446,15 @@ and making another shell active is done with `[shell Name]`. That is the
 These parameters controls which program that will be started when a
 script starts a shell. By default **`/bin/sh -i`** is started as
 `--shell_cmd` and `--shell_args` defaults to `/bin/sh` and `-i`
-respectively. `--shell_args` is a bit special in how this parameter
-is treated by Lux.
+respectively. `--shell_args` is a bit special in how this parameter is
+treated by Lux. For example, assume you want to give `-i --rcfile
+/another/rcfile` as arguments to the shell. Then you need to give
+`--shell_args=-i`, `--shell_args=--rcfile` and
+`--shell_args=/another/rcfile` as separate parameters. Each
+`--shell_args` is literally treated as one argument. It implies
+`--rcfile` to be one argument and `/another/rcfile` another. Further,
+the repetition of the `-i` argument is needed as the shell argument
+list is reset to scratch once an explicit `--shell_args` is given.
 
 **--shell\_prompt\_cmd PromptCmd**  
 **--shell\_prompt\_regexp PromptRegExp**  
