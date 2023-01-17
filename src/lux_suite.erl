@@ -1079,11 +1079,12 @@ parse_script(R, _SuiteFile, Script) ->
                             {log_fd,  LogFd},
                             {skip_skip, R#rstate.skip_skip}],
             R3 = R2#rstate{internal_args = InternalArgs},
-            MergeArgs = fun(A, Acc) ->
-                                O = args_to_opts(A, case_style, []),
-                                opts_to_args(O, Acc)
-                        end,
-            Args = lists:foldl(MergeArgs, [], args_dicts(R3)),
+            MergeFun =
+                fun(A, Acc) ->
+                        O = args_to_opts(A, case_style, []),
+                        opts_to_args(O, Acc)
+                end,
+            Args = lists:foldl(MergeFun, [], lists:reverse(args_dicts(R3))),
             Opts = args_to_opts(Args, case_style, []),
             {ok, R3, Script2, Cmds, Opts};
         {skip, ErrorStack, ErrorBin} ->
