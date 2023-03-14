@@ -846,7 +846,7 @@ html_result(Tag, {warnings_and_result, Warnings, Result}, HtmlLog) ->
         [["\n<", Tag,
           "><strong>Warning at line ",
           lux_html_utils:html_href([HtmlLog, "#", Line], Line),
-          " - ", Text,
+          " - ", add_shell_link(Text),
           "</strong></",
           Tag, ">\n"] ||
             [Line, Text] <- Warnings],
@@ -854,6 +854,11 @@ html_result(Tag, {warnings_and_result, Warnings, Result}, HtmlLog) ->
      PrettyWarnings,
      html_result2(Tag, Result, HtmlLog)
     ].
+
+add_shell_link(Text) ->
+    From = "(FAIL at line .+ in shell )(.+)",
+    To = "\\1<a href=#logs>\\2</a>",
+    re:replace(Text, From, To, [{return, binary}]).
 
 html_result2(Tag, Result, HtmlLog) ->
     case Result of
