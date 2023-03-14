@@ -987,16 +987,16 @@ nested_emit(_Op, [], Acc) ->
     Acc.
 
 html_color(Op, Mode, Prefix, Text) ->
-    Color =
+    Class =
         case Op of
-            common -> <<"black">>;
-            del    -> <<"red">>;
-            add    -> <<"blue">>
+            common -> <<"common">>;
+            del    -> <<"del">>;
+            add    -> <<"add">>
         end,
     Bold = <<"b">>,
     QuotedPrefix = lux_html_utils:html_quote(Prefix),
     [
-     <<"<font color=\"">>, Color, <<"\">">>,
+     <<"<font class=\"">>, Class, <<"\">">>,
      tag(Bold, html_expand_lines(Text, QuotedPrefix, Mode)),
      <<"</font>">>
     ].

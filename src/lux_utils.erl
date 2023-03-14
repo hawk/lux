@@ -237,7 +237,7 @@ summary_prio(Summary) ->
         no_data        -> 2;
         no_branch      -> 3;
         success        -> 4;
-        none           -> 5;
+%%      none           -> 5;
         skip           -> 6;
         warning        -> 7;
         secondary_fail -> 8;

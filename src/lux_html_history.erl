@@ -690,7 +690,7 @@ gen_cells(AbsHtmlDir, Test, TestRuns, [{Id, _} | SplitIds],
                     select_worst ->
                         NewWorstRowRes;
                     select_latest when CellRes =:= no_data orelse
-                                       CellRes =:= none ->
+                                       CellRes =:= skip ->
                         SelectedRowRes;
                     select_latest ->
                         CellRes
@@ -724,7 +724,6 @@ is_success_res(Res) ->
         no_data   -> true;
         no_branch -> true;
         success   -> true;
-        none      -> true;
         skip      -> true;
         %% warning   -> true;
         _         -> false
@@ -764,7 +763,7 @@ gen_cell(AbsHtmlDir, Test, Run, _TagDict, MultiBranch, HostMap) ->
     Text = gen_log_link(AbsHtmlDir, Run, FailCount),
     OrigRes =
         case RunN of
-            0 -> none;
+            0 -> no_data;
             _ -> Run#run.result
         end,
     Host = Run#run.hostname,
@@ -1163,7 +1162,7 @@ legend() ->
          {fail,           "First fail"},
          {secondary_fail, "Secondary fail on same host"},
          {warning,        "Warning"},
-         {none,           "Skipped"},
+         {skip,           "Skipped"},
          {success,        "Success"},
          {no_branch,      "No data"}
         ],

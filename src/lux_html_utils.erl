@@ -205,8 +205,6 @@ safe_latin1(Bin, Acc) ->
             safe_latin1(<<>>, [Good | Acc])
     end.
 
-html_table_td(Text, skip, Align) ->
-    html_table_td(Text, none, Align);
 html_table_td(Text, Res, Align) ->
     [
      "      ",
@@ -216,8 +214,6 @@ html_table_td(Text, Res, Align) ->
      "</td>\n"
     ].
 
-html_td(Text, skip, Align, Title) ->
-    html_td(Text, none, Align, Title);
 html_td(Text, Res, Align, Title) ->
     [
      "    ",
@@ -309,32 +305,52 @@ html_style() ->
   }
 
   td.fail {
-        background-color: #CC3333
+        background-color: #FF6961
   }
 
   td.secondary_fail {
-        background-color: #F26C4F
+        background-color: #FFB347
   }
 
   td.skip {
-        background-color: #FFFFE0
+        background-color: #CFCFC4
   }
 
   td.warning {
-        background-color: #FFF380
-  }
-
-  td.none {
-        background-color: #80FF80
+        background-color: #FDFD96
   }
 
   td.success {
-        background-color: #00A651
+        background-color: #77DD77
   }
 
   td.no_data {
         background-color: #FFFFFF
   }
+
+  font.common {
+        color: black
+  }
+
+  font.del {
+        color: #FF6961
+  }
+
+  font.add {
+        color: blue
+  }
+
   </style>
 
 ">>.
+
+%% light red: #FF7276
+%% pastel red: #FF6961
+%% pastel orange: #ffb347
+%% old second: #F26C4F
+%% pastel yellow: fdfd96
+%% old warning: #FFF380
+%% old success: #00A651
+%% pastel grey: #CFCFC4
+%% old skip: #FFFFE0
+%% old none: #80FF80
