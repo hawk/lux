@@ -104,7 +104,7 @@ do_expand_vars(MultiVars, {variable, []}, [$$=H | T], Acc, MissingVar) ->
     do_expand_vars(MultiVars, normal, T, [H | Acc], MissingVar);
 do_expand_vars(MultiVars, {variable, []}, [${=H | T], Acc, MissingVar) ->
     FailAcc = [H, $$ | Acc],
-    case split_name(T, [], FailAcc) of
+    case split_name(T, [], FailAcc, _PCount=1) of
         {match, Name, FailAcc2, T2} ->
             %% Found a variable name "prefix${var}suffix"
             Acc2 = replace_var(MultiVars, Name, Acc, FailAcc2, MissingVar),
@@ -132,15 +132,19 @@ do_expand_vars(MultiVars, {variable, RevName}, [], Acc, MissingVar) ->
     Acc2 = replace_var(MultiVars, Name, Acc, FailAcc, MissingVar),
     lists:reverse(Acc2).
 
-split_name([Char | Rest], Name, Fail) ->
+split_name([Char | Rest], Name, Fail, PCount) ->
     %% Search for first } char
     if
-        Char =/= $} ->
-            split_name(Rest, [Char | Name], [Char | Fail]);
+        Char == ${ ->
+            split_name(Rest, [Char | Name], [Char | Fail], PCount+1);
+        Char == $}, PCount > 1 ->
+            split_name(Rest, [Char | Name], [Char | Fail], PCount-1);
+        Char == $}, PCount == 1 ->
+            {match, lists:reverse(Name), [Char | Fail], Rest};
         true ->
-            {match, lists:reverse(Name), [Char | Fail], Rest}
+            split_name(Rest, [Char | Name], [Char | Fail], PCount)
     end;
-split_name([] = Rest, Name, Fail) ->
+split_name([] = Rest, Name, Fail, _PCount) ->
     {nomatch, lists:reverse(Name), Fail, Rest}.
 
 is_var(Char) ->
@@ -155,7 +159,9 @@ is_var(Char) ->
 replace_var(_MultiVars, "", _Acc, FailAcc, _MissingVar) ->
     %% False positive
     FailAcc;
-replace_var(MultiVars, Name, Acc, FailAcc, MissingVar) ->
+replace_var(MultiVars, Name0, Acc, FailAcc, MissingVar) ->
+    %% Recursively expand variables
+    Name = expand_vars(MultiVars, Name0, MissingVar),
     do_replace_var(MultiVars, Name, Acc, FailAcc, MissingVar).
 
 do_replace_var([], Name, _Acc, FailAcc, MissingVar) ->
