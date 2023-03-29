@@ -1,0 +1,19 @@
+[doc Variables in variable names]
+
+[shell foo]
+    [loop n a b c]
+        !echo "foo=bar"
+        ?foo
+        ?foo=(.*)
+        [global foo_${n}=$1]
+        ?SH-PROMPT
+    [endloop]
+    !echo $foo_a
+    ?bar
+    ?SH-PROMPT
+    !echo $foo_b
+    ?bar
+    ?SH-PROMPT
+    !echo $foo_c
+    ?bar
+    ?SH-PROMPT

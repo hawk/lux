@@ -472,21 +472,21 @@ dispatch_cmd(I,
             I;
         variable ->
             {Scope, Var, Val} = Arg,
-            case safe_expand_vars(I, Val) of
-                {ok, Val2} ->
+            case {safe_expand_vars(I, Var), safe_expand_vars(I, Val)} of
+                {{ok, Var2}, {ok, Val2}} ->
                     QuotedVal = lux_utils:quote_newlines(Val2),
                     ilog(I, "~p \"~s=~s\"\n",
-                         [Scope, Var, QuotedVal],
+                         [Scope, Var2, QuotedVal],
                          I#istate.active_name, LineNo),
                     I2 =
-                        case lists:member(?SPACE , Var) of
+                        case lists:member(?SPACE , Var2) of
                             true ->
-                                add_warning(I, ["Variable name \"", Var,
+                                add_warning(I, ["Variable name \"", Var2,
                                                 "\" contains whitespace"]);
                             false ->
                                 I
                         end,
-                    VarVal = lists:flatten([Var, $=, Val2]),
+                    VarVal = lists:flatten([Var2, $=, Val2]),
                     case Scope of
                         my ->
                             Vars = [VarVal | I#istate.macro_vars],
@@ -506,7 +506,9 @@ dispatch_cmd(I,
                             I3#istate{shells = Shells,
                                       global_vars = GlobalVars}
                     end;
-                {no_such_var, BadName} ->
+                {{no_such_var, BadName},_} ->
+                    no_such_var(I, Cmd, LineNo, BadName);
+                {_,{no_such_var, BadName}} ->
                     no_such_var(I, Cmd, LineNo, BadName)
             end;
         send when is_binary(Arg) ->
