@@ -1,0 +1,19 @@
+[doc Variables in variable names]
+
+[shell var]
+    [loop n a b c]
+        !echo "var=val"
+        ?^var=(.*)$
+        [local var_${n}=$1]
+        ?SH-PROMPT:
+    [endloop]
+    !echo "$var_a"
+    ?^val$
+    ?SH-PROMPT:
+    !echo "${var_b}"
+    ?^val$
+    ?SH-PROMPT:
+    [local v=c]
+    !echo "${var_${v}}"
+    ?^val$
+    ?SH-PROMPT:

@@ -1,0 +1,22 @@
+[doc Associative arrays variable name style]
+
+[shell arr]
+    [loop n a b c]
+        !echo "arr=val"
+        ?^arr=(.*)$
+        [local arr[${n}]=$1]
+        ?SH-PROMPT:
+    [endloop]
+    !echo "${arr[a]}"
+    ?^val$
+    ?SH-PROMPT:
+    !echo "${arr[b]}"
+    ?^val$
+    ?SH-PROMPT:
+    !echo "${arr[c]}"
+    ?^val$
+    ?SH-PROMPT:
+    [local v=a]
+    !echo "${arr[${v}]}"
+    ?^val$
+    ?SH-PROMPT:

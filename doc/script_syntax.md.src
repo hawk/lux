@@ -302,6 +302,44 @@ can be written as
         Value
         """]
 
+###Variables in variable names###
+Variable names are also expanded and may themselves contain variables.
+
+    [global v=a]
+    [local var_${v}=val]
+
+Once set, the variables may be accessed using the same style
+
+    !echo "${var_${v}}"
+
+or as the ordinary variables they in fact are implemented as
+
+    !echo "$var_a"
+    !echo "${var_a}"
+
+Here is a small test program demonstrating the usage.
+
+#include <test/var_in_var.lux>
+
+Further, an associative arrays variable name style can be used. It is
+merely some syntactic sugar and it can be combined variables in
+variable names.
+
+Variables using that style looks like this
+
+    [local arr[b]=val]
+    !echo "${arr[b]}"
+
+or if combined with variables in variable names
+
+    [local v=a]
+    [local arr[${v}]=val]
+    !echo "${arr[${v}]}"
+
+Here is a small test program demonstrating the usage.
+
+#include <test/assoc_array.lux>
+
 ###Built-in variables###
 
     _BS_        - backspace       (ASCII 8)
