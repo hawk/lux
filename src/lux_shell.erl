@@ -38,6 +38,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                 flush_timeout = I#istate.flush_timeout,
                 poll_timeout = I#istate.poll_timeout,
                 match_timeout = I#istate.default_timeout,
+                pattern_mode = I#istate.default_pattern_mode,
                 risky_threshold = I#istate.risky_threshold,
                 sloppy_threshold = I#istate.sloppy_threshold,
                 shell_wrapper = I#istate.shell_wrapper,
@@ -58,7 +59,8 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
                            ref = Ref,
                            health = alive,
                            vars = NewVarVals ++ I#istate.global_vars,
-                           match_timeout = C#cstate.match_timeout},
+                           match_timeout = C#cstate.match_timeout,
+                           pattern_mode = C#cstate.pattern_mode},
             I2 = I#istate{active_shell = Shell,
                           active_name = Name},
             {ok, I2#istate{logs = I2#istate.logs ++ [Logs]}};
@@ -457,6 +459,7 @@ assert_eval(_C, #cmd{type = Type}, _From)
        Type =:= break;
        Type =:= progress;
        Type =:= change_timeout;
+       Type =:= change_pattern_mode;
        Type =:= no_cleanup;
        Type =:= cleanup;
        Type =:= post_case ->
@@ -628,6 +631,9 @@ shell_eval(#cstate{name = Name} = C0,
                 end,
             C#cstate{match_timeout = Millis,
                      warnings = NewWarnings};
+        change_pattern_mode ->
+            PatternMode = Arg,
+            C#cstate{pattern_mode = PatternMode};
         no_cleanup ->
             cleanup(C, Type);
         cleanup ->
@@ -1115,7 +1121,11 @@ split_single_match(C, Matches, Actual, Context, AltSkip) ->
                 end
         end,
     SubBins = lists:map(Extract, SubMatches),
-    SkipMatch = <<Skip/binary, Match/binary>>,
+    SkipMatch =
+        case C#cstate.pattern_mode of
+            all  -> <<Skip/binary, Match/binary>>;
+            skip -> Skip
+        end,
     {SkipMatch, Rest, SubBins, LogFun}.
 
 split_total(Actual, Matches, AltSkip) ->

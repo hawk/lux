@@ -110,6 +110,9 @@ explicitly is expecting some output. That is when a command like `?`,
 cannot produce more output, for example when a shell exits or when
 there are no more commands to evaluate.
 
+See also the configuration parameter `--pattern_mode` and the command
+`[pattern_mode]`.
+
 **+**  
 **+Regexp**  
 Sets the success pattern for a shell to a regular expression (see
@@ -123,6 +126,9 @@ explicitly is expecting some output. That is when a command like `?`,
 `??` or `???` is evaluated. It is also searched for when a shell
 cannot produce more output, for example when a shell exits or when
 there are no more commands to evaluate.
+
+See also the configuration parameter `--pattern_mode` and the command
+`[pattern_mode]`.
 
 **@**  
 **@Regexp**  
@@ -443,3 +449,21 @@ parameters. Some config parameters can have multiple values, such as
 `skip` and `require`. See their respective descriptions. See also the
 configuration parameter `--config_dir` about the location of the
 architecture specific files.
+
+**\[pattern\_mode\]**  
+**\[pattern\_mode PatternMode\]**  
+EXPERIMENTAL FEATURE!!! May be changed or removed in a future release.
+
+Changes the behavior of fail and success patterns in a shell. By
+default these patterns are matched against everything found in the
+output streams (`stdout`, `stderr`). This means that they are both
+matched against the characters actually are matching (in a `?`, `??`
+or `???` commands) as well as the characters that are skipped (not
+explicitely matched). This default behavior can also be achieved by
+setting `PatternMode` to `all` for the shell.
+
+By setting `PatternMode` to `skip` instead, only the skipped (not
+explicitely matched) are matched against the fail and success
+patterns.
+
+See also the configuration parameter `--pattern_mode`.

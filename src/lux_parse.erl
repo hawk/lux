@@ -766,6 +766,10 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             {P, Cmd#cmd{type = change_timeout, arg = Time}};
         "timeout " ++ Time ->
             {P, Cmd#cmd{type = change_timeout, arg = Time}};
+        "pattern_mode" ->
+            {P, Cmd#cmd{type = change_pattern_mode, arg = default}};
+        "pattern_mode " ++ PatternMode ->
+            {P, Cmd#cmd{type = change_pattern_mode, arg = PatternMode}};
         "sleep " ++ Time ->
             {P, Cmd#cmd{type = sleep, arg = Time}};
         "progress " ++ String ->

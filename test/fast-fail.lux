@@ -1,0 +1,47 @@
+[shell test]
+    [timeout 30]
+
+    [progress EXPECT SUCCESS]
+    !echo "aaa<PROMPT>bbb<PROMPT>GOOD<PROMPT>ccc<PROMPT>" > tmp.txt
+    ?SH-PROMPT:
+    [invoke match]
+
+    [progress EXPECT FAST FAIL]
+    !echo "aaa<PROMPT>bbb<PROMPT>BAD<PROMPT>ccc<PROMPT>" > tmp.txt
+    ?SH-PROMPT:
+    [invoke match]
+
+[macro match]
+    # When <PROMPT> is seen we know that the output is ready to be
+    # matched. If something unexpected is seen before the <PROMPT>
+    # instead we know it is wrong and then we want to fail fast. This
+    # setup requires [pattern_mode skip].
+
+    [my old_mode=${LUX_PATTERN_MODE}]
+    [my old_fail=${LUX_FAIL_PATTERN}]
+
+    [pattern_mode skip]
+    -<PROMPT>
+
+    !cat tmp.txt
+    """?
+    aaa<PROMPT>
+    """
+    """?
+    bbb<PROMPT>
+    """
+    """?
+    GOOD<PROMPT>
+    """
+    """?
+    ccc<PROMPT>
+    """
+    -${old_fail}
+    [pattern_mode ${old_mode}]
+
+    ?SH-PROMPT:
+[endmacro]
+
+[cleanup]
+    !rm -f tmp.txt
+    ?SH-PROMPT:

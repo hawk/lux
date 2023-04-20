@@ -101,6 +101,7 @@
          health          :: alive | zombie,
          vars            :: [string()],                     % ["name=val"]
          match_timeout   :: infinity  | non_neg_integer(),
+         pattern_mode    :: all | skip,
          fail_pattern    :: undefined | binary(),
          success_pattern :: undefined | binary()}).
 
@@ -198,6 +199,7 @@
          poll_timeout = 0           :: non_neg_integer(), % Should be 100
          default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
          cleanup_timeout = 100*?ONE_SEC :: non_neg_integer() | infinity,
+         default_pattern_mode = all :: all | skip,
          risky_threshold  = ?DEFAULT_RISKY_THRESHOLD  :: float() | infinity,
          sloppy_threshold = ?DEFAULT_SLOPPY_THRESHOLD :: float() | infinity,
          newshell = false           :: boolean(),
@@ -323,6 +325,7 @@
          flush_timeout           :: non_neg_integer(),
          poll_timeout            :: non_neg_integer(),
          match_timeout           :: non_neg_integer() | infinity,
+         pattern_mode            :: all | skip,
          timer_ref               :: undefined | #timer_ref{},
          timer_started_at        :: undefined | erlang:timestamp(),
          wakeup_ref              :: undefined | #timer_ref{},

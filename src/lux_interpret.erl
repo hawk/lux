@@ -643,6 +643,24 @@ dispatch_cmd(I,
                             I2
                     end
             end;
+        change_pattern_mode ->
+            PatternMode =
+                case Arg of
+                    default ->
+                        I#istate.default_pattern_mode;
+                    PatternModeStr ->
+                        case safe_expand_vars(I, PatternModeStr) of
+                            {ok, "all"} ->
+                                all;
+                            {ok, "skip"} ->
+                                skip;
+                            {no_such_var, BadName} ->
+                                no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)
+                        end
+                end,
+            Cmd2 = Cmd#cmd{arg = PatternMode},
+            ShellPos = #shell.pattern_mode,
+            change_shell_var(I, ShellPos, PatternMode, Cmd2);
         doc ->
             DisplayDoc =
                 fun({Level, Doc}) ->
@@ -1677,6 +1695,7 @@ expand_vars(#istate{active_shell  = Shell,
     case Shell of
         #shell{vars = LocalVars,
                match_timeout = Millis,
+               pattern_mode = PatternMode,
                fail_pattern = FailPattern,
                success_pattern = SuccessPattern} ->
             Secs =
@@ -1688,6 +1707,8 @@ expand_vars(#istate{active_shell  = Shell,
                 [
                  lists:flatten("LUX_TIMEOUT=",
                                ?FF("~p", [Secs])),
+                 lists:flatten("LUX_PATTERN_MODE=",
+                               ?FF("~p", [PatternMode])),
                  lists:flatten("LUX_FAIL_PATTERN=",
                                ?FF("~s", [opt_binary(FailPattern)])),
                  lists:flatten("LUX_SUCCESS_PATTERN=",

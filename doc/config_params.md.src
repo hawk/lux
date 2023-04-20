@@ -320,6 +320,16 @@ tries to match it against any [regular expression][]s. It defaults
 to `0`. If you want to experiment with it, `100` milliseconds
 (1/10 second) can be a resonable value.
 
+**--pattern\_mode PatternMode**  
+EXPERIMENTAL FEATURE!!! May be changed or removed in a future release.
+
+Changes the default behavior of fail and success patterns. This can
+be overridden separately for each shell with the \[pattern\_mode
+PatternMode\] command. Valid settings are `all` and `skip`. The
+default is `all`.
+
+See the command `\[pattern\_mode PatternMode\]` for details.
+
 **--risky\_threshold RiskyThreshold**  
 An experimental timeout setting.
 By default Lux warns for risky timers, i.e. timers that are close

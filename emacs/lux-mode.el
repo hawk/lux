@@ -75,6 +75,7 @@
     "mode"
     "multiplier"
     "newshell"
+    "pattern_mode"
     "poll_timeout"
     "post_case"
     "progress"

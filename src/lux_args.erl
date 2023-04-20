@@ -82,6 +82,7 @@ specs() ->
      {"--poll_timeout",       100,         {integer, -1, infinity},mandatory},
      {"--timeout",            10*1000,     {integer, 0, infinity}, mandatory},
      {"--cleanup_timeout",    100*1000,    {integer, 0, infinity}, mandatory},
+     {"--pattern_mode",       all ,        {enum, pattern_mode},   mandatory},
      {"--risky_threshold",    0.85,        {float, 0.0, infinity}, mandatory},
      {"--sloppy_threshold",   0.000000001, {float, 0.0, infinity}, mandatory},
      {"--newshell"     ,      false,       boolean,                none},
@@ -109,6 +110,8 @@ enum(history_cases) ->
     [latest, any];
 enum(wrapper_mode) ->
     [silent, debug, trace];
+enum(pattern_mode) ->
+    [all, skip];
 enum(prio) ->
     [enable, success, skip, warning, fail, error, disable];
 enum(html) ->
@@ -240,6 +243,7 @@ translate_opts([
      {"--poll_timeout",       PollTimeout},
      {"--timeout",            ExpectTimeout},
      {"--cleanup_timeout",    CleanupTimeout},
+     {"--pattern_mode",       PatternMode},
      {"--risky_threshold",    RiskyThreshold},
      {"--sloppy_threshold",   SloppyThreshold},
      {"--newshell",           NewShell},
@@ -274,6 +278,7 @@ translate_opts([
          {poll_timeout,       PollTimeout},
          {timeout,            ExpectTimeout},
          {cleanup_timeout,    CleanupTimeout},
+         {pattern_mode,       PatternMode},
          {risky_threshold,    RiskyThreshold},
          {sloppy_threshold,   SloppyThreshold},
          {newshell,           NewShell},
