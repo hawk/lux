@@ -1005,13 +1005,12 @@ match_stop_pattern(C, AltActual, StopEvent, StopContext, StopCmd) ->
     case Res of
         {match, Matches} ->
             %% Stop pattern matched. Do not eval LogFuns.
-            {Match, Rest} =
+            {Match, _Rest} =
                 post_match(C, Matches, StopContext),
             StopMatch = ?l2b(lux_utils:to_string(?b2l(Match))),
-            C2 = C#cstate{actual = Rest},
-            {C3, ActualStop} =
-                prepare_stop(C2, StopMatch, StopContext),
-            stop(C3, StopEvent, ActualStop, []);
+            {C2, ActualStop} =
+                prepare_stop(C, StopMatch, StopContext),
+            stop(C2, StopEvent, ActualStop, []);
         nomatch ->
             C;
         {{'EXIT', Reason}, _} ->
@@ -1685,14 +1684,17 @@ clog_skip(C, Skip) ->
 clog_match(C, Context, Skip, Match, Rest) ->
     MatchRest =
         [
-         {match, "~s\"~s\"", [Context, lux_utils:to_string(Match)]},
-         {rest, "~s\"~s\"", [Context, lux_utils:to_string(Rest)]}
+         {match, "~s\"~s\"",
+          [Context, lux_utils:to_string(Match)]},
+         {rest, "~s\"~s\"",
+          [Context, lux_utils:to_string(Rest)]}
         ],
     if
         Skip =:= <<>> ->
             clog(C, MatchRest);
         true ->
-            clog(C, [{skip, "\"~s\"", [lux_utils:to_string(Skip)]} | MatchRest])
+            clog(C, [{skip, "~s\"~s\"",
+                      [Context, lux_utils:to_string(Skip)]} | MatchRest])
     end.
 
 dlog(C, Level, Format, Args) when C#cstate.debug_level >= Level ->
