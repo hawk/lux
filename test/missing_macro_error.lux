@@ -1,0 +1,7 @@
+[shell test]
+    [timeout 2]
+    ?NO_MATCH_AT_ALL
+
+[cleanup]
+    [timeout 2]
+    [invoke missing_macro]

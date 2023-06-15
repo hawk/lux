@@ -400,7 +400,8 @@ stopped_by_user(I, Scope) ->
                 I
         end,
     I3 = prepare_stop(I2, dummy_pid, {fail, stopped_by_user}),
-    I3#istate{stopped_by_user = Scope, cleanup_reason = fail}.
+    I3#istate{stopped_by_user = Scope,
+              cleanup_reason = fail}.
 
 loop_timeout(I) ->
     if
@@ -427,9 +428,9 @@ opt_timeout_stop(I, TimeoutType, TimeoutMillis) ->
     ilog(I, "~p failed after ~p micros\n",
          [TimeoutType, TimeoutMillis * 1000], I#istate.active_name,
          (I#istate.latest_cmd)#cmd.lineno),
-    premature_stop(I, {fail, TimeoutType}, {fail, TimeoutType}).
+    premature_stop(I, {fail, TimeoutType}).
 
-premature_stop(I, CleanupReason, StopRes) ->
+premature_stop(I, StopRes) ->
     I2 = break_all_loops(I),
     OldMode = I2#istate.mode,
     case OldMode of
@@ -440,9 +441,13 @@ premature_stop(I, CleanupReason, StopRes) ->
         cleanup ->
             %% Error (or timeout) during cleanup,
             %% initiate stop by sending shutdown to all shells.
-            multicast(I2, {shutdown, self()}),
-            I2#istate{mode = mode(OldMode, stopping),
-                      cleanup_reason = CleanupReason};
+            prepare_stop(I2, dummy_pid, StopRes);
+        %% {CleanupReason, Res} = prepare_result(I, RawRes),
+        %% multicast(I2, {shutdown, self()}),
+        %% io:format("\nSTOP ~p\n", [StopRes]),
+        %% io:format("\nCLEAN ~p\n", [CleanupReason]),
+        %% I2#istate{mode = mode(OldMode, stopping),
+        %%           ßcleanup_reason = CleanupReason};
         stopping ->
             %% Shutdown has already been sent to the normal shells,
             %% continue to collect their states as well as cleanup shells.
@@ -1765,7 +1770,7 @@ handle_error(#istate{active_shell = ActiveShell,
     ilog(I, "error \"~s\"\n",
          [Reason],
          I#istate.active_name, (I#istate.latest_cmd)#cmd.lineno),
-    premature_stop(I, error, {'EXIT', {error, Reason}}).
+    premature_stop(I, {'EXIT', {error, Reason}}).
 
 mode(Mode, Mode) ->
     Mode;

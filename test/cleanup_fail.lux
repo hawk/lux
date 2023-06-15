@@ -3,5 +3,5 @@
     ?MISMATCH
 
 [cleanup]
-    !echo foo
-    ?^foo
+    [timeout 1]
+    ?MISMATCH
