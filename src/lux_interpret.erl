@@ -31,30 +31,30 @@ init(I) ->
     ilog(I2, "start_time \"~s\"\n", [StartTimeStr], "lux", 0),
     ilog(I2, "suite_timeout ~s\n", [timer_left(I2, SuiteRef)], "lux", 0),
     ilog(I2, "case_timeout ~s\n", [timer_left(I2, CaseRef)], "lux", 0),
-    OrigCmds = I2#istate.commands,
-    Macros = collect_macros(I2, I2#istate.commands),
-    IB = I2#istate{orig_commands = OrigCmds,
-                   case_timer_ref = CaseRef,
-                   macros = Macros,
+    IB = I2#istate{case_timer_ref = CaseRef,
                    blocked = false,
                    has_been_blocked = false,
                    want_more = true,
                    old_want_more = undefined},
     try
-        I3 = check_infinite_timers(IB),
+        OrigCmds = IB#istate.commands,
+        Macros = collect_macros(IB, OrigCmds),
+        I3 = IB#istate{orig_commands = OrigCmds,
+                       macros = Macros},
+        I4 = check_infinite_timers(I3),
         I5 =
             if
-                I3#istate.stopped_by_user =:= suite ->
-                    stopped_by_user(I3, I3#istate.stopped_by_user);
-                I3#istate.debug orelse I3#istate.debug_file =/= undefined ->
+                I4#istate.stopped_by_user =:= suite ->
+                    stopped_by_user(I4, I4#istate.stopped_by_user);
+                I4#istate.debug orelse I4#istate.debug_file =/= undefined ->
                     DebugState = {attach, temporary},
-                    {_, I4} = lux_debug:cmd_attach(I3, [], DebugState),
+                    {_, I4a} = lux_debug:cmd_attach(I4, [], DebugState),
                     lux_debug:format("\nDebugger for lux. "
                                      "Try help or continue.\n",
                                      []),
-                    I4;
+                    I4a;
                 true ->
-                    I3
+                    I4
             end,
         I6 = loop(I5),
         I7 = lists:foldl(
@@ -892,9 +892,6 @@ invoke_macro(I,
 invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, []) ->
     BinName = ?l2b(Name),
     handle_error(I, <<"No such macro: ", BinName/binary>>).
-%% invoke_macro(I, #cmd{arg = {invoke, Name, _Values}}, [_|_]) ->
-%%     BinName = ?l2b(Name),
-%%     handle_error(I, <<"Ambiguous macro: ", BinName/binary>>).
 
 format_macro_vars([]) ->
     " \"\"";
