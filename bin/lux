@@ -108,31 +108,42 @@ help(OrigArgs, HelpMode) ->
 display_app_info() ->
     {ok, Cwd} = file:get_cwd(),
     ThisEscript = escript:script_name(),
+    AppDir = app_dir(),
+    application:load(?APPLICATION),
     io:format("CWD         : ~s\n", [Cwd]),
     io:format("ESCRIPT     : ~s\n", [ThisEscript]),
     io:format("VERSION     : ~s\n", [version_str()]),
-    io:format("APP DIR     : ~s\n", [app_dir()]),
+    io:format("APP DIR     : ~s\n", [AppDir]),
     io:format("ROOT DIR    : ~s\n", [code:root_dir()]),
-    io:format("CODE PATH   : ~p\n", [code:get_path()]).
+    io:format("CODE PATH   : ~p\n", [code:get_path()]),
+    1.
 
 version_str() ->
-    Mod = lux_utils,
-    case code:ensure_loaded(Mod) of
-        {module, Mod}  -> Mod:version();
-        {error, _What} -> "unknown"
+    try
+        lux_utils:version()
+    catch
+        error:undef ->
+            "unknown"
     end.
 
 display_app_dir() ->
     LuxAppDir = ensure_lux_app_dir(true),
-    io:format("~s\n", [LuxAppDir]).
+    io:format("~s\n", [LuxAppDir]),
+    1.
 
 app_dir() ->
-    case code:lib_dir(?APPLICATION) of
-        {error, _} -> "unknown";
-        AppDir     -> AppDir
-    end.
+    ensure_lux_app_dir(true, false).
+%%
+%%
+%%    case code:lib_dir(?APPLICATION) of
+%%        {error, _} -> "unknown";
+%%        AppDir     -> AppDir
+%%    end.
 
 ensure_lux_app_dir(Retry) ->
+    ensure_lux_app_dir(Retry, true).
+
+ensure_lux_app_dir(Retry, Mandatory) ->
     AppName = ?APPLICATION,
     case code:lib_dir(AppName, ebin) of
         {error, _Reason} when Retry =:= true ->
@@ -159,9 +170,12 @@ ensure_lux_app_dir(Retry) ->
                     ok;
                 false when BaseDir =:= "lux" ->
                     ok;
+                false when Mandatory ->
+                    fatal_error(2,
+                                "Application directory not named lux: ~p\n",
+                                [AppDir]);
                 false ->
-                    fatal_error(2, "Application directory not named lux: ~p\n",
-                                [AppDir])
+                    ok
             end,
             EbinDir = filename:join([AppDir, "ebin"]),
             %% io:format("~s: Add directory ~p to code path\n",
@@ -174,12 +188,14 @@ ensure_lux_app_dir(Retry) ->
                               [EbinDir, AddReason])
             end,
             ensure_lux_app_dir(false);
-        {error, bad_name} ->
+        {error, bad_name} when Mandatory ->
             fatal_error(2, "The mandatory application '~p' is missing\n",
                         [AppName]);
-        {error, Reason} ->
+        {error, Reason} when Mandatory ->
             fatal_error(2, "The mandatory application '~p' is missing: ~p\n",
                         [AppName, Reason]);
+        {error, _Reason} ->
+            "unknown";
         EbinDir ->
             filename:dirname(EbinDir)
     end.
