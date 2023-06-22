@@ -342,8 +342,9 @@ loop(I) ->
         {'DOWN', _, process, Pid, Reason} ->
             I2 = prepare_stop(I, Pid, {'EXIT', Reason}),
             loop(I2);
-        {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
-                                          TimeoutType =:= case_timeout ->
+        {TimeoutType, TimeoutMillis}
+          when TimeoutType =:= suite_timeout orelse
+               TimeoutType =:= case_timeout ->
             %% TraceFile = filename:join([I#istate.case_log_dir,
             %%                           "timeout_trace"]),
             %% io:format("\n=======> ~p ->\n lux --display_trace  ~s\n",
@@ -1455,8 +1456,9 @@ wait_for_reply(I, [Pid|Pids]=AllPids, Expect, Fun, FlushTimeout, HandleStop) ->
         {'DOWN', _, process, Pid, Reason} ->
             opt_apply(Fun),
             shell_crashed(I, Pid, Reason);
-        {TimeoutType, TimeoutMillis} when TimeoutType =:= suite_timeout;
-                                          TimeoutType =:= case_timeout ->
+        {TimeoutType, TimeoutMillis}
+          when TimeoutType =:= suite_timeout orelse
+               TimeoutType =:= case_timeout ->
             I2 = opt_timeout_stop(I, TimeoutType, TimeoutMillis),
             wait_for_reply(I2, [Pid|Pids], Expect, Fun, 500, HandleStop);
         Unexpected when FlushTimeout =/= infinity ->
