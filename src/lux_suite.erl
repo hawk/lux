@@ -596,6 +596,10 @@ compute_rerun_files(R, [LogDir|LogDirs], LogBase, Acc) ->
     OldLog = filename:join([LogDir, LogBase]),
     FlatParseRes = flat_parse_summary_log(OldLog),
     Files = filter_rerun_files(R, FlatParseRes),
+    io:format("~s~p test cases from ~s\n",
+              [?TAG("rerun log source"),
+               length(Files),
+               lux_utils:drop_prefix(OldLog)]),
     compute_rerun_files(R, LogDirs, LogBase, Files ++ Acc);
 compute_rerun_files(R, [], _LogBase, Acc) ->
     R#rstate{files = lists:usort(Acc)}.
