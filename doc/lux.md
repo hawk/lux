@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.8.1 - 2022-06-27
+Version 2.9 - 2023-08-23
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -1418,6 +1418,9 @@ explicitly is expecting some output. That is when a command like `?`,
 cannot produce more output, for example when a shell exits or when
 there are no more commands to evaluate.
 
+See also the configuration parameter `--pattern_mode` and the command
+`[pattern_mode]`.
+
 **+**  
 **+Regexp**  
 Sets the success pattern for a shell to a regular expression (see
@@ -1431,6 +1434,9 @@ explicitly is expecting some output. That is when a command like `?`,
 `??` or `???` is evaluated. It is also searched for when a shell
 cannot produce more output, for example when a shell exits or when
 there are no more commands to evaluate.
+
+See also the configuration parameter `--pattern_mode` and the command
+`[pattern_mode]`.
 
 **@**  
 **@Regexp**  
@@ -1610,6 +1616,89 @@ can be written as
         Value
         """]
 
+###Variables in variable names###
+Variable names are also expanded and may themselves contain variables.
+
+    [global v=a]
+    [local var_${v}=val]
+
+Once set, the variables may be accessed using the same style
+
+    !echo "${var_${v}}"
+
+or as the ordinary variables they in fact are implemented as
+
+    !echo "$var_a"
+    !echo "${var_a}"
+
+Here is a small test program demonstrating the usage.
+
+Snippet from the enclosed `.../lux/test/var_in_var.lux` file:
+
+>     [doc Variables in variable names]
+>     
+>     [shell var]
+>         [loop n a b c]
+>             !echo "var=val"
+>             ?^var=(.*)$
+>             [local var_${n}=$1]
+>             ?SH-PROMPT:
+>         [endloop]
+>         !echo "$var_a"
+>         ?^val$
+>         ?SH-PROMPT:
+>         !echo "${var_b}"
+>         ?^val$
+>         ?SH-PROMPT:
+>         [local v=c]
+>         !echo "${var_${v}}"
+>         ?^val$
+>         ?SH-PROMPT:
+>     
+
+Further, an associative arrays variable name style can be used. It is
+merely some syntactic sugar and it can be combined variables in
+variable names.
+
+Variables using that style looks like this
+
+    [local arr[b]=val]
+    !echo "${arr[b]}"
+
+or if combined with variables in variable names
+
+    [local v=a]
+    [local arr[${v}]=val]
+    !echo "${arr[${v}]}"
+
+Here is a small test program demonstrating the usage.
+
+Snippet from the enclosed `.../lux/test/assoc_array.lux` file:
+
+>     [doc Associative arrays variable name style]
+>     
+>     [shell arr]
+>         [loop n a b c]
+>             !echo "arr=val"
+>             ?^arr=(.*)$
+>             [local arr[${n}]=$1]
+>             ?SH-PROMPT:
+>         [endloop]
+>         !echo "${arr[a]}"
+>         ?^val$
+>         ?SH-PROMPT:
+>         !echo "${arr[b]}"
+>         ?^val$
+>         ?SH-PROMPT:
+>         !echo "${arr[c]}"
+>         ?^val$
+>         ?SH-PROMPT:
+>         [local v=a]
+>         !echo "${arr[${v}]}"
+>         ?^val$
+>         ?SH-PROMPT:
+>     
+
 ###Built-in variables###
 
     _BS_        - backspace       (ASCII 8)
@@ -1713,6 +1802,24 @@ parameters. Some config parameters can have multiple values, such as
 `skip` and `require`. See their respective descriptions. See also the
 configuration parameter `--config_dir` about the location of the
 architecture specific files.
+
+**\[pattern\_mode\]**  
+**\[pattern\_mode PatternMode\]**  
+EXPERIMENTAL FEATURE!!! May be changed or removed in a future release.
+
+Changes the behavior of fail and success patterns in a shell. By
+default these patterns are matched against everything found in the
+output streams (`stdout`, `stderr`). This means that they are both
+matched against the characters actually are matching (in a `?`, `??`
+or `???` commands) as well as the characters that are skipped (not
+explicitely matched). This default behavior can also be achieved by
+setting `PatternMode` to `all` for the shell.
+
+By setting `PatternMode` to `skip` instead, only the skipped (not
+explicitely matched) are matched against the fail and success
+patterns.
+
+See also the configuration parameter `--pattern_mode`.
 <a name="cmd_line_opts"/>
 
 Command line options
@@ -2186,6 +2293,16 @@ tries to match it against any [regular expression][]s. It defaults
 to `0`. If you want to experiment with it, `100` milliseconds
 (1/10 second) can be a resonable value.
 
+**--pattern\_mode PatternMode**  
+EXPERIMENTAL FEATURE!!! May be changed or removed in a future release.
+
+Changes the default behavior of fail and success patterns. This can
+be overridden separately for each shell with the \[pattern\_mode
+PatternMode\] command. Valid settings are `all` and `skip`. The
+default is `all`.
+
+See the command `\[pattern\_mode PatternMode\]` for details.
+
 **--risky\_threshold RiskyThreshold**  
 An experimental timeout setting.
 By default Lux warns for risky timers, i.e. timers that are close
@@ -2312,8 +2429,15 @@ and making another shell active is done with `[shell Name]`. That is the
 These parameters controls which program that will be started when a
 script starts a shell. By default **`/bin/sh -i`** is started as
 `--shell_cmd` and `--shell_args` defaults to `/bin/sh` and `-i`
-respectively. `--shell_args` is a bit special in how this parameter
-is treated by Lux.
+respectively. `--shell_args` is a bit special in how this parameter is
+treated by Lux. For example, assume you want to give `-i --rcfile
+/another/rcfile` as arguments to the shell. Then you need to give
+`--shell_args=-i`, `--shell_args=--rcfile` and
+`--shell_args=/another/rcfile` as separate parameters. Each
+`--shell_args` is literally treated as one argument. It implies
+`--rcfile` to be one argument and `/another/rcfile` another. Further,
+the repetition of the `-i` argument is needed as the shell argument
+list is reset to scratch once an explicit `--shell_args` is given.
 
 **--shell\_prompt\_cmd PromptCmd**  
 **--shell\_prompt\_regexp PromptRegExp**  
@@ -2942,12 +3066,12 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2022_06_27_19_44_58_934610/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2023_08_23_08_28_13_939684/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:..:.:....:.:.:....:.:..:..:.:.:..(....:..:.:.:.:...)(.:.:..:..)...:...:.:.:.:..(.:.:..:..)..(.:.:..:.:..)(....:.:..:...)(..:.:.:.:..)..(..:.:.:.:..).......:.:........
+>     progress          : ..:..:..:.:...:..:.:.:.:....:..:.:..:..(....:..:.:.:.:.:...)(.:.:..:.:..)...:..:.:..:.:..(.:.:..:..)..(.:.:..:.:..)(....:.:.:..:...)(.:.:..:..)..(.:.:.:...).......:.:........
 >     result            : SUCCESS
 >     test case         : examples/fail.lux
->     progress          : ..:..:..:.:.:...:.:..:.:...:.:.:.:....:.:..:..32C..:...:.:.:.:...:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:...:.:.:...:.:..:.:.:...:.:.:.:.:....:.:.:...32C..:..:.:..:..:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at line 32 in shell calculator
 >     expected*
 >     	19
@@ -2964,13 +3088,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:.:..:.:..:....:..:..:.:.:...:.:..:.:..:.:..:.:..:.:..:..:.:.:..:.:..:..:.:.:....c.:.....:.:..:.:..:.:...:.:.:..:.:..:.
+>     progress          : ..:..:..:.:..:.:.:.....:..:..:.:.:...:.:..:.:..:.:.:..:.:.:.:..:..:.:.:..:.:..:..:..:.:.:.:....c.:.....:..:..:.:..:..:.:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:.:..:.:.((.:.:..:.:.)(..:.:.:.:.:.)(..:.:.:.:.:.))((.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.))((..:.:.:.:.)(.:..:.:.:.)(.:..:.:.:.)(.:.:..:.:.)(.:..:.:.:.)(.:..:.)(..:.:.:.)(.:..:.:.))...:...:.:.:.:...:.:.:.:.:.:.:..:.:..:.:...:..:..:.:.:.((.i=1..:..:.:.:.:..z)(z..i=2...:.:.:.:..z)(z..i=3..:..:.:.:..z)(:.z..i=4..:..:.:.):)..c........:...:.:.:..:..:.:.:.:.
+>     progress          : ..:..:..:.:.((.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.))((..:.:.:.)(..:.:.:.)(.:..:.:.)(.:..:.:.:.)(.:..:.:.))((.:..:.:.)(..:.:.:.:.)(.:..:.:.:.)(.:..:.:.)(.:..:.:.)(.:..:.:.)(.:..:.:.:.)(.:..:.:.))...:..:..:.:...:.:.:.:.:..:.:..:.:.:.:...:..:..:.:.:.((.i=1..:..:.:.:.:..z)(z..i=2...:.:.:.:.:..z)(z..i=3..:..:.:..z)(:.z..i=4...:.:.:.):)..c........:.:..:.:..:.:..:..:.:.:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:..:..:.:.((.i=1..:..:.:..z)(z..i=2..:..:..z)(z..i=3..:..:.:..z))+5
+>     progress          : ..:...:.:.:.:.((.i=1..:.:..:.:..z)(z..i=2...:.:..z)(z..i=3..:...z))+5
 >     result            : FAIL at line 5 in shell break
 >     expected*
 >     	
@@ -2984,7 +3108,7 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable_warn.lux
->     progress          : ..:...:.:.:....7
+>     progress          : ..:..:..:.:.:....7
 >     warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at line 7 in shell foo
 >     expected*
@@ -3010,7 +3134,7 @@ Evaluate `lux examples`
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2022_06_27_19_44_58_934610/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2023_08_23_08_28_13_939684/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
