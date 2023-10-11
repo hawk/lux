@@ -135,7 +135,7 @@ start_tracer(TraceTarget) ->
 
 stop_trace() ->
     dbg:flush_trace_port(),
-    dbg:stop_clear().
+    dbg:stop().
 
 modules(AppDir, App, ExtraMods) ->
     AppStr = atom_to_list(App),
