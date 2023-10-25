@@ -1,7 +1,7 @@
 Lux - LUcid eXpect scripting
 ============================
 
-Version 2.9 - 2023-08-23
+Version 2.9.1 - 2023-10-25
 
 * [Introduction](#../README)
 * [Concepts](#main_concepts)
@@ -3066,12 +3066,32 @@ Here follow the output from the enclosed example test suite under
 Evaluate `lux examples`
 
 >     .../lux> lux examples
->     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2023_08_23_08_28_13_939684/lux_summary.log
+>     summary log       : /Users/hmattsso/dev/lux/lux_logs/run_2023_10_25_13_33_18_81235/lux_summary.log
 >     test case         : examples/calc.lux
->     progress          : ..:..:..:.:...:..:.:.:.:....:..:.:..:..(....:..:.:.:.:.:...)(.:.:..:.:..)...:..:.:..:.:..(.:.:..:..)..(.:.:..:.:..)(....:.:.:..:...)(.:.:..:..)..(.:.:.:...).......:.:........
->     result            : SUCCESS
+>     progress          : ..:...:.:...:..:.:.:....:.:..:.:..:..(....:..:.:.:.:.61????61)19
+>     result            : FAIL at line 19:61 in shell calc
+>     expected*
+>     	\d+>\s.*\.
+>     	(.*)
+>     	\d+>\s
+>     actual match_timeout
+>     	
+>     	[A[J1> 
+>     	.. 2+1.
+>     	3
+>     	2> 
+>     diff
+>     	- \d+>\s.*\.
+>     	- (.*)
+>     	- \d+>\s
+>     	+ 
+>     	+ [A[J1> 
+>     	+ .. 2+1.
+>     	+ 3
+>     	+ 2> 
+>     	
 >     test case         : examples/fail.lux
->     progress          : ..:...:.:.:...:.:..:.:.:...:.:.:.:.:....:.:.:...32C..:..:.:..:..:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
+>     progress          : ..:..:..:.:...:.:..:.:.:..:..:.:.:....:..:..32C..:..:..:..:..:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.
 >     result            : FAIL at line 32 in shell calculator
 >     expected*
 >     	19
@@ -3088,13 +3108,13 @@ Evaluate `lux examples`
 >     	+ 4> 
 >     	
 >     test case         : examples/intro.lux
->     progress          : ..:..:..:.:..:.:.:.....:..:..:.:.:...:.:..:.:..:.:.:..:.:.:.:..:..:.:.:..:.:..:..:..:.:.:.:....c.:.....:..:..:.:..:..:.:..:.:..:.
+>     progress          : ..:..:..:..:.:..:....:..:..:.:..:.:..:..:.:..:.:..:.:..:.:.....:..:.:.:....c.:.....:..:..:..:.:..:.:..:.:..:.
 >     result            : SUCCESS
 >     test case         : examples/loop.lux
->     progress          : ..:..:..:.:.((.:..:.:.:.)(.:..:.:.:.)(.:..:.:.:.))((..:.:.:.)(..:.:.:.)(.:..:.:.)(.:..:.:.:.)(.:..:.:.))((.:..:.:.)(..:.:.:.:.)(.:..:.:.:.)(.:..:.:.)(.:..:.:.)(.:..:.:.)(.:..:.:.:.)(.:..:.:.))...:..:..:.:...:.:.:.:.:..:.:..:.:.:.:...:..:..:.:.:.((.i=1..:..:.:.:.:..z)(z..i=2...:.:.:.:.:..z)(z..i=3..:..:.:..z)(:.z..i=4...:.:.:.):)..c........:.:..:.:..:.:..:..:.:.:.:.
+>     progress          : ..:...:.:.((.:..:.:.)(.:.:..:.)(.:.:..:.))((..:.:.:.)(.:.:..:.)(.:..:.:.)(.:.:..:.)(.:.:..:.))((.:.:..:.)(..:.:.:.)(.:..:.:.)(.:..:.)(.:.:..:.)(.:.:..:.)(.:.:..:.)(.:..:.))...:..:.:..:..:.:..:.:..:.:..:.:...:...:.:.:.((.i=1..:..:.:.:..z)(z..i=2...:.:.:.:..z)(z..i=3..:..:.:..z)(:...i=4..:.:..:.):.).c........:..:..:.:..:..:.:.
 >     result            : SUCCESS
 >     test case         : examples/loop_fail.lux
->     progress          : ..:...:.:.:.:.((.i=1..:.:..:.:..z)(z..i=2...:.:..z)(z..i=3..:...z))+5
+>     progress          : ..:..:..:.((.i=1..:..:.:..z)(z..i=2..:...z)(z..i=3...:.:.:..z))+5
 >     result            : FAIL at line 5 in shell break
 >     expected*
 >     	
@@ -3108,7 +3128,7 @@ Evaluate `lux examples`
 >     test case         : examples/skip.lux
 >     result            : SKIP as variable TEST_SUNOS is not set
 >     test case         : examples/unstable_warn.lux
->     progress          : ..:..:..:.:.:....7
+>     progress          : ..:...:.:.:....7
 >     warning           : 8: FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     result            : WARNING at line 7 in shell foo
 >     expected*
@@ -3123,18 +3143,19 @@ Evaluate `lux examples`
 >     progress          : W
 >     warning           : 3: Trailing whitespaces
 >     result            : WARNING
->     successful        : 3
+>     successful        : 2
 >     skipped           : 1
 >     	examples/skip.lux:6
 >     warnings          : 2
 >     	examples/unstable_warn.lux:8 - FAIL but UNSTABLE as variable TEST_DEVELOP is not set
 >     	examples/warning.lux:3 - Trailing whitespaces
->     failed            : 3
+>     failed            : 4
+>     	examples/calc.lux:19:61 - match_timeout
 >     	examples/fail.lux:32 - match_timeout
 >     	examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
 >     	examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
 >     summary           : FAIL
->     file:///Users/hmattsso/dev/lux/lux_logs/run_2023_08_23_08_28_13_939684/lux_summary.log.html
+>     file:///Users/hmattsso/dev/lux/lux_logs/run_2023_10_25_13_33_18_81235/lux_summary.log.html
 >     .../lux> echo $?
 >     1
 
