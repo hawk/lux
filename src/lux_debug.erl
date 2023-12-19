@@ -91,7 +91,7 @@ loop(#dstate{mode=Mode} = Dstate) ->
             ReasonStr = file:format_error(Reason),
             catch format("\nERROR: ~s\n", [ReasonStr]),
             exit(Reason);
-        "\"\"\"\n" when Mode =:= foreground->
+        "\"\"\n" when Mode =:= foreground->
             %% Found """. Exit foreground mode
             Name = Dstate#dstate.shell_name,
             NewDstate = call(Dstate, "shell " ++ Name),
