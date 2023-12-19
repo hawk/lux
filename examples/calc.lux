@@ -9,8 +9,11 @@
     -$fail_pattern|SH-PROMPT:
     !erl
     """?
+    erl
+    Erlang/OTP.*
+
     Eshell.*
-    $eprompt
+
     """
 
 # Call some macros and use global and my scoped variables
@@ -50,14 +53,13 @@
     # Use a temporary variable that only is alive in one macro invocation
     [my myshell=$LUX_SHELLNAME]
     [shell calc]
-        !
         !$expr.
 
         # Use multi-line expr to sync output
         """?
         $eprompt.*\.
         (.*)
-        $eprompt
+
         """
         # Retrieve the value from the sub-expression
         [global result=$1]
