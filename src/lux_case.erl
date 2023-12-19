@@ -295,6 +295,8 @@ config_type(Name) ->
             {ok, #istate.require, [{std_list, [string]}]};
         case_prefix ->
             {ok, #istate.case_prefix, [string]};
+        case_subset ->
+            {ok, #istate.case_subset, [{reset_list, [string]}]};
         config_dir ->
             {ok, #istate.config_dir, [string]};
         progress ->
@@ -846,6 +848,7 @@ user_config_keys() ->
      fail_when_warning,
      require,
      case_prefix,
+     case_subset,
      progress,
      multiplier,
      suite_timeout,

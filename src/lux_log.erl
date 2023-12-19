@@ -1421,7 +1421,8 @@ format_config(Tag, Val, Types) ->
             ]
     end.
 
-to_printable(Chars) ->
+to_printable(Chars0) ->
+    Chars = lists:flatten(Chars0),
     Fun = fun(Char) ->
                   case Char >= $\ andalso io_lib:printable_list([Char]) of
                       true  -> Char;

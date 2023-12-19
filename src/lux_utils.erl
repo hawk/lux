@@ -498,7 +498,7 @@ do_fold_files(File, RegExp, Recursive, Fun, Acc, IsTopLevel) ->
                     Acc;
                 _ -> % device | regular | symlink | other
                     Base = filename:basename(File),
-                    case re:run(Base, RegExp, [{capture,none}]) of
+                    case re:run(Base, RegExp, [{capture, none}]) of
                         match   -> Fun(File, Acc);
                         nomatch -> Acc
                     end
@@ -526,7 +526,7 @@ foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, OptI})
 do_foldl_cmds(Fun, Acc, File, RevFile, PosStack, [Cmd | Cmds], FullDepth) ->
     #cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd,
     {Depth, OptI} = FullDepth,
-    CmdPos = lux_utils:cmd_pos(File, Cmd),
+    CmdPos = cmd_pos(File, Cmd),
     SubFun =
         fun(SubFile, SubCmds, SubStack) ->
                 SubAcc = Fun(Cmd, RevFile, SubStack, Acc),
@@ -852,7 +852,7 @@ equal(ExpectedTag, Expected0, Actual)
        ExpectedTag =:= ?EXPECTED_OLD ->
     Expected = normalize_diff_regexp(Expected0),
     try
-        re:run(Actual, Expected,[{capture, none}, notempty])
+        re:run(Actual, Expected, [{capture, none}, notempty])
     catch _:_ ->
             nomatch
     end;

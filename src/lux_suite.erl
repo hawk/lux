@@ -646,6 +646,11 @@ parse_ropts([{Name, Val} = NameVal | T], R) ->
             UserArgs = [NameVal | R#rstate.user_args],
             parse_ropts(T, R#rstate{case_prefix = Val,
                                     user_args = UserArgs});
+        case_subset when is_list(Val) ->
+            CaseSubset = [Val | R#rstate.case_subset],
+            UserArgs = [NameVal | R#rstate.user_args],
+            parse_ropts(T, R#rstate{case_subset = CaseSubset,
+                                    user_args = UserArgs });
         progress when Val =:= silent  orelse
                       Val =:= summary orelse
                       Val =:= brief   orelse
@@ -1132,7 +1137,38 @@ print_results(#rstate{progress=Progress,warnings=Warnings},
     lux_log:print_results(Progress, {false,standard_io},
                           Summary, SuiteResults, Warnings).
 
-parse_script(R, _SuiteFile, Script) ->
+parse_script(R, SuiteFile, AbsScript) ->
+    PrefixedScript = prefixed_rel_script(R, AbsScript),
+    case match_regexps(PrefixedScript, R#rstate.case_subset) of
+        match ->
+            do_parse_script(R, SuiteFile, AbsScript);
+        nomatch ->
+            RevFile = lux_utils:filename_split(AbsScript),
+            Stack =
+                [#cmd_pos{rev_file = RevFile,
+                          lineno = 0,
+                          type = main}],
+            Reason = "SKIP as script path not matches case_subset",
+            {skip, R, Stack, ?l2b(Reason)}
+    end.
+
+match_regexps(_PrefixedScript, []) ->
+    %% Always match when there are no regexp
+    match;
+match_regexps(PrefixedScript, CaseSubset) ->
+    do_match_regexps(PrefixedScript, CaseSubset).
+
+do_match_regexps(PrefixedScript, [RegExp | CaseSubset]) ->
+    case re:run(PrefixedScript, RegExp, [{capture, none}]) of
+        match ->
+            match;
+        nomatch ->
+            do_match_regexps(PrefixedScript, CaseSubset)
+    end;
+do_match_regexps(_PrefixedScript, []) ->
+    nomatch.
+
+do_parse_script(R, _SuiteFile, Script) ->
     Opts0 = args_to_opts(lists:reverse(case_config_args(R)), case_style, []),
     CheckDoc = false, % Ignore missing summary doc warning for the time being
     case lux_parse:parse_file(Script,
@@ -1297,6 +1333,7 @@ parse_config(R) ->
     {DefaultData ++ ConfigProps, R4}.
 
 builtins(R, ActualConfigName) ->
+    Quote = fun(Words) -> ["\"" ++ W ++ "\"" ||  W <- Words] end,
     {ok, Cwd} = file:get_cwd(),
     [
      {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
@@ -1313,6 +1350,7 @@ builtins(R, ActualConfigName) ->
      {run, [string], R#rstate.run},
      {revision, [string], R#rstate.revision},
      {case_prefix, [string], R#rstate.case_prefix},
+     {case_subset, [string], string:join(Quote(R#rstate.case_subset), " ")},
      {'config name', [string], R#rstate.config_name},
      {config_dir, [string], R#rstate.config_dir}
     ].
@@ -1596,6 +1634,8 @@ suite_config_type(Name) ->
             {ok, [string]};
         suite ->
             {ok, [string]};
+        case_subset ->
+            {ok, [{reset_list, [string]}]};
         run ->
             {ok, [string]};
         extend_run ->

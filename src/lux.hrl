@@ -176,6 +176,7 @@
          skip_skip = false          :: boolean(),
          require = []               :: [string()],
          case_prefix = ""           :: string(),
+         case_subset = []           :: [string()],
          config_dir = undefined     :: undefined | string(),
          progress = brief           :: silent | summary | brief |
                                        doc | compact | verbose |
@@ -190,7 +191,7 @@
          tail_status = []           :: [{string(), string()}],
          start_time                 :: erlang:timestamp(),
          emit_timestamp = false     :: boolean(),
-         multiplier = ?ONE_SEC          :: non_neg_integer(),
+         multiplier = ?ONE_SEC      :: non_neg_integer(),
          suite_timeout = infinity   :: non_neg_integer() | infinity,
          suite_timer_ref            :: #timer_ref{},
          case_timeout = 5*?ONE_MIN  :: non_neg_integer() | infinity,
@@ -199,7 +200,7 @@
          poll_timeout = 0           :: non_neg_integer(), % Should be 100
          default_timeout = 10*?ONE_SEC  :: non_neg_integer() | infinity,
          cleanup_timeout = 100*?ONE_SEC :: non_neg_integer() | infinity,
-         default_pattern_mode = all :: all | skip,
+         default_pattern_mode = all     :: all | skip,
          risky_threshold  = ?DEFAULT_RISKY_THRESHOLD  :: float() | infinity,
          sloppy_threshold = ?DEFAULT_SLOPPY_THRESHOLD :: float() | infinity,
          newshell = false           :: boolean(),
@@ -369,6 +370,7 @@
          config_dir                 :: string(),
          file_pattern = "^[^\\\.].*\\\.lux" ++ [$$] :: string(),
          case_prefix = ""           :: string(),
+         case_subset = []           :: [string()],
          log_fd                     :: file:io_device(),
          log_dir                    :: file:filename(),
          summary_log                :: string(),
