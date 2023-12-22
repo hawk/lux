@@ -153,16 +153,17 @@ expand_suite(R, [SuiteFile | SuiteFiles], Acc, Max) ->
 expand_suite(_R, [], Acc, Max) ->
     {lists:append(lists:reverse(Acc)), Max}.
 
-list_files(R, File) ->
-    case file:read_file_info(File) of
+list_files(R, UserFile) ->
+    AbsFile = lux_utils:normalize_filename(UserFile),
+    case file:read_file_info(AbsFile) of
         {ok, #file_info{type = directory}} ->
             Fun = fun(F, Acc) -> [F | Acc] end,
             RegExp = R#rstate.file_pattern,
             Recursive = true,
-            Files = lux_utils:fold_files(File, RegExp, Recursive, Fun, []),
+            Files = lux_utils:fold_files(AbsFile, RegExp, Recursive, Fun, []),
             {ok, lists:sort(Files)};
         {ok, _} ->
-            {ok, [File]};
+            {ok, [AbsFile]};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -1333,7 +1334,6 @@ parse_config(R) ->
     {DefaultData ++ ConfigProps, R4}.
 
 builtins(R, ActualConfigName) ->
-    Quote = fun(Words) -> ["\"" ++ W ++ "\"" ||  W <- Words] end,
     {ok, Cwd} = file:get_cwd(),
     [
      {'start time', [string], lux_utils:now_to_string(R#rstate.start_time)},
@@ -1343,6 +1343,8 @@ builtins(R, ActualConfigName) ->
      {log_dir, [string], R#rstate.log_dir},
      {command, [string], hd(R#rstate.orig_args)},
      {arguments, [string], string:join(tl(R#rstate.orig_args), " ")},
+     {flags, [string], env_to_string("LUX_FLAGS")},
+     {system_flags, [string], env_to_string("LUX_SYSTEM_FLAGS")},
      {hostname, [string], R#rstate.hostname},
      {architecture, [string], ActualConfigName},
      {'system info', [string], sys_info()},
@@ -1350,10 +1352,16 @@ builtins(R, ActualConfigName) ->
      {run, [string], R#rstate.run},
      {revision, [string], R#rstate.revision},
      {case_prefix, [string], R#rstate.case_prefix},
-     {case_subset, [string], string:join(Quote(R#rstate.case_subset), " ")},
+     {case_subset, [string], R#rstate.case_subset},
      {'config name', [string], R#rstate.config_name},
      {config_dir, [string], R#rstate.config_dir}
     ].
+
+env_to_string(Var) ->
+    case os:getenv(Var) of
+        false -> "";
+        Val   -> Val
+    end.
 
 config_name() ->
     try
