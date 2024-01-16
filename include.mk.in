@@ -55,13 +55,14 @@ LUX=$(APP_DIR)/bin/lux
 ERL="@ERL@"
 ERLC="@ERLC@"
 EMULATOR=beam
-ERLC_FLAGS += +warnings_as_errors +warn_unused_vars +debug_info
+ERLC_FLAGS += +warnings_as_errors +warn_unused_vars @DEBUGINFO_OR_DETERMINISTIC@
 
 # C
 CC=@CC@
 CFLAGS=@CFLAGS@
 LDFLAGS=@LDFLAGS@
 C_SRC_TARGET=@C_SRC_TARGET@
+STRIP_RUNPTY=@STRIP_RUNPTY@
 
 # Doc
 MARKDOWN=@MARKDOWN@
