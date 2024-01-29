@@ -587,8 +587,7 @@ pretty_full_lineno(FullStack) ->
     LineNoSuffix = [[":", ?i2l(Pick(FL))] || FL <- Incl],
     lists:flatten([?i2l(LineNo), LineNoSuffix]).
 
-cmd_pos(File, #cmd{lineno = LineNo, type = Type, arg = Arg}) ->
-    RevFile = filename_split(File),
+cmd_pos(RevFile, #cmd{lineno = LineNo, type = Type, arg = Arg}) ->
     cmd_pos(RevFile, LineNo, Type, Arg).
 
 cmd_pos(RevFile, LineNo, Type, Name) when is_list(Name) ->

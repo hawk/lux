@@ -22,6 +22,7 @@ start_monitor(I, Cmd, Name, ExtraLogs) ->
     Base = filename:basename(OrigFile),
     Prefix = filename:join([I#istate.case_log_dir, Base ++ "." ++ Name]),
     C = #cstate{orig_file = OrigFile,
+                cmd_file = I#istate.file,
                 parent = Self,
                 name = Name,
                 start_reason = I#istate.cleanup_reason,
@@ -184,13 +185,15 @@ shell_wait_for_event(#cstate{name = _Name} = C, OrigC) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             shell_wait_for_event(C2, OrigC);
-        {adjust_stacks, From, When, IsRootLoop, NewCmd, PosStack, Fun} ->
+        {adjust_stacks, From, When, IsRootLoop,
+         NewCmd, CmdFile, PosStack, Fun} ->
             C2 = adjust_stacks(C, From, When, IsRootLoop,
-                               NewCmd, PosStack, Fun),
+                               NewCmd, CmdFile, PosStack, Fun),
             shell_wait_for_event(C2, OrigC);
-        {change_mode, From, Mode, Cmd, PosStack}  when Mode =:= resume;
-                                                       Mode =:= suspend ->
-            C2 = change_mode(C, From, Mode, Cmd, PosStack),
+        {change_mode, From, Mode, Cmd, CmdFile, PosStack}
+          when Mode =:= resume orelse
+               Mode =:= suspend ->
+            C2 = change_mode(C, From, Mode, Cmd, CmdFile, PosStack),
             expect_more(C2);
         {progress, _From, Level} ->
             shell_wait_for_event(C#cstate{progress = Level}, OrigC);
@@ -259,8 +262,9 @@ loop_timeout(C) ->
             IdleThreshold
     end.
 
-adjust_stacks(C, From, When, IsRootLoop, NewCmd, PosStack, Fun) ->
+adjust_stacks(C0, From, When, IsRootLoop, NewCmd, CmdFile, PosStack, Fun) ->
     Fun(),
+    C = C0#cstate{cmd_file = CmdFile},
     send_reply(C, From, {adjust_stacks_ack, self()}),
     LoopStack = C#cstate.loop_stack,
     case {NewCmd#cmd.type, When} of
@@ -292,7 +296,8 @@ adjust_stacks(C, From, When, IsRootLoop, NewCmd, PosStack, Fun) ->
                      pos_stack = PosStack}
     end.
 
-change_mode(C, From, NewMode, Cmd, PosStack) ->
+change_mode(C0, From, NewMode, Cmd, CmdFile, PosStack) ->
+    C = C0#cstate{cmd_file = CmdFile},
     Reply = {change_mode_ack, self()},
     OldMode = C#cstate.mode,
     case NewMode of
@@ -332,9 +337,10 @@ block(C, From, OrigC) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             block(C2, From, OrigC);
-        {adjust_stacks, From, When, IsRootLoop, NewCmd, PosStack, Fun} ->
+        {adjust_stacks, From, When, IsRootLoop,
+         NewCmd, CmdFile, PosStack, Fun} ->
             C2 = adjust_stacks(C, From, When, IsRootLoop,
-                               NewCmd, PosStack, Fun),
+                               NewCmd, CmdFile, PosStack, Fun),
             block(C2, From, OrigC);
         {'DOWN', _, process, Pid, DownReason} when Pid =:= C#cstate.parent ->
             interpreter_died(C, DownReason);
@@ -1379,12 +1385,11 @@ cancel_timer(#cstate{timer_ref = TimerRef,
              timer_started_at = undefined,
              warnings = NewWarnings}.
 
-make_warning(#cstate{orig_file = File} = C,
-            Reason) ->
+make_warning(#cstate{orig_file = OrigFile} = C, Reason) ->
     Progress = debug_progress(C),
     lux_utils:progress_write(Progress, "W"),
     FullLineNo = clog_stack(C, [{warning, "\"" ++ Reason ++ "\"", []}]),
-    lux_utils:make_warning(File, FullLineNo, Reason).
+    lux_utils:make_warning(OrigFile, FullLineNo, Reason).
 
 flush_fail() ->
     receive
@@ -1520,15 +1525,17 @@ stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual) orelse
             wait_for_down(C4, Res)
     end.
 
-clog_stack(#cstate{orig_file = File,
+clog_stack(#cstate{orig_file = OrigFile,
+                   cmd_file = CmdFile,
                    latest_cmd = LatestCmd,
                    pos_stack = PosStack} = C,
            PreEvents) ->
-    CmdPos = lux_utils:cmd_pos(File, LatestCmd),
-    FullStack = [CmdPos|PosStack],
+    RevCmdFile = lux_utils:filename_split(CmdFile),
+    CmdPos = lux_utils:cmd_pos(RevCmdFile, LatestCmd),
+    FullStack = [CmdPos | PosStack],
     FullLineNo = lux_utils:pretty_full_lineno(FullStack),
     WhereEvent = {where, "\"~s\"", [FullLineNo]},
-    PrettyStack = lux_utils:pretty_stack(File, FullStack),
+    PrettyStack = lux_utils:pretty_stack(OrigFile, FullStack),
     StackEvents =
         [{stack, "\"~s\" ~p ~s", [PS, T, N]} ||
             {PS, #cmd_pos{type = T, name = N}} <- PrettyStack],
@@ -1660,13 +1667,15 @@ wait_for_down(C, Res) ->
         {sync, From, When} ->
             C2 = opt_sync_reply(C, From, When),
             wait_for_down(C2, Res);
-        {adjust_stacks, From, When, IsRootLoop, NewCmd, PosStack, Fun} ->
+        {adjust_stacks, From, When, IsRootLoop,
+         NewCmd, CmdFile, PosStack, Fun} ->
             C2 = adjust_stacks(C, From, When, IsRootLoop,
-                               NewCmd, PosStack, Fun),
+                               NewCmd, CmdFile, PosStack, Fun),
             wait_for_down(C2, Res);
-        {change_mode, From, Mode, Cmd, PosStack} when Mode =:= resume;
-                                                      Mode =:= suspend ->
-            C2 = change_mode(C, From, Mode, Cmd, PosStack),
+        {change_mode, From, Mode, Cmd, CmdFile, PosStack}
+          when Mode =:= resume orelse
+               Mode =:= suspend ->
+            C2 = change_mode(C, From, Mode, Cmd, CmdFile, PosStack),
             wait_for_down(C2, Res);
         {'DOWN', _, process, Pid, DownReason} when Pid =:= C#cstate.parent ->
             trace_interpreter_down(C, DownReason),

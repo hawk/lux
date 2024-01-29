@@ -815,7 +815,8 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
                                [InvokeLineNo, FirstLineNo, LastLineNo, CmdFile])
         end,
     OldStack = OldI#istate.pos_stack,
-    CurrentPos = lux_utils:cmd_pos(CmdFile, Cmd#cmd{lineno = InvokeLineNo}),
+    RevCmdFile = lux_utils:filename_split(CmdFile),
+    CurrentPos = lux_utils:cmd_pos(RevCmdFile, Cmd#cmd{lineno = InvokeLineNo}),
     NewStack = [CurrentPos | OldStack],
     BeforeI = OldI#istate{call_level = ?call_level(OldI) + 1,
                           file = CmdFile,
@@ -1624,7 +1625,8 @@ inactivate_shell(#istate{active_shell = ActiveShell, shells = Shells} = I,
 
 change_active_mode(I, Cmd, NewMode)
   when is_pid(I#istate.active_shell#shell.pid) ->
-    case cast(I, {change_mode, self(), NewMode, Cmd, I#istate.pos_stack}) of
+    case cast(I, {change_mode, self(), NewMode, Cmd,
+                  I#istate.file, I#istate.pos_stack}) of
         {ok, Pid} ->
             I2 = wait_for_reply(I, [Pid], change_mode_ack, undefined, infinity),
             {ok, I2};
@@ -1641,7 +1643,9 @@ adjust_stacks(When, #istate{active_shell = no_shell} = I,
     adjust_suspended_stacks(When, I, NewCmd, PosStack, IsRootLoop, []);
 adjust_stacks(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
            NewCmd, PosStack, Fun, IsRootLoop) ->
-    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, PosStack, Fun},
+    CmdFile = I#istate.file,
+    Msg = {adjust_stacks, self(), When, IsRootLoop,
+           NewCmd, CmdFile, PosStack, Fun},
     case cast(I, Msg) of
         {ok, ActivePid} ->
             adjust_suspended_stacks(When, I, NewCmd, PosStack,
@@ -1652,7 +1656,9 @@ adjust_stacks(When, #istate{active_shell = #shell{pid = ActivePid}} = I,
 
 adjust_suspended_stacks(When, I, NewCmd, PosStack, IsRootLoop, ActivePids) ->
     Fun = fun() -> ignore end,
-    Msg = {adjust_stacks, self(), When, IsRootLoop, NewCmd, PosStack, Fun},
+    CmdFile = I#istate.file,
+    Msg = {adjust_stacks, self(), When, IsRootLoop,
+           NewCmd, CmdFile, PosStack, Fun},
     OtherPids = multicast(I#istate{active_shell = no_shell}, Msg),
     Pids = ActivePids ++ OtherPids,
     wait_for_reply(I, Pids, adjust_stacks_ack, Fun, infinity).
@@ -1764,16 +1770,18 @@ raw_ilog(#istate{progress = Progress, log_fun = LogFun, event_log_fd = Fd},
          Args) ->
     lux_log:safe_format(Progress, LogFun, Fd, Format, Args).
 
-ilog_stack(#istate{orig_file = File,
+ilog_stack(#istate{orig_file = OrigFile,
+                   file = CmdFile,
                    latest_cmd = LatestCmd,
                    pos_stack = PosStack,
                    active_name = ShellName} = C) ->
-    CmdPos = lux_utils:cmd_pos(File, LatestCmd),
-    FullStack = [CmdPos|PosStack],
+    RevCmdFile = lux_utils:filename_split(CmdFile),
+    CmdPos = lux_utils:cmd_pos(RevCmdFile, LatestCmd),
+    FullStack = [CmdPos | PosStack],
     FullLineNo = lux_utils:pretty_full_lineno(FullStack),
     LineNo = LatestCmd#cmd.lineno,
     ilog(C, "where \"~s\"\n", [FullLineNo], ShellName, LineNo),
-    PrettyStack = lux_utils:pretty_stack(File, FullStack),
+    PrettyStack = lux_utils:pretty_stack(OrigFile, FullStack),
     [ilog(C, "stack \"~s\" ~p ~s\n", [PS, T, N], ShellName, LineNo) ||
         {PS, #cmd_pos{type = T, name = N}} <- PrettyStack],
     FullLineNo.

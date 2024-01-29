@@ -1248,5 +1248,6 @@ cmd_pos_stack(P, Cmd) ->
             [] -> main;
             _  -> include
         end,
-    CmdPos = lux_utils:cmd_pos(P#pstate.file, Cmd#cmd{type = Context}),
+    RevFile = lux_utils:filename_split(P#pstate.file),
+    CmdPos = lux_utils:cmd_pos(RevFile, Cmd#cmd{type = Context}),
     [CmdPos | OldPosStack].

@@ -1653,7 +1653,8 @@ current(#istate{file = File,
             [TopCmd | _] ->
                 TopCmd
         end,
-    lux_utils:cmd_pos(File, FakeCmd).
+    RevFile = lux_utils:filename_split(File),
+    lux_utils:cmd_pos(RevFile, FakeCmd).
 
 full_lineno_to_static_break_pos(FullLineNo) ->
     #cmd_pos{rev_file = RevFile, lineno = LineNo} = hd(FullLineNo),

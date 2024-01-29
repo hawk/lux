@@ -303,6 +303,7 @@
 
 -record(cstate,
         {orig_file               :: string(),
+         cmd_file                :: string(),
          parent                  :: pid(),
          name                    :: string(),
          debug = disconnect      :: connect | disconnect,
