@@ -34,17 +34,17 @@
                          [{atom(), term()}]) ->
              [{ok, summary(), filename(), [result()]} | error()].
 
-interpret_commands(Script, Cmds, Warnings, StartTime,
+interpret_commands(OrigFile, OrigCmds, Warnings, StartTime,
                    SuiteRef, PostCaseCmds, Opts, Opaque) ->
-    %% io:format("\nCmds ~p\n", [Cmds]),
-    I = default_istate(Script),
+    %% io:format("\nCmds ~p\n", [OrigCmds]),
+    I = default_istate(OrigFile),
     case lists:keyfind(stopped_by_user, 1, Opaque) of
         {_, Context = suite} -> ok;
         _                    -> Context = undefined
     end,
-    I2 = I#istate{commands = Cmds,
+    I2 = I#istate{commands = OrigCmds,
+                  orig_commands = OrigCmds,
                   warnings = Warnings,
-                  orig_commands = Cmds,
                   stopped_by_user = Context,
                   start_time = StartTime,
                   suite_timer_ref = SuiteRef,
@@ -62,27 +62,27 @@ interpret_commands(Script, Cmds, Warnings, StartTime,
             internal_error(I2, {'EXIT', {fatal_error, Class, Reason, EST}})
     end.
 
-check_timeout(#istate{suite_timeout = SuiteTimeout,
+check_timeout(#istate{main_file = MainFile,
+                      suite_timeout = SuiteTimeout,
                       case_timeout = CaseTimeout,
-                      orig_file = File,
                       latest_cmd = LatestCmd,
                       pos_stack = PosStack} = I)
   when is_integer(SuiteTimeout),
        is_integer(CaseTimeout),
        CaseTimeout > SuiteTimeout ->
-    FullLineNo = lux_utils:full_lineno(File, LatestCmd, PosStack),
+    FullLineNo = lux_utils:full_lineno(MainFile, LatestCmd, PosStack),
     Reason =  "case_timeout > suite_timeout",
-    W = lux_utils:make_warning(File, FullLineNo, Reason),
+    W = lux_utils:make_warning(MainFile, FullLineNo, Reason),
     I#istate{warnings = [W | I#istate.warnings]};
 check_timeout(I) ->
     I.
 
 open_logs_and_eval(I) ->
-    Script = I#istate.file,
+    MainFile = I#istate.main_file,
     Cmds = I#istate.commands,
-    CaseLogDir = case_log_dir(I, Script),
+    CaseLogDir = case_log_dir(I, MainFile),
     I2 = I#istate{case_log_dir = CaseLogDir},
-    case copy_orig(I2, Script) of
+    case copy_orig(I2, MainFile) of
         {ok, Base} ->
             ExtraLogs = filename:join([CaseLogDir,
                                        Base ++ ?CASE_EXTRA_LOGS]),
@@ -90,17 +90,17 @@ open_logs_and_eval(I) ->
             GlobalVars = [ExtraVars | I2#istate.global_vars],
             I3 = I2#istate{global_vars = GlobalVars},
             Config = config_data(I3),
-            ConfigFd = lux_log:open_config_log(CaseLogDir, Script, Config),
+            ConfigFd = lux_log:open_config_log(CaseLogDir, MainFile, Config),
             Progress = I3#istate.progress,
             LogFun = I3#istate.log_fun,
             Verbose = true,
             EmitTimestamp = I3#istate.emit_timestamp,
-            case lux_log:open_event_log(CaseLogDir, Script,
+            case lux_log:open_event_log(CaseLogDir, MainFile,
                                         Progress,
                                         LogFun, Verbose,
                                         EmitTimestamp) of
                 {ok, EventLog, EventFd} ->
-                    Docs = docs(I3#istate.orig_file, Cmds),
+                    Docs = docs(I3#istate.main_file, Cmds),
                     eval(I3, Progress, Verbose, LogFun,
                          EventLog, EventFd, ConfigFd, Docs);
                 {error, FileReason} ->
@@ -110,9 +110,11 @@ open_logs_and_eval(I) ->
             internal_error(I2, file:format_error(FileReason))
     end.
 
-default_istate(File) ->
+default_istate(OrigFile) ->
+    MainFile = lux_utils:normalize_filename(OrigFile),
     #istate{top_pid = self(),
-            file = lux_utils:normalize_filename(File),
+            main_file = MainFile,
+            curr_file = MainFile,
             log_fun = fun(Bin) -> console_write(?b2l(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),
@@ -126,13 +128,13 @@ default_shell_wrapper() ->
         false -> undefined
     end.
 
-copy_orig(I, Script) ->
-    CaseLogDir = case_log_dir(I, Script),
-    Base = filename:basename(Script),
-    OrigScript = filename:join([CaseLogDir, Base ++ ".orig"]),
-    case filelib:ensure_dir(OrigScript) of % Ensure LogDir
+copy_orig(I, MainFile) ->
+    CaseLogDir = case_log_dir(I, MainFile),
+    Base = filename:basename(MainFile),
+    OrigMainFile = filename:join([CaseLogDir, Base ++ ".orig"]),
+    case filelib:ensure_dir(OrigMainFile) of % Ensure LogDir
         ok ->
-            case file:copy(Script, OrigScript) of
+            case file:copy(MainFile, OrigMainFile) of
                 {ok, _} ->
                     {ok, Base};
                 {error, FileReason} ->
@@ -142,19 +144,19 @@ copy_orig(I, Script) ->
             {error, FileReason}
     end.
 
-case_log_dir(#istate{suite_log_dir = SuiteLogDir}, AbsScript) ->
-    case_log_dir(SuiteLogDir, AbsScript);
-case_log_dir(SuiteLogDir, AbsScript) ->
-    case lux_utils:drop_prefix(AbsScript) of
-        ".." ++ _  -> RelScript0 = AbsScript;
-        RelScript0 -> ok
+case_log_dir(#istate{suite_log_dir = SuiteLogDir}, AbsMainFile) ->
+    case_log_dir(SuiteLogDir, AbsMainFile);
+case_log_dir(SuiteLogDir, AbsMainFile) ->
+    case lux_utils:drop_prefix(AbsMainFile) of
+        ".." ++ _  -> RelMainFile0 = AbsMainFile;
+        RelMainFile0 -> ok
     end,
-    RelScript =
-        case filename:pathtype(RelScript0) of
-            absolute -> tl(RelScript0);
-            _Type    -> RelScript0
+    RelMainFile =
+        case filename:pathtype(RelMainFile0) of
+            absolute -> tl(RelMainFile0);
+            _Type    -> RelMainFile0
         end,
-    RelDir = filename:dirname(RelScript),
+    RelDir = filename:dirname(RelMainFile),
     filename:join([SuiteLogDir, RelDir]).
 
 eval(OldI, Progress, Verbose,
@@ -172,7 +174,7 @@ eval(OldI, Progress, Verbose,
         lux_log:safe_format(Progress, LogFun, undefined,
                             "~s~s\n",
                             [?TAG("script"),
-                             NewI#istate.file]),
+                             NewI#istate.curr_file]),
         lux_log:safe_format(Progress, LogFun, undefined,
                             "~s~s\n",
                             [?TAG("event log"), EventLog]),
@@ -214,14 +216,14 @@ internal_error(I, ReasonTerm) ->
     fatal_error(I, ReasonBin).
 
 fatal_error(I, ReasonBin) when is_binary(ReasonBin) ->
-    FullLineNo = lux_utils:full_lineno(I#istate.file,
+    FullLineNo = lux_utils:full_lineno(I#istate.curr_file,
                                        I#istate.latest_cmd,
                                        I#istate.pos_stack),
     RunWarnings = I#istate.warnings,
     UnstableWarnings = [],
     print_warnings(I, RunWarnings, UnstableWarnings),
     double_ilog(I, "~sERROR ~s\n", [?TAG("result"), ?b2l(ReasonBin)]),
-    {case_error, I#istate.file, FullLineNo, I#istate.case_log_dir,
+    {case_error, I#istate.curr_file, FullLineNo, I#istate.case_log_dir,
      RunWarnings, UnstableWarnings, ReasonBin}.
 
 print_warnings(I, RunWarnings, UnstableWarnings) ->
@@ -247,7 +249,6 @@ do_parse_iopts(I, [{Name, Val} | T], U) when is_atom(Name) ->
             Res
     end;
 do_parse_iopts(I, [], U) ->
-    File = lux_utils:normalize_filename(I#istate.file),
     case I#istate.shell_wrapper of
         "" -> ShellWrapper = undefined;
         ShellWrapper -> ok
@@ -257,9 +258,7 @@ do_parse_iopts(I, [], U) ->
         PostCase -> ok
     end,
     SuiteLogDir = lux_utils:normalize_filename(I#istate.suite_log_dir),
-    I2 = I#istate{file = File,
-                  orig_file = File,
-                  shell_wrapper = ShellWrapper,
+    I2 = I#istate{shell_wrapper = ShellWrapper,
                   suite_log_dir = SuiteLogDir,
                   case_log_dir = SuiteLogDir,
                   post_case = PostCase},
@@ -491,7 +490,7 @@ wait_for_done(I, Pid, Docs) ->
     end.
 
 handle_done(OldI, NewI0, Docs) ->
-    File = NewI0#istate.file,
+    CurrFile = NewI0#istate.curr_file,
     Results = NewI0#istate.results,
     OldWarnings = NewI0#istate.warnings,
     ExtraWarnings = [R#result.warnings || R <- Results],
@@ -506,11 +505,11 @@ handle_done(OldI, NewI0, Docs) ->
                 NewWarnings =/= [],
                 NewI#istate.fail_when_warning ->
                     WarnR = make_warning_fail(NewI),
-                    print_fail(OldI, NewI, File, Results, WarnR);
+                    print_fail(OldI, NewI, CurrFile, Results, WarnR);
                 IsSuccess ->
-                    print_success(NewI, File);
+                    print_success(NewI, CurrFile);
                 not IsSuccess ->
-                    print_fail(OldI, NewI, File, Results, R)
+                    print_fail(OldI, NewI, CurrFile, Results, R)
             end;
         {'EXIT', Reason} ->
             internal_error(NewI, {'EXIT', Reason})
@@ -726,8 +725,8 @@ unstable_warnings(#istate{unstable=U,
 
 filter_unstable(#istate{skip_skip = true}, _FullLineNo, _Var, _NameVal) ->
     false;
-filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
-                FullLineNo, Var, NameVal) ->
+filter_unstable(#istate{skip_skip = false} = I, FullLineNo, Var, NameVal) ->
+    MainFile = I#istate.main_file,
     case Var of
         "unstable" ->
             {IsSet, Name, Val} = test_var(I, NameVal),
@@ -737,7 +736,7 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                 true ->
                     Format = "FAIL but UNSTABLE as variable ~s is set",
                     Reason = format_val(Format, [Name], Val),
-                    W = lux_utils:make_warning(File, FullLineNo, Reason),
+                    W = lux_utils:make_warning(MainFile, FullLineNo, Reason),
                     progress_warnings(I, [W]),
                     {true, W}
             end;
@@ -749,7 +748,7 @@ filter_unstable(#istate{skip_skip = false, orig_file = File} = I,
                 false ->
                     Format = "FAIL but UNSTABLE as variable ~s is not set",
                     Reason = format_val(Format, [Name], Val),
-                    W = lux_utils:make_warning(File, FullLineNo, Reason),
+                    W = lux_utils:make_warning(MainFile, FullLineNo, Reason),
                     progress_warnings(I, [W]),
                     {true, W}
             end
@@ -824,7 +823,7 @@ config_data(I) ->
     {ok, Cwd} = file:get_cwd(),
     UserConfigTypes = user_config_types(),
     [
-     {script,     [string], I#istate.file},
+     {script,     [string], I#istate.main_file},
      {run_dir,    [string], Cwd}
     ]
         ++

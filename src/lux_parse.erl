@@ -68,8 +68,8 @@ do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
                     [I#istate.global_vars,
                      I#istate.builtin_vars,
                      I#istate.system_vars],
-                P = #pstate{file = File,
-                            orig_file = File,
+                P = #pstate{main_file = File,
+                            curr_file = File,
                             pos_stack = [],
                             body_level = 1,
                             mode = RunMode,
@@ -89,7 +89,7 @@ do_parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
                 case parse_config(I2, lists:reverse(Config)) of
                     {ok, I3} ->
                         garbage_collect(),
-                        File2 = I3#istate.file,
+                        File2 = I3#istate.curr_file,
                         UpdatedOpts = updated_opts(I3, I),
                         P3 =
                             if
@@ -194,20 +194,20 @@ parse_file2(P) ->
             {P2, FirstLineNo, LastLineNo, RevCmds};
         {error, FileReason} ->
             NewFd = eof,
-            Reason = ?l2b([lux_utils:drop_prefix(P#pstate.file),
+            Reason = ?l2b([lux_utils:drop_prefix(P#pstate.curr_file),
                            ": ", file:format_error(FileReason)]),
             parse_error(P, NewFd, 0, Reason)
     end.
 
 file_open(Lines) when is_list(Lines) ->
     [{read_ahead, Lines}];
-file_open(#pstate{file = File, mode = RunMode}) ->
-    do_file_open(File, RunMode).
+file_open(#pstate{curr_file = CmdFile, mode = RunMode}) ->
+    do_file_open(CmdFile, RunMode).
 
-do_file_open( File, RunMode) when RunMode =:= validate orelse
-                                  RunMode =:= dump     orelse
-                                  RunMode =:= expand   orelse
-                                  RunMode =:= execute ->
+do_file_open(File, RunMode) when RunMode =:= validate orelse
+                                 RunMode =:= dump     orelse
+                                 RunMode =:= expand   orelse
+                                 RunMode =:= execute ->
     %% Bulk read file
     case file:read_file(File) of
         {ok, Bin} ->
@@ -834,8 +834,8 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
     end.
 
 parse_include(P, Fd, Cmd, RelFile, LineNo) ->
-    Dir = filename:dirname(P#pstate.file),
-    CurrFile = P#pstate.file,
+    CurrFile = P#pstate.curr_file,
+    Dir = filename:dirname(CurrFile),
     CurrPosStack = P#pstate.pos_stack,
     RelFile2 = expand_vars(P, Fd, RelFile, LineNo),
     AbsFile = filename:absname(RelFile2, Dir),
@@ -843,14 +843,14 @@ parse_include(P, Fd, Cmd, RelFile, LineNo) ->
     try
         NewPosStack = cmd_pos_stack(P, Cmd),
         {P2, FirstLineNo, LastLineNo, RevInclCmds} =
-            parse_file2(P#pstate{file = AbsFile2,
+            parse_file2(P#pstate{curr_file = AbsFile2,
                                  pos_stack = NewPosStack}),
         InclCmds = lists:reverse(RevInclCmds),
         Cmd2 = Cmd#cmd{type = include,
                        arg = {include, AbsFile2,
                               FirstLineNo, LastLineNo,
                               InclCmds}},
-        {P2#pstate{file = CurrFile, pos_stack = CurrPosStack}, Cmd2}
+        {P2#pstate{curr_file = CurrFile, pos_stack = CurrPosStack}, Cmd2}
     catch
         throw:{skip, ErrorStack, Reason} ->
             %% re-throw
@@ -1227,9 +1227,9 @@ reparse_error(Fd, Tag, PosStack, IoList) ->
     throw({Tag, PosStack, IoList}).
 
 make_warning(P, OptCmd, IoList) ->
-    OrigFile = P#pstate.orig_file,
+    MainFile = P#pstate.main_file,
     FullLineNo = full_lineno(P, OptCmd),
-    lux_utils:make_warning(OrigFile, FullLineNo, IoList).
+    lux_utils:make_warning(MainFile, FullLineNo, IoList).
 
 add_warning(P, OptCmd, IoList) ->
     Warning = make_warning(P, OptCmd, IoList),
@@ -1248,6 +1248,6 @@ cmd_pos_stack(P, Cmd) ->
             [] -> main;
             _  -> include
         end,
-    RevFile = lux_utils:filename_split(P#pstate.file),
-    CmdPos = lux_utils:cmd_pos(RevFile, Cmd#cmd{type = Context}),
+    RevCmdFile = lux_utils:filename_split(P#pstate.curr_file),
+    CmdPos = lux_utils:cmd_pos(RevCmdFile, Cmd#cmd{type = Context}),
     [CmdPos | OldPosStack].

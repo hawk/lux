@@ -404,14 +404,14 @@ parse_lineno(I, Val) ->
     case split(Val, ":") of
         [Int] when hd(Int) >= $1, hd(Int) =< $9 ->
             %% Static - current:int
-            {lux_utils:filename_split(I#istate.file),
+            {lux_utils:filename_split(I#istate.curr_file),
              parse_param(I, StaticType, Int)};
         [File] when hd(File) < $1; hd(File) > $9 ->
             %% Static - file:1
             {lux_utils:filename_split(File), 1};
         ["", Int] ->
             %% Static - main:int
-            {lux_utils:filename_split(I#istate.orig_file),
+            {lux_utils:filename_split(I#istate.main_file),
              parse_param(I, StaticType, Int)};
         [File, Int] when hd(File) < $1; hd(File) > $9 ->
             %% Static file:int
@@ -756,14 +756,14 @@ opt_block(I) ->
 
 lookup_cmd(File,
            LineNo,
-           #istate{orig_file = OrigFile, orig_commands = OrigCmds}) ->
+           #istate{main_file = MainFile, orig_commands = OrigCmds}) ->
     Fun = fun(#cmd{lineno = L} = Cmd, F, _PosStack, Acc) ->
                   if
                       F =:= File, L =:= LineNo -> Cmd;
                       true                     -> Acc
                   end
           end,
-    lux_utils:foldl_cmds(Fun, false, OrigFile, [], OrigCmds, static).
+    lux_utils:foldl_cmds(Fun, false, MainFile, [], OrigCmds, static).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1177,16 +1177,16 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             tail(I2, LogFile, CmdState, Format, UserN)
     end.
 
-all_logs(#istate{orig_file=Script,
-                 suite_log_dir=SuiteLogDir,
-                 case_log_dir=CaseLogDir,
-                 logs=StdLogs} = I) ->
+all_logs(#istate{main_file = MainFile,
+                 suite_log_dir = SuiteLogDir,
+                 case_log_dir = CaseLogDir,
+                 logs = StdLogs} = I) ->
     I2 = lux_interpret:flush_logs(I),
     Split = fun({_Name, Stdin, Stdout}, Acc) ->
                     [Stdout, Stdin | Acc]
             end,
     Logs = lists:reverse(lists:foldl(Split, [], StdLogs)),
-    Base = filename:basename(Script),
+    Base = filename:basename(MainFile),
     EventLog = filename:join([CaseLogDir, Base ++ ?CASE_EVENT_LOG]),
     ConfigLog = filename:join([CaseLogDir, Base ++ ?CASE_CONFIG_LOG]),
     SuiteConfigLog = filename:join([SuiteLogDir, ?SUITE_CONFIG_LOG]),
@@ -1332,7 +1332,7 @@ cmd_list(I, Args, CmdState) ->
                     First, N, CurrentFullLineNo)
     end.
 
-do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
+do_list(#istate{main_file = MainFile, orig_commands = OrigCmds} = I,
         PrevRevFile, RevFile, First, N,
         [#cmd_pos{rev_file = CurrRevFile, lineno = CurrLineNo} | _]) ->
     Last = First+N-1,
@@ -1371,7 +1371,7 @@ do_list(#istate{orig_file = OrigFile, orig_commands = OrigCmds} = I,
                         Acc
                 end
         end,
-    PosList = lux_utils:foldl_cmds(Print, [], OrigFile, [], OrigCmds, static),
+    PosList = lux_utils:foldl_cmds(Print, [], MainFile, [], OrigCmds, static),
     case PosList of
         [] ->
             format("\nWrap file.\n", []),
@@ -1594,7 +1594,7 @@ cmd_trace(I, Args, _CmdState) ->
             case ?l2a(Action) of
                 'START' when TraceMode =:= none ->
                     LogDir = I#istate.case_log_dir,
-                    Base = filename:basename(I#istate.orig_file) ++
+                    Base = filename:basename(I#istate.main_file) ++
                         "." ++ TraceModeLower,
                     TraceLog0 = lux_utils:join(LogDir, Base),
                     FirstTracePid = self(),
@@ -1640,7 +1640,7 @@ stop_trace(I) ->
 current_full_lineno(I) ->
     [current(I) | I#istate.pos_stack].
 
-current(#istate{file = File,
+current(#istate{curr_file = CurrFile,
                 call_level = Level,
                 latest_cmd = LatestCmd,
                 commands = Cmds}) ->
@@ -1653,8 +1653,8 @@ current(#istate{file = File,
             [TopCmd | _] ->
                 TopCmd
         end,
-    RevFile = lux_utils:filename_split(File),
-    lux_utils:cmd_pos(RevFile, FakeCmd).
+    RevCurrFile = lux_utils:filename_split(CurrFile),
+    lux_utils:cmd_pos(RevCurrFile, FakeCmd).
 
 full_lineno_to_static_break_pos(FullLineNo) ->
     #cmd_pos{rev_file = RevFile, lineno = LineNo} = hd(FullLineNo),
@@ -1666,10 +1666,10 @@ full_lineno_to_static_break_pos(FullLineNo) ->
 break_to_full_lineno(I, BreakPos, Scope) ->
     case Scope of
         rest ->
-            File = I#istate.file,
+            File = I#istate.curr_file,
             Cmds = I#istate.commands;
         orig ->
-            File = I#istate.orig_file,
+            File = I#istate.main_file,
             Cmds = I#istate.orig_commands
     end,
     Collect =

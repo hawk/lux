@@ -1014,8 +1014,8 @@ real_hostname() ->
         _          -> "localhost"
     end.
 
-make_warning(File, FullLineNo, Reason) ->
-    #warning{file = File,
+make_warning(MainFile, FullLineNo, Reason) ->
+    #warning{file = MainFile,
              lineno = FullLineNo,
              reason = ?l2b(Reason)}.
 

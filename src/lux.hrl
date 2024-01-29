@@ -158,8 +158,8 @@
 
 -record(istate,
         {top_pid                    :: pid(),
-         file                       :: string(),
-         orig_file                  :: string(),
+         main_file                  :: string(),
+         curr_file                  :: string(),
          mode = running             :: running | cleanup | stopping,
          fail_when_warning = false  :: boolean(),
          warnings                   :: [#warning{}],
@@ -302,8 +302,8 @@
          pos_stack :: [#cmd_pos{}]}).
 
 -record(cstate,
-        {orig_file               :: string(),
-         cmd_file                :: string(),
+        {main_file               :: string(),
+         curr_file               :: string(),
          parent                  :: pid(),
          name                    :: string(),
          debug = disconnect      :: connect | disconnect,
@@ -407,8 +407,8 @@
         }).
 
 -record(pstate,
-        {file           :: string(),
-         orig_file      :: string(),
+        {main_file      :: string(),
+         curr_file      :: string(),
          pos_stack      :: [#cmd_pos{}],
          body_level     :: non_neg_integer(),
          mode           :: run_mode(),
