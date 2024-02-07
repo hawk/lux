@@ -571,10 +571,10 @@ print_results(Progress, Fd, Summary, SuiteResults, Warnings) ->
     %% Display most important results last
     result_format(Progress, Fd, "\n", []),
     print_success(Progress, Fd, SuiteResults),
-    print_skip(Progress, Fd, SuiteResults),
-    print_warning(Progress, Fd, Warnings),
-    print_fail(Progress, Fd, SuiteResults),
-    print_error(Progress, Fd, SuiteResults),
+    print_outcome(Progress, Fd, SuiteResults, skip, "skipped"),
+    print_outcome(Progress, Fd, Warnings, warning, "warnings"),
+    print_outcome(Progress, Fd, SuiteResults, fail, "failed"),
+    print_outcome(Progress, Fd, SuiteResults, error, "errors"),
     result_format(Progress, Fd, "~s~s\n",
                   [?TAG("summary"),
                    [string:to_upper(Char) || Char <- ?a2l(Summary)]]).
@@ -584,56 +584,20 @@ print_success(Progress, Fd, SuiteResults) ->
     result_format(Progress, Fd, "~s~p\n",
                   [?TAG("successful"), length(SuccessScripts)]).
 
-print_skip(Progress, Fd, SuiteResults) ->
-    case pick_result(SuiteResults, skip) of
+print_outcome(Progress, Fd, Outcome, Tag, TxtTag) ->
+    case pick_result(Outcome, Tag) of
         [] ->
             ok;
-        SkipScripts ->
-            result_format(Progress, Fd, "~s~p\n",
-                          [?TAG("skipped"), length(SkipScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s\n",
-                           [lux_utils:drop_prefix(F), L]) ||
-                {F, L, _R} <- SkipScripts]
-    end.
-
-print_warning(Progress, Fd, Warnings) ->
-    case pick_result(Warnings, warning) of
-        [] ->
-            ok;
-        WarnScripts ->
-            result_format(Progress, Fd, "~s~p\n",
-                          [?TAG("warnings"), length(WarnScripts)]),
-            [result_format(Progress, Fd,
-                           "\t~s:~s - ~s\n",
-                           [lux_utils:drop_prefix(F), L, R]) ||
-                {F, L, R} <- WarnScripts]
-    end.
-
-print_fail(Progress, Fd, SuiteResults) ->
-    case pick_result(SuiteResults, fail) of
-        [] ->
-            ok;
-        FailScripts ->
+        ScriptResults ->
             Norm = fun({fail,R}) -> lux_utils:to_string(R);
                       (R)        -> lux_utils:to_string(R)
                    end,
             result_format(Progress, Fd, "~s~p\n",
-                          [?TAG("failed"), length(FailScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s - ~s\n",
+                          [?TAG(TxtTag), length(ScriptResults)]),
+            [result_format(Progress, Fd,
+                           "\t~s:~s - ~s\n",
                            [lux_utils:drop_prefix(F), L, Norm(R)]) ||
-                {F, L, R} <- FailScripts]
-    end.
-
-print_error(Progress, Fd, SuiteResults) ->
-    case pick_result(SuiteResults, error) of
-        [] ->
-            ok;
-        ErrorScripts ->
-            result_format(Progress, Fd, "~s~p\n",
-                          [?TAG("errors"), length(ErrorScripts)]),
-            [result_format(Progress, Fd, "\t~s:~s - ~s\n",
-                           [lux_utils:drop_prefix(F), L, R]) ||
-                {F, L, R} <- ErrorScripts]
+                {F, L, R} <- ScriptResults]
     end.
 
 pick_result(SuiteResults, Outcome) when Outcome =:= error ->

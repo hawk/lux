@@ -22,7 +22,7 @@
          progress_write/2, fold_files/5, foldl_cmds/5, foldl_cmds/6,
          full_lineno/3, pretty_full_lineno/1, pretty_stack/2,
          cmd_pos/2, cmd_pos/4,
-         pretty_filename/1, filename_split/1,
+         pretty_filename/1, filename_split/1, format_val/3,
          now_to_string/1, datetime_to_string/1, verbatim_match/2,
          diff/3, equal/3, diff_iter/4, diff_iter/5, shrink_diff/3,
          cmd/1, cmd_expected/1, perms/1,
@@ -626,6 +626,11 @@ pretty_filename(RevFile) ->
 filename_split(FileName) ->
     FileName2 = drop_prefix(FileName),
     lists:reverse(filename:split(FileName2)).
+
+format_val(Format, Args, false) ->
+    ?FF(Format, Args);
+format_val(Format, Args, Val) ->
+    ?FF(Format ++ " to ~p", Args ++ [Val]).
 
 now_to_string({_Mega, _Secs, Micros} = Now) ->
     DateTime = calendar:now_to_local_time(Now),

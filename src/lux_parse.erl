@@ -970,7 +970,8 @@ test_skip(#pstate{mode = RunMode,
                     {P, Cmd};
                 false ->
                     Format = "FAIL as required variable ~s is not set",
-                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+                    parse_skip(P, Fd, LineNo,
+                               lux_utils:format_val(Format, [Name], Val))
             end;
         "skip" when not SkipSkip ->
             {IsSet, Name, Val} = test_var(P, NameVal),
@@ -979,7 +980,8 @@ test_skip(#pstate{mode = RunMode,
                     {P, Cmd};
                 true ->
                     Format = "SKIP as variable ~s is set",
-                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+                    parse_skip(P, Fd, LineNo,
+                               lux_utils:format_val(Format, [Name], Val))
             end;
         "skip_unless" when not SkipSkip ->
             {IsSet, Name, Val} = test_var(P, NameVal),
@@ -988,7 +990,8 @@ test_skip(#pstate{mode = RunMode,
                     {P, Cmd};
                 false ->
                     Format = "SKIP as variable ~s is not set",
-                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+                    parse_skip(P, Fd, LineNo,
+                               lux_utils:format_val(Format, [Name], Val))
             end;
         "unstable" when not SkipSkip, SkipUnstable ->
             {IsSet, Name, Val} = test_var(P, NameVal),
@@ -997,7 +1000,8 @@ test_skip(#pstate{mode = RunMode,
                     {P, Cmd};
                 true ->
                     Format = "SKIP UNSTABLE as variable ~s is set",
-                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+                    parse_skip(P, Fd, LineNo,
+                               lux_utils:format_val(Format, [Name], Val))
             end;
         "unstable_unless" when not SkipSkip, SkipUnstable ->
             {IsSet, Name, Val} = test_var(P, NameVal),
@@ -1006,7 +1010,8 @@ test_skip(#pstate{mode = RunMode,
                     {P, Cmd};
                 false ->
                     Format = "SKIP UNSTABLE as variable ~s is not set",
-                    parse_skip(P, Fd, LineNo, format_val(Format, [Name], Val))
+                    parse_skip(P, Fd, LineNo,
+                               lux_utils:format_val(Format, [Name], Val))
             end;
         _ ->
             {P, Cmd}
@@ -1014,11 +1019,6 @@ test_skip(#pstate{mode = RunMode,
 
 test_var(P, VarVal) ->
     lux_utils:test_var(P#pstate.multi_vars, VarVal).
-
-format_val(Format, Args, false) ->
-    ?FF(Format, Args);
-format_val(Format, Args, Val) ->
-    ?FF(Format ++ " to ~p", Args ++ [Val]).
 
 expand_vars(P, Fd, Val, LineNo) ->
     try

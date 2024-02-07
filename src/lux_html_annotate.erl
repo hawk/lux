@@ -1230,14 +1230,18 @@ pick_time_prop(Tag, ConfigProps) ->
     ?b2l(lux_log:find_config(Tag, ConfigProps, ?DEFAULT_TIME)).
 
 pick_risky_prop(ConfigProps) ->
-    case lux_log:find_config(risky_threshold, ConfigProps, false) of
-        false -> ?DEFAULT_RISKY_THRESHOLD;
-        Bin  -> ?b2l(Bin)
-    end.
+    pick_threshold_prop(ConfigProps,
+                        risky_threshold,
+                        ?DEFAULT_RISKY_THRESHOLD).
 
 pick_sloppy_prop(ConfigProps) ->
-    case lux_log:find_config(sloppy_threshold, ConfigProps, false) of
-        false -> ?DEFAULT_SLOPPY_THRESHOLD;
+    pick_threshold_prop(ConfigProps,
+                        sloppy_threshold,
+                        ?DEFAULT_SLOPPY_THRESHOLD).
+
+pick_threshold_prop(ConfigProps, Tag, Default) ->
+    case lux_log:find_config(Tag, ConfigProps, false) of
+        false -> Default;
         Bin  -> ?b2l(Bin)
     end.
 

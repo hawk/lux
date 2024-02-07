@@ -99,7 +99,7 @@ loop(#dstate{mode=Mode} = Dstate) ->
         Data when Mode =:= foreground->
             Bin = ?l2b(Data),
             Dpid = Dstate#dstate.interpreter_pid,
-            Dstate#dstate.shell_pid ! {debug_shell, Dpid, {send,Bin}},
+            send_debug_shell(Dstate, Dpid, {send,Bin}),
             loop(Dstate);
         Data when Mode =:= background ->
             [$\n | Rest] = lists:reverse(Data),
@@ -195,40 +195,36 @@ eval_cmd(I, Dpid, CmdStr, CmdState) when Dpid =:= I#istate.debug_pid ->
     case I#istate.debug_shell of
         no_shell ->
             {CmdState2, I2} = do_eval_cmd(I, CmdStr, CmdState),
-            Dshell = I2#istate.debug_shell,
-            Dpid ! {debug_reply, self(), CmdStr, CmdState2, Dshell},
+            Dshell2 = I2#istate.debug_shell,
+            send_debug_reply(Dpid, CmdStr, CmdState2, Dshell2),
             I2;
-        #debug_shell{name=Name, mode=Mode, pid=ShellPid} ->
+        #debug_shell{name=Name, mode=Mode} = Dshell->
             case CmdStr of
                 [$! | Rest] when Mode =:= background ->
                     io:format("\nSend data to shell ~p.\n", [Name]),
                     Bin = ?l2b([Rest, "\n"]),
-                    ShellPid ! {debug_shell, Dpid, {send,Bin}},
-                    Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
+                    send_debug_shell(Dshell, Dpid, {send,Bin}),
+                    send_debug_reply(Dpid, CmdStr, CmdState, Dshell),
                     I;
                 [$~ | Rest] when Mode =:= background ->
                     io:format("\nSend data to shell ~p.\n", [Name]),
                     Bin = ?l2b(Rest),
-                    ShellPid ! {debug_shell, Dpid, {send,Bin}},
-                    Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
+                    send_debug_shell(Dshell, Dpid, {send,Bin}),
+                    send_debug_reply(Dpid, CmdStr, CmdState, Dshell),
                     I;
                 "?" when Mode =:= background ->
                     io:format("\nReset output buffer for shell ~p.\n", [Name]),
-                    ShellPid ! {debug_shell, Dpid, {send,reset}},
-                    Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
+                    send_debug_shell(Dshell, Dpid, {send,reset}),
+                    send_debug_reply(Dpid, CmdStr, CmdState, Dshell),
                     I;
                 "=" when Mode =:= background ->
-                    ShellPid ! {debug_shell, Dpid, display_stdout},
-                    Dshell = I#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell},
+                    send_debug_shell(Dshell, Dpid, display_stdout),
+                    send_debug_reply(Dpid, CmdStr, CmdState, Dshell),
                     I;
                 CmdStr2 ->
                     {CmdState2, I2} = do_eval_cmd(I, CmdStr2, CmdState),
-                    Dshell = I2#istate.debug_shell,
-                    Dpid ! {debug_reply, self(), CmdStr2, CmdState2, Dshell},
+                    Dshell2 = I2#istate.debug_shell,
+                    send_debug_reply(Dpid, CmdStr2, CmdState2, Dshell2),
                     I2
             end
     end.
@@ -742,12 +738,11 @@ cmd_attach(I, _, CmdState) ->
     end.
 
 opt_block(I) ->
-    if
-        I#istate.blocked ->
-            {false, I};
+    case I#istate.blocked of
         true ->
-            lists:foreach(fun(#shell{pid = Pid}) -> Pid ! {block, self()} end,
-                          I#istate.shells),
+            {false, I};
+        false ->
+            shell_multicast(I, {block, self()}),
             {true, I#istate{blocked = true,
                             has_been_blocked = true,
                             want_more = false,
@@ -1016,12 +1011,11 @@ do_continue(I, Args, _CmdState, BreakType, Invert) ->
     end.
 
 opt_unblock(I) ->
-    if
-        not I#istate.blocked ->
+    case I#istate.blocked of
+        false ->
             {false, I};
-        I#istate.blocked, I#istate.old_want_more =/= undefined ->
-            lists:foreach(fun(#shell{pid = P}) -> P ! {unblock, self()} end,
-                          I#istate.shells),
+        true when I#istate.old_want_more =/= undefined ->
+            shell_multicast(I, {unblock, self()}),
             {true, I#istate{blocked = false,
                             want_more = I#istate.old_want_more,
                             old_want_more = undefined}}
@@ -1433,9 +1427,12 @@ cmd_progress(I, Args, CmdState) ->
                     silent  -> verbose
                 end
     end,
-    lists:foreach(fun(#shell{pid = Pid}) -> Pid ! {progress, self(), Level} end,
-                  I#istate.shells),
+    shell_multicast(I, {progress, self(), Level}),
     {CmdState, I#istate{progress = Level}}.
+
+shell_multicast(I, Msg) ->
+    lists:foreach(fun(#shell{pid = Pid}) -> Pid ! Msg end,
+                  I#istate.shells).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1525,11 +1522,12 @@ cmd_shell(I, [], _CmdState) ->
 cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
     AllShells = all_shells(I),
     Filter = fun(S) -> lists:prefix(Name, S#shell.name) end,
+    Dpid = self(),
     case lists:filter(Filter, AllShells) of
         [] ->
             format("ERROR: ~p does not match any shell name.\n", [Name]),
             {undefined, I};
-        [#shell{name = N, health = Health, pid = Pid} | Ambiguous]
+        [#shell{name = N, health = Health, pid = ShellPid} | Ambiguous]
           when Ambiguous =:= [];
                N =:= Name -> % Give exact match prio
             case Rest of
@@ -1540,7 +1538,7 @@ cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
             if
                 OldN =/= no_shell ->
                     Old = lists:keyfind(OldN, #shell.name, AllShells),
-                    Old#shell.pid ! {debug_shell, self(), disconnect};
+                    send_debug_shell(Old#shell.pid, Dpid, disconnect);
                 true ->
                     ok
             end,
@@ -1551,8 +1549,8 @@ cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
                         no_shell;
                     N =/= OldN ->
                         Mode = list_to_existing_atom(Mode0),
-                        Pid ! {debug_shell, self(), {connect, Mode}},
-                        #debug_shell{name=N, mode=Mode, pid=Pid};
+                        send_debug_shell(ShellPid, Dpid, {connect, Mode}),
+                        #debug_shell{name=N, mode=Mode, pid=ShellPid};
                     true ->
                         no_shell
                 end,
@@ -1561,6 +1559,16 @@ cmd_shell(I, [{"name", Name} | Rest], _CmdState) ->
             format("ERROR: ~p is an ambiguous shell name.\n", [Name]),
             {undefined, I}
     end.
+
+send_debug_shell(#dstate{shell_pid = ShellPid}, Dpid, Msg) ->
+    send_debug_shell(ShellPid, Dpid, Msg);
+send_debug_shell(#debug_shell{pid = ShellPid}, Dpid, Msg) ->
+    send_debug_shell(ShellPid, Dpid, Msg);
+send_debug_shell(ShellPid, Dpid, Msg) ->
+    ShellPid ! {debug_shell, Dpid, Msg}.
+
+send_debug_reply(Dpid, CmdStr, CmdState, Dshell) ->
+    Dpid ! {debug_reply, self(), CmdStr, CmdState, Dshell}.
 
 all_shells(#istate{active_shell=ActiveShell,
                    shells=Shells}) ->

@@ -735,7 +735,7 @@ filter_unstable(#istate{skip_skip = false} = I, FullLineNo, Var, NameVal) ->
                     false;
                 true ->
                     Format = "FAIL but UNSTABLE as variable ~s is set",
-                    Reason = format_val(Format, [Name], Val),
+                    Reason = lux_utils:format_val(Format, [Name], Val),
                     W = lux_utils:make_warning(MainFile, FullLineNo, Reason),
                     progress_warnings(I, [W]),
                     {true, W}
@@ -747,7 +747,7 @@ filter_unstable(#istate{skip_skip = false} = I, FullLineNo, Var, NameVal) ->
                     false;
                 false ->
                     Format = "FAIL but UNSTABLE as variable ~s is not set",
-                    Reason = format_val(Format, [Name], Val),
+                    Reason = lux_utils:format_val(Format, [Name], Val),
                     W = lux_utils:make_warning(MainFile, FullLineNo, Reason),
                     progress_warnings(I, [W]),
                     {true, W}
@@ -759,11 +759,6 @@ test_var(#istate{builtin_vars = BuiltinVars,
               VarVal) ->
     MultiVars = [BuiltinVars, SystemVars],
     lux_utils:test_var(MultiVars, VarVal).
-
-format_val(Format, Args, false) ->
-    ?FF(Format, Args);
-format_val(Format, Args, Val) ->
-    ?FF(Format ++ " to ~p", Args ++ [Val]).
 
 post_ilog(#istate{progress = Progress,
                   logs = Logs,

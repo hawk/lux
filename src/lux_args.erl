@@ -505,15 +505,20 @@ find_spec(Opt, Specs) ->
 badarg(Val) ->
     do_throw({badarg, Val}).
 
-badarg(Val, {enum, Enum}) ->
-    do_throw({badarg, Val, enum_usage(Enum)});
-badarg(Val, Type) ->
+badarg(Val, Type0) ->
+    Type = expand_enum(Type0),
     do_throw({badarg, Val, Type}).
 
-badarg(Name, Val, {enum, Enum}) ->
-    do_throw({badarg, Name, Val, enum_usage(Enum)});
-badarg(Name, Val, Type) ->
+badarg(Name, Val, Type0) ->
+    Type = expand_enum(Type0),
     do_throw({badarg, Name, Val, Type}).
+
+expand_enum(Type0) ->
+    case Type0 of
+        {enum, Enum} -> Type = enum_usage(Enum);
+        Type         -> ok
+    end,
+    Type.
 
 do_throw(Reason) ->
     throw(Reason).
