@@ -242,11 +242,7 @@ reltool_opts(LuxAppDir, Opts, ThisEscript, RA, MA) ->
     AppFilters =
         [{incl_app_filters, ["^LICENSE", "^lux.html",
                              "ebin", "^priv", "^examples.*",
-                             "^emacs.*", "^vim.*"]},
-         {excl_archive_filters, ["^LICENSE", "^lux.html",
-                                 "^priv", "^examples.*",
-                                 "^emacs.*", "^vim.*"]},
-         {excl_app_filters, [".*empty$"]}],
+                             "^emacs.*", "^vim.*"]}],
     HasAppLibDir = app_has_feature(reltool, "0.6", mandatory, RA),
     LuxApps =
         case HasAppLibDir of
@@ -268,7 +264,7 @@ reltool_opts(LuxAppDir, Opts, ThisEscript, RA, MA) ->
             _ ->
                 %% New reltool can handle excluded non-existent apps
                 {[{wx, exclude}],
-                 [{hipe, exclude}, {reltool, exclude}]}
+                 [{reltool, exclude}]}
         end,
     AppCondsCommon = [{erts, include}, {crypto, exclude}, {tools, exclude}],
     AppConds = AppCondsCommon ++ AppCondsCross ++ AppCondsWx,
