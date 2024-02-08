@@ -33,17 +33,17 @@ config_clean:
 	-rm -rf configure include.mk autom4te.cache config.status config.log *~
 
 doc:
-	cd doc && $(MAKE) all
+	$(MAKE) -C doc all
 
 ### TEST ###
 
 .PHONY: test test_clean xref dialyzer dialyzer_clean
 
 test:
-	cd test && $(MAKE) all
+	$(MAKE) -C test all
 
 test_clean:
-	cd test && $(MAKE) clean
+	$(MAKE) -C clean
 
 xref:
 	bin/lux --xref

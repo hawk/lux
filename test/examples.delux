@@ -1,7 +1,6 @@
 [doc Test examples]
 
 [include include/macros.luxinc]
-[global eprompt=\d+>\s]
 
 [shell test]
     -LUX ERROR
@@ -14,21 +13,21 @@
     """
     """?
     test case         : .*examples/fail.lux
-    result            : FAIL at line 32 in shell calculator
-    expected\*
-    	19
-    actual match_timeout
-    	
-    	$eprompt.*
-    	18
-    	$eprompt
-    diff
-    	- 19
-    	\+ 
-    	\+ 3> 5\+13\.
-    	\+ 18
-    	\+ 4> 
+    result            : FAIL at line 35 in shell calculator
     """
+    ?expected\*
+    ?expect_something_else_than_eighteen_will_fail
+    ?actual match_timeout
+    ?3> 5\+13\.
+    ?18
+    ?4> 
+    ?diff
+    ?\- expect_something_else_than_eighteen_will_fail
+    ?\+ 
+    ?\+ 3> 5\+13\.
+    ?\+ 18
+    ?\+ 4> 
+
     """?
     test case         : .*examples/intro.lux
     result            : SUCCESS
@@ -76,12 +75,12 @@
     """?
     successful        : 3
     skipped           : 1
-    	.*examples/skip.lux:6
+    	.*examples/skip.lux:6 - skip
     warnings          : 2
     	.*examples/unstable_warn.lux:8 - FAIL but UNSTABLE as variable TEST_DEVELOP is not set
     	.*examples/warning.lux:3 - Trailing whitespaces
     failed            : 3
-    	.*examples/fail.lux:32 - match_timeout
+    	.*examples/fail.lux:35 - match_timeout
     	.*examples/loop_fail.lux:5 - Loop ended without match of break pattern "THIS WILL NEVER MATCH"
     	.*examples/require_fail.lux:3 - FAIL as required variable YADA_MAKE is not set
     summary           : FAIL

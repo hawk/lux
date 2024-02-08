@@ -8,7 +8,7 @@
 [shell server]
     # Set fail pattern for shell
     -[Ee][Rr][Rr][Oo][Rr]]
-    !erl -pa $ebin -sname $topic -s chatty server
+    !erl -pa $ebin -sname $topic -noshell -s chatty server
     ?Starting server
 
     ?Trying to open log file (.*)\.\.\.ok.

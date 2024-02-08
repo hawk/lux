@@ -5,7 +5,7 @@
 [global ebin=../../../chatty/ebin]
 
 [shell server]
-    !erl -pa $ebin -sname $topic -s chatty server
+    !erl -pa $ebin -sname $topic -noshell -s chatty server
     ?Starting server
 
 [shell hawk]

@@ -11,8 +11,11 @@
 
     # Multi-line expect
     """?
+    erl
+    Erlang/OTP.*
+
     Eshell.*
-    $eprompt
+    ${eprompt}
     """
 
     # Multi-line send
@@ -29,7 +32,7 @@
     [timeout 2]
     !5+13.
     # Next line will fail
-    ?19
+    ?expect_something_else_than_eighteen_will_fail
 
 [cleanup]
     # Save logs at fail
