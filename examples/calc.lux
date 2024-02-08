@@ -13,7 +13,7 @@
     Erlang/OTP.*
 
     Eshell.*
-
+    .*${eprompt}
     """
 
 # Call some macros and use global and my scoped variables
@@ -31,7 +31,7 @@
 # Access variable from other shell
 [shell main]
     [invoke verify 3]
-    [invoke calc "$result*4"]
+    [invoke calc "${result}*4"]
     [invoke verify 12]
 
 [shell other]
@@ -53,18 +53,18 @@
     # Use a temporary variable that only is alive in one macro invocation
     [my myshell=$LUX_SHELLNAME]
     [shell calc]
-        !$expr.
+        !${expr}.
 
         # Use multi-line expr to sync output
         """?
-        $eprompt.*\.
+        .*
         (.*)
-
+        ${eprompt}
         """
         # Retrieve the value from the sub-expression
         [global result=$1]
     [shell $myshell]
-    # [progress $expr=$result]
+    [progress ${expr}=${result}]
 [endmacro]
 
 # Verify that the calculated (global) result fulfills the expectations
