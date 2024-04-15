@@ -1,0 +1,904 @@
+#!/usr/bin/env escript
+%% This is an -*- erlang -*- file.
+%%! -sasl sasl_error_logger false
+
+-module(ecover).
+-mode(compile).
+-compile(warnings_as_errors).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Usage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+usage_text() ->
+"Usage:
+
+       ecover OPTION... [-html] -[query QUERY] -collect command-with-args
+       ecover OPTION... -html
+       ecover OPTION... -query QUERY...
+       ecover OPTION... -export
+
+Collect Erlang cover data from a test run
+
+Executes the given command in a context where this escript acts as the
+'main' cover node where debug compiled .beam files are loaded. See
+below.  Multiple -beam options may be given to specify multiple file
+patterns defining which .beam files to be loaded. If the pattern
+matches a directory all .beam files in that directory will be matched.
+
+The node name is exported in the ECOVER_NODE environment variable
+which the Erlang node to connect to the 'main' cover node. The node
+name of the 'main' cover node is automatically generated, but can be
+overridden with -sname (or -name). The variable name ECOVER_NODE may
+also be overridden by setting -ecover_var to the new variable name.
+
+The command-with-args (which runs the tests) can for example be
+'make test' or 'lux .'.  When the command has finished the cover data
+will be exported to file.
+
+If the command happens to execute Lux test cases, the collected cover
+data will be exported after each test case in the
+'$LUX_EXTRA_LOGS/ecover_logs' directory. One file per module. By using
+the 'lux --post_case' parameter this escript will be recursively
+invoked with '-export' parameter. Then all collected cover data will
+be written to '-outdir DIR'.
+
+After the last test case (Lux or not) has finished the remaining cover
+data will be written in a local directory called 'ecover_logs'
+concatenated with a unique timestamp. One file per module.
+
+Queries can be given to determine which test cases that causes certain
+pieces of the code to be run among the cover data files found in the
+given directories.
+
+  -query mod     - list test cases which tests any line in module 'mod'
+  -query mod:502 - list test cases which tests line 502 in module 'mod'
+  -query case    - list all test cases and what they test
+  -query line    - list all module & line number pairs and their tests
+
+OPTIONS
+
+  -sname NAME                - Same semantics as for erl -sname
+  -name NAME                 - Same semantics as for erl -name
+  -ecover_var ECOVER_VAR     - Overrides the 'ECOVER_NODE' variable name.
+  -outdir DIR                - Output directory. Defaults to current directory.
+  -datadir DIR               - Data directory used by -html and -query
+
+  -collect command-with-args - Any OS command. E.g. 'make test' or 'lux .'.
+  -beam FILE_PATTERN         - .beam file(s) to be cover compiled.
+                               May contain one or more *.
+  -wildcard WILDCARD         - Instead of using * as wildcard another string
+                               may be used to make the quoting in the shell(s)
+                               simpler. E.g. -wildcard XXX -beam lib/XXX/ebin/XXX.beam
+                               is the same as -beam lib/\*/ebin/\*.beam.
+  -query QUERY               - analyse collected data and search for test cases
+  -html                      - Save analyse collected data and generate HTML file(s)
+
+  -export                    - Export collected data from ecover cover node
+
+COMPILE FOR DEBUG
+
+  export ERL_COMPILER_OPTIONS='[debug_info]'
+  touch *erl
+  make all
+
+EXAMPLES
+
+  ecover -outdir ecover_logs -beam ebin/\*.beam -collect make test
+  ecover -outdir html_logs -datadir ecover_logs -datadir lux_logs/latest_runs -html
+  open html_logs/ecover.html
+
+  cd test/tutorial
+  ecover -outdir ecover_logs -beam ../../ebin/\*.beam -collect lux basic_infra.delux
+
+  ecover -datadir ecover_logs -datadir lux_logs/latest_runs -query case
+  ecover -datadir ecover_logs -datadir lux_logs/latest_runs -query lux_shell
+  ecover -datadir ecover_logs -datadir lux_logs/latest_runs -query lux_shell:266
+  ecover -datadir ecover_logs -datadir lux_logs/latest_runs -query line
+".
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Declarations
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-define(LUX_EXTRA_LOGS, "LUX_EXTRA_LOGS").
+-define(COVER_SUFFIX, ".coverdata").
+
+-record(state,
+        {
+         name      = no_name       :: string(),
+         domain    = no_domain     :: shortnames | longnames,
+         outdir    = "."           :: [file:dirname()],
+         datadirs  = []            :: [file:dirname()],
+
+         exec      = no_exec       :: string(),
+         args      = no_args       :: [string()],
+         beams     = []            :: [file:filename()],
+         wildcard  = no_wildcard   :: string(),
+         cover_var = "ECOVER_NODE" :: string(),
+
+         is_export = false         :: boolean(),
+         is_html   = false         :: boolean(),
+         queries   = []            :: [string()]
+        }).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Main
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+main(["-h"]) ->
+    io:format("~s\n", [usage_text()]),
+    halt(0);
+main(Args) ->
+    EcoverCmd =
+        lists:flatten(io_lib:format("~s ~s",
+                                    [escript:script_name(),
+                                     lists:join(" ", Args)])),
+    log("INVOKE ~s\n", [EcoverCmd]),
+    {ok, Cwd} = file:get_cwd(),
+    log("CWD    ~s\n", [Cwd]),
+    S = parse_args(Args, #state{}),
+
+    if
+        S#state.is_export ->
+            if
+                S#state.exec =/= [] ->
+                    ExportS = default_dist(S),
+                    setup_dist(ExportS),
+                    export(ExportS),
+                    ok = cover:stop(),
+                    halt(0);
+                true ->
+                    fatal(1, "Option -export cannot be "
+                          "combined with -collect\n", [])
+            end;
+        true ->
+            skip_export
+    end,
+    if
+        S#state.exec =/= no_exec, S#state.args =/= no_args ->
+            %% Run cover and collect data
+            ExecS = default_dist(S),
+            setup_dist(ExecS),
+            {ok, _Pid} = cover:start(),
+            silence_cover(),
+            compile(ExecS#state.beams, ExecS#state.wildcard),
+            PosixCode = run_cmd(ExecS),
+            export(ExecS),
+            ok = cover:stop();
+        true ->
+            PosixCode = 0,
+            skip_run
+    end,
+    case S#state.queries of
+        [] ->
+            QueryResults = [],
+            skip_query;
+        Queries ->
+            ok = cover:local_only(),
+            silence_cover(),
+            DataDirs = S#state.datadirs,
+            QueryResults = [{Q, query(Q, DataDirs)} || Q <- Queries],
+            ok = cover:stop()
+    end,
+    case S#state.is_html of
+        true ->
+            ok = cover:local_only(),
+            silence_cover(),
+            gen_html(S, QueryResults, EcoverCmd),
+            ok = cover:stop();
+        false ->
+            skip_html
+    end,
+    halt(PosixCode).
+
+parse_args([], S) ->
+    S#state{datadirs = lists:reverse(S#state.datadirs),
+            beams    = lists:reverse(S#state.beams),
+            queries  = lists:reverse(S#state.queries)};
+
+parse_args(["-sname" = Opt, Name | Args], S) ->
+    check_arg(Opt, Name),
+    parse_args(Args, S#state{name = Name, domain = shortnames});
+parse_args(["-name" = Opt, Name | Args], S) ->
+    check_arg(Opt, Name),
+    parse_args(Args, S#state{name = Name, domain = longnames});
+parse_args(["-outdir" = Opt, OutDir | Args], S) ->
+    check_arg(Opt, OutDir),
+    parse_args(Args, S#state{outdir = OutDir});
+parse_args(["-datadir" = Opt, Dir | Args], S) ->
+    check_arg(Opt, Dir),
+    parse_args(Args, S#state{datadirs = [Dir | S#state.datadirs]});
+
+
+parse_args(["-collect" = Opt, Exec | Args], S) ->
+    check_arg(Opt, Exec),
+    S#state{exec = Exec, args = Args};
+parse_args(["-beam" = Opt, Beam | Args], S) ->
+    check_arg(Opt, Beam),
+    parse_args(Args, S#state{beams = [Beam | S#state.beams]});
+parse_args(["-wildcard" = Opt, Wildcard | Args], S) ->
+    check_arg(Opt, Wildcard),
+    parse_args(Args, S#state{wildcard = Wildcard});
+parse_args(["-cover_var" = Opt, CoverVar | Args], S) ->
+    check_arg(Opt, CoverVar),
+    case os:getenv(CoverVar) of
+        false ->
+            parse_args(Args, S#state{cover_var = CoverVar});
+        CoverNode ->
+            fatal(1, "Illegal option: ~s already set to ~s\n",
+                  [Opt, CoverNode])
+    end;
+parse_args(["-export" | Args], S) ->
+    parse_args(Args, S#state{is_export = true});
+parse_args(["-html"| Args], S) ->
+    parse_args(Args, S#state{is_html = true});
+parse_args(["-query", Query | Args], S) ->
+    parse_args(Args, S#state{queries = [Query | S#state.queries]});
+
+parse_args([Opt | _Args], _S) ->
+    fatal(1, "Illegal option: ~s\n", [Opt]).
+
+check_arg(Opt, Arg) when hd(Arg) =:=  $- ->
+    fatal(1, "Illegal option value: ~s ~s\n", [Opt, Arg]),
+    halt(1);
+check_arg(_Opt, Arg) ->
+    Arg.
+
+default_dist(S = #state{name = no_name, domain = no_domain}) ->
+    Name = escript_mod_str() ++ "__" ++ uniq_string(),
+    S#state{name = Name, domain = shortnames};
+default_dist(S) ->
+    S.
+
+setup_dist(#state{name = Name, domain = Domain})
+  when Name =/= no_name, Domain =/= no_domain ->
+    true = setup_epmd(10),
+    [MyName, MyHost] = split_node(Name),
+    log("NODE '~s@~s'\n", [MyName, MyHost]),
+    {ok, _} = net_kernel:start([list_to_atom(Name), Domain]);
+setup_dist(_S) ->
+    log("Local node\n", []).
+
+setup_epmd(N) when N >= 0 ->
+    Output = os:cmd("epmd -names"),
+    case re:run(Output, "epmd: up and running", []) of
+        nomatch ->
+            os:cmd("epmd -daemon"),
+            log("Start epmd\n", []),
+            timer:sleep(500),
+            setup_epmd(N-1);
+        {match, _} ->
+            true
+    end;
+setup_epmd(0) ->
+    false.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Cover compile
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+compile(Patterns, Wildcard) ->
+    case Patterns of
+        [] ->
+            fatal(1, "Nothing to cover compile. Use -beam REGEXP.\n", []);
+        _ ->
+            do_compile(Patterns, Wildcard)
+    end.
+
+do_compile([Pattern0 | Patterns], Wildcard) ->
+    Pattern = replace_wildcard(Pattern0, Wildcard),
+    log("BEAM ~s\n", [Pattern]),
+    case expand_files(Pattern) of
+        [] ->
+            fatal(1, "No .beam files matching '~s'\n", [Pattern]);
+        Files ->
+            compile_beams(Files),
+            do_compile(Patterns, Wildcard)
+    end;
+do_compile([], _Wildcard) ->
+    ok.
+
+replace_wildcard(Pattern, no_wildcard) ->
+    Pattern;
+replace_wildcard(Pattern, Wildcard) ->
+    re:replace(Pattern, Wildcard, "*", [global, {return, list}]).
+
+compile_beams([File | Files]) ->
+    try
+        case cover:compile_beam(File) of
+            {ok, _Mod} ->
+                log("\tOK    ~s\n", [File]);
+            {error, Reason} ->
+                fatal(1, "~s: ~p\n", [File, Reason])
+        end
+    catch
+        error:_ ->
+            fatal(1, "~s\n", [File])
+    end,
+    compile_beams(Files);
+compile_beams([]) ->
+    ok.
+
+expand_files(RegExp) ->
+    [F || D <- filelib:wildcard(RegExp),
+          F <- expand_dir(D)].
+
+expand_dir(Dir) ->
+    case filelib:is_dir(Dir) of
+        true ->
+            RegExp = filename:join([Dir, "*.beam"]),
+            filelib:wildcard(RegExp);
+        false ->
+            File = Dir,
+            case filelib:is_regular(File) of
+                true ->
+                    [File];
+                false ->
+                    fatal(1, "~s: No such file\n", [File])
+            end
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Run
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+run_cmd(#state{exec = UserExec, args = Args, cover_var = CoverVar})
+  when UserExec =/= no_exec, Args =/= no_args ->
+    case os:find_executable(UserExec) of
+        false ->
+            fatal(1, "~s: command not found\n", [UserExec]);
+        Exec ->
+            CoverNode = atom_to_list(node()),
+            AbsEscript = filename:absname(escript:script_name()),
+            PostCase = "--post_case=" ++ AbsEscript ++ ".postlux",
+            LuxVar = "LUX_FLAGS",
+            LuxFlags = add_lux_flags(LuxVar, PostCase),
+            LuxEnv = [{"LUX_FLAGS", LuxFlags}],
+            PortEnv = [{CoverVar, CoverNode} | LuxEnv],
+            log("ENV ~p\n", [PortEnv]),
+            Cmd = lists:join(" ", [Exec | Args]),
+            log("EXEC ~s\n", [Cmd]),
+            {ok, WorkDir} = file:get_cwd(),
+            Delim = lists:duplicate(80, "="),
+            log("~s\n", [Delim]),
+            RetCode = do_run_cmd(Exec, Args, WorkDir, PortEnv),
+            log("~s\n", [Delim]),
+            RetCode
+    end;
+run_cmd(_S) ->
+    fatal(1, "No command to execute\n", []).
+
+add_lux_flags(EnvVar, LuxFlags) ->
+    case os:getenv(EnvVar) of
+        false    -> LuxFlags;
+        OldFlags -> LuxFlags ++ " " ++ OldFlags
+    end.
+
+do_run_cmd(Exec, Args, WorkDir, PortEnv) ->
+    Opts = [binary, stream, use_stdio, stderr_to_stdout, exit_status,
+            {args, Args}, {cd, WorkDir}, {env, PortEnv}],
+    Port = open_port({spawn_executable, Exec}, Opts),
+    spawn_link(fun() -> forward_input(Port) end),
+    forward_output(Port).
+
+forward_output(Port) ->
+    receive
+        {Port, {data, Data}} ->
+            io:format("~s", [Data]),
+            forward_output(Port);
+        {Port, {exit_status, ExitStatus}} ->
+            %% log("\nexit status: ~p\n", [ExitStatus]),
+            ExitStatus;
+        {'EXIT', Port, PosixCode} ->
+            log("\nposix code: ~p\n", [PosixCode]),
+            PosixCode
+    end.
+
+forward_input(Port) ->
+    case io:get_line("") of
+        eof ->
+            exit(normal);
+        {error, Reason} ->
+            ReasonStr = file:format_fatal(Reason),
+            catch log("\nSTDIN READ ERROR: ~s\n", [ReasonStr]),
+            exit(normal);
+        Data when is_list(Data) ->
+            try
+                true = port_command(Port, Data),
+                forward_input(Port)
+            catch
+                error:Reason ->
+                    catch log("\nSTDIN FORWARD ERROR: ~s\n", [Reason]),
+                    exit(normal)
+            end
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Export
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+export(S) ->
+    CoverNode =
+        if
+            S#state.exec =/= no_exec ->
+                node();
+            S#state.is_export ->
+                ensure_cover_node(S)
+        end,
+    case call_cover(CoverNode, modules, []) of
+        Mods when is_list(Mods), Mods =/= [] ->
+            DataDir = get_datadir(S),
+            log("Export cover data for ~p modules to ~s\n",
+                [length(Mods), DataDir]),
+            ok = filelib:ensure_dir(filename:join([DataDir, "dummy"])),
+            Skipped = export_modules(CoverNode, DataDir, Mods, 0),
+            log("Skipped ~p modules\n", [Skipped]);
+        _ ->
+            log("<WARNING> No cover data to export\n", [])
+    end.
+
+get_datadir(#state{outdir = OutDir}) ->
+    Prefix = escript_mod_str() ++ "_logs",
+    case os:getenv(?LUX_EXTRA_LOGS) of
+        false when OutDir =:= "." ->
+            {ok, Dir} = file:get_cwd(),
+            Dir;
+        false ->
+            OutDir;
+        LuxExtraLogsDir ->
+            ModStr = Prefix,
+            filename:join([LuxExtraLogsDir, ModStr])
+    end.
+
+export_modules(CoverNode, DataDir, [Mod | Mods], N) ->
+    Base = escript_mod_str() ++ "_" ++ atom_to_list(Mod) ++ ?COVER_SUFFIX,
+    File = filename:join([DataDir, Base]),
+    Incr =
+        case call_cover(CoverNode, analyse, [Mod, calls, module]) of
+            {ok, {Mod, Calls}}
+              when Calls =/= 0,
+                   Calls =/= {0,0} -> % BUGBUG: Error in Erlang/OTP
+                ok = call_cover(CoverNode, export, [File, Mod]),
+                ok = call_cover(CoverNode, reset, [Mod]),
+                io:format(".", []),
+                0;
+            _ ->
+                %% Skip
+                io:format(":", []),
+                1
+        end,
+    export_modules(CoverNode, DataDir, Mods, N + Incr);
+export_modules(_CoverNode, _DataDir, [], N) ->
+    io:format("\n", []),
+    N.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Generate html
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+gen_html(S, QueryResults, EcoverCmd) ->
+    import_cover_data_dirs(S#state.datadirs),
+    case cover:imported_modules() of
+        Mods when is_list(Mods), Mods =/= [] ->
+            log("Generate HTML for ~p modules\n", [length(Mods)]),
+            OutDir = S#state.outdir,
+            ok = filelib:ensure_dir(filename:join([OutDir, "dummy"])),
+            AnalyseRes = [gen_mod_html(Mod, OutDir) || Mod <- Mods],
+            gen_summary_html(OutDir, AnalyseRes, QueryResults, EcoverCmd);
+        _ ->
+            log("<WARNING> No cover data to analyse\n", [])
+    end.
+
+import_cover_data_dirs([Dir | Dirs]) ->
+    CoverDataFiles = find_cover_data_files(Dir),
+    import_cover_data_files(CoverDataFiles),
+    import_cover_data_dirs(Dirs);
+import_cover_data_dirs([]) ->
+    ok.
+
+find_cover_data_files(Dir) ->
+    Tag = {coverdir, Dir},
+    case erlang:get(Tag) of
+        undefined ->
+            Files = do_find_cover_data_files(Dir),
+            erlang:put(Tag, Files),
+            N = length(Files),
+            log("IMPORT ~p cover data files from ~s\n", [N, Dir]),
+            Files;
+        Files ->
+            log("Re-used ~s cover data files\n", [Dir]),
+            Files
+    end.
+
+do_find_cover_data_files(Dir) ->
+    Fun = fun(File, Acc) -> [File | Acc] end,
+    Recursive = true,
+    RegExp = "\\" ++ ?COVER_SUFFIX ++ "$",
+    filelib:fold_files(Dir, RegExp, Recursive, Fun, []).
+
+import_cover_data_files([File | Files]) ->
+    case cover:import(File) of
+        ok ->
+            io:format(".", []);
+            %% log("Load file: ~s\n", [File]);
+        {error, Reason}->
+            log("\n<WARNING> Cannot load ~s: ~s\n", [File, Reason])
+    end,
+    import_cover_data_files(Files);
+import_cover_data_files([]) ->
+    io:format("\n", []),
+    ok.
+
+gen_mod_html(Mod, OutDir) ->
+    Base = escript_mod_str() ++ "_" ++ atom_to_list(Mod) ++ ".html",
+    OutFile = filename:join([OutDir, Base]),
+    Opts = [html, {outfile, OutFile}],
+    Res = cover:analyse_to_file(Mod, Opts),
+    {Mod, Base, OutFile, Res}.
+
+get_mod_stats({Mod, Base, OutFile, {ok, OutFile}}) ->
+    io:format(":", []),
+    %% log("Generated ~s\n", [OutFile]);
+    ModCoverage = cover:analyse(Mod, coverage, module),
+    ModCalls = cover:analyse(Mod, calls, module),
+    NewRes =
+        case {ModCoverage, ModCalls} of
+            {{ok, {Mod, {Cov, NotCov}}},
+             {ok, {Mod, Calls0}}} ->
+                case Calls0 of
+                    {0,0} -> Calls = 0; % BUGBUG: Error in Erlang/OTP
+                    Calls -> ok
+                end,
+                {ok, {Mod, {Cov, NotCov, Calls}}};
+            {Error, Error} ->
+                Error
+        end,
+    {Mod, Base, OutFile, NewRes};
+get_mod_stats({Mod, Base, OutFile, OldRes}) ->
+    log("<ERROR> Cannot analyse ~s:\n\t~p\n", [Mod, OldRes]),
+    {Mod, Base, OutFile, OldRes}.
+
+gen_summary_html(OutDir, AnalyseRes, QueryResults, EcoverCmd) ->
+    StatsRes = [get_mod_stats(AR) || AR <- AnalyseRes],
+    {ok, Cwd} = file:get_cwd(),
+    HtmlCode =
+        [
+         html_header(),
+         html_query_header(QueryResults),
+         html_table_header(),
+         [html_row(CC) || CC <- StatsRes],
+         html_table_footer(StatsRes),
+         html_query_body(QueryResults),
+         "    <h3>Work dir was ", Cwd, "</h3>\n",
+         "    <h3>Invoked as ", EcoverCmd, "</h3>\n",
+         html_footer()
+        ],
+    HtmlFile = filename:join([OutDir, escript_mod_str() ++ ".html"]),
+    ok = file:write_file(HtmlFile, HtmlCode),
+    io:format("\nfile://~s\n", [filename:absname(HtmlFile)]).
+
+html_header() ->
+    [
+     "<html>\n",
+     "  <head><style>a{text-decoration:none}</style></head>\n"
+     "  <body>\n",
+     "    <h2>ECOVER - Erlang code coverage</h2>\n"
+    ].
+
+html_table_header() ->
+    [
+     "    <table border=\"2\">\n"
+     "      <tr>\n",
+     "        <td><strong>Module</strong></td>\n",
+     "        <td><strong>Calls</strong></td>\n",
+     "        <td><strong>Coverage</strong></td>\n",
+     "        <td><strong>Percentage</strong></td>\n",
+     "      </tr>\n"
+    ].
+
+html_row({Mod, Base, _OutFile, {ok, {Mod, {Cov, NotCov, Calls}}}}) ->
+    Percentage = percentage(Cov, NotCov),
+    [
+     "      <tr>\n",
+     "        <td><a href=\"", Base, "\">", atom_to_list(Mod), "</a></td>\n",
+     "        <td align=\"right\">", integer_to_list(Calls), "</td>\n",
+     "        <td align=\"right\">",
+                 integer_to_list(Cov),
+                 "(", integer_to_list(Cov+NotCov), ")",
+              "</td>\n",
+     "        <td align=\"right\">", integer_to_list(Percentage), "%</td>\n",
+     "      </tr>\n"
+    ];
+html_row({Mod, _Base, _OutFile, {error, Reason}}) ->
+    ReasonStr = io_lib:format("~p", [Reason]),
+    [
+     "      <tr>\n",
+     "        <td>", atom_to_list(Mod), "</td>\n",
+     "        <td align=\"right\">N/A</td>\n",
+     "        <td align=\"right\">N/A</td>\n",
+     "        <td align=\"right\">", ReasonStr, "</td>\n",
+     "      </tr>\n"
+    ].
+
+html_table_footer(CovCalls) ->
+    Fun =
+        fun({Mod, _Base, _OutFile, {ok, {Mod, {Cov, NotCov, Calls}}}},
+            {CovAcc, NotCovAcc, CallsAcc}) ->
+                {CovAcc + Cov, NotCovAcc + NotCov, CallsAcc + Calls};
+           (_Error, Acc) ->
+                Acc
+        end,
+    {TotCov, TotNotCov, TotCalls} = lists:foldl(Fun, {0,0,0}, CovCalls),
+    Percentage = percentage(TotCov, TotNotCov),
+    [
+     "      <tr>\n",
+     "        <td>TOTAL</td>\n",
+     "        <td align=\"right\">", integer_to_list(TotCalls), "</td>\n",
+     "        <td align=\"right\">",
+                 integer_to_list(TotCov),
+                  "(", integer_to_list(TotCov+TotNotCov), ")",
+              "</td>\n",
+     "        <td align=\"right\">", integer_to_list(Percentage), "%</td>\n",
+     "      </tr>\n"
+     "    </table>\n"
+    ].
+
+html_footer() ->
+    [
+     "  </body>\n",
+     "</html>\n"
+    ].
+
+percentage(0, 0) ->
+    0;
+percentage(Cov, NotCov) ->
+    round((Cov/(Cov+NotCov))*100).
+
+html_query_header([]) ->
+    [
+     "    <h3>NO QUERIES</h3>\n",
+     "    <br/>\n"
+    ];
+html_query_header(QueryResults) ->
+    [
+     "    <h3>QUERIES</h3>\n",
+     [["      <a href=\"#", Query, "\">", Query, "</a> - ",
+       integer_to_list(length(Result)), " hits\n",
+       "      <br/>\n"] ||
+         {Query, Result} <- QueryResults],
+     "    <br/>\n"
+    ].
+
+html_query_body(QueryResults) ->
+    [
+     [
+      "\n",
+      "    <a name=\"", Query, "\">\n",
+      "    <h3>QUERY: ", Query, "</h3>\n",
+      "    <pre>",
+      Result,
+      "    </pre>"
+     ] || {Query, Result} <- QueryResults].
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Query
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+query(Query, DataDirs) ->
+    TestCaseModLines = test_case_mod_lines(DataDirs),
+    SplitTestCaseModLines = split_test_case_mod_lines(TestCaseModLines),
+    log("QUERY ~s\n", [Query]),
+    Format = fun(Fmt, Args) -> lists:flatten(io_lib:format(Fmt, Args)) end,
+    QueryResults =
+        case string:tokens(Query, ":") of
+            ["line"] ->
+                ModLineTestCases = mod_lines_test_case(TestCaseModLines),
+                [Format("HIT: ~p\n", [TC]) || TC <- ModLineTestCases];
+            ["case"] ->
+                [Format("HIT: ~p\n", [TC]) || TC <- SplitTestCaseModLines];
+            [ModStr] ->
+                Mod = list_to_atom(ModStr),
+                TestCaseLines =
+                    find_test_case_lines(SplitTestCaseModLines, Mod),
+                [Format("HIT: ~p\n", [TC]) || TC <- TestCaseLines];
+            [ModStr, LineStr] ->
+                Mod = list_to_atom(ModStr),
+                Line = list_to_integer(LineStr),
+                TestCases = find_test_cases(SplitTestCaseModLines, Mod, Line),
+                [Format("HIT: ~s\n", [TC]) || TC <- TestCases]
+        end,
+    log("HITS: ~p\n", [length(QueryResults)]),
+    [log("~s", [Str]) || Str <- QueryResults],
+    QueryResults.
+
+find_test_cases(TestCaseModLines, Mod, Line) ->
+    [TestCase ||
+        {TestCase, ModLines} <- TestCaseModLines,
+        {M, Lines} <- ModLines,
+        M =:= Mod,
+        {L, _Calls} <- Lines,
+        L =:= Line].
+
+find_test_case_lines(TestCaseModLines, Mod) ->
+    [{TestCase, {Mod, Lines}} ||
+        {TestCase, ModLines} <- TestCaseModLines,
+        {M, Lines} <- ModLines,
+        M =:= Mod].
+
+test_case_mod_lines(DataDirs)  ->
+    lists:flatten(lists:zf(fun dir_filter/1, DataDirs)).
+
+mod_lines_test_case(TestCaseModLines) ->
+    SplitTestCaseModLines = split_mod_lines(TestCaseModLines),
+    join_mod_lines(SplitTestCaseModLines).
+
+split_mod_lines(TestCaseModLines) ->
+    [{{Mod, L}, TestCase} ||
+        {Mod, TestCase, Lines} <- TestCaseModLines,
+        L <- Lines,
+        L =/= 0].
+
+join_mod_lines(SplitTestCaseModLines) ->
+    Sorted = lists:reverse(lists:keysort(1, SplitTestCaseModLines)),
+    join_mod_lines2(Sorted, []).
+
+join_mod_lines2([{ModLine, TestCase} | TestCaseModLines], Acc) ->
+    NewAcc =
+        case Acc of
+            [{PrevModLine, PrevTestCase} | PrevAcc]
+              when ModLine =:= PrevModLine ->
+                [{ModLine, [TestCase | PrevTestCase]} | PrevAcc];
+            _ ->
+                [{ModLine, [TestCase]} | Acc]
+        end,
+    join_mod_lines2(TestCaseModLines, NewAcc);
+join_mod_lines2([], Acc) ->
+    Acc.
+
+split_test_case_mod_lines(TestCaseModLines)  ->
+    split_test_cases(lists:reverse(lists:keysort(2, TestCaseModLines)), []).
+
+split_test_cases([{Mod, TestCase, Lines} | ModLines], Acc) ->
+    NewModLine = {Mod, Lines},
+    NewAcc =
+        case Acc of
+            [{PrevTestCase, PrevModLines} | PrevAcc]
+              when TestCase =:= PrevTestCase ->
+                [{PrevTestCase, [NewModLine | PrevModLines]} | PrevAcc];
+            _ ->
+                [{TestCase, [NewModLine]} | Acc]
+        end,
+    split_test_cases(ModLines, NewAcc);
+split_test_cases([], Acc) ->
+    Acc.
+
+dir_filter(Dir) ->
+    CoverDataFiles = find_cover_data_files(Dir),
+    case lists:zf(fun mod_filter/1, CoverDataFiles) of
+        []       -> false;
+        ModLines -> {true, ModLines}
+    end.
+
+mod_filter(CoverDataFile) ->
+    Res =
+        case cover:import(CoverDataFile) of
+            ok ->
+                case cover:imported_modules() of
+                    [Mod] ->
+                        case cover:analyse(Mod, calls, line) of
+                            {ok, AnalRes} ->
+                                LineCalls =
+                                    [{Line, Calls} ||
+                                        {{_Mod, Line}, Calls} <- AnalRes,
+                                        Calls =/= 0],
+                                case LineCalls of
+                                    [] ->
+                                        false;
+                                    _ ->
+                                        TestCase = get_test_case(CoverDataFile),
+                                        {true, {Mod, TestCase, LineCalls}}
+                                end;
+                            _ ->
+                                false
+                        end;
+                    _ ->
+                        false
+                end;
+            _ ->
+                false
+        end,
+    cover:reset(),
+    Res.
+
+get_test_case(AbsCoverDataFile) ->
+    RelCoverDataFile = drop_prefix(AbsCoverDataFile),
+    EscriptLogsStr = escript_mod_str() ++ "_logs",
+    case lists:reverse(filename:split(RelCoverDataFile)) of
+        [_Base, E, LuxExtraLogDir | RevParent] when E =:= EscriptLogsStr ->
+            %% Lux test case
+            Name = filename:basename(LuxExtraLogDir, ".extra.logs"),
+            filename:join(lists:reverse(RevParent, [Name]));
+        _ ->
+            %% Other test case
+            filename:dirname(RelCoverDataFile)
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Helpers
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+escript_mod_str() ->
+    atom_to_list(?MODULE).
+
+silence_cover() ->
+    FakeGL = spawn(fun() -> dev_null() end),
+    true = group_leader(FakeGL, whereis(cover_server)).
+
+dev_null() ->
+    receive
+        {io_request, Sender, GroupLeader, _Request} ->
+            Sender ! {io_reply, GroupLeader, ok},
+            dev_null()
+    end.
+
+ensure_cover_node(#state{cover_var = CoverVar}) ->
+    case os:getenv(CoverVar) of
+        false ->
+            fatal(1, "Variable ~s is not set\n", [CoverVar]);
+        Node ->
+            list_to_atom(lists:flatten(lists:join("@", split_node(Node))))
+    end.
+
+split_node(Node) when is_list(Node) ->
+    case string:tokens(Node, "@") of
+        [Name, Host] ->
+            [Name, Host];
+        [Name] ->
+            {ok, Host} = inet:gethostname(),
+            [Name, Host]
+    end.
+
+call_cover(CoverNode, Fun, Args) ->
+    Mod = cover,
+    %% log("CALL ~p:~p~p\n", [Mod, Fun, Args]),
+    rpc:call(CoverNode, Mod, Fun, Args).
+
+uniq_string() ->
+    {MegaSecs, Secs, MicroSecs} = erlang:timestamp(),
+    UniqInt = erlang:unique_integer([positive]),
+    integer_to_list(MegaSecs) ++ "__" ++
+        integer_to_list(Secs) ++ "__" ++
+        integer_to_list(MicroSecs) ++ "__" ++
+        integer_to_list(UniqInt).
+
+log(Fmt, Args) ->
+    io:format("~s: " ++ Fmt, [?MODULE | Args]).
+
+fatal(RetCode, Fmt, Args) ->
+    log("<ERROR> " ++ Fmt, Args),
+    halt(RetCode).
+
+drop_prefix(File) ->
+    {ok, Cwd} = file:get_cwd(),
+    drop_prefix(Cwd, File).
+
+drop_prefix(Prefix, File) when is_binary(Prefix), is_binary(File) ->
+    list_to_binary(drop_prefix(binary_to_list(Prefix), binary_to_list(File)));
+drop_prefix(Prefix, File) when is_list(Prefix), is_list(File) ->
+    SplitPrefix = filename:split(Prefix),
+    SplitFile = filename:split(File),
+    do_drop_prefix(SplitPrefix, SplitFile, SplitPrefix, File).
+
+do_drop_prefix([H | Prefix], [H | File], OrigPrefix, OrigFile) ->
+    do_drop_prefix(Prefix, File, OrigPrefix, OrigFile);
+do_drop_prefix([], [], _OrigPrefix, _OrigFile) ->
+    ".";
+do_drop_prefix([], Rest, _OrigPrefix, _OrigFile) ->
+    filename:join(Rest);
+do_drop_prefix(DownPrefix, Rest, OrigPrefix, _OrigFile)
+  when DownPrefix =/= OrigPrefix ->
+    UpPrefix = lists:duplicate(length(DownPrefix), ".."),
+    filename:join(UpPrefix ++ Rest);
+do_drop_prefix(_DownPrefix, _Rest, _OrigPrefix, OrigFile) ->
+    OrigFile.

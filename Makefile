@@ -45,6 +45,9 @@ test:
 test_clean:
 	$(MAKE) -C clean
 
+cover:
+	bin/ecover -$(MAKE) -C test all
+
 xref:
 	bin/lux --xref
 
