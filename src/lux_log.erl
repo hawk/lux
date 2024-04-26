@@ -1,9 +1,9 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2012-2024 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_log).
 
@@ -33,7 +33,7 @@
 -define(CONFIG_TAG,  <<"config log">>).
 -define(RESULT_TAG,  <<"result log">>).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Summary log
 
 is_temporary(SummaryLog) when is_list(SummaryLog) ->
@@ -522,7 +522,7 @@ write_config_log(ConfigLog, ConfigProps) when is_list(ConfigLog) ->
     PrettyConfig = format_config(ConfigProps),
     write_log(ConfigLog, ?CONFIG_TAG, ?CONFIG_LOG_VERSION, [PrettyConfig]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Results
 
 parse_summary_result(LogDir, WWW) when is_list(LogDir) ->
@@ -654,7 +654,7 @@ result_format(Progress, {IsTmp, Fd}, Format, Args) ->
         true                -> safe_write(Fd, IoList)
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Event log
 
 open_event_log(LogDir, Script, Progress, LogFun, Verbose, EmitTimestamp)
@@ -1315,7 +1315,7 @@ dequote1([H|T]) ->
 dequote1([]) ->
     [].
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Config log
 
 open_config_log(LogDir, Script, ConfigProps) ->
@@ -1454,7 +1454,7 @@ double_write(Progress, Fd, {ResIoList, ConIoList}) when Fd =/= undefined ->
 double_write(Progress, Fd, IoList) ->
     double_write(Progress, Fd, {IoList, IoList}).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 safe_format(Progress, LogFun, Fd, Format, Args) ->
     IoList = ?FF(Format, Args),

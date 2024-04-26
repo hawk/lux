@@ -1,13 +1,15 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Copyright 2009-2024 Tail-f Systems AB
 %%
 %% See the file "LICENSE" for information on usage and redistribution
 %% of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Implements E. W. Myers diff algorithm (finding the Longest Common
 %% Subsequence) described in his paper "An O(ND) Difference Algorithm
 %% and Its Variations" found at http://www.xmailserver.org/diff2.pdf
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(lux_diff).
 
@@ -29,7 +31,7 @@
 -type verbose_diff() :: [ {'+', elem()}   | {'-', elem()}   | {'=', elem()} ].
 -type match_fun()    :: fun((A :: elem(), B :: elem()) -> boolean()) .
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% We can reduce the problem to only diffing the parts that occurs in
 %% both lists. The other elements can be merged in afterwards. This
 %% greatly speeds up the case when only a few elements are the same.
@@ -77,7 +79,7 @@ grab_until([X|Xs], X, Acc, _) ->
 grab_until([X|Xs], Y, Acc, Add) ->
     grab_until(Xs, Y, [X|Acc], Add).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Calcuate shortest edit list to go from A to B
 
 -spec compare2(A::elem_list(), B::elem_list(), Fun::match_fun()) ->
@@ -144,7 +146,7 @@ merge_cleanup_keep([Keep|Rest], Acc, KeepAcc) ->
     %% Merge subsequent common sublists
     merge_cleanup_keep(Rest, Acc, Keep++KeepAcc).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Longest Common Subsequence
 
 lcs(DataA, LowerA0, UpperA0,
@@ -224,7 +226,7 @@ acc_add({_Sign,[]}, Acc) ->
 acc_add(E, Acc) ->
     [E|Acc].
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Find Shortest Middle Sname
 
 sms(DataA, LowerA, UpperA,
@@ -420,7 +422,7 @@ sms_d_k_r(K, D,
                       Delta, OddDelta, Fun)
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Expand compact diff into long diff
 
 -spec split_diff(compact_diff()) -> verbose_diff().
@@ -438,7 +440,7 @@ split_diff([[]|Rest], Acc) ->
 split_diff([[H|T]|Rest], Acc) ->
     split_diff([T|Rest], [{'=',H}|Acc]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Apply diff to list
 
 -spec apply_verbose_diff(A::elem_list(), Diff::verbose_diff()) ->
@@ -471,7 +473,7 @@ apply_compact_diff(A, [Keep|Rest], Acc) when is_list(Keep) ->
     ARest = lists:nthtail(length(Keep), A),
     apply_compact_diff(ARest, Rest, lists:reverse(Keep,Acc)).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Utils
 
 whilex(Fun, Acc) ->
@@ -495,7 +497,7 @@ vset(T, I, V) ->
 default_match() ->
     fun(A, B) -> A =:= B end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Self test
 
 test() ->
