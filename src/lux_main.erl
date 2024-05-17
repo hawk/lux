@@ -18,7 +18,7 @@ unsafe_main(OrigArgs) ->
     ThisEscript = require_escript(),
     LuxAppDir = require_app(undefined, ?APPLICATION),
     OpModes = op_modes(),
-    Args  = expand_flags(OrigArgs, OpModes),
+    Args = expand_flags(OrigArgs, OpModes),
     Opts = lux_args:getopts(Args, LuxAppDir, ThisEscript),
     %% io:format("Args: ~p\n", [Opts]),
     dispatch(Opts, LuxAppDir, OrigArgs).
@@ -504,7 +504,12 @@ do_run(Files, Opts, PrevLogDir, OrigArgs) ->
             validate_html(Files, [{html, validate} | Opts]);
         false ->
             ThisEscript = require_escript(),
-            lux_suite:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
+            CoverContext = setup_cover(),
+            try
+                lux_suite:run(Files, Opts, PrevLogDir, [ThisEscript | OrigArgs])
+            after
+                opt_stop_cover(CoverContext)
+            end
     end.
 
 validate_html([File | Files], Opts) ->
@@ -550,6 +555,72 @@ res_to_file_exit(Res) ->
             io:format("ERROR: ~s: ~s\n", [File, ReasonStr]),
             1
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Erlang code coverage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+setup_cover() ->
+    case os:getenv("LUX_COVER_NODE") of
+        false ->
+            false;
+        CoverNodeStr ->
+            CoverNode = list_to_atom(CoverNodeStr),
+            true = setup_epmd(10),
+            setup_dist(),
+            start_cover(CoverNode),
+            {true, CoverNode}
+    end.
+
+setup_dist() ->
+    Name = atom_to_list(?MODULE) ++ "__" ++ uniq_string(),
+    Domain = shortnames,
+    case net_kernel:start([list_to_atom(Name), Domain]) of
+        {ok, _Pid} ->
+            0;
+        {error, {already_started, _Pid}} ->
+            0;
+        {error, Reason} ->
+            io:format("ERROR ~p\n", [Reason]),
+            1
+    end.
+
+uniq_string() ->
+    {MegaSecs, Secs, MicroSecs} = erlang:timestamp(),
+    UniqInt = erlang:unique_integer([positive]),
+    integer_to_list(MegaSecs) ++ "__" ++
+        integer_to_list(Secs) ++ "__" ++
+        integer_to_list(MicroSecs) ++ "__" ++
+        integer_to_list(UniqInt).
+
+setup_epmd(N) when N >= 0 ->
+    Output = os:cmd("epmd -names"),
+    case re:run(Output, "epmd: up and running", []) of
+        nomatch ->
+            os:cmd("epmd -daemon"),
+            io:format("Start epmd\n", []),
+            timer:sleep(500),
+            setup_epmd(N-1);
+        {match, _} ->
+            true
+    end;
+setup_epmd(0) ->
+    false.
+
+start_cover(CoverNode) ->
+    Self = node(),
+    _ = rpc:call(CoverNode, cover, stop, [Self]),
+    {ok, _} = rpc:call(CoverNode, cover, start, [Self]),
+    ok.
+
+opt_stop_cover(false) ->
+    ok;
+opt_stop_cover({true, CoverNode}) ->
+    stop_cover(CoverNode).
+
+stop_cover(CoverNode) ->
+    Self = node(),
+    ok = rpc:call(CoverNode, cover, flush, [Self]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Original code. There is a copy in bin/lux as well.

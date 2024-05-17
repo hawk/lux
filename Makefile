@@ -45,8 +45,26 @@ test:
 test_clean:
 	$(MAKE) -C clean
 
-cover:
-	bin/ecover -$(MAKE) -C test all
+.PHONY: ecover_logs html_logs
+
+cover: ecover_logs html_logs
+
+ecover_logs:
+	rm -rf ecover_logs
+	bin/ecover \
+		-beam ebin/\*.beam \
+		-outdir ecover_logs \
+		-ecover_var LUX_COVER_NODE \
+		-collect $(MAKE) test < /dev/null
+
+html_logs:
+	rm -rf html_logs
+	bin/ecover \
+		-outdir html_logs \
+		-datadir ecover_logs \
+		-datadir test/lux_logs/latest_runs \
+		-html < /dev/null
+	echo "open html_logs/ecover.html"
 
 xref:
 	bin/lux --xref

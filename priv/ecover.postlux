@@ -1,0 +1,17 @@
+# This is a -*- lux -*- file.
+
+# Intended to be used as lux mytest.lux --post_cmd=.../ecover.postlux
+
+# [config require=LUX_COVER_NODE]
+
+[newshell ecover_export]
+    # Long timeout for the export
+    [timeout 100]
+    !ecover -export -ecover_var ${ECOVER_VAR} < /dev/null
+    ?^SH-PROMPT:
+
+    # Short timeout to check its result
+    [timeout 1]
+    !echo ==$$?==
+    ?^==0==
+    ?^SH-PROMPT:

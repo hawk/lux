@@ -73,7 +73,7 @@ OPTIONS
 
   -collect command-with-args - Any OS command. E.g. 'make test' or 'lux .'.
   -beam FILE_PATTERN         - .beam file(s) to be cover compiled.
-                               May contain one or more *.
+                               May contain one or more escaped *.
   -wildcard WILDCARD         - Instead of using * as wildcard another string
                                may be used to make the quoting in the shell(s)
                                simpler. E.g. -wildcard XXX -beam lib/XXX/ebin/XXX.beam
@@ -113,20 +113,20 @@ EXAMPLES
 
 -record(state,
         {
-         name      = no_name       :: string(),
-         domain    = no_domain     :: shortnames | longnames,
-         outdir    = "."           :: [file:dirname()],
-         datadirs  = []            :: [file:dirname()],
+         name       = no_name       :: string(),
+         domain     = no_domain     :: shortnames | longnames,
+         outdir     = "."           :: [file:dirname()],
+         datadirs   = []            :: [file:dirname()],
 
-         exec      = no_exec       :: string(),
-         args      = no_args       :: [string()],
-         beams     = []            :: [file:filename()],
-         wildcard  = no_wildcard   :: string(),
-         cover_var = "ECOVER_NODE" :: string(),
+         exec       = no_exec       :: string(),
+         args       = no_args       :: [string()],
+         beams      = []            :: [file:filename()],
+         wildcard   = no_wildcard   :: string(),
+         ecover_var = "ECOVER_NODE" :: string(),
 
-         is_export = false         :: boolean(),
-         is_html   = false         :: boolean(),
-         queries   = []            :: [string()]
+         is_export  = false         :: boolean(),
+         is_html    = false         :: boolean(),
+         queries    = []            :: [string()]
         }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -145,7 +145,7 @@ main(Args) ->
     {ok, Cwd} = file:get_cwd(),
     log("CWD    ~s\n", [Cwd]),
     S = parse_args(Args, #state{}),
-
+    log("VAR    ~s\n", [S#state.ecover_var]),
     if
         S#state.is_export ->
             if
@@ -227,11 +227,13 @@ parse_args(["-beam" = Opt, Beam | Args], S) ->
 parse_args(["-wildcard" = Opt, Wildcard | Args], S) ->
     check_arg(Opt, Wildcard),
     parse_args(Args, S#state{wildcard = Wildcard});
-parse_args(["-cover_var" = Opt, CoverVar | Args], S) ->
-    check_arg(Opt, CoverVar),
-    case os:getenv(CoverVar) of
+parse_args(["-ecover_var" = Opt, EcoverVar | Args], S) ->
+    check_arg(Opt, EcoverVar),
+    case os:getenv(EcoverVar) of
         false ->
-            parse_args(Args, S#state{cover_var = CoverVar});
+            parse_args(Args, S#state{ecover_var = EcoverVar});
+        _CoverNode when S#state.is_export ->
+            parse_args(Args, S#state{ecover_var = EcoverVar});
         CoverNode ->
             fatal(1, "Illegal option: ~s already set to ~s\n",
                   [Opt, CoverNode])
@@ -350,19 +352,22 @@ expand_dir(Dir) ->
 %% Run
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-run_cmd(#state{exec = UserExec, args = Args, cover_var = CoverVar})
+run_cmd(#state{exec = UserExec, args = Args, ecover_var = EcoverVar})
   when UserExec =/= no_exec, Args =/= no_args ->
     case os:find_executable(UserExec) of
         false ->
             fatal(1, "~s: command not found\n", [UserExec]);
         Exec ->
             CoverNode = atom_to_list(node()),
-            AbsEscript = filename:absname(escript:script_name()),
-            PostCase = "--post_case=" ++ AbsEscript ++ ".postlux",
+            Escript = filename:absname(escript:script_name()),
+            LuxAppDir = filename:dirname(filename:dirname(Escript)),
+            PostLux = filename:join([LuxAppDir, "priv", "ecover.postlux"]),
+            PostCase = "--post_case " ++ PostLux ++
+                       " --var ECOVER_VAR=" ++ EcoverVar,
             LuxVar = "LUX_FLAGS",
             LuxFlags = add_lux_flags(LuxVar, PostCase),
-            LuxEnv = [{"LUX_FLAGS", LuxFlags}],
-            PortEnv = [{CoverVar, CoverNode} | LuxEnv],
+            PortEnv = [{LuxVar, LuxFlags},
+                       {EcoverVar, CoverNode}],
             log("ENV ~p\n", [PortEnv]),
             Cmd = lists:join(" ", [Exec | Args]),
             log("EXEC ~s\n", [Cmd]),
@@ -376,10 +381,10 @@ run_cmd(#state{exec = UserExec, args = Args, cover_var = CoverVar})
 run_cmd(_S) ->
     fatal(1, "No command to execute\n", []).
 
-add_lux_flags(EnvVar, LuxFlags) ->
+add_lux_flags(EnvVar, NewFlags) ->
     case os:getenv(EnvVar) of
-        false    -> LuxFlags;
-        OldFlags -> LuxFlags ++ " " ++ OldFlags
+        false    -> NewFlags;
+        OldFlags -> OldFlags ++ " " ++ NewFlags
     end.
 
 do_run_cmd(Exec, Args, WorkDir, PortEnv) ->
@@ -849,10 +854,10 @@ dev_null() ->
             dev_null()
     end.
 
-ensure_cover_node(#state{cover_var = CoverVar}) ->
-    case os:getenv(CoverVar) of
+ensure_cover_node(#state{ecover_var = EcoverVar}) ->
+    case os:getenv(EcoverVar) of
         false ->
-            fatal(1, "Variable ~s is not set\n", [CoverVar]);
+            fatal(1, "Variable ~s is not set\n", [EcoverVar]);
         Node ->
             list_to_atom(lists:flatten(lists:join("@", split_node(Node))))
     end.
