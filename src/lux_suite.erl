@@ -1239,7 +1239,7 @@ parse_post_case_cmds(R) ->
 parse_config(R) ->
     %% Default opts
     DefaultBase = "luxcfg",
-    PrivDir = code:lib_dir(?APPLICATION, priv),
+    PrivDir = filename:join(code:lib_dir(?APPLICATION), "priv"),
     DefaultDir = lux_utils:normalize_filename(PrivDir),
     DefaultFile = filename:join([DefaultDir, DefaultBase]),
     {DefaultOpts, DefaultWarnings} = parse_config_file(R, DefaultFile),
