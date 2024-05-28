@@ -145,7 +145,7 @@ ensure_lux_app_dir(Retry) ->
 
 ensure_lux_app_dir(Retry, Mandatory) ->
     AppName = ?APPLICATION,
-    case code:lib_dir(AppName, ebin) of
+    case code:lib_dir(AppName) of
         {error, _Reason} when Retry =:= true ->
             %% Add application ebin to the code path and see if it works
             ThisEscript = resolve_path(escript:script_name()),
@@ -196,7 +196,8 @@ ensure_lux_app_dir(Retry, Mandatory) ->
                         [AppName, Reason]);
         {error, _Reason} ->
             "unknown";
-        EbinDir ->
+        AppDir ->
+            EbinDir = filename:join([AppDir, "ebin"]),
             filename:dirname(EbinDir)
     end.
 
