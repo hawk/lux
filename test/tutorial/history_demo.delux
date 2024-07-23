@@ -21,7 +21,7 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make history_demo_multi_branch < /dev/null
+    !${validate} PATH="$${LUX_BIN}:$PATH" make history_demo_multi_branch < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
@@ -41,7 +41,7 @@
 
     -HTML ERROR
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make history_demo_multi_host < /dev/null
+    !${validate} PATH="$${LUX_BIN}:$PATH" make history_demo_multi_host < /dev/null
 
     !echo ===$$?===
     ?^===0===
@@ -81,7 +81,7 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make history_demo_single < /dev/null
+    !${validate} PATH="$${LUX_BIN}:$PATH" make history_demo_single < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
@@ -99,7 +99,7 @@
     [timeout 60]
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make history_demo_success < /dev/null
+    !${validate} PATH="$${LUX_BIN}:$PATH" make history_demo_success < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
@@ -116,7 +116,7 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make history_demo_warning < /dev/null
+    !${validate} PATH="$${LUX_BIN}:$PATH" make history_demo_warning < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:
@@ -135,7 +135,7 @@
     -HTML ERROR
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !${validate} make history_demo_empty < /dev/null
+    !${validate} PATH="$${LUX_BIN}:$PATH" make history_demo_empty < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:

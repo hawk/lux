@@ -19,7 +19,7 @@
     ### TEST CALC
     [progress test calc]
     [invoke eval $OK "mkdir -p $orig_calc_dir"]
-    !../bin/lux --progress=summary \
+    !$${LUX_BIN}/lux --progress=summary \
                 --log_dir=$orig_calc_dir \
                 --case_prefix=orig/case/prefix/ \
                 --html=validate \
@@ -33,7 +33,7 @@
     ### TEST INTRO
     [progress test intro]
     [invoke eval $OK "mkdir -p $orig_intro_dir"]
-    !../bin/lux --progress=summary \
+    !$${LUX_BIN}/lux --progress=summary \
                 --log_dir=$orig_intro_dir \
                 --case_prefix=orig/case/prefix/ \
                 --html=validate \
@@ -46,7 +46,7 @@
 
     ### ANNOTATE CALC w/ new case_prefix
     [progress annotate calc]
-    !../bin/lux --case_prefix=new/case/prefix/ \
+    !$${LUX_BIN}/lux --case_prefix=new/case/prefix/ \
                 --html=validate \
                 --annotate=$new_calc_dir/lux_summary.log
     [invoke check_status $OK]
@@ -56,7 +56,7 @@
 
     ### ANNOTATE INTRO - w/o re-using old case_prefix
     [progress annotate intro]
-    !../bin/lux --html=validate \
+    !$${LUX_BIN}/lux --html=validate \
                 --annotate=$new_intro_dir/lux_summary.log
     [invoke check_status $OK]
     !cat $new_intro_dir/lux_summary.log.html | grep examples
@@ -65,7 +65,7 @@
 
     ### MERGE
     [progress merge]
-    !../bin/lux --html=validate \
+    !$${LUX_BIN}/lux --html=validate \
                 --merge $merge_dir $new_calc_dir $new_intro_dir
     [invoke check_status $OK]
     !cat $merge_dir/lux_summary.log.html | grep examples
@@ -75,6 +75,6 @@
 
     ### HISTORY
     [progress history]
-    !../bin/lux --html=validate \
+    !$${LUX_BIN}/lux --html=validate \
                 --history $history_dir $merge_dir
     [invoke check_status $OK]

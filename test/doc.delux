@@ -7,4 +7,4 @@
 [shell test]
     -$fail_pattern
 
-    [invoke eval $OK "../bin/lux --html=validate ../lux.html"]
+    [invoke eval $OK "$${LUX_BIN}/lux --html=validate ../lux.html"]

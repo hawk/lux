@@ -20,7 +20,7 @@
     -${fail_pattern}
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/intro"]
-    [invoke eval "lux *.delux"]
+    [invoke eval "$${LUX_BIN}/lux *.delux"]
 
 [shell intro]
     [progress intro]
@@ -28,7 +28,7 @@
 #   -${fail_pattern}
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/intro"]
-    !make test < /dev/null
+    !PATH="$${LUX_BIN}:$PATH" make test < /dev/null
     ???test case         : a_simple_server.lux
     ???result            : SUCCESS
     ???test case         : async_startup_fail.lux
@@ -45,7 +45,7 @@
 #   -${fail_pattern}
 
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
-    !make test < /dev/null
+    !PATH="$${LUX_BIN}:$PATH" make test < /dev/null
     ???test case         : noise.lux
     ???result            :
     ???test case         : skip.lux
@@ -67,10 +67,10 @@
     [invoke eval "cd ${tutorial_dir}/chatty/test/infra"]
     [invoke eval "rm -rf lux_history.* lux_logs"]
     [loop i 1..5]
-        [invoke eval_any "make test"]
+        [invoke eval_any "PATH=$${LUX_BIN}:$PATH make test"]
     [endloop]
 
-    !make history < /dev/null
+    !PATH="$${LUX_BIN}:$PATH" make history < /dev/null
     !echo ===$$?===
     ?^===0===
     ?^SH-PROMPT:

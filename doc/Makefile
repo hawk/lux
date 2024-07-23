@@ -90,10 +90,10 @@ $(GEN_TOC).md: Makefile $(MARKDOWNS) ../vsn.mk
 	mv $@.tmp $@
 
 $(GEN_DBG_CMDS).md.src: ../ebin/lux_debug.beam
-	$(LUX) --gen_markdown=$@
+	../bin/lux --gen_markdown=$@
 
 %.md: %.md.src
-	$(LUX) --pre_markdown=$@
+	../bin/lux --pre_markdown=$@
 
 %.md.d: %.md.src
 	grep -IE '#include +<.*>' $< | sed -e 's#.*<#../#g' -e 's/>.*//g' > $@

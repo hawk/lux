@@ -5,7 +5,7 @@
 [shell test]
     -LUX ERROR
     [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
-    !../bin/lux --progress=summary --timeout=5000 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate ../examples
+    !$${LUX_BIN}/lux --progress=summary --timeout=5000 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate ../examples
 
     """?
     test case         : .*examples/calc.lux

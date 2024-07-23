@@ -6,4 +6,4 @@
     -$fail_pattern
 
     [timeout 30]
-    [invoke eval $OK "../bin/lux --xref"]
+    [invoke eval $OK "$${LUX_BIN}/lux --xref"]

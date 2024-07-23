@@ -4,7 +4,7 @@
     !rm -rf tmp_logs
     ?SH-PROMPT:
 
-    !lux -d --log_dir=tmp_logs a_simple_server.lux
+    !$${LUX_BIN}/lux -d --log_dir=tmp_logs a_simple_server.lux
     ?Debugger for lux. Try help or continue.
 
     !c 15
