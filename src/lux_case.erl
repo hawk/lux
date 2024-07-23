@@ -112,9 +112,13 @@ open_logs_and_eval(I) ->
 
 default_istate(OrigFile) ->
     MainFile = lux_utils:normalize_filename(OrigFile),
+    BinDir = filename:dirname(
+               lux_utils:normalize_filename(
+                 escript:script_name())),
     #istate{top_pid = self(),
             main_file = MainFile,
             curr_file = MainFile,
+            bin_dir = BinDir,
             log_fun = fun(Bin) -> console_write(?b2l(Bin)), Bin end,
             shell_wrapper = default_shell_wrapper(),
             builtin_vars = lux_utils:builtin_vars(),

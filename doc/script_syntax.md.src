@@ -218,6 +218,8 @@ refers to a log directory name unique for each test case. The
 directory is however not automatically created. It must be created
 by you in the test script if you want to use it. If you have created
 the directory, it will turn up as a link in the annotated event log.
+The **environment variable** `LUX_BIN` is set to the directory where
+the `lux` escript resides.
 
 **\[include FileName\]**  
 Includes and runs the specified script at this point. The `FileName`
