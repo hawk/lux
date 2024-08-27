@@ -43,7 +43,8 @@ test:
 	$(MAKE) -C test all
 
 test_clean:
-	$(MAKE) -C clean
+	rm -rf lux_logs ecover_logs html_logs
+	$(MAKE) -C test clean
 
 .PHONY: ecover_logs html_logs
 
