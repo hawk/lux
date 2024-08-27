@@ -31,7 +31,8 @@ CHAPTERS= \
 	warnings \
 	../INSTALL \
 	../AUTHORS \
-	references
+	references \
+	internals
 
 MARKDOWNS=$(patsubst %,%.md,$(CHAPTERS))
 WILDCARD=$(patsubst %,%.src,$(MARKDOWNS))

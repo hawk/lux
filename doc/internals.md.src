@@ -1,0 +1,26 @@
+Internals
+=========
+
+History
+-------
+
+Application structure
+---------------------
+
+- Erlang - escript, src
+- C - pseudo terminal
+- Etc - examples, tutorial, editor modes
+- Documentation - partly generated from code, build process
+- Tutorial
+- Test
+- Code coverage
+
+Release handling
+----------------
+
+- Bump version - version semantics
+- Build src
+- Build documentation
+- Test
+- Merge to master branch
+- Tag
