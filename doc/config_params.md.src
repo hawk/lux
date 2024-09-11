@@ -273,9 +273,9 @@ sleep) its value is multiplied with the `Multiplier` value.
 `Multiplier` is an integer and defaults to `1000`, meaning that
 `[timeout 10]` actually is 10 seconds. The timeout value 10 is
 multiplied with the multiplier value 1000. Perhaps it is easier to
-think in milliseconds. 10 means 10*1000=10000 milliseconds. By
+think in milliseconds. 10 means 10 * 1000 = 10000 milliseconds. By
 changing the multiplier to a higher value, such as 3000, it will cause
-Lux to use longer timeouts. E.g. 10*3000=30000 milliseconds.
+Lux to use longer timeouts. E.g. 10 * 3000 = 30000 milliseconds.
 `--multiplier` is intended to be set in architecture/host specific
 files to provide different settings on different systems.
 
