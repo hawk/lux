@@ -4,7 +4,7 @@ Installation
 On MacOS, Lux can be installed with
 
 >     brew tap hawk/homebrew-hawk
->     brew install lux
+>     brew install hawk/hawk/lux
 
 It will install Erlang and whatever else Lux needs.
 
