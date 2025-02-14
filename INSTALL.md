@@ -18,7 +18,7 @@ Arch Linux
 
 >     mkdir tmp
 >     cd tmp
->     wget https://github.com/hawk/lux/releases/download/lux-2.1/PKGBUILD
+>     wget https://github.com/hawk/lux/releases/download/lux-3.0/PKGBUILD
 >     makepkg -si
 
 TLDR;
