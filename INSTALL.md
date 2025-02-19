@@ -99,6 +99,22 @@ and those parameters may be combined with
 
 >     make DESTDIR=/my/staging/area install
 
+Reproducible builds
+-------------------
+
+It is possible to build Lux deterministically, thus enabling
+reproducible builds.
+
+By configuring the build with the `--enable-deterministic-build` option
+the erlc flag `+deterministic` replaces the `+debug_info` erlc flag to
+generate deterministic beam files. Additionally the `runpty` program is
+stripped from non-deterministic content. After the configuration build
+normally, e.g.
+
+>     autoconf
+>     ./configure --enable-deterministic-build
+>     make
+
 Standalone installation
 -----------------------
 
