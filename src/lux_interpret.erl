@@ -599,11 +599,11 @@ dispatch_cmd(I,
                     I2
             end;
         sleep ->
-            case parse_int(I, Arg, Cmd) of
+            case parse_float(I, Arg, Cmd) of
                 {ok, Secs} ->
                     Cmd2 = Cmd#cmd{arg = Secs},
                     shell_eval(I#istate{latest_cmd = Cmd2}, Cmd2);
-                {bad_int, I2} ->
+                {bad_num, I2} ->
                     I2
             end;
         progress ->
@@ -640,7 +640,7 @@ dispatch_cmd(I,
                             Millis = Secs*?ONE_SEC,
                             Cmd2 = Cmd#cmd{arg = Millis},
                             change_shell_var(I, ShellPos, Millis, Cmd2);
-                        {bad_int, I2} ->
+                        {bad_num, I2} ->
                             I2
                     end
             end;
@@ -1020,20 +1020,34 @@ make_warning(#istate{main_file = MainFile,
     lux_utils:make_warning(MainFile, FullLineNo, Reason).
 
 parse_int(I, Chars, Cmd) ->
+    parse_number(I, Chars, Cmd, fun list_to_integer/1, "integer").
+
+parse_float(I, Chars, Cmd) ->
+    ConvFun = fun(Str) ->
+                      try list_to_integer(Str) of
+                          Num -> Num
+                      catch
+                          error:badarg ->
+                              list_to_float(Str)
+                      end
+              end,
+    parse_number(I, Chars, Cmd, ConvFun, "float").
+
+parse_number(I, Chars, Cmd, ConvFun, Name) ->
     case safe_expand_vars(I, Chars) of
         {ok, Chars2} ->
             try
-                {ok, list_to_integer(Chars2)}
+                {ok, ConvFun(Chars2)}
             catch
                 error:_ ->
                     BinErr =
                         ?l2b(["Syntax error at line ",
                               ?i2l(Cmd#cmd.lineno),
-                              ": '", Chars2, "' integer expected"]),
-                    {bad_int, handle_error(I, BinErr)}
+                              ": '", Chars2, "' ", Name, " expected"]),
+                    {bad_num, handle_error(I, BinErr)}
             end;
         {no_such_var, BadName} ->
-            {bad_int, no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)}
+            {bad_num, no_such_var(I, Cmd, Cmd#cmd.lineno, BadName)}
     end.
 
 eval_loop(OldI, #cmd{arg = {loop,Name,Items,First,Last,Body}} = LoopCmd) ->

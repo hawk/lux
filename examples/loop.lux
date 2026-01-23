@@ -33,7 +33,7 @@
     # Setup a background job which eventually adds DONE to a file
     !echo foo > $file;
     ?SH-PROMPT:
-    !(sleep 3; echo DONE >> $file)
+    !(sleep 1; echo DONE >> $file)
 
 [shell foreground]
     # Probe the file for the DONE string using a break pattern
@@ -42,7 +42,7 @@
         [progress i=$i]
         !cat $file
         ?SH-PROMPT:
-        [sleep 1]
+        [sleep 0.3]
     [endloop]
     ?SH-PROMPT:
 

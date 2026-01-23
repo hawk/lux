@@ -293,7 +293,7 @@ cancel_timer(#timer_ref{ref = Ref, timeout = T, send_to = Pid, msg = Msg}) ->
 
 multiply(_Timeout, infinity)    -> infinity;
 multiply(infinity, _Multiplier) -> infinity;
-multiply(Timeout, Multiplier)   -> (Timeout*Multiplier) div ?ONE_SEC.
+multiply(Timeout, Multiplier)   -> round((Timeout*Multiplier) / ?ONE_SEC).
 
 drop_prefix(File) ->
     {ok, Cwd} = file:get_cwd(),

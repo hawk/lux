@@ -590,7 +590,7 @@ shell_eval(#cstate{name = Name} = C0,
         sleep ->
             Secs = Arg,
             clog(C, sleep, "(~p seconds)", [Secs]),
-            true = is_integer(Secs), % Assert
+            true = is_number(Secs), % Assert
             undefined = C#cstate.expected, % Assert
             Progress = C#cstate.progress,
             Self = self(),
