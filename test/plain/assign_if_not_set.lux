@@ -1,0 +1,15 @@
+[doc]
+Test for the ?= operator for variables.
+
+?= allows to set a variable if it is not already set to a given value,
+independent of scope.
+[enddoc]
+
+[global GLOBAL?=initial]
+[global GLOBAL?=update]
+
+[shell test]
+    !echo ==$GLOBAL==
+    ?==initial==
+    ?SH-PROMPT:
+

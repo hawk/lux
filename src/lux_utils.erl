@@ -196,7 +196,7 @@ do_lookup_var(_, _) ->
 
 test_var(Vars, VarVal) ->
     case split_var(VarVal, []) of
-        {Var, Val} ->
+        {Var, Val, _Replace} ->
             ok;
         false ->
             Var = VarVal,
@@ -223,8 +223,10 @@ test_var(Vars, VarVal) ->
             {false, Var, Val}
     end.
 
+split_var([$?,$= | Val], Var) ->
+    {lists:reverse(Var), Val, false};
 split_var([$= | Val], Var) ->
-    {lists:reverse(Var), Val};
+    {lists:reverse(Var), Val, true};
 split_var([H | T], Var) ->
     split_var(T, [H | Var]);
 split_var([], _Var) ->

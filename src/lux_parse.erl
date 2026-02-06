@@ -492,8 +492,8 @@ opt_add_empty_warning(P, Cmd, OptMulti, EmptyBlob) ->
 
 parse_var(P, Fd, Cmd, Scope, String) ->
     case lux_utils:split_var(String, []) of
-        {Var, Val} ->
-            {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
+        {Var, Val, Replace} ->
+            {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val, Replace}}};
         false ->
             LineNo = Cmd#cmd.lineno,
             parse_error(P, Fd, LineNo,
@@ -742,7 +742,7 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
         "config " ++ VarVal ->
             {P2, ConfigCmd} =
                 parse_var(P, Fd, Cmd, config, VarVal),
-            {Scope, Var, Val} = ConfigCmd#cmd.arg,
+            {Scope, Var, Val, _} = ConfigCmd#cmd.arg,
             Val2 = expand_vars(P2, Fd, Val, LineNo),
             ConfigCmd2 = ConfigCmd#cmd{type = config, arg = {Scope, Var, Val2}},
             P3 =

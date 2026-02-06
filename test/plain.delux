@@ -8,6 +8,10 @@
     !$${LUX_BIN}/lux --progress=summary --timeout=5000 \
                 --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME --html=validate plain
     """?
+    test case         : plain/assign_if_not_set.lux
+    result            : SUCCESS
+    """
+    """?
     test case         : .*plain/nested_fail_html.lux
     result            : FAIL at line 8:4:12 in shell zzz
     expected\*
@@ -15,7 +19,7 @@
     actual fail pattern matched "echo xxx"
     """
     """?
-    successful        : 0
+    successful        : 1
     failed            : 1
     .*plain/nested_fail_html.lux:8:4:12 - fail pattern matched "echo xxx"
     summary           : FAIL

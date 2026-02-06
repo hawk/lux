@@ -514,41 +514,10 @@ dispatch_cmd(I,
         comment ->
             I;
         variable ->
-            {Scope, Var, Val} = Arg,
+            {Scope, Var, Val, Replace} = Arg,
             case {safe_expand_vars(I, Var), safe_expand_vars(I, Val)} of
                 {{ok, Var2}, {ok, Val2}} ->
-                    QuotedVal = lux_utils:quote_newlines(Val2),
-                    ilog(I, "~p \"~s=~s\"\n",
-                         [Scope, Var2, QuotedVal],
-                         I#istate.active_name, LineNo),
-                    I2 =
-                        case lists:member(?SPACE , Var2) of
-                            true ->
-                                add_warning(I, ["Variable name \"", Var2,
-                                                "\" contains whitespace"]);
-                            false ->
-                                I
-                        end,
-                    VarVal = lists:flatten([Var2, $=, Val2]),
-                    case Scope of
-                        my ->
-                            Vars = [VarVal | I#istate.macro_vars],
-                            I2#istate{macro_vars = Vars};
-                        local when I2#istate.active_shell =:= no_shell ->
-                            Reason = <<"A local variable can only be set"
-                                       " in context of a shell">>,
-                            handle_error(I2, Reason);
-                        local ->
-                            add_active_var(I2, VarVal);
-                        global ->
-                            I3 = add_active_var(I2, VarVal),
-                            Shells =
-                                [S#shell{vars = [VarVal | S#shell.vars]} ||
-                                    S <- I3#istate.shells],
-                            GlobalVars = [VarVal | I3#istate.global_vars],
-                            I3#istate{shells = Shells,
-                                      global_vars = GlobalVars}
-                    end;
+                    var_assign(I, Cmd, Scope, Var2, Val2, Replace);
                 {{no_such_var, BadName},_} ->
                     no_such_var(I, Cmd, LineNo, BadName);
                 {_,{no_such_var, BadName}} ->
@@ -779,6 +748,51 @@ cleanup_cmd(I, Cmd, Name) ->
                    default_timeout = I2#istate.cleanup_timeout,
                    debug_shell = no_shell},
     {I3, ShellCmd}.
+
+var_assign(I, Cmd, Scope, Var, Val, _Replace = true) ->
+    do_var_assign(I, Cmd, Scope, Var, Val);
+var_assign(I, Cmd, Scope, Var, Val, _Replace = false) ->
+    case safe_expand_vars(I, "$" ++ Var) of
+        {ok, _} ->
+            %% already set, do not override
+            I;
+        {no_such_var, _} ->
+            do_var_assign(I, Cmd, Scope, Var, Val)
+    end.
+
+do_var_assign(I, #cmd{lineno = LineNo}, Scope, Var, Val) ->
+    QuotedVal = lux_utils:quote_newlines(Val),
+    ilog(I, "~p \"~s=~s\"\n",
+         [Scope, Var, QuotedVal],
+         I#istate.active_name, LineNo),
+    I2 =
+        case lists:member(?SPACE , Var) of
+            true ->
+                add_warning(I, ["Variable name \"", Var,
+                                "\" contains whitespace"]);
+            false ->
+                I
+        end,
+    VarVal = lists:flatten([Var, $=, Val]),
+    case Scope of
+        my ->
+            Vars = [VarVal | I#istate.macro_vars],
+            I2#istate{macro_vars = Vars};
+        local when I2#istate.active_shell =:= no_shell ->
+            Reason = <<"A local variable can only be set"
+                       " in context of a shell">>,
+            handle_error(I2, Reason);
+        local ->
+            add_active_var(I2, VarVal);
+        global ->
+            I3 = add_active_var(I2, VarVal),
+            Shells =
+                [S#shell{vars = [VarVal | S#shell.vars]} ||
+                    S <- I3#istate.shells],
+            GlobalVars = [VarVal | I3#istate.global_vars],
+            I3#istate{shells = Shells,
+                      global_vars = GlobalVars}
+    end.
 
 shell_eval(I, Cmd) ->
     dlog(I, ?dmore, "want_more=false (send ~p)", [Cmd#cmd.type]),
