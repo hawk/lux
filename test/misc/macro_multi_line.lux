@@ -14,3 +14,40 @@ line string"
 this"]
 """
 
+[invoke hello "this will work"
+"""
+multi-line string
+at the end of invoke macro
+"""]
+
+[shell foo]
+    [invoke hello "invoke macro in a shell"
+    """
+    with multi-line string
+    param is fine
+    """]
+
+# [invoke hello
+# """
+# but
+# this
+# is not working
+# """ "should it work?"]
+
+# [invoke hello
+# """
+# and
+# how
+# about this?
+# """
+# "should it work too?"]
+
+# [invoke hello
+# """
+# and this one
+# many multi-line strings
+# """
+# """
+# in one invoke macro
+# should it work?
+# """]

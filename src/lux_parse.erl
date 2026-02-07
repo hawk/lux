@@ -568,6 +568,16 @@ parse_single_meta(P, Fd, NextIncr, Meta, #cmd{lineno = LineNo} = Cmd, Tokens) ->
 %% Interpreted as
 %%
 %% [global var=prefix-multi\nline\nvalue]
+
+%% [invoke macro "first arg"
+%%  """
+%%  second arg
+%%  is a multi-line string
+%%  """]
+%%
+%% Interpreted as
+%%
+%% [invoke macro "first arg" "second arg\nis a multi-line string"]
 parse_multi_meta(P, Fd, Incr, #cmd{lineno = LineNo} = Cmd, Tokens) ->
     case file_next_wrapper(Fd) of
         {line, OrigLine, NewFd, MultiIncr} ->
@@ -1128,7 +1138,12 @@ parse_multi(#pstate{mode = RunMode} = P, Fd, NextIncr, Chars,
                     no_meta ->
                         <<Chars/binary, Blob/binary>>;
                     #cmd{orig = MetaChars} ->
-                        <<MetaChars/binary, Blob/binary, "]">>
+                        case binary:match(MetaChars, <<"[invoke ">>) of
+                            nomatch ->
+                                <<MetaChars/binary, Blob/binary, "]">>;
+                            _ ->
+                                <<MetaChars/binary, " \"", Blob/binary, "\"]">>
+                        end
                 end,
             MultiLine2 = lux_utils:strip_leading_whitespaces(MultiLine),
             EmptyBlob = (Blob =:= <<>>),
