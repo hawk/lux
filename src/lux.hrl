@@ -240,7 +240,9 @@
          escript_mod                :: atom(),
          %% List of all included files (absolute path), used by
          %% include to avoid including the same file multiple times.
-         included_files = #{}       :: #{string() => true}}).
+         included_files = #{}       :: #{string() => true},
+         %% List of PIDs running before case start
+         processes_start            :: sets:set(PidStr :: string())}).
 
 -record(run,
         {test = ?DEFAULT_SUITE
@@ -424,6 +426,14 @@
          has_cleanup = false :: boolean(),
          top_doc        :: undefined | non_neg_integer(),
          newshell       :: boolean()
+        }).
+
+-record(pid_info,
+        {pid          :: string(),
+         env          :: lux_pid:env_map(),
+         command_path :: string(),
+         command_name :: string(),
+         command_line :: [string()]
         }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

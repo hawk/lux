@@ -101,7 +101,8 @@ open_logs_and_eval(I) ->
                                         EmitTimestamp) of
                 {ok, EventLog, EventFd} ->
                     Docs = docs(I3#istate.main_file, Cmds),
-                    eval(I3, Progress, Verbose, LogFun,
+                    I4 = I3#istate{processes_start = lux_pid:get_all()},
+                    eval(I4, Progress, Verbose, LogFun,
                          EventLog, EventFd, ConfigFd, Docs);
                 {error, FileReason} ->
                     internal_error(I3, file:format_error(FileReason))
@@ -163,8 +164,7 @@ case_log_dir(SuiteLogDir, AbsMainFile) ->
     RelDir = filename:dirname(RelMainFile),
     filename:join([SuiteLogDir, RelDir]).
 
-eval(OldI, Progress, Verbose,
-     LogFun, EventLog, EventFd, ConfigFd, Docs) ->
+eval(OldI, Progress, Verbose, LogFun, EventLog, EventFd, ConfigFd, Docs) ->
     TraceMode =
         case dbg:get_tracer() of
             {error, _} -> none;
@@ -483,14 +483,17 @@ wait_for_done(I, Pid, Docs) ->
             lux_utils:progress_write(I#istate.progress, "\n"),
             case Res of
                 {ok, I2} ->
-                    handle_done(I, I2, Docs);
+                    I3 = check_stale_processes(I2),
+                    handle_done(I, I3, Docs);
                 {error, ReasonBin, I2} ->
-                    I3 = post_ilog(I2, Docs),
-                    fatal_error(I3, ReasonBin)
+                    I3 = check_stale_processes(I2),
+                    I4 = post_ilog(I3, Docs),
+                    fatal_error(I4, ReasonBin)
             end;
         {'EXIT', _Pid, Reason} ->
             I2 = post_ilog(I, Docs),
-            internal_error(I2, {'EXIT', Reason})
+            I3 = check_stale_processes(I2),
+            internal_error(I3, {'EXIT', Reason})
     end.
 
 handle_done(OldI, NewI0, Docs) ->
@@ -518,6 +521,37 @@ handle_done(OldI, NewI0, Docs) ->
         {'EXIT', Reason} ->
             internal_error(NewI, {'EXIT', Reason})
     end.
+
+check_stale_processes(I) ->
+    ProcessesNew = sets:subtract(lux_pid:get_all(), I#istate.processes_start),
+    case lux_pid:check_stale(sets:to_list(ProcessesNew)) of
+        ok ->
+            I;
+        {error, StalePids} ->
+            ok = lux_pid:kill(StalePids, "15"),
+            lists:foldl(
+                fun(#pid_info{command_name = "epmd",
+                              command_line = [_, "-daemon"]}, AccI) ->
+                        %% Don't report killed epmd daemons
+                        AccI;
+                   (PidInfo, AccI) ->
+                        Warning = mk_stale_process_warning(
+                            PidInfo, AccI#istate.curr_file),
+                        AccI#istate{warnings = [Warning | AccI#istate.warnings]}
+                end, I, StalePids)
+    end.
+
+mk_stale_process_warning(#pid_info{pid = PidStr,
+                                   env = PidEnv,
+                                   command_line = CommandLine},
+                        CurrFile) ->
+    ShellName = maps:get("LUX_SHELLNAME", PidEnv, "-"),
+    CommandLineStr = string:join(CommandLine, " "),
+    Reason =
+        ?l2b(io_lib:format(
+                "Killed stale process ~s started from shell ~s: ~s",
+                [PidStr, ShellName, CommandLineStr])),
+    lux_utils:make_warning(CurrFile, "0", Reason).
 
 pick_fail(NewI, Results) ->
     Failed =

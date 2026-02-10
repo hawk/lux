@@ -1,0 +1,30 @@
+[doc Stale process tests]
+
+[include include/macros.luxinc]
+
+[config skip_unless=OS=Linux]
+
+[shell test]
+    -LUX ERROR
+    [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
+    !$${LUX_BIN}/lux --timeout=5000 \
+                --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME  \
+                stale_process.lux
+    ???test case         : stale_process.lux
+    ?script ==(stale_process\..*)==
+    [local script=$1]
+    """?
+    warning           : 0: Killed stale process \d+ started from shell stale_process: .*stale_process.*
+    result            : WARNING
+    
+    successful        : 0
+    warnings          : 1
+    	stale_process.lux:0 - Killed stale process \d+ started from shell stale_process: .*stale_process.*
+    summary           : WARNING
+    """
+    [invoke check_status 0]
+
+    # verify daemon is not running
+    -$script
+    !ps ax
+    ?SH-PROMPT:

@@ -12,6 +12,7 @@
 -include("lux.hrl").
 
 -define(match_fail, match_timeout).
+-define(os_pid_wait_timeout_ms, 5000).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Client
@@ -100,6 +101,7 @@ init(C, ExtraLogs) when is_record(C, cstate) ->
                {"LUX_START_REASON", StartReason},
                {"LUX_EXTRA_LOGS", ExtraLogs},
                {"LUX_BIN", C#cstate.bin_dir},
+               {"LUX_PID", lux_pid:pid()},
                {"LUX_RUNPTY_MODE", WrapperMode}],
     WorkDir = filename:dirname(C2#cstate.main_file),
     Opts = [binary, stream, use_stdio, stderr_to_stdout, exit_status,
@@ -1518,12 +1520,12 @@ stop(C, Outcome0, Actual, PreEvents) when is_binary(Actual) orelse
     send_reply(C3, C3#cstate.parent, {stop, self(), Res}),
     if
         Outcome =:= shutdown ->
-            port_close_and_exit(C4, Outcome, Res);
+            port_close_wait_and_exit(C4, Outcome, Res);
         Outcome =:= error ->
-            port_close_and_exit(C4, {error, Actual}, Res);
+            port_close_wait_and_exit(C4, {error, Actual}, Res);
         true ->
-            %% Wait for potential cleanup to be run
-            %% before we close the port
+            %% Wait for potential cleanup to be run before we close the port
+            kill_and_wait_for_os_pid(C4),
             wait_for_down(C4, Res)
     end.
 
@@ -1604,6 +1606,46 @@ trace_interpreter_down(C, DownReason) ->
     TraceTo = C#cstate.name,
     ?TRACE_ME(50, TraceFrom, TraceTo, 'DOWN', [{reason, DownReason}]).
 
+port_close_wait_and_exit(C, DownReason, #result{} = Res) ->
+    ?TRACE_ME2(40, C#cstate.name, close_wait_and_exit, [Res]),
+    flush_logs(C),
+    kill_and_wait_for_os_pid(C),
+    catch port_close(C#cstate.port),
+    exit(DownReason).
+
+kill_and_wait_for_os_pid(#cstate{exit_status = undefined, port = Port} = C) ->
+    ParentTimeout = fun(Ms) -> C#cstate.parent ! {wait_for_os_pid, Ms} end,
+    case erlang:port_info(Port, os_pid) of
+        {os_pid, Pid} ->
+            %% extend timeout to allow for OS process cleanup
+            ParentTimeout(?os_pid_wait_timeout_ms),
+            try
+                kill_and_wait_for_os_pid(Port, Pid, [{15, 100}, {9, 5000}])
+            after
+                ParentTimeout(50)
+            end;
+        undefined ->
+            receive
+                {Port, {exit_status, ExitStatus}} ->
+                    ExitStatus
+            after ?os_pid_wait_timeout_ms ->
+                    -1
+            end
+    end;
+kill_and_wait_for_os_pid(#cstate{exit_status = ExitStatus}) ->
+    ExitStatus.
+
+kill_and_wait_for_os_pid(_Port, _Pid, []) ->
+    -1;
+kill_and_wait_for_os_pid(Port, Pid, [{Signum, Timeout}|T]) ->
+    ok = lux_pid:kill(Pid, Signum),
+    receive
+        {Port, {exit_status, ExitStatus}} ->
+            ExitStatus
+    after Timeout ->
+        kill_and_wait_for_os_pid(Port, Pid, T)
+    end.
+
 port_close_and_exit(C, DownReason, #result{} = Res) ->
     ?TRACE_ME2(40, C#cstate.name, close_and_exit, [Res]),
     catch port_close(C#cstate.port),
@@ -1681,7 +1723,7 @@ wait_for_down(C, Res) ->
             wait_for_down(C2, Res);
         {'DOWN', _, process, Pid, DownReason} when Pid =:= C#cstate.parent ->
             trace_interpreter_down(C, DownReason),
-            port_close_and_exit(C, DownReason, Res);
+            port_close_wait_and_exit(C, DownReason, Res);
         {Port, {exit_status, ExitStatus}} when Port =:= C#cstate.port ->
             C2 = flush_port(C, [{shell_exit, ExitStatus}]),
             wait_for_down(C2, Res);

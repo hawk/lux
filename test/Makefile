@@ -1,3 +1,6 @@
+OS=$(shell uname -s)
+export OS
+
 .PHONY: all debug clean info
 
 all debug:

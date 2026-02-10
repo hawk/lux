@@ -1432,10 +1432,16 @@ delete_shell(#istate{active_shell = ActiveShell, shells = OldShells} = I,
 
 kill_shell(Pid) ->
     exit(Pid, shutdown),
+    kill_shell_wait(Pid, 100).
+
+kill_shell_wait(Pid, TimeoutMs) ->
     receive
+        {wait_for_os_pid, NewTimeoutMs} ->
+            %% Wait for the process to exit and its OS pid to be released
+            kill_shell_wait(Pid, NewTimeoutMs);
         {'DOWN', _, process, Pid, _Reason} ->
             ok
-    after 100 ->
+    after TimeoutMs ->
             exit(Pid, kill)
     end.
 

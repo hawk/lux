@@ -1,0 +1,58 @@
+[doc]
+Test that verifies that stale processes get killed (Linux only).
+
+This verifies that stale processes started by the LUX script get killed by
+looking at the LUX_PID environment variable set in the process initial
+environment. The PID must match the current process PID.
+[enddoc]
+
+[config skip_unless=OS=Linux]
+
+[shell interactive_process]
+    # not going to be reported as a stale process as it will go down
+    # together with the shell
+    !python3
+    ?>>>
+
+[shell stale_process]
+    !script=`mktemp stale_process.XXXXXXXX`
+    ?SH-PROMPT:
+    !echo ==$$script==
+    ?==(stale_process\..*)==
+    [local script=$1]
+    ?SH-PROMPT:
+    !cat >$$script <<EOF
+    !import os
+    !import sys
+    !import time
+    !
+    !
+    !def daemonize():
+    !    try:
+    !        pid = os.fork()
+    !        if pid > 0:
+    !            sys.exit(0)
+    !    except OSError:
+    !        sys.exit(1)
+    !    os.setsid()
+    !    try:
+    !        pid = os.fork()
+    !        if pid > 0:
+    !            sys.exit(0)
+    !    except OSError as e:
+    !        sys.exit(1)
+    !    sys.stdout.close()
+    !    sys.stderr.close()
+    !
+    !
+    !if __name__ == '__main__':
+    !    daemonize()
+    !    while True:
+    !        time.sleep(10)
+    !EOF
+    ?SH-PROMPT:
+    [progress script ==$script==]
+    !python3 $$script
+    ?SH-PROMPT:
+    !rm -f $$script
+    ?SH-PROMPT:

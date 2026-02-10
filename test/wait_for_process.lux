@@ -1,0 +1,44 @@
+[doc]
+Verifies that LUX waits for the shell process to terminate.
+
+This test starts a process that will run for a long time and then verifies that
+LUX waits for it to terminate before exiting.
+[enddoc]
+
+[shell end-on-sigterm]
+    !exec sleep 60
+
+[shell ignore-sigterm]
+    !script=`mktemp wait_for_process.XXXXXXXX`
+    ?SH-PROMPT:
+    !echo ==$$script==
+    ?==(wait_for_process\..*)==
+    [global script=$1]
+    ?SH-PROMPT:
+    !cat >$$script <<EOF
+    !import signal
+    !import time
+    !
+    !
+    !if __name__ == '__main__':
+    !    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    !    while True:
+    !        print("Sleeping...")
+    !        time.sleep(60)
+    !EOF
+    ?SH-PROMPT:
+    [progress script ==$script==]
+    !exec python3 $$script
+    ???Sleeping...
+
+[shell shell-exit]
+    !echo "output"
+    ?SH-PROMPT:
+    !exit
+    [endshell 0]
+
+[cleanup]
+    # done
+    !rm -f $script
+    ?SH-PROMPT:
+

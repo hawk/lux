@@ -1,0 +1,28 @@
+[doc Wait for process exit test]
+
+[include include/macros.luxinc]
+
+[shell test]
+    -LUX ERROR
+    [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
+    !$${LUX_BIN}/lux --timeout=5000 \
+                --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME  \
+                wait_for_process.lux
+    ???test case         : wait_for_process.lux
+    ?script ==(wait_for_process\..*)==
+    [local script=$1]
+    """?
+    result            : SUCCESS
+    
+    successful        : 1
+    summary           : SUCCESS
+    """
+    [invoke check_status 0]
+
+    # verify daemon is not running
+    -$script
+    !ps ax
+    ?SH-PROMPT:
+    -
+    !rm -f $script
+    ?SH-PROMPT:

@@ -450,8 +450,12 @@ quit:
     }
 
     if (WIFSIGNALED(status)) {
-        fprintf(stderr, "runpty error: Child terminated by signal %d\n",
-                WTERMSIG(status));
+        /* not printing SIGHUP as an error, terminal goes away process
+           goes down. */
+        if (WTERMSIG(status) != SIGHUP) {
+            fprintf(stderr, "runpty error: Child terminated by signal %d\n",
+                    WTERMSIG(status));
+        }
         dbg_printf("Child terminated by signal %d\n",
                    WTERMSIG(status));
         dbg_exit(1);
