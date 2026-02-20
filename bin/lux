@@ -292,7 +292,7 @@ steal_signals() ->
 
 do_steal_signals() ->
     Pid = spawn_link(fun echo_signals/0),
-    catch erlang:unregister(erl_signal_server),
+    try erlang:unregister(erl_signal_server) catch _C:_E_:_S -> ok end,
     true = erlang:register(erl_signal_server, Pid),
                                     % io:format("ospid=~s\n", [os:getpid()]),
     os:set_signal(sigusr1, handle), % io:format("sigusr1=crashdump\n", []),

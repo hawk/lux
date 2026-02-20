@@ -78,6 +78,9 @@ init(Ipid, DebugFile) ->
             loop(NewDstate#dstate{prev_cmd=DefaultCmd})
     end.
 
+catch_format(Fmt, Args) ->
+    try format(Fmt, Args) catch _:_ -> ok end.
+
 loop(#dstate{mode=Mode} = Dstate) ->
     N = Dstate#dstate.n_cmds,
     case io:get_line("") of
@@ -85,11 +88,11 @@ loop(#dstate{mode=Mode} = Dstate) ->
             %% Closed already at startup
             exit(normal);
         eof ->
-            catch format("\nEOF: stdin closed\n", []),
+            catch_format("\nEOF: stdin closed\n", []),
             exit(normal);
         {error, Reason} ->
             ReasonStr = file:format_error(Reason),
-            catch format("\nERROR: ~s\n", [ReasonStr]),
+            catch_format("\nERROR: ~s\n", [ReasonStr]),
             exit(Reason);
         "\"\"\n" when Mode =:= foreground->
             %% Found """. Exit foreground mode
@@ -117,8 +120,7 @@ loop(#dstate{mode=Mode} = Dstate) ->
             loop(Dstate2#dstate{n_cmds=N+1, prev_cmd=CmdStr})
     end.
 
-call(Dstate, Cmd) when is_list(Cmd) -> % ; is_function(Cmd, 2) ->
-    %% format("DEBUG: ~p\n", [CmdStr]),
+call(Dstate, Cmd) when is_list(Cmd) ->
     Ipid = Dstate#dstate.interpreter_pid,
     NewDstate = flush_replies(Dstate, Ipid),
     Ipid = NewDstate#dstate.interpreter_pid,
@@ -1161,14 +1163,15 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             UserN = undefined
     end,
     {I2, Logs} = all_logs(I),
-    case catch lists:nth(Index, Logs) of
-        {'EXIT', _} ->
+    try
+        LogFile = lists:nth(Index, Logs),
+        tail(I2, LogFile, CmdState, Format, UserN)
+    catch
+        Class:_Reason when Class == error orelse Class == exit ->
             format("ERROR: ~p is not a valid log index."
                    " Must be within ~p..~p.\n",
                    [Index, 1, length(Logs)]),
-            {CmdState, I2};
-        LogFile ->
-            tail(I2, LogFile, CmdState, Format, UserN)
+            {CmdState, I2}
     end.
 
 all_logs(#istate{main_file = MainFile,
@@ -1330,8 +1333,6 @@ do_list(#istate{main_file = MainFile, orig_commands = OrigCmds} = I,
         PrevRevFile, RevFile, First, N,
         [#cmd_pos{rev_file = CurrRevFile, lineno = CurrLineNo} | _]) ->
     Last = First+N-1,
-    %% format("List source lines ~p..~p of file ~s\n",
-    %%          [First, Last, lux_utils:pretty_filename(RevFile)]),
     if
         PrevRevFile =/= RevFile ->
             format("\nFile ~s:\n", [lux_utils:pretty_filename(RevFile)]);
@@ -1668,9 +1669,6 @@ full_lineno_to_static_break_pos(FullLineNo) ->
     #cmd_pos{rev_file = RevFile, lineno = LineNo} = hd(FullLineNo),
     {RevFile, LineNo}.
 
-%% full_lineno_to_dynamic_break_pos(FullLineNo) ->
-%%     [LineNo || {_File, LineNo, _Type} <- FullLineNo].
-
 break_to_full_lineno(I, BreakPos, Scope) ->
     case Scope of
         rest ->
@@ -1708,9 +1706,6 @@ collect_break(#cmd{type = CmdType, lineno = LineNo, arg = CmdArg},
 pretty_break_pos({RevFile, LineNo}) when is_integer(LineNo) ->
     %% Static
     lists:flatten([lux_utils:pretty_filename(RevFile), ":", ?i2l(LineNo)]);
-%% pretty_break_pos([LineNo]) when is_integer(LineNo) ->
-%%     %% Dynamic
-%%     ?i2l(LineNo);
 pretty_break_pos(RevLineNoList) when length(RevLineNoList) > 1 ->
     %% Dynamic
     [LineNo | LineNoList] = lists:reverse(RevLineNoList),

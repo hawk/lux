@@ -864,9 +864,14 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
         lux_utils:progress_write(AfterI#istate.progress, ")"),
         AfterExit =
             fun() ->
-                    catch timestamp_ilog(AfterI, "file_exit ~p ~p ~p ~p\n",
+                    try
+                        timestamp_ilog(AfterI, "file_exit ~p ~p ~p ~p\n",
                                          [InvokeLineNo, FirstLineNo,
                                           LastLineNo, CurrFile])
+                    catch
+                        throw:Reason -> Reason;
+                        _Class:Reason -> {'EXIT', Reason}
+                    end
             end,
         AfterI2 = adjust_stacks('after', AfterI, Cmd, OldStack,
                                 AfterExit, IsRootLoop),
@@ -891,9 +896,14 @@ eval_body(OldI, InvokeLineNo, FirstLineNo, LastLineNo,
             lux_utils:progress_write(OldI#istate.progress, ")"),
             BeforeExit =
                 fun() ->
-                        catch timestamp_ilog(BeforeI2,"file_exit ~p ~p ~p ~p\n",
+                        try
+                            timestamp_ilog(BeforeI2,"file_exit ~p ~p ~p ~p\n",
                                              [InvokeLineNo, FirstLineNo,
                                               LastLineNo, CurrFile])
+                        catch
+                            throw:Reason -> Reason;
+                            _Class:Reason -> {'EXIT', Reason}
+                        end
                 end,
             if
                 Class =:= throw, element(1, Reason) =:= error ->

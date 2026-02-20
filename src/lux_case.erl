@@ -757,8 +757,8 @@ unstable_warnings(#istate{unstable=U,
                           latest_cmd = LatestCmd} = I) ->
     FullLineNo = ?i2l(LatestCmd#cmd.lineno),
     F = fun(Var, NameVal) -> filter_unstable(I, FullLineNo, Var, NameVal) end,
-    Unstable = lists:zf(fun(Val) -> F("unstable", Val) end, U),
-    UnstableUnless = lists:zf(fun(Val) -> F("unstable_unless", Val) end, UU),
+    Unstable = lists:filtermap(fun(Val) -> F("unstable", Val) end, U),
+    UnstableUnless = lists:filtermap(fun(Val) -> F("unstable_unless", Val) end, UU),
     Unstable ++ UnstableUnless.
 
 filter_unstable(#istate{skip_skip = true}, _FullLineNo, _Var, _NameVal) ->

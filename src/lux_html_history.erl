@@ -474,7 +474,7 @@ gen_table(AbsHtmlDir, MultiBranch, Page, TagDict) ->
     io:format("\t\tGenerate rows\n", []),
     HostMap = maps:new(),
     RevSplitIds = lists:reverse(SplitIds),
-    Rows = lists:zf(fun({Test, TestRuns}) ->
+    Rows = lists:filtermap(fun({Test, TestRuns}) ->
                             gen_row(AbsHtmlDir, Test, TestRuns, RevSplitIds,
                                     MultiBranch, TagDict,
                                     Select, Suppress, HostMap)
@@ -1207,7 +1207,7 @@ parse_summary_logs(Source, RelHtmlDir,
                            (_Skip) ->
                                 false
                         end,
-                    Files = lists:zf(Extract, Links),
+                    Files = lists:filtermap(Extract, Links),
                     %% io:format("\nLINKS ~p\n", [Files]),
                     parse_summary_files(Source, RelHtmlDir, RelDir, Files,
                                         Threshold, Newest,
