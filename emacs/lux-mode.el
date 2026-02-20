@@ -49,7 +49,7 @@
     ))
 
 (defvar lux-meta-commands
-  '("my" "local" "global" "config" "include"))
+  '("my" "local" "global" "config" "include\_always" "include"))
 
 (defvar lux-events
   '("set-line-terminator" "reset-line-terminator" "set-timestamp"))

@@ -1,0 +1,4 @@
+[shell test]
+    [progress \nprint always\n]
+    !echo "print always"
+    ?SH-PROMPT:

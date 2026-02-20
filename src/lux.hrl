@@ -237,7 +237,10 @@
          latest_cmd = #cmd{type = comment, lineno = 0, orig = <<>>}
                                     :: #cmd{},
          stopped_by_user            :: undefined | 'case' | suite,
-         escript_mod                :: atom()}).
+         escript_mod                :: atom(),
+         %% List of all included files (absolute path), used by
+         %% include to avoid including the same file multiple times.
+         included_files = #{}       :: #{string() => true}}).
 
 -record(run,
         {test = ?DEFAULT_SUITE

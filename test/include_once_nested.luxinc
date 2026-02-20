@@ -1,0 +1,3 @@
+# ensure include_once works across multiple LUX files
+[include include_once.luxinc]
+[include "$VAR/include_once.luxinc"]

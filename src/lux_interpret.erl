@@ -675,21 +675,7 @@ dispatch_cmd(I,
         newshell ->
             ensure_shell(I, Cmd);
         include ->
-            {include, InclFile, FirstLineNo, LastLineNo, InclCmds} = Arg,
-            ilog(I, "include_file \"~s\"\n",
-                 [InclFile],
-                 I#istate.active_name, LineNo),
-            case lux_case:copy_orig(I, InclFile) of
-                {ok, _} ->
-                    eval_include(I, LineNo, FirstLineNo, LastLineNo,
-                                 InclFile, InclCmds, Cmd);
-                {error, FileReason} ->
-                    CaseLogDir = I#istate.case_log_dir,
-                    Reason =
-                        ["Cannot copy file ", InclFile, " to ", CaseLogDir,
-                         ": ", file:format_error(FileReason)],
-                    handle_error(I, ?l2b(Reason))
-            end;
+            cmd_include(I, Cmd, Arg);
         macro ->
             I;
         invoke ->
@@ -724,6 +710,38 @@ dispatch_cmd(I,
         _ ->
             %% Send next command to active shell
             shell_eval(I, Cmd)
+    end.
+
+cmd_include(#istate{included_files = IncludedFiles} = I, Cmd,
+            {include, InclFile, _FirstLineNo, _LastLineNo, _InclCmds,
+             _Once = true} = Arg) ->
+    case maps:is_key(InclFile, IncludedFiles) of
+        true ->
+            ilog(I, "skip include_file \"~s\", already included\n", [InclFile],
+                 I#istate.active_name, Cmd#cmd.lineno),
+            I;
+        false ->
+            do_cmd_include(I, Cmd, Arg)
+    end;
+cmd_include(I, Cmd, Arg) ->
+    do_cmd_include(I, Cmd, Arg).
+
+do_cmd_include(#istate{included_files = IncludedFiles0} = I, Cmd,
+               {include, InclFile, FirstLineNo, LastLineNo, InclCmds, _Once}) ->
+    ilog(I, "include_file \"~s\"\n", [InclFile],
+         I#istate.active_name, Cmd#cmd.lineno),
+    case lux_case:copy_orig(I, InclFile) of
+        {ok, _} ->
+            IncludedFiles = IncludedFiles0#{InclFile => true},
+            eval_include(I#istate{included_files = IncludedFiles},
+                         Cmd#cmd.lineno, FirstLineNo, LastLineNo,
+                         InclFile, InclCmds, Cmd);
+        {error, FileReason} ->
+            CaseLogDir = I#istate.case_log_dir,
+            Reason =
+                ["Cannot copy file ", InclFile, " to ", CaseLogDir,
+                 ": ", file:format_error(FileReason)],
+            handle_error(I, ?l2b(Reason))
     end.
 
 cleanup_cmd(I, Cmd, Name) ->

@@ -1,0 +1,9 @@
+[doc]
+Test that verifies include_always includes files every time.
+
+For include files that execute script code, include_always can be used to
+execute the script multiple times.
+[enddoc]
+
+[include_always include_always.luxinc]
+[include_always include_always.luxinc]

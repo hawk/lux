@@ -36,7 +36,7 @@ parse_file(RelFile, RunMode, SkipUnstable, SkipSkip, CheckDoc, Opts) ->
                     Fun =
                         fun(#cmd{} = Cmd, _F, _PosStack, Acc) ->
                                 case Cmd#cmd.arg of
-                                    {include, AbsInclFile, _, _, _} ->
+                                    {include, AbsInclFile, _, _, _, _} ->
                                         I = lux_utils:drop_prefix(AbsInclFile),
                                         io:format("### Include file: ~s\n",
                                                   [I]);
@@ -786,8 +786,10 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
             {P, Cmd#cmd{type = progress, arg = String}};
         "debug " ++ DbgCmd ->
             {P, Cmd#cmd{type = debug, arg = DbgCmd}};
+        "include_always " ++ RelFile ->
+            parse_include(P, Fd, Cmd, RelFile, LineNo, _Once = false);
         "include " ++ RelFile ->
-            parse_include(P, Fd, Cmd, RelFile, LineNo);
+            parse_include(P, Fd, Cmd, RelFile, LineNo, _Once = true);
         "macro " ++ Head ->
             case string:tokens(Head, " ") of
                 [Name | ArgNames] ->
@@ -843,12 +845,20 @@ parse_meta_token(P, Fd, Cmd, Meta, LineNo) ->
                          Bad, "'"])
     end.
 
-parse_include(P, Fd, Cmd, RelFile, LineNo) ->
+parse_include(P, Fd, Cmd, RelFile, LineNo, Once) ->
     CurrFile = P#pstate.curr_file,
     Dir = filename:dirname(CurrFile),
     CurrPosStack = P#pstate.pos_stack,
-    RelFile2 = expand_vars(P, Fd, RelFile, LineNo),
-    AbsFile = filename:absname(RelFile2, Dir),
+    %% dropping quotes around RelFile as expansion of variables will
+    %% add another level of quotes creating invalid paths.
+    RelFile2 = case {RelFile, lists:last(RelFile)} of
+                   {[$"|RelFile1], $"} ->
+                       lists:droplast(RelFile1);
+                   _ ->
+                       RelFile
+               end,
+    RelFile3 = expand_vars(P, Fd, RelFile2, LineNo),
+    AbsFile = filename:absname(RelFile3, Dir),
     AbsFile2 = lux_utils:normalize_filename(AbsFile),
     try
         NewPosStack = cmd_pos_stack(P, Cmd),
@@ -859,7 +869,7 @@ parse_include(P, Fd, Cmd, RelFile, LineNo) ->
         Cmd2 = Cmd#cmd{type = include,
                        arg = {include, AbsFile2,
                               FirstLineNo, LastLineNo,
-                              InclCmds}},
+                              InclCmds, Once}},
         {P2#pstate{curr_file = CurrFile, pos_stack = CurrPosStack}, Cmd2}
     catch
         throw:{skip, ErrorStack, Reason} ->

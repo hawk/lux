@@ -1,0 +1,7 @@
+[macro conflict-if-included-multiple-times]
+[endmacro]
+
+[shell test]
+    [progress \nprint once\n]
+    !echo "print once"
+    ?SH-PROMPT:

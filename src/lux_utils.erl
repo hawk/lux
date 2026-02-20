@@ -517,35 +517,52 @@ foldl_cmds(Fun, Acc, File, PosStack, Cmds) ->
 %%        | include      - do also iterate over include files
 %%        | static       - do also iterate over loops and macros
 %%        | {dynamic, I} - do also iterate over macros invokations
-foldl_cmds(Fun, Acc, File, PosStack, Cmds, Depth) when is_atom(Depth) ->
-    foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, undefined});
-foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, OptI})
+foldl_cmds(Fun, Acc, File, PosStack, Cmds, Depth) ->
+    {Acc1, _IncludedFiles} =
+        foldl_cmds(Fun, Acc, File, PosStack, Cmds, Depth, #{}),
+    Acc1.
+
+foldl_cmds(Fun, Acc, File, PosStack, Cmds, Depth, IncludedFiles)
+  when is_atom(Depth) ->
+    foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, undefined},
+               IncludedFiles);
+foldl_cmds(Fun, Acc, File, PosStack, Cmds, {Depth, OptI}, IncludedFiles)
   when Depth =:= main; Depth =:= include; Depth =:= static; Depth =:= dynamic ->
     File2 = drop_prefix(File),
     RevFile = filename_split(File2),
-    do_foldl_cmds(Fun, Acc, File2, RevFile, PosStack, Cmds, {Depth, OptI}).
+    do_foldl_cmds(Fun, Acc, File2, RevFile, PosStack, Cmds, {Depth, OptI},
+                  IncludedFiles).
 
-do_foldl_cmds(Fun, Acc, File, RevFile, PosStack, [Cmd | Cmds], FullDepth) ->
+do_foldl_cmds(Fun, Acc, File, RevFile, PosStack, [Cmd | Cmds], FullDepth,
+              IncludedFiles0) ->
     #cmd{type = Type, lineno = LineNo, arg = Arg} = Cmd,
     {Depth, OptI} = FullDepth,
     CmdPos = cmd_pos(File, Cmd),
     SubFun =
-        fun(SubFile, SubCmds, SubStack) ->
+        fun(SubFile, SubCmds, SubStack, IncludedFiles) ->
                 SubAcc = Fun(Cmd, RevFile, SubStack, Acc),
-                foldl_cmds(Fun, SubAcc, SubFile, SubStack, SubCmds, FullDepth)
+                foldl_cmds(Fun, SubAcc, SubFile, SubStack, SubCmds, FullDepth,
+                           IncludedFiles)
         end,
-    Acc2 =
+    {Acc2, IncludedFiles2} =
         case Type of
             include when Depth =:= include;
                          Depth =:= static;
                          Depth =:= dynamic ->
-                {include, SubFile, _FirstLineNo, _LastFileNo, SubCmds} = Arg,
-                SubFun(SubFile, SubCmds, [CmdPos | PosStack]);
+                {include, SubFile, _FirstLineNo, _LastFileNo, SubCmds,
+                 Once} = Arg,
+                case maps:is_key(SubFile, IncludedFiles0) of
+                    true when Once ->
+                        {Acc, IncludedFiles0};
+                    _ ->
+                        SubFun(SubFile, SubCmds, [CmdPos | PosStack],
+                               IncludedFiles0#{SubFile => true})
+                end;
             macro when Depth =:= static;
                        Depth =:= dynamic ->
                 {macro, _Name, _ArgNames, _FirstLineNo, _LastLineNo, Body} =
                     Arg,
-                SubFun(File, Body, [CmdPos | PosStack]);
+                SubFun(File, Body, [CmdPos | PosStack], IncludedFiles0);
             loop when Depth =:= static;
                       Depth =:= dynamic ->
                 {loop, _Name, _ItemStr, _FirstLineNo, _LastLineNo, Body} = Arg,
@@ -553,7 +570,7 @@ do_foldl_cmds(Fun, Acc, File, RevFile, PosStack, [Cmd | Cmds], FullDepth) ->
                                    lineno = LineNo,
                                    type = iteration},
                 SubStack = [LoopPos, CmdPos | PosStack],
-                SubFun(File, Body, SubStack);
+                SubFun(File, Body, SubStack, IncludedFiles0);
             invoke when Depth =:= dynamic ->
                 case lux_interpret:lookup_macro(OptI, Cmd) of
                     {ok, _NewCmd, [#macro{file = MacroFile, cmd = MacroCmd}]} ->
@@ -561,18 +578,21 @@ do_foldl_cmds(Fun, Acc, File, RevFile, PosStack, [Cmd | Cmds], FullDepth) ->
                         {macro, _Name, _ArgNames,
                          _FirstLineNo, _LastLineNo, Body} =
                             MacroArg,
-                        SubFun(MacroFile, Body, [CmdPos | PosStack]);
+                        SubFun(MacroFile, Body, [CmdPos | PosStack],
+                               IncludedFiles0);
                 _NoMatch ->
                         %% Ignore non-existent macro
-                        Acc
+                        {Acc, IncludedFiles0}
                 end;
             _ ->
-                Fun(Cmd, RevFile, PosStack, Acc)
+                {Fun(Cmd, RevFile, PosStack, Acc), IncludedFiles0}
         end,
-    do_foldl_cmds(Fun, Acc2, File, RevFile, PosStack, Cmds, FullDepth);
-do_foldl_cmds(_Fun, Acc, _File, _RevFile, _PosStack, [], FullDepth) ->
+    do_foldl_cmds(Fun, Acc2, File, RevFile, PosStack, Cmds, FullDepth,
+                  IncludedFiles2);
+do_foldl_cmds(_Fun, Acc, _File, _RevFile, _PosStack, [], FullDepth,
+              IncludedFiles) ->
     {_Depth, _OptI} = FullDepth,
-    Acc.
+    {Acc, IncludedFiles}.
 
 full_lineno(File, Cmd, PosStack) ->
     CmdPos = cmd_pos(File, Cmd),
@@ -604,7 +624,7 @@ cmd_pos(RevFile, LineNo, Type, Arg) ->
         {body, macro, Name, _ArgNames}
           when Type =:= macro ->
             ok;
-        {include, Name, _FirstLineNo, _LastLineNo, _InclCmds}
+        {include, Name, _FirstLineNo, _LastLineNo, _InclCmds, _Once}
           when Type =:= include ->
             ok;
         _ ->

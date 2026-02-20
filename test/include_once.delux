@@ -1,0 +1,21 @@
+[doc Verify inclusion of single includes]
+
+[include include/macros.luxinc]
+
+[shell test]
+    -LUX ERROR
+    [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
+    [invoke eval $OK "export VAR=../test"]
+    !$${LUX_BIN}/lux --timeout=5000 \
+                --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME  \
+                include_once.lux
+    ???test case         : include_once.lux
+    ?print once
+    -print once
+    """?
+    result            : SUCCESS
+    
+    successful        : 1
+    summary           : SUCCESS
+    """
+    [invoke check_status 0]

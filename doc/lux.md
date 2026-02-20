@@ -1530,6 +1530,14 @@ The **environment variable** `LUX_BIN` is set to the directory where
 the `lux` escript resides.
 
 **\[include FileName\]**  
+Checks if script at this point has been included before, if not,
+includes and runs the specified script at this point. The `FileName`
+is relative to the currently executing script, unless given as an
+absolute path. `.luxinc` is preferred as file extension. Variables in
+`FileName` are expanded during parsing of the script, before execution
+of the script.
+
+**\[include_always FileName\]**  
 Includes and runs the specified script at this point. The `FileName`
 is relative to the currently executing script, unless given as an
 absolute path. `.luxinc` is preferred as file extension. Variables in
@@ -1604,6 +1612,18 @@ assigns a value to a variable with a very limited scope. Works like
 `[global]`, but can only be set and used in a macro or loop. The
 variable setting is only valid within the macro that assigns the
 variable.
+
+####Optional Assignment####
+
+Variables can be set only if they do not hold a value by using `?=`
+syntax instead of `=`.
+
+This is practical for providing defaults in scripts like:
+
+    [global WORKERS?=10]
+
+If WORKERS has not been set in the environment when the scripts start,
+it will be set to 10 otherwise the environment provided value will be used.
 
 ###Multi-line values in variables###
 
@@ -1781,11 +1801,11 @@ specified with the `--timeout` configuration parameter. The timeout
 value `infinity` means infinity.
 
 **\[sleep Seconds\]**  
-waits given number of seconds before proceeding in the script. No
-`multiplier` factor is applied. The `sleep` command should be avoided
-if possible. It absolutely not intended to be used for solving race
-conditions. Find out some way to synchronize the test case properly
-instead.
+Waits given number of seconds (fractions are supported) before
+proceeding in the script. No `multiplier` factor is applied. The
+`sleep` command should be avoided if possible. It absolutely not
+intended to be used for solving race conditions. Find out some way to
+synchronize the test case properly instead.
 
 **\[progress String\]**  
 Displays `String` on the `stdout` stream together with the rest of the

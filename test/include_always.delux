@@ -1,0 +1,20 @@
+[doc Verify inclusion of always includes]
+
+[include include/macros.luxinc]
+
+[shell test]
+    -LUX ERROR
+    [invoke eval $OK "mkdir -p $LUX_EXTRA_LOGS/$LUX_SHELLNAME"]
+    !$${LUX_BIN}/lux --timeout=5000 \
+                --log_dir=$LUX_EXTRA_LOGS/$LUX_SHELLNAME  \
+                include_always.lux
+    ???test case         : include_always.lux
+    ?print always
+    ?print always
+    """?
+    result            : SUCCESS
+    
+    successful        : 1
+    summary           : SUCCESS
+    """
+    [invoke check_status 0]

@@ -1,0 +1,14 @@
+[doc]
+Test that verifies include only including a file once.
+
+To make it easier to manage macro dependencies, include was changed to
+ensure a file is included without having to worry about it being
+included multiple times.
+[enddoc]
+
+[config require=VAR]
+
+[include ./include_once.luxinc]
+[include include_once.luxinc]
+[include ../test/include_once.luxinc]
+[include include_once_nested.luxinc]

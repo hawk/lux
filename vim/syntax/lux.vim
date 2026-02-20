@@ -28,7 +28,8 @@ syn match luxNumArg /[0-9]\+/ contained nextgroup=luxMetaEnd skipwhite
 syn match luxVarArg /\(\$\)\@1<!\$[a-zA-Z0-9_]\+/ contained
             \ nextgroup=luxMetaEnd skipwhite
 
-syn keyword luxKeyword config include contained nextgroup=luxArgs skipwhite
+syn keyword luxKeyword config include include_always contained
+            \ nextgroup=luxArgs skipwhite
 syn keyword luxKeyword shell contained nextgroup=luxArgs skipwhite
 syn keyword luxKeyword newshell contained nextgroup=luxArgs skipwhite
 syn keyword luxKeyword pattern_mode contained nextgroup=luxArgs skipwhite
