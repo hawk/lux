@@ -85,11 +85,11 @@ loop(#dstate{mode=Mode} = Dstate) ->
             %% Closed already at startup
             exit(normal);
         eof ->
-            catch format("\nEOF: stdin closed\n", []),
+            try format("\nEOF: stdin closed\n", []) catch _:_ -> ok end,
             exit(normal);
         {error, Reason} ->
             ReasonStr = file:format_error(Reason),
-            catch format("\nERROR: ~s\n", [ReasonStr]),
+            try format("\nERROR: ~s\n", [ReasonStr]) catch _:_ -> ok end,
             exit(Reason);
         "\"\"\n" when Mode =:= foreground->
             %% Found """. Exit foreground mode
@@ -1161,14 +1161,15 @@ cmd_tail(I, [{"index", Index} | Rest], CmdState) ->
             UserN = undefined
     end,
     {I2, Logs} = all_logs(I),
-    case catch lists:nth(Index, Logs) of
-        {'EXIT', _} ->
+    try
+        LogFile = lists:nth(Index, Logs),
+        tail(I2, LogFile, CmdState, Format, UserN)
+    catch
+        Class:_Reason when Class == error orelse Class == exit ->
             format("ERROR: ~p is not a valid log index."
                    " Must be within ~p..~p.\n",
                    [Index, 1, length(Logs)]),
-            {CmdState, I2};
-        LogFile ->
-            tail(I2, LogFile, CmdState, Format, UserN)
+            {CmdState, I2}
     end.
 
 all_logs(#istate{main_file = MainFile,

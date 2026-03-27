@@ -526,7 +526,7 @@ test(N, Max, Var) ->
         end,
     A = Populate(),
     B = Populate(),
-    case catch test2(A, B) of
+    case test2(A, B) of
         {ok, Time1, Time2} when (N rem 10) =:= 0 ->
             C = A -- (A -- B),
             D = B -- (B -- A),
@@ -547,7 +547,7 @@ test(N, Max, Var) ->
                        case Time2 of 0 -> 0; _ -> Time1 div Time2 end]);
         {ok, _Time1, _Time2} ->
             ok;
-        {'EXIT', Reason} = Exit ->
+        {error, Reason} = Exit ->
             io:format("Test ~p failed for:\n"
                       "  ~p:test2(\n"
                       "      ~p\n,"

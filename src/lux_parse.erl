@@ -178,7 +178,7 @@ updated_opts(I, DefaultI) ->
                              {true, {Tag, New}}
                      end
              end,
-    Args = lists:zf(Filter, Candidates),
+    Args = lists:filtermap(Filter, Candidates),
     lux_suite:args_to_opts(Args, case_style, []).
 
 parse_file2(P) ->

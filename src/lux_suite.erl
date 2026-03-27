@@ -636,7 +636,7 @@ filter_rerun_files(R, InitialRes) ->
                         Return(error, Script)
                 end
         end,
-    lists:zf(Filter, InitialRes).
+    lists:filtermap(Filter, InitialRes).
 
 parse_ropts([{Name, Val} = NameVal | T], R) ->
     case Name of

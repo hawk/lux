@@ -313,7 +313,7 @@ app_has_feature(AppName, LowestVersion, Require, RA) ->
 filter_apps(AppConds, _IsCross, true, _MA) ->
     [{app, AppName, [{incl_cond,InclCond}]} || {AppName,InclCond} <- AppConds];
 filter_apps(AppConds, _IsCross, false, MA) ->
-    lists:zf(fun({AppName, InclCond}) ->
+    lists:filtermap(fun({AppName, InclCond}) ->
                      case application:load(AppName) of
                          ok ->
                              {true, {app, AppName, [{incl_cond, InclCond}]}};
