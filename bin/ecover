@@ -739,7 +739,7 @@ find_test_case_lines(TestCaseModLines, Mod) ->
         M =:= Mod].
 
 test_case_mod_lines(DataDirs)  ->
-    lists:flatten(lists:zf(fun dir_filter/1, DataDirs)).
+    lists:flatten(lists:filtermap(fun dir_filter/1, DataDirs)).
 
 mod_lines_test_case(TestCaseModLines) ->
     SplitTestCaseModLines = split_mod_lines(TestCaseModLines),
@@ -787,7 +787,7 @@ split_test_cases([], Acc) ->
 
 dir_filter(Dir) ->
     CoverDataFiles = find_cover_data_files(Dir),
-    case lists:zf(fun mod_filter/1, CoverDataFiles) of
+    case lists:filtermap(fun mod_filter/1, CoverDataFiles) of
         []       -> false;
         ModLines -> {true, ModLines}
     end.

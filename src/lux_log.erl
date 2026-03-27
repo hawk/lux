@@ -436,7 +436,7 @@ split_config(ConfigBins) ->
                         false
                 end
         end,
-    lists:zf(Split, ConfigBins).
+    lists:filtermap(Split, ConfigBins).
 
 parse_run_case(NewLogDir, RunDir, OrigRunDir, RunLogDir, OrigLogDir,
                StartTime, Branch, Host, ConfigName,
@@ -609,7 +609,7 @@ pick_result(SuiteResults, Outcome) when Outcome =:= error ->
            ({suite_error, Script, FullLineNo, Reason}) ->
                 {true, {Script, FullLineNo, Reason}}
         end,
-    lists:zf(Filter, SuiteResults);
+    lists:filtermap(Filter, SuiteResults);
 pick_result(Warnings, Outcome) when Outcome =:= warning ->
     Filter =
         fun(#warning{file = Script,
@@ -642,7 +642,7 @@ pick_result(SuiteResults, Outcome) ->
            ({suite_error, _Script, _FullLineNo, _Reason}) ->
                 false
         end,
-    lists:zf(MatchRes, SuiteResults).
+    lists:filtermap(MatchRes, SuiteResults).
 
 result_format(Progress, {IsTmp, Fd}, Format, Args) ->
     IoList = ?FF(Format, Args),

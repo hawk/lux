@@ -1195,14 +1195,19 @@ match_single(Actual, MP, RegExp) ->
     {Matches, single}.
 
 re_run(Actual, MP, Opts, _RegExp) ->
-    Matches = (catch re:run(Actual, MP, Opts)),
-%%     io:format("\nre:run(~p,"
+    try  
+        Matches = re:run(Actual, MP, Opts),
+%%        io:format("\nre:run(~p,"
 %%               "\n       ~p,"
 %%               "\n       ~p)."
 %%               "\n       -> ~p\n",
 %%               [Actual, _RegExp, Opts, Matches]),
-%%     display_total(Actual, Matches),
-    Matches.
+%%        display_total(Actual, Matches),
+        Matches
+    catch
+        throw:Reason -> Reason;
+        _Class:Reason -> {'EXIT', Reason}
+    end.
 
 %% display_total(Actual, {match, Matches}) ->
 %%     {S,M,R,_} = split_total(Actual, Matches, noendshell),
@@ -1606,7 +1611,7 @@ trace_interpreter_down(C, DownReason) ->
 
 port_close_and_exit(C, DownReason, #result{} = Res) ->
     ?TRACE_ME2(40, C#cstate.name, close_and_exit, [Res]),
-    catch port_close(C#cstate.port),
+    try port_close(C#cstate.port) catch _:_ -> ok end,
     exit(DownReason).
 
 close_logs_and_exit(C, IE) when element(1, IE) =:= internal_error ->
@@ -1646,8 +1651,8 @@ error_to_result(C, IE) ->
 
 close_logs(#cstate{stdin_log_fd = {_,InFd}, stdout_log_fd = {_,OutFd}} = C) ->
     ?TRACE_ME2(40, C#cstate.name, close_logs, []),
-    catch file:close(InFd),
-    catch file:close(OutFd),
+    try file:close(InFd) catch _:_ -> ok end,
+    try file:close(OutFd) catch _:_ -> ok end,
     C#cstate{log_fun = closed,
              event_log_fd  = closed, % Leave the log open for other processes
              stdin_log_fd  = closed,

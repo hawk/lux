@@ -618,7 +618,7 @@ pretty_stack(OrigFile, FullStack) ->
                      RelFile = drop_prefix(Dir, pretty_filename(RevFile)),
                      {true, {RelFile ++ ":" ++ ?i2l(L), CmdPos}}
              end,
-    lists:zf(Pretty, FullStack).
+    lists:filtermap(Pretty, FullStack).
 
 pretty_filename(RevFile) ->
     filename:join(lists:reverse(RevFile)).
