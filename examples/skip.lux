@@ -5,5 +5,8 @@
 [config skip=SKIP_JAVA]
 [config skip_unless=TEST_SUNOS]
 
+[config skip=PRODUCT_VERSION~=1\.2\..*]
+
+
 [shell foo]
     ?bar

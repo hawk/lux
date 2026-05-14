@@ -492,7 +492,7 @@ opt_add_empty_warning(P, Cmd, OptMulti, EmptyBlob) ->
 
 parse_var(P, Fd, Cmd, Scope, String) ->
     case lux_utils:split_var(String, []) of
-        {Var, Val} ->
+        {Var, Val, _IsReg} ->
             {P, Cmd#cmd{type = variable, arg = {Scope, Var, Val}}};
         false ->
             LineNo = Cmd#cmd.lineno,
